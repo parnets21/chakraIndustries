@@ -1,5 +1,3 @@
-import React from 'react';
-
 export default function LineChart({ data, color = '#c0392b', height = 180 }) {
   const values = data.map(d => d.value);
   const max = Math.max(...values, 1);

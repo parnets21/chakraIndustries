@@ -49,8 +49,8 @@ export default function ProcurementPage() {
   const [showPOModal, setShowPOModal] = useState(false);
   const [prStep, setPrStep] = useState(1);
 
-  const subtotal = poItems.reduce((s, i) => s + i.qty * i.basePrice, 0);
-  const gstTotal = poItems.reduce((s, i) => s + (i.qty * i.basePrice * i.gst / 100), 0);
+  const subtotal   = poItems.reduce((s, i) => s + i.qty * i.basePrice, 0);
+  const gstTotal   = poItems.reduce((s, i) => s + (i.qty * i.basePrice * i.gst / 100), 0);
   const grandTotal = subtotal + gstTotal;
 
   return (
@@ -58,7 +58,7 @@ export default function ProcurementPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
           <div className="page-title">Procurement</div>
-          <div className="breadcrumb"><span>Home</span><span>›</span><span className="current">Procurement</span></div>
+          <div className="breadcrumb"><span>Home</span><span>›</span><span className="current">/procurement</span></div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn btn-outline" onClick={() => setShowVendorModal(true)}>+ Add Vendor</button>
@@ -70,7 +70,6 @@ export default function ProcurementPage() {
         {tabs.map((t, i) => <div key={i} className={`tab${activeTab === i ? ' active' : ''}`} onClick={() => setActiveTab(i)}>{t}</div>)}
       </div>
 
-      {/* Vendors */}
       {activeTab === 0 && (
         <div className="card">
           <DataTable
@@ -82,7 +81,7 @@ export default function ProcurementPage() {
               { key: 'city', label: 'City' },
               { key: 'rating', label: 'Rating', render: v => <span style={{ color: 'var(--accent)', fontWeight: 700 }}>★ {v}</span> },
               { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
-              { key: 'id', label: 'Actions', render: (_, row) => (
+              { key: 'id', label: 'Actions', render: () => (
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button className="btn btn-outline btn-sm">Edit</button>
                   <button className="btn btn-sm" style={{ background: '#f1f5f9', color: 'var(--text)' }}>View</button>
@@ -94,7 +93,6 @@ export default function ProcurementPage() {
         </div>
       )}
 
-      {/* RFQ */}
       {activeTab === 1 && (
         <div className="card">
           <DataTable
@@ -111,7 +109,6 @@ export default function ProcurementPage() {
         </div>
       )}
 
-      {/* PR */}
       {activeTab === 2 && (
         <div>
           <div className="card" style={{ marginBottom: 16 }}>
@@ -146,7 +143,6 @@ export default function ProcurementPage() {
         </div>
       )}
 
-      {/* PO */}
       {activeTab === 3 && (
         <div className="card">
           <DataTable
@@ -165,7 +161,6 @@ export default function ProcurementPage() {
         </div>
       )}
 
-      {/* GRN */}
       {activeTab === 4 && (
         <div className="card">
           <DataTable
@@ -183,7 +178,6 @@ export default function ProcurementPage() {
         </div>
       )}
 
-      {/* Quality Check */}
       {activeTab === 5 && (
         <div className="card">
           <div style={{ fontWeight: 700, marginBottom: 16 }}>Quality Check — GRN-0234</div>
@@ -212,7 +206,6 @@ export default function ProcurementPage() {
         </div>
       )}
 
-      {/* Add Vendor Modal */}
       <Modal open={showVendorModal} onClose={() => setShowVendorModal(false)} title="Add New Vendor"
         footer={<><button className="btn btn-outline" onClick={() => setShowVendorModal(false)}>Cancel</button><button className="btn btn-primary">Save Vendor</button></>}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -226,7 +219,6 @@ export default function ProcurementPage() {
         </div>
       </Modal>
 
-      {/* New PO Modal */}
       <Modal open={showPOModal} onClose={() => setShowPOModal(false)} title="Create Purchase Order" size="lg"
         footer={<><button className="btn btn-outline" onClick={() => setShowPOModal(false)}>Cancel</button><button className="btn btn-primary">Create PO</button></>}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>

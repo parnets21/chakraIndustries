@@ -1,5 +1,3 @@
-import React from 'react';
-
 export default function DonutChart({ data, size = 140 }) {
   const total = data.reduce((s, d) => s + d.value, 0) || 1;
   let cumulative = 0;
@@ -29,7 +27,9 @@ export default function DonutChart({ data, size = 140 }) {
             />
           );
         })}
-        <text x="50" y="46" textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--primary-dark)">{total >= 1000 ? `${(total/1000).toFixed(1)}k` : total}</text>
+        <text x="50" y="46" textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--primary-dark)">
+          {total >= 1000 ? `${(total / 1000).toFixed(1)}k` : total}
+        </text>
         <text x="50" y="58" textAnchor="middle" fontSize="7" fill="var(--text-light)">Total</text>
       </svg>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

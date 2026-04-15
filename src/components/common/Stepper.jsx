@@ -1,5 +1,3 @@
-import React from 'react';
-
 export default function Stepper({ steps, current }) {
   return (
     <div className="stepper">

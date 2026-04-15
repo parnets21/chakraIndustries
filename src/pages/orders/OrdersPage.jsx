@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
@@ -17,6 +17,13 @@ export default function OrdersPage() {
   const [showModal, setShowModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
+  const kpis = [
+    { label: 'Total Orders', value: orders.length, color: '#3b82f6' },
+    { label: 'Processing', value: orders.filter(o => o.status === 'Processing').length, color: '#f59e0b' },
+    { label: 'Delivered', value: orders.filter(o => o.status === 'Delivered').length, color: '#10b981' },
+    { label: 'Pending', value: orders.filter(o => o.status === 'Pending').length, color: '#ef4444' },
+  ];
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -27,16 +34,10 @@ export default function OrdersPage() {
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ New Order</button>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid-4" style={{ marginBottom: 20 }}>
-        {[
-          { label: 'Total Orders', value: orders.length, color: '#dbeafe', textColor: '#3b82f6' },
-          { label: 'Processing', value: orders.filter(o => o.status === 'Processing').length, color: '#fef3c7', textColor: '#f59e0b' },
-          { label: 'Delivered', value: orders.filter(o => o.status === 'Delivered').length, color: '#d1fae5', textColor: '#10b981' },
-          { label: 'Pending', value: orders.filter(o => o.status === 'Pending').length, color: '#fee2e2', textColor: '#ef4444' },
-        ].map((k, i) => (
-          <div key={i} className="kpi-card" style={{ background: k.color, border: 'none' }}>
-            <div className="kpi-value" style={{ color: k.textColor }}>{k.value}</div>
+        {kpis.map((k, i) => (
+          <div key={i} className="kpi-card">
+            <div className="kpi-value" style={{ color: k.color }}>{k.value}</div>
             <div className="kpi-label">{k.label}</div>
           </div>
         ))}
@@ -45,7 +46,7 @@ export default function OrdersPage() {
       <div className="card">
         <DataTable
           columns={[
-            { key: 'id', label: 'Order ID', render: v => <span style={{ fontWeight: 600, color: 'var(--primary)' }}>{v}</span> },
+            { key: 'id', label: 'Order ID', render: v => <span style={{ fontWeight: 600, color: '#c0392b' }}>{v}</span> },
             { key: 'customer', label: 'Customer', render: v => <span style={{ fontWeight: 600 }}>{v}</span> },
             { key: 'items', label: 'Items' },
             { key: 'value', label: 'Value', render: v => <span style={{ fontWeight: 700 }}>{v}</span> },
@@ -55,7 +56,7 @@ export default function OrdersPage() {
             { key: 'id', label: 'Actions', render: (_, row) => (
               <div style={{ display: 'flex', gap: 6 }}>
                 <button className="btn btn-outline btn-sm" onClick={() => setSelectedOrder(row)}>View</button>
-                <button className="btn btn-sm" style={{ background: '#f1f5f9', color: 'var(--text)' }}>Edit</button>
+                <button className="btn btn-sm" style={{ background: '#f1f5f9', color: '#1c2833' }}>Edit</button>
               </div>
             )},
           ]}
@@ -63,38 +64,50 @@ export default function OrdersPage() {
         />
       </div>
 
-      {/* New Order Modal */}
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Create New Order"
-        footer={<><button className="btn btn-outline" onClick={() => setShowModal(false)}>Cancel</button><button className="btn btn-primary">Create Order</button></>}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div className="form-group"><label className="form-label">Customer *</label><input className="form-input" placeholder="Customer name" /></div>
-          <div className="form-group"><label className="form-label">Order Date</label><input type="date" className="form-input" /></div>
-          <div className="form-group"><label className="form-label">Delivery Date</label><input type="date" className="form-input" /></div>
-          <div className="form-group"><label className="form-label">Priority</label><select className="form-select"><option>Normal</option><option>High</option><option>Urgent</option></select></div>
-          <div className="form-group" style={{ gridColumn: 'span 2' }}><label className="form-label">Remarks</label><textarea className="form-textarea" placeholder="Order notes..." /></div>
-        </div>
-      </Modal>
-
-      {/* View Order Modal */}
-      {selectedOrder && (
-        <Modal open={!!selectedOrder} onClose={() => setSelectedOrder(null)} title={`Order — ${selectedOrder.id}`}
-          footer={<button className="btn btn-primary" onClick={() => setSelectedOrder(null)}>Close</button>}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {[
-              ['Customer', selectedOrder.customer],
-              ['Order Date', selectedOrder.date],
-              ['Items', selectedOrder.items],
-              ['Value', selectedOrder.value],
-              ['Priority', selectedOrder.priority],
-              ['Status', selectedOrder.status],
-            ].map(([k, v]) => (
-              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                <span style={{ color: 'var(--text-light)', fontSize: 13 }}>{k}</span>
-                <span style={{ fontWeight: 600, fontSize: 13 }}>{v}</span>
+      {showModal && (
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Create New Order</span>
+              <button className="btn btn-sm" style={{ background: 'none', color: '#718096', fontSize: 20, padding: '0 4px' }} onClick={() => setShowModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div className="form-group"><label className="form-label">Customer *</label><input className="form-input" placeholder="Customer name" /></div>
+                <div className="form-group"><label className="form-label">Order Date</label><input type="date" className="form-input" /></div>
+                <div className="form-group"><label className="form-label">Delivery Date</label><input type="date" className="form-input" /></div>
+                <div className="form-group"><label className="form-label">Priority</label><select className="form-select"><option>Normal</option><option>High</option><option>Urgent</option></select></div>
+                <div className="form-group" style={{ gridColumn: 'span 2' }}><label className="form-label">Remarks</label><textarea className="form-textarea" placeholder="Order notes..." /></div>
               </div>
-            ))}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={() => setShowModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={() => setShowModal(false)}>Create Order</button>
+            </div>
           </div>
-        </Modal>
+        </div>
+      )}
+
+      {selectedOrder && (
+        <div className="modal-overlay" onClick={() => setSelectedOrder(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Order — {selectedOrder.id}</span>
+              <button className="btn btn-sm" style={{ background: 'none', color: '#718096', fontSize: 20, padding: '0 4px' }} onClick={() => setSelectedOrder(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              {[['Customer', selectedOrder.customer], ['Order Date', selectedOrder.date], ['Items', selectedOrder.items], ['Value', selectedOrder.value], ['Priority', selectedOrder.priority], ['Status', selectedOrder.status]].map(([k, v]) => (
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #e2e8f0', fontSize: 13 }}>
+                  <span style={{ color: '#718096' }}>{k}</span>
+                  <span style={{ fontWeight: 600 }}>{v}</span>
+                </div>
+              ))}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-primary" onClick={() => setSelectedOrder(null)}>Close</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

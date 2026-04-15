@@ -1,6 +1,5 @@
-import React from 'react';
-import LineChart from '../../components/charts/LineChart';
 import StatusBadge from '../../components/common/StatusBadge';
+import LineChart from '../../components/charts/LineChart';
 
 const demandData = [
   { label: 'Jan', value: 4200 }, { label: 'Feb', value: 4800 }, { label: 'Mar', value: 5100 },
@@ -35,33 +34,35 @@ export default function ForecastingPage() {
 
       <div className="grid-2" style={{ marginBottom: 20 }}>
         <div className="card">
-          <div style={{ fontWeight: 700, marginBottom: 4 }}>Historical Demand</div>
-          <div style={{ fontSize: 12, color: 'var(--text-light)', marginBottom: 12 }}>Units sold — FY 2024-25</div>
-          <LineChart data={demandData} color="var(--primary)" height={180} />
+          <div className="section-title" style={{ marginBottom: 4 }}>Historical Demand</div>
+          <div className="section-sub" style={{ marginBottom: 12 }}>Units sold — FY 2024-25</div>
+          <LineChart data={demandData} color="#c0392b" height={180} />
         </div>
         <div className="card">
-          <div style={{ fontWeight: 700, marginBottom: 4 }}>Demand Forecast</div>
-          <div style={{ fontSize: 12, color: 'var(--text-light)', marginBottom: 12 }}>Projected — Next 6 months</div>
-          <LineChart data={forecastData} color="var(--accent)" height={180} />
+          <div className="section-title" style={{ marginBottom: 4 }}>Demand Forecast</div>
+          <div className="section-sub" style={{ marginBottom: 12 }}>Projected — Next 6 months</div>
+          <LineChart data={forecastData} color="#f39c12" height={180} />
         </div>
       </div>
 
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <div style={{ fontWeight: 700 }}>Suggested Purchase Orders</div>
+          <div className="section-title">Suggested Purchase Orders</div>
           <button className="btn btn-accent btn-sm">Auto-Generate POs</button>
         </div>
         <div className="table-container">
           <table>
             <thead>
-              <tr><th>SKU</th><th>Item Name</th><th>Current Stock</th><th>Forecast Demand</th><th>Suggested Qty</th><th>Preferred Vendor</th><th>Urgency</th><th>Action</th></tr>
+              <tr>
+                {['SKU','Item Name','Current Stock','Forecast Demand','Suggested Qty','Preferred Vendor','Urgency','Action'].map(h => <th key={h}>{h}</th>)}
+              </tr>
             </thead>
             <tbody>
               {suggestedPurchases.map((s, i) => (
                 <tr key={i}>
-                  <td style={{ fontWeight: 600, color: 'var(--primary)', fontFamily: 'monospace' }}>{s.sku}</td>
+                  <td style={{ fontWeight: 600, color: '#c0392b', fontFamily: 'monospace' }}>{s.sku}</td>
                   <td style={{ fontWeight: 600 }}>{s.name}</td>
-                  <td style={{ color: s.currentStock < 50 ? 'var(--danger)' : 'var(--success)', fontWeight: 700 }}>{s.currentStock}</td>
+                  <td style={{ fontWeight: 700, color: s.currentStock < 50 ? '#e74c3c' : '#27ae60' }}>{s.currentStock}</td>
                   <td>{s.forecastDemand}</td>
                   <td style={{ fontWeight: 700 }}>{s.suggestedQty}</td>
                   <td>{s.vendor}</td>

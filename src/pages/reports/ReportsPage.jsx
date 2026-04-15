@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import LineChart from '../../components/charts/LineChart';
 import BarChart from '../../components/charts/BarChart';
 import DonutChart from '../../components/charts/DonutChart';
+import StatusBadge from '../../components/common/StatusBadge';
 
 const tabs = ['Sales Analytics', 'Profit & Loss', 'Inventory Turnover'];
 
@@ -21,12 +22,9 @@ const salesByCustomer = [
 ];
 
 const profitData = [
-  { label: 'Jan', value: 820000, color: '#10b981' },
-  { label: 'Feb', value: 1100000, color: '#10b981' },
-  { label: 'Mar', value: 950000, color: '#10b981' },
-  { label: 'Apr', value: 1400000, color: '#10b981' },
-  { label: 'May', value: 1200000, color: '#10b981' },
-  { label: 'Jun', value: 1600000, color: '#10b981' },
+  { label: 'Jan', value: 820000, color: '#10b981' }, { label: 'Feb', value: 1100000, color: '#10b981' },
+  { label: 'Mar', value: 950000, color: '#10b981' }, { label: 'Apr', value: 1400000, color: '#10b981' },
+  { label: 'May', value: 1200000, color: '#10b981' }, { label: 'Jun', value: 1600000, color: '#10b981' },
 ];
 
 const expenseBreakdown = [
@@ -44,6 +42,13 @@ const turnoverData = [
   { sku: 'SKU-5523', name: 'Valve Spring Set', openingStock: 100, closingStock: 180, sold: 220, turnover: '2.2x', status: 'Good' },
 ];
 
+const salesKpis = [
+  { label: 'Total Revenue', value: '₹82.4L', change: '+18.2%', up: true },
+  { label: 'Total Orders', value: '284', change: '+8.1%', up: true },
+  { label: 'Avg Order Value', value: '₹2.9L', change: '+9.3%', up: true },
+  { label: 'Top Customer', value: 'Bajaj Auto', change: '₹41.2L', up: true },
+];
+
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState(0);
 
@@ -55,7 +60,9 @@ export default function ReportsPage() {
           <div className="breadcrumb"><span>Home</span><span>›</span><span className="current">Reports</span></div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <select className="form-select" style={{ width: 140 }}><option>FY 2024-25</option><option>FY 2023-24</option></select>
+          <select className="form-select" style={{ width: 140 }}>
+            <option>FY 2024-25</option><option>FY 2023-24</option>
+          </select>
           <button className="btn btn-outline">Export PDF</button>
           <button className="btn btn-primary">Export Excel</button>
         </div>
@@ -65,18 +72,12 @@ export default function ReportsPage() {
         {tabs.map((t, i) => <div key={i} className={`tab${activeTab === i ? ' active' : ''}`} onClick={() => setActiveTab(i)}>{t}</div>)}
       </div>
 
-      {/* Sales Analytics */}
       {activeTab === 0 && (
         <div>
           <div className="grid-4" style={{ marginBottom: 20 }}>
-            {[
-              { label: 'Total Revenue', value: '₹82.4L', change: '+18.2%', up: true },
-              { label: 'Total Orders', value: '284', change: '+8.1%', up: true },
-              { label: 'Avg Order Value', value: '₹2.9L', change: '+9.3%', up: true },
-              { label: 'Top Customer', value: 'Bajaj Auto', change: '₹41.2L', up: true },
-            ].map((k, i) => (
+            {salesKpis.map((k, i) => (
               <div key={i} className="kpi-card">
-                <div className="kpi-value" style={{ fontSize: 20 }}>{k.value}</div>
+                <div className="kpi-value">{k.value}</div>
                 <div className="kpi-label">{k.label}</div>
                 <div className={`kpi-change ${k.up ? 'up' : 'down'}`}>{k.up ? '↑' : '↓'} {k.change}</div>
               </div>
@@ -84,39 +85,38 @@ export default function ReportsPage() {
           </div>
           <div className="grid-2" style={{ marginBottom: 20 }}>
             <div className="card">
-              <div style={{ fontWeight: 700, marginBottom: 4 }}>Monthly Revenue Trend</div>
-              <div style={{ fontSize: 12, color: 'var(--text-light)', marginBottom: 12 }}>FY 2024-25</div>
-              <LineChart data={salesByMonth} color="var(--primary)" height={180} />
+              <div className="section-title" style={{ marginBottom: 4 }}>Monthly Revenue Trend</div>
+              <div className="section-sub" style={{ marginBottom: 12 }}>FY 2024-25</div>
+              <LineChart data={salesByMonth} color="#c0392b" height={180} />
             </div>
             <div className="card">
-              <div style={{ fontWeight: 700, marginBottom: 4 }}>Sales by Customer</div>
-              <div style={{ fontSize: 12, color: 'var(--text-light)', marginBottom: 12 }}>Top 5 customers</div>
+              <div className="section-title" style={{ marginBottom: 4 }}>Sales by Customer</div>
+              <div className="section-sub" style={{ marginBottom: 12 }}>Top 5 customers</div>
               <BarChart data={salesByCustomer} height={180} />
             </div>
           </div>
         </div>
       )}
 
-      {/* Profit & Loss */}
       {activeTab === 1 && (
         <div>
           <div className="grid-2" style={{ marginBottom: 20 }}>
             <div className="card">
-              <div style={{ fontWeight: 700, marginBottom: 4 }}>Monthly Profit</div>
-              <div style={{ fontSize: 12, color: 'var(--text-light)', marginBottom: 12 }}>H1 FY 2024-25</div>
+              <div className="section-title" style={{ marginBottom: 4 }}>Monthly Profit</div>
+              <div className="section-sub" style={{ marginBottom: 12 }}>H1 FY 2024-25</div>
               <BarChart data={profitData} height={180} />
             </div>
             <div className="card">
-              <div style={{ fontWeight: 700, marginBottom: 4 }}>Expense Breakdown</div>
-              <div style={{ fontSize: 12, color: 'var(--text-light)', marginBottom: 12 }}>Current month</div>
+              <div className="section-title" style={{ marginBottom: 4 }}>Expense Breakdown</div>
+              <div className="section-sub" style={{ marginBottom: 12 }}>Current month</div>
               <DonutChart data={expenseBreakdown} size={140} />
             </div>
           </div>
           <div className="card">
-            <div style={{ fontWeight: 700, marginBottom: 14 }}>P&L Summary — April 2024</div>
+            <div className="section-title" style={{ marginBottom: 14 }}>P&L Summary — April 2024</div>
             <div className="table-container">
               <table>
-                <thead><tr><th>Category</th><th>Budget</th><th>Actual</th><th>Variance</th><th>%</th></tr></thead>
+                <thead><tr>{['Category','Budget','Actual','Variance','%'].map(h => <th key={h}>{h}</th>)}</tr></thead>
                 <tbody>
                   {[
                     { cat: 'Revenue', budget: '₹50,00,000', actual: '₹52,00,000', var: '+₹2,00,000', pct: '+4%', pos: true },
@@ -129,8 +129,8 @@ export default function ReportsPage() {
                       <td style={{ fontWeight: r.cat === 'Net Profit' ? 700 : 400 }}>{r.cat}</td>
                       <td>{r.budget}</td>
                       <td style={{ fontWeight: 600 }}>{r.actual}</td>
-                      <td style={{ color: r.pos ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>{r.var}</td>
-                      <td style={{ color: r.pos ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>{r.pct}</td>
+                      <td style={{ fontWeight: 600, color: r.pos ? '#27ae60' : '#e74c3c' }}>{r.var}</td>
+                      <td style={{ fontWeight: 700, color: r.pos ? '#27ae60' : '#e74c3c' }}>{r.pct}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -140,24 +140,26 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* Inventory Turnover */}
       {activeTab === 2 && (
         <div className="card">
-          <div style={{ fontWeight: 700, marginBottom: 14 }}>Inventory Turnover Analysis</div>
+          <div className="section-title" style={{ marginBottom: 14 }}>Inventory Turnover Analysis</div>
           <div className="table-container">
             <table>
-              <thead><tr><th>SKU</th><th>Item Name</th><th>Opening Stock</th><th>Closing Stock</th><th>Units Sold</th><th>Turnover Ratio</th><th>Category</th></tr></thead>
+              <thead><tr>{['SKU','Item Name','Opening Stock','Closing Stock','Units Sold','Turnover Ratio','Category'].map(h => <th key={h}>{h}</th>)}</tr></thead>
               <tbody>
                 {turnoverData.map((t, i) => (
                   <tr key={i}>
-                    <td style={{ fontWeight: 600, color: 'var(--primary)', fontFamily: 'monospace' }}>{t.sku}</td>
+                    <td style={{ fontWeight: 600, color: '#c0392b', fontFamily: 'monospace' }}>{t.sku}</td>
                     <td style={{ fontWeight: 600 }}>{t.name}</td>
                     <td>{t.openingStock}</td>
                     <td>{t.closingStock}</td>
                     <td style={{ fontWeight: 700 }}>{t.sold}</td>
-                    <td style={{ fontWeight: 800, color: t.status === 'Dead' ? 'var(--danger)' : t.status === 'Fast Moving' ? 'var(--success)' : 'var(--primary)' }}>{t.turnover}</td>
+                    <td style={{ fontWeight: 800, color: t.status === 'Dead' ? '#e74c3c' : t.status === 'Fast Moving' ? '#27ae60' : '#c0392b' }}>{t.turnover}</td>
                     <td>
-                      <span className={`status-badge ${t.status === 'Dead' ? 'danger' : t.status === 'Fast Moving' ? 'success' : 'info'}`}>{t.status}</span>
+                      <StatusBadge
+                        status={t.status}
+                        type={t.status === 'Dead' ? 'danger' : t.status === 'Fast Moving' ? 'success' : 'info'}
+                      />
                     </td>
                   </tr>
                 ))}

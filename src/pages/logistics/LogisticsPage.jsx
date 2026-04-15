@@ -1,8 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
-import Modal from '../../components/common/Modal';
-import { Input, Select, Textarea, Grid2, ModalBtn } from '../../components/forms/FormField';
 
 const tabs = ['Dispatch Dashboard', 'Vehicle Allocation', 'Delivery Tracking'];
 
@@ -36,6 +34,13 @@ export default function LogisticsPage() {
   const [activeTab, setActiveTab] = useState(0);
   const [showModal, setShowModal] = useState(false);
 
+  const kpis = [
+    { label: 'Ready to Dispatch', value: readyOrders.length, color: '#f59e0b' },
+    { label: 'In Transit', value: 2, color: '#3b82f6' },
+    { label: 'Delivered Today', value: 5, color: '#10b981' },
+    { label: 'Available Vehicles', value: vehicles.filter(v => v.status === 'Available').length, color: '#8b5cf6' },
+  ];
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -50,27 +55,21 @@ export default function LogisticsPage() {
         {tabs.map((t, i) => <div key={i} className={`tab${activeTab === i ? ' active' : ''}`} onClick={() => setActiveTab(i)}>{t}</div>)}
       </div>
 
-      {/* Dispatch Dashboard */}
       {activeTab === 0 && (
         <div>
           <div className="grid-4" style={{ marginBottom: 20 }}>
-            {[
-              { label: 'Ready to Dispatch', value: readyOrders.length, color: '#fef3c7', textColor: '#f59e0b' },
-              { label: 'In Transit', value: 2, color: '#dbeafe', textColor: '#3b82f6' },
-              { label: 'Delivered Today', value: 5, color: '#d1fae5', textColor: '#10b981' },
-              { label: 'Available Vehicles', value: vehicles.filter(v => v.status === 'Available').length, color: '#ede9fe', textColor: '#8b5cf6' },
-            ].map((k, i) => (
-              <div key={i} className="kpi-card" style={{ background: k.color, border: 'none' }}>
-                <div className="kpi-value" style={{ color: k.textColor }}>{k.value}</div>
+            {kpis.map((k, i) => (
+              <div key={i} className="kpi-card">
+                <div className="kpi-value" style={{ color: k.color }}>{k.value}</div>
                 <div className="kpi-label">{k.label}</div>
               </div>
             ))}
           </div>
           <div className="card">
-            <div style={{ fontWeight: 700, marginBottom: 14 }}>Orders Ready for Dispatch</div>
+            <div className="section-title" style={{ marginBottom: 14 }}>Orders Ready for Dispatch</div>
             <DataTable
               columns={[
-                { key: 'id', label: 'Order ID', render: v => <span style={{ fontWeight: 600, color: 'var(--primary)' }}>{v}</span> },
+                { key: 'id', label: 'Order ID', render: v => <span style={{ fontWeight: 600, color: '#c0392b' }}>{v}</span> },
                 { key: 'customer', label: 'Customer' },
                 { key: 'items', label: 'Items' },
                 { key: 'value', label: 'Value', render: v => <span style={{ fontWeight: 700 }}>{v}</span> },
@@ -84,18 +83,17 @@ export default function LogisticsPage() {
         </div>
       )}
 
-      {/* Vehicle Allocation */}
       {activeTab === 1 && (
         <div className="grid-2">
           <div className="card">
-            <div style={{ fontWeight: 700, marginBottom: 14 }}>Fleet Status</div>
+            <div className="section-title" style={{ marginBottom: 14 }}>Fleet Status</div>
             {vehicles.map((v, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: i < vehicles.length - 1 ? '1px solid var(--border)' : 'none' }}>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: i < vehicles.length - 1 ? '1px solid #e2e8f0' : 'none' }}>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                   <div style={{ width: 40, height: 40, borderRadius: 8, background: '#f0f4f8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🚛</div>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 13 }}>{v.number}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-light)' }}>{v.type} · {v.capacity} · {v.driver}</div>
+                    <div style={{ fontSize: 11, color: '#718096' }}>{v.type} · {v.capacity} · {v.driver}</div>
                   </div>
                 </div>
                 <StatusBadge status={v.status} />
@@ -103,10 +101,10 @@ export default function LogisticsPage() {
             ))}
           </div>
           <div className="card">
-            <div style={{ fontWeight: 700, marginBottom: 14 }}>Active Allocations</div>
+            <div className="section-title" style={{ marginBottom: 14 }}>Active Allocations</div>
             <DataTable
               columns={[
-                { key: 'order', label: 'Order', render: v => <span style={{ fontWeight: 600, color: 'var(--primary)' }}>{v}</span> },
+                { key: 'order', label: 'Order', render: v => <span style={{ fontWeight: 600, color: '#c0392b' }}>{v}</span> },
                 { key: 'driver', label: 'Driver' },
                 { key: 'destination', label: 'Destination' },
                 { key: 'eta', label: 'ETA' },
@@ -118,38 +116,29 @@ export default function LogisticsPage() {
         </div>
       )}
 
-      {/* Delivery Tracking */}
       {activeTab === 2 && (
         <div className="grid-2">
           <div className="card">
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>Tracking — ORD-2024-085</div>
-            <div style={{ fontSize: 12, color: 'var(--text-light)', marginBottom: 20 }}>TVS Motor · Chennai</div>
+            <div className="section-title" style={{ marginBottom: 4 }}>Tracking — ORD-2024-085</div>
+            <div className="section-sub" style={{ marginBottom: 20 }}>TVS Motor · Chennai</div>
             <div className="timeline">
-              {deliveryTimeline.map((t, i) => (
+              {deliveryTimeline.map((item, i) => (
                 <div key={i} className="timeline-item">
-                  <div className={`timeline-dot ${t.status}`} />
-                  <div style={{ fontWeight: 600, fontSize: 13 }}>{t.event}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-light)', marginTop: 2 }}>{t.time}</div>
-                  <div style={{ fontSize: 11, color: 'var(--primary)', marginTop: 1 }}>📍 {t.location}</div>
+                  <div className={`timeline-dot ${item.status}`} />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>{item.event}</div>
+                    <div style={{ fontSize: 11, color: '#718096' }}>{item.time}</div>
+                    <div style={{ fontSize: 11, color: '#718096' }}>{item.location}</div>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
           <div className="card">
-            <div style={{ fontWeight: 700, marginBottom: 14 }}>Delivery Summary</div>
-            {[
-              ['Order ID', 'ORD-2024-085'],
-              ['Customer', 'TVS Motor'],
-              ['Vehicle', 'MH-12-CD-5678'],
-              ['Driver', 'Suresh Kumar'],
-              ['Origin', 'Nashik Plant'],
-              ['Destination', 'Chennai'],
-              ['Dispatched', '14 Apr, 09:00 AM'],
-              ['Expected Delivery', '15 Apr, 02:00 PM'],
-              ['Status', 'In Transit'],
-            ].map(([k, v]) => (
+            <div className="section-title" style={{ marginBottom: 14 }}>Delivery Summary</div>
+            {[['Order ID','ORD-2024-085'],['Customer','TVS Motor'],['Vehicle','MH-12-CD-5678'],['Driver','Suresh Kumar'],['Origin','Nashik Plant'],['Destination','Chennai'],['Dispatched','14 Apr, 09:00 AM'],['Expected Delivery','15 Apr, 02:00 PM'],['Status','In Transit']].map(([k, v]) => (
               <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f1f5f9', fontSize: 13 }}>
-                <span style={{ color: 'var(--text-light)' }}>{k}</span>
+                <span style={{ color: '#718096' }}>{k}</span>
                 <span style={{ fontWeight: 600 }}>{v}</span>
               </div>
             ))}
@@ -157,27 +146,33 @@ export default function LogisticsPage() {
         </div>
       )}
 
-      {/* New Dispatch Modal */}
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Create New Dispatch"
-        footer={<><ModalBtn variant="outline" onClick={() => setShowModal(false)}>Cancel</ModalBtn><ModalBtn onClick={() => setShowModal(false)}>Create Dispatch</ModalBtn></>}>
-        <Grid2>
-          <Input label="Order Reference *" placeholder="e.g. ORD-2024-089" />
-          <Input label="Customer Name *" placeholder="Customer" />
-          <Select label="Vehicle *">
-            <option>MH-12-AB-1234 — Truck (5 Ton)</option>
-            <option>MH-14-EF-9012 — Tempo (1 Ton)</option>
-          </Select>
-          <Select label="Driver *">
-            <option>Ramesh Patil</option>
-            <option>Anil Rao</option>
-          </Select>
-          <Input label="Destination *" placeholder="City / Address" />
-          <Input label="Dispatch Date" type="date" />
-          <Input label="Expected Delivery" type="date" />
-          <Input label="Total Weight (kg)" type="number" placeholder="0" />
-        </Grid2>
-        <Textarea label="Delivery Instructions" placeholder="Special handling notes..." />
-      </Modal>
+      {showModal && (
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Create New Dispatch</span>
+              <button className="btn btn-sm" style={{ background: 'none', color: '#718096', fontSize: 20, padding: '0 4px' }} onClick={() => setShowModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div className="form-group"><label className="form-label">Order Reference *</label><input className="form-input" placeholder="e.g. ORD-2024-089" /></div>
+                <div className="form-group"><label className="form-label">Customer Name *</label><input className="form-input" placeholder="Customer" /></div>
+                <div className="form-group"><label className="form-label">Vehicle *</label><select className="form-select"><option>MH-12-AB-1234 — Truck (5 Ton)</option><option>MH-14-EF-9012 — Tempo (1 Ton)</option></select></div>
+                <div className="form-group"><label className="form-label">Driver *</label><select className="form-select"><option>Ramesh Patil</option><option>Anil Rao</option></select></div>
+                <div className="form-group"><label className="form-label">Destination *</label><input className="form-input" placeholder="City / Address" /></div>
+                <div className="form-group"><label className="form-label">Dispatch Date</label><input type="date" className="form-input" /></div>
+                <div className="form-group"><label className="form-label">Expected Delivery</label><input type="date" className="form-input" /></div>
+                <div className="form-group"><label className="form-label">Total Weight (kg)</label><input type="number" className="form-input" placeholder="0" /></div>
+              </div>
+              <div className="form-group"><label className="form-label">Delivery Instructions</label><textarea className="form-textarea" placeholder="Special handling notes..." /></div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={() => setShowModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={() => setShowModal(false)}>Create Dispatch</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

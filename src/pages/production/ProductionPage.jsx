@@ -1,9 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import BarChart from '../../components/charts/BarChart';
-import Modal from '../../components/common/Modal';
-import { Input, Select, Textarea, Grid2, ModalBtn } from '../../components/forms/FormField';
 
 const tabs = ['BOM', 'Work Orders', 'Production Tracking', 'Wastage'];
 
@@ -69,14 +67,14 @@ export default function ProductionPage() {
       {activeTab === 0 && (
         <div className="grid-2">
           <div className="card">
-            <div style={{ fontWeight: 700, marginBottom: 12 }}>BOM List</div>
+            <div className="section-title" style={{ marginBottom: 12 }}>BOM List</div>
             {bom.map(b => (
               <div key={b.id} onClick={() => setSelectedBOM(b.id)}
-                style={{ padding: 12, borderRadius: 8, marginBottom: 8, cursor: 'pointer', border: `2px solid ${selectedBOM === b.id ? '#c0392b' : 'var(--border)'}`, background: selectedBOM === b.id ? '#fdf5f5' : '#fff', transition: 'all 0.2s' }}>
+                style={{ padding: 12, borderRadius: 8, marginBottom: 8, cursor: 'pointer', border: `2px solid ${selectedBOM === b.id ? '#c0392b' : '#e2e8f0'}`, background: selectedBOM === b.id ? '#fdf5f5' : '#fff', transition: 'all 0.2s' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 13 }}>{b.product}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-light)' }}>{b.id} · {b.version} · {b.components} components</div>
+                    <div style={{ fontSize: 11, color: '#718096' }}>{b.id} · {b.version} · {b.components} components</div>
                   </div>
                   <StatusBadge status={b.status} />
                 </div>
@@ -84,14 +82,14 @@ export default function ProductionPage() {
             ))}
           </div>
           <div className="card">
-            <div style={{ fontWeight: 700, marginBottom: 12 }}>BOM Tree — Engine Assembly A</div>
+            <div className="section-title" style={{ marginBottom: 12 }}>BOM Tree — Engine Assembly A</div>
             <div style={{ fontFamily: 'monospace', fontSize: 12 }}>
               {bomTree.map((row, i) => (
                 <div key={i} style={{ padding: '5px 0', borderBottom: '1px solid #f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: row.level === 0 ? '#c0392b' : row.level === 1 ? '#1c2833' : 'var(--text)', fontWeight: row.level === 0 ? 700 : 400 }}>{row.item}</span>
+                  <span style={{ color: row.level === 0 ? '#c0392b' : row.level === 1 ? '#1c2833' : '#718096', fontWeight: row.level === 0 ? 700 : 400 }}>{row.item}</span>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                    <span style={{ color: 'var(--text-light)' }}>{row.qty} {row.unit}</span>
-                    <span className={`status-badge ${row.type === 'Finished' ? 'success' : row.type === 'Sub-Assembly' ? 'info' : 'gray'}`} style={{ fontSize: 10 }}>{row.type}</span>
+                    <span style={{ color: '#718096' }}>{row.qty} {row.unit}</span>
+                    <span className={`status-badge ${row.type === 'Finished' ? 'success' : row.type === 'Sub-Assembly' ? 'info' : 'gray'}`}>{row.type}</span>
                   </div>
                 </div>
               ))}
@@ -107,7 +105,7 @@ export default function ProductionPage() {
               { key: 'id', label: 'WO ID', render: v => <span style={{ fontWeight: 600, color: '#c0392b' }}>{v}</span> },
               { key: 'product', label: 'Product', render: v => <span style={{ fontWeight: 600 }}>{v}</span> },
               { key: 'qty', label: 'Target Qty' },
-              { key: 'produced', label: 'Produced', render: (v, row) => <span style={{ fontWeight: 700, color: v >= row.qty ? 'var(--success)' : 'var(--warning)' }}>{v}</span> },
+              { key: 'produced', label: 'Produced', render: (v, row) => <span style={{ fontWeight: 700, color: v >= row.qty ? '#27ae60' : '#f39c12' }}>{v}</span> },
               { key: 'shift', label: 'Shift' },
               { key: 'startDate', label: 'Start' },
               { key: 'endDate', label: 'End' },
@@ -125,7 +123,7 @@ export default function ProductionPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 15 }}>{wo.product}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-light)' }}>{wo.id} · {wo.shift} Shift</div>
+                  <div style={{ fontSize: 12, color: '#718096' }}>{wo.id} · {wo.shift} Shift</div>
                 </div>
                 <StatusBadge status={wo.status} />
               </div>
@@ -133,7 +131,7 @@ export default function ProductionPage() {
                 <span>Progress: <strong>{wo.produced}/{wo.qty}</strong></span>
                 <span style={{ fontWeight: 700, color: '#c0392b' }}>{Math.round((wo.produced / wo.qty) * 100)}%</span>
               </div>
-              <div className="progress-bar" style={{ height: 10 }}>
+              <div className="progress-bar">
                 <div className="progress-fill" style={{ width: `${(wo.produced / wo.qty) * 100}%`, background: '#c0392b' }} />
               </div>
             </div>
@@ -144,66 +142,69 @@ export default function ProductionPage() {
       {activeTab === 3 && (
         <div className="grid-2">
           <div className="card">
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>Good Units (This Week)</div>
-            <div style={{ fontSize: 12, color: 'var(--text-light)', marginBottom: 12 }}>Daily production output</div>
+            <div className="section-title" style={{ marginBottom: 4 }}>Good Units (This Week)</div>
+            <div className="section-sub" style={{ marginBottom: 12 }}>Daily production output</div>
             <BarChart data={goodData} height={180} />
           </div>
           <div className="card">
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>Rejected / Wastage</div>
-            <div style={{ fontSize: 12, color: 'var(--text-light)', marginBottom: 12 }}>Daily rejection count</div>
+            <div className="section-title" style={{ marginBottom: 4 }}>Rejected / Wastage</div>
+            <div className="section-sub" style={{ marginBottom: 12 }}>Daily rejection count</div>
             <BarChart data={wastageData} height={180} />
           </div>
         </div>
       )}
 
-      {/* New Work Order Modal */}
-      <Modal open={showWOModal} onClose={() => setShowWOModal(false)} title="Create Work Order"
-        footer={<><ModalBtn variant="outline" onClick={() => setShowWOModal(false)}>Cancel</ModalBtn><ModalBtn onClick={() => setShowWOModal(false)}>Create Work Order</ModalBtn></>}>
-        <Grid2>
-          <Input label="Work Order ID" placeholder="Auto-generated" disabled style={{ background: '#f8fafc' }} />
-          <Select label="Product *">
-            <option>Engine Assembly A</option>
-            <option>Gearbox Unit B</option>
-            <option>Clutch Assembly C</option>
-          </Select>
-          <Input label="Target Quantity *" type="number" placeholder="0" />
-          <Select label="Shift">
-            <option>Morning</option>
-            <option>General</option>
-            <option>Night</option>
-          </Select>
-          <Input label="Start Date *" type="date" />
-          <Input label="End Date *" type="date" />
-          <Select label="BOM Reference">
-            <option>BOM-001 — Engine Assembly A</option>
-            <option>BOM-002 — Gearbox Unit B</option>
-            <option>BOM-003 — Clutch Assembly C</option>
-          </Select>
-          <Select label="Priority">
-            <option>Normal</option>
-            <option>High</option>
-            <option>Urgent</option>
-          </Select>
-        </Grid2>
-        <Textarea label="Remarks" placeholder="Additional instructions..." />
-      </Modal>
+      {showWOModal && (
+        <div className="modal-overlay" onClick={() => setShowWOModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Create Work Order</span>
+              <button className="btn btn-sm" style={{ background: 'none', color: '#718096', fontSize: 20, padding: '0 4px' }} onClick={() => setShowWOModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div className="form-group"><label className="form-label">Work Order ID</label><input className="form-input" placeholder="Auto-generated" disabled /></div>
+                <div className="form-group"><label className="form-label">Product *</label><select className="form-select"><option>Engine Assembly A</option><option>Gearbox Unit B</option><option>Clutch Assembly C</option></select></div>
+                <div className="form-group"><label className="form-label">Target Quantity *</label><input type="number" className="form-input" placeholder="0" /></div>
+                <div className="form-group"><label className="form-label">Shift</label><select className="form-select"><option>Morning</option><option>General</option><option>Night</option></select></div>
+                <div className="form-group"><label className="form-label">Start Date *</label><input type="date" className="form-input" /></div>
+                <div className="form-group"><label className="form-label">End Date *</label><input type="date" className="form-input" /></div>
+                <div className="form-group"><label className="form-label">BOM Reference</label><select className="form-select"><option>BOM-001 — Engine Assembly A</option><option>BOM-002 — Gearbox Unit B</option><option>BOM-003 — Clutch Assembly C</option></select></div>
+                <div className="form-group"><label className="form-label">Priority</label><select className="form-select"><option>Normal</option><option>High</option><option>Urgent</option></select></div>
+              </div>
+              <div className="form-group"><label className="form-label">Remarks</label><textarea className="form-textarea" placeholder="Additional instructions..." /></div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={() => setShowWOModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={() => setShowWOModal(false)}>Create Work Order</button>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* New BOM Modal */}
-      <Modal open={showBOMModal} onClose={() => setShowBOMModal(false)} title="Create New BOM"
-        footer={<><ModalBtn variant="outline" onClick={() => setShowBOMModal(false)}>Cancel</ModalBtn><ModalBtn onClick={() => setShowBOMModal(false)}>Save BOM</ModalBtn></>}>
-        <Grid2>
-          <Input label="Product Name *" placeholder="e.g. Engine Assembly D" />
-          <Input label="Version" placeholder="v1.0" />
-          <Select label="Product Type">
-            <option>Finished Good</option>
-            <option>Sub-Assembly</option>
-            <option>Semi-Finished</option>
-          </Select>
-          <Input label="Unit of Measure">
-          </Input>
-        </Grid2>
-        <Textarea label="Description" placeholder="BOM description..." />
-      </Modal>
+      {showBOMModal && (
+        <div className="modal-overlay" onClick={() => setShowBOMModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Create New BOM</span>
+              <button className="btn btn-sm" style={{ background: 'none', color: '#718096', fontSize: 20, padding: '0 4px' }} onClick={() => setShowBOMModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div className="form-group"><label className="form-label">Product Name *</label><input className="form-input" placeholder="e.g. Engine Assembly D" /></div>
+                <div className="form-group"><label className="form-label">Version</label><input className="form-input" placeholder="v1.0" /></div>
+                <div className="form-group"><label className="form-label">Product Type</label><select className="form-select"><option>Finished Good</option><option>Sub-Assembly</option><option>Semi-Finished</option></select></div>
+                <div className="form-group"><label className="form-label">Unit of Measure</label><input className="form-input" placeholder="e.g. Set" /></div>
+              </div>
+              <div className="form-group"><label className="form-label">Description</label><textarea className="form-textarea" placeholder="BOM description..." /></div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={() => setShowBOMModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={() => setShowBOMModal(false)}>Save BOM</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

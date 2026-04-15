@@ -1,5 +1,3 @@
-import React from 'react';
-
 const typeMap = {
   active: 'success', approved: 'success', completed: 'success', delivered: 'success', passed: 'success', received: 'success',
   pending: 'warning', 'in-progress': 'warning', processing: 'warning', partial: 'warning',

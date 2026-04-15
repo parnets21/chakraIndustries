@@ -1,4 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import {
+  MdSearch, MdNotifications, MdAdd, MdKeyboardArrowDown,
+  MdWarning, MdError, MdCheckCircle, MdInfo
+} from 'react-icons/md';
 
 export default function Navbar({ activePage, setActivePage }) {
   const [showNotif, setShowNotif] = useState(false);
@@ -12,15 +16,26 @@ export default function Navbar({ activePage, setActivePage }) {
     { id: 4, text: 'Production WO-0891 completed', time: '2h ago', type: 'info' },
   ];
 
+  const notifIconMap = {
+    warning: <MdWarning size={14} color="var(--warning)" />,
+    danger:  <MdError   size={14} color="var(--danger)" />,
+    success: <MdCheckCircle size={14} color="var(--success)" />,
+    info:    <MdInfo    size={14} color="var(--info)" />,
+  };
+
   const quickCreateItems = [
     { label: 'New Purchase Order', page: 'procurement' },
-    { label: 'New Work Order', page: 'production' },
-    { label: 'New Sales Order', page: 'orders' },
-    { label: 'New GRN', page: 'procurement' },
-    { label: 'New Task', page: 'tasks' },
+    { label: 'New Work Order',     page: 'production' },
+    { label: 'New Sales Order',    page: 'orders' },
+    { label: 'New GRN',            page: 'procurement' },
+    { label: 'New Task',           page: 'tasks' },
   ];
 
-  const pageLabel = activePage.charAt(0).toUpperCase() + activePage.slice(1);
+  const pageLabel = activePage === 'oem' ? 'OEM'
+    : activePage === 'dashboard' ? 'Dashboard'
+    : activePage.charAt(0).toUpperCase() + activePage.slice(1);
+
+  const pagePath = activePage === 'dashboard' ? '/' : `/${activePage}`;
 
   return (
     <div className="navbar">
@@ -29,21 +44,28 @@ export default function Navbar({ activePage, setActivePage }) {
         <div style={{ width: 3, height: 28, background: 'linear-gradient(180deg, var(--primary-light), var(--primary))', borderRadius: 2 }} />
         <div>
           <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.2px' }}>{pageLabel}</div>
-          <div className="breadcrumb"><span>Home</span><span style={{ color: 'var(--text-xlight)' }}>›</span><span className="current">{pageLabel}</span></div>
+          <div className="breadcrumb">
+            <span>localhost:5173</span>
+            <span style={{ color: 'var(--text-xlight)' }}>›</span>
+            <span className="current" style={{ fontFamily: 'monospace', fontSize: 11 }}>{pagePath}</span>
+          </div>
         </div>
       </div>
 
       {/* Search */}
       <div className="navbar-search" style={{ marginLeft: 24 }}>
-        <SearchIcon />
+        <MdSearch size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-light)' }} />
         <input type="text" placeholder="Search orders, SKUs, vendors..." />
       </div>
 
       <div className="navbar-actions">
         {/* Quick Create */}
         <div style={{ position: 'relative' }}>
-          <button className="quick-create-btn" onClick={() => { setShowCreate(!showCreate); setShowNotif(false); setShowProfile(false); }}>
-            <PlusIcon /> Quick Create
+          <button
+            className="quick-create-btn"
+            onClick={() => { setShowCreate(!showCreate); setShowNotif(false); setShowProfile(false); }}
+          >
+            <MdAdd size={16} /> Quick Create
           </button>
           {showCreate && (
             <div className="dropdown" style={{ minWidth: 220 }}>
@@ -59,8 +81,11 @@ export default function Navbar({ activePage, setActivePage }) {
 
         {/* Notifications */}
         <div style={{ position: 'relative' }}>
-          <button className="icon-btn" onClick={() => { setShowNotif(!showNotif); setShowCreate(false); setShowProfile(false); }}>
-            <BellIcon />
+          <button
+            className="icon-btn"
+            onClick={() => { setShowNotif(!showNotif); setShowCreate(false); setShowProfile(false); }}
+          >
+            <MdNotifications size={18} />
             <span className="badge">4</span>
           </button>
           {showNotif && (
@@ -72,7 +97,7 @@ export default function Navbar({ activePage, setActivePage }) {
               {notifications.map(n => (
                 <div key={n.id} className="dropdown-item">
                   <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: n.type === 'warning' ? 'var(--warning)' : n.type === 'danger' ? 'var(--danger)' : n.type === 'success' ? 'var(--success)' : 'var(--info)', marginTop: 5, flexShrink: 0 }} />
+                    <div style={{ marginTop: 2, flexShrink: 0 }}>{notifIconMap[n.type]}</div>
                     <div>
                       <div style={{ fontSize: 12, color: 'var(--text)' }}>{n.text}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-light)', marginTop: 2 }}>{n.time}</div>
@@ -86,13 +111,16 @@ export default function Navbar({ activePage, setActivePage }) {
 
         {/* Profile */}
         <div style={{ position: 'relative' }}>
-          <button className="profile-btn" onClick={() => { setShowProfile(!showProfile); setShowNotif(false); setShowCreate(false); }}>
+          <button
+            className="profile-btn"
+            onClick={() => { setShowProfile(!showProfile); setShowNotif(false); setShowCreate(false); }}
+          >
             <div className="avatar">AK</div>
             <div style={{ textAlign: 'left' }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>Arjun Kumar</div>
               <div style={{ fontSize: 10, color: 'var(--text-light)' }}>Admin</div>
             </div>
-            <ChevronDownIcon />
+            <MdKeyboardArrowDown size={16} style={{ color: 'var(--text-light)' }} />
           </button>
           {showProfile && (
             <div className="dropdown" style={{ minWidth: 180 }}>
@@ -106,17 +134,4 @@ export default function Navbar({ activePage, setActivePage }) {
       </div>
     </div>
   );
-}
-
-function SearchIcon() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-light)' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
-}
-function BellIcon() {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>;
-}
-function PlusIcon() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
-}
-function ChevronDownIcon() {
-  return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>;
 }

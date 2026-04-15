@@ -1,4 +1,3 @@
-import React from 'react';
 import LineChart from '../../components/charts/LineChart';
 import BarChart from '../../components/charts/BarChart';
 import DonutChart from '../../components/charts/DonutChart';
@@ -64,7 +63,7 @@ export default function DashboardPage() {
   return (
     <div>
       {/* KPI Cards */}
-      <div className="grid-4" style={{ gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: 22 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 18, marginBottom: 22 }}>
         {kpis.map((k, i) => (
           <div key={i} className="kpi-card">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -82,21 +81,20 @@ export default function DashboardPage() {
       </div>
 
       {/* Charts Row */}
-      <div className="grid-3" style={{ marginBottom: 22 }}>
-        <div className="card" style={{ gridColumn: 'span 2' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 18, marginBottom: 22 }}>
+        <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
             <div>
               <div className="section-title">Sales Trend</div>
               <div className="section-sub">Monthly revenue — FY 2024-25</div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 24, fontWeight: 900, color: 'var(--primary)', letterSpacing: '-0.5px' }}>₹82.4L</div>
-              <div style={{ fontSize: 11, color: 'var(--success)', fontWeight: 700 }}>↑ 18.2% vs last year</div>
+              <div style={{ fontSize: 24, fontWeight: 900, color: '#c0392b', letterSpacing: '-0.5px' }}>₹82.4L</div>
+              <div style={{ fontSize: 11, color: '#27ae60', fontWeight: 700 }}>↑ 18.2% vs last year</div>
             </div>
           </div>
-          <LineChart data={salesTrend} color="var(--primary)" height={160} />
+          <LineChart data={salesTrend} color="#c0392b" height={160} />
         </div>
-
         <div className="card">
           <div className="section-title" style={{ marginBottom: 4 }}>Order Status</div>
           <div className="section-sub" style={{ marginBottom: 18 }}>Current distribution</div>
@@ -118,22 +116,27 @@ export default function DashboardPage() {
       </div>
 
       {/* Tables Row */}
-      <div className="grid-3">
-        {/* Recent Orders */}
-        <div className="card" style={{ gridColumn: 'span 2' }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--primary-dark)', marginBottom: 14 }}>Recent Orders</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 18 }}>
+        <div className="card">
+          <div className="section-title" style={{ color: '#922b21', marginBottom: 14 }}>Recent Orders</div>
           <div className="table-container">
             <table>
-              <thead><tr><th>Order ID</th><th>Customer</th><th>Items</th><th>Value</th><th>Status</th><th>Date</th></tr></thead>
+              <thead>
+                <tr>
+                  {['Order ID', 'Customer', 'Items', 'Value', 'Status', 'Date'].map(h => (
+                    <th key={h}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
               <tbody>
                 {recentOrders.map((o, i) => (
                   <tr key={i}>
-                    <td style={{ fontWeight: 600, color: 'var(--primary)' }}>{o.id}</td>
+                    <td style={{ fontWeight: 600, color: '#c0392b' }}>{o.id}</td>
                     <td>{o.customer}</td>
                     <td>{o.items}</td>
                     <td style={{ fontWeight: 600 }}>{o.value}</td>
                     <td><StatusBadge status={o.status} /></td>
-                    <td style={{ color: 'var(--text-light)' }}>{o.date}</td>
+                    <td style={{ color: '#718096' }}>{o.date}</td>
                   </tr>
                 ))}
               </tbody>
@@ -141,23 +144,22 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Right column */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Low Stock */}
           <div className="card">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--primary-dark)' }}>Low Stock Alerts</div>
+              <div className="section-title" style={{ color: '#922b21' }}>Low Stock Alerts</div>
               <span className="status-badge danger">{lowStock.length} items</span>
             </div>
             {lowStock.map((s, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < lowStock.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600 }}>{s.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-light)' }}>{s.sku} · {s.warehouse}</div>
+                  <div style={{ fontSize: 11, color: '#718096' }}>{s.sku} · {s.warehouse}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--danger)' }}>{s.qty}</div>
-                  <div style={{ fontSize: 10, color: 'var(--text-light)' }}>min: {s.min}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#e74c3c' }}>{s.qty}</div>
+                  <div style={{ fontSize: 10, color: '#718096' }}>min: {s.min}</div>
                 </div>
               </div>
             ))}
@@ -165,15 +167,15 @@ export default function DashboardPage() {
 
           {/* Pending Approvals */}
           <div className="card">
-            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--primary-dark)', marginBottom: 12 }}>Pending Approvals</div>
+            <div className="section-title" style={{ color: '#922b21', marginBottom: 12 }}>Pending Approvals</div>
             {pendingApprovals.map((a, i) => (
               <div key={i} style={{ padding: '8px 0', borderBottom: i < pendingApprovals.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--primary)' }}>{a.id}</span>
-                  <span style={{ fontSize: 11, color: 'var(--text-light)' }}>{a.age} ago</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#c0392b' }}>{a.id}</span>
+                  <span style={{ fontSize: 11, color: '#718096' }}>{a.age} ago</span>
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-light)' }}>{a.type} · {a.requestedBy}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', marginTop: 2 }}>{a.amount}</div>
+                <div style={{ fontSize: 11, color: '#718096' }}>{a.type} · {a.requestedBy}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#f39c12', marginTop: 2 }}>{a.amount}</div>
               </div>
             ))}
           </div>

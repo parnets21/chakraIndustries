@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
-import Modal from '../../components/common/Modal';
 
 const initialTasks = {
   todo: [
@@ -18,7 +17,7 @@ const initialTasks = {
   ],
 };
 
-const priorityColor = { Urgent: 'danger', High: 'warning', Normal: 'info', Low: 'gray' };
+const priorityType = { Urgent: 'danger', High: 'warning', Normal: 'info', Low: 'gray' };
 const tagColor = { Inventory: '#3b82f6', Procurement: '#8b5cf6', Production: '#f59e0b', Quality: '#10b981', Finance: '#ef4444' };
 
 const colConfig = [
@@ -29,8 +28,8 @@ const colConfig = [
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState(initialTasks);
-  const [showModal, setShowModal] = useState(false);
   const [dragging, setDragging] = useState(null);
+  const [showModal, setShowModal] = useState(false);
 
   const moveTask = (taskId, fromCol, toCol) => {
     if (fromCol === toCol) return;
@@ -55,7 +54,7 @@ export default function TasksPage() {
       {/* Summary */}
       <div className="grid-3" style={{ marginBottom: 20 }}>
         {colConfig.map(col => (
-          <div key={col.key} className="kpi-card" style={{ background: col.bg, border: 'none' }}>
+          <div key={col.key} className="kpi-card" style={{ background: col.bg }}>
             <div className="kpi-value" style={{ color: col.color }}>{tasks[col.key].length}</div>
             <div className="kpi-label">{col.label}</div>
           </div>
@@ -69,15 +68,11 @@ export default function TasksPage() {
             key={col.key}
             className="kanban-col"
             onDragOver={e => e.preventDefault()}
-            onDrop={e => {
-              e.preventDefault();
-              if (dragging) moveTask(dragging.id, dragging.col, col.key);
-              setDragging(null);
-            }}
+            onDrop={e => { e.preventDefault(); if (dragging) moveTask(dragging.id, dragging.col, col.key); setDragging(null); }}
           >
             <div className="kanban-col-header">
               <span style={{ color: col.color }}>{col.label}</span>
-              <span style={{ background: col.color, color: '#fff', borderRadius: 12, padding: '2px 8px', fontSize: 11 }}>{tasks[col.key].length}</span>
+              <span className="status-badge" style={{ background: col.color, color: '#fff', fontSize: 11 }}>{tasks[col.key].length}</span>
             </div>
             {tasks[col.key].map(task => (
               <div
@@ -87,24 +82,28 @@ export default function TasksPage() {
                 onDragStart={() => setDragging({ id: task.id, col: col.key })}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                  <span style={{ fontSize: 11, color: 'var(--text-light)', fontFamily: 'monospace' }}>{task.id}</span>
-                  <StatusBadge status={task.priority} type={priorityColor[task.priority]} />
+                  <span style={{ fontSize: 11, color: '#718096', fontFamily: 'monospace' }}>{task.id}</span>
+                  <StatusBadge status={task.priority} type={priorityType[task.priority]} />
                 </div>
                 <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, lineHeight: 1.4 }}>{task.title}</div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: tagColor[task.tag] + '20', color: tagColor[task.tag], fontWeight: 600 }}>{task.tag}</span>
-                  <span style={{ fontSize: 11, color: 'var(--text-light)' }}>Due: {task.due}</span>
+                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, fontWeight: 600, background: (tagColor[task.tag] || '#6b7280') + '20', color: tagColor[task.tag] || '#6b7280' }}>{task.tag}</span>
+                  <span style={{ fontSize: 11, color: '#718096' }}>Due: {task.due}</span>
                 </div>
                 <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'linear-gradient(135deg, var(--primary), var(--accent))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 9, fontWeight: 700 }}>
+                  <div style={{ width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 9, fontWeight: 700, background: 'linear-gradient(135deg, #c0392b, #f39c12)' }}>
                     {task.assignee.split(' ').map(n => n[0]).join('')}
                   </div>
-                  <span style={{ fontSize: 11, color: 'var(--text-light)' }}>{task.assignee}</span>
+                  <span style={{ fontSize: 11, color: '#718096' }}>{task.assignee}</span>
                 </div>
                 {col.key !== 'done' && (
                   <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                    {col.key === 'todo' && <button className="btn btn-sm" style={{ flex: 1, background: '#fef3c7', color: '#92400e', fontSize: 11 }} onClick={() => moveTask(task.id, 'todo', 'inProgress')}>Start →</button>}
-                    {col.key === 'inProgress' && <button className="btn btn-sm" style={{ flex: 1, background: '#d1fae5', color: '#065f46', fontSize: 11 }} onClick={() => moveTask(task.id, 'inProgress', 'done')}>Complete ✓</button>}
+                    {col.key === 'todo' && (
+                      <button className="btn btn-sm" style={{ flex: 1, background: '#fef3c7', color: '#92400e', border: 'none' }} onClick={() => moveTask(task.id, 'todo', 'inProgress')}>Start →</button>
+                    )}
+                    {col.key === 'inProgress' && (
+                      <button className="btn btn-sm" style={{ flex: 1, background: '#d1fae5', color: '#065f46', border: 'none' }} onClick={() => moveTask(task.id, 'inProgress', 'done')}>Complete ✓</button>
+                    )}
                   </div>
                 )}
               </div>
@@ -113,17 +112,30 @@ export default function TasksPage() {
         ))}
       </div>
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Create New Task"
-        footer={<><button className="btn btn-outline" onClick={() => setShowModal(false)}>Cancel</button><button className="btn btn-primary">Create Task</button></>}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div className="form-group" style={{ gridColumn: 'span 2' }}><label className="form-label">Task Title *</label><input className="form-input" placeholder="Enter task title" /></div>
-          <div className="form-group"><label className="form-label">Assignee</label><input className="form-input" placeholder="Name" /></div>
-          <div className="form-group"><label className="form-label">Priority</label><select className="form-select"><option>Normal</option><option>High</option><option>Urgent</option></select></div>
-          <div className="form-group"><label className="form-label">Due Date</label><input type="date" className="form-input" /></div>
-          <div className="form-group"><label className="form-label">Tag</label><select className="form-select"><option>Procurement</option><option>Inventory</option><option>Production</option><option>Finance</option></select></div>
-          <div className="form-group" style={{ gridColumn: 'span 2' }}><label className="form-label">Description</label><textarea className="form-textarea" placeholder="Task details..." /></div>
+      {showModal && (
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Create New Task</span>
+              <button className="btn btn-sm" style={{ background: 'none', color: '#718096', fontSize: 20, padding: '0 4px' }} onClick={() => setShowModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div className="form-group" style={{ gridColumn: 'span 2' }}><label className="form-label">Task Title *</label><input className="form-input" placeholder="Enter task title" /></div>
+                <div className="form-group"><label className="form-label">Assignee</label><input className="form-input" placeholder="Name" /></div>
+                <div className="form-group"><label className="form-label">Priority</label><select className="form-select"><option>Normal</option><option>High</option><option>Urgent</option></select></div>
+                <div className="form-group"><label className="form-label">Due Date</label><input type="date" className="form-input" /></div>
+                <div className="form-group"><label className="form-label">Tag</label><select className="form-select"><option>Procurement</option><option>Inventory</option><option>Production</option><option>Finance</option></select></div>
+                <div className="form-group" style={{ gridColumn: 'span 2' }}><label className="form-label">Description</label><textarea className="form-textarea" placeholder="Task details..." /></div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={() => setShowModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={() => setShowModal(false)}>Create Task</button>
+            </div>
+          </div>
         </div>
-      </Modal>
+      )}
     </div>
   );
 }

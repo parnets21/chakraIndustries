@@ -1,8 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
-import Modal from '../../components/common/Modal';
-import { Input, Select, Textarea, Grid2, ModalBtn } from '../../components/forms/FormField';
 
 const assets = [
   { id: 'AST-001', name: 'CNC Machine M-200', category: 'Machinery', location: 'Plant A', purchaseDate: '15 Jan 2022', value: '₹24,00,000', status: 'Active', nextMaint: '20 Apr 2024' },
@@ -26,6 +24,13 @@ export default function AssetsPage() {
   const [activeTab, setActiveTab] = useState(0);
   const [showModal, setShowModal] = useState(false);
 
+  const kpis = [
+    { label: 'Total Assets', value: assets.length, color: '#3b82f6' },
+    { label: 'Active', value: assets.filter(a => a.status === 'Active').length, color: '#10b981' },
+    { label: 'Under Maintenance', value: assets.filter(a => a.status === 'Maintenance').length, color: '#f59e0b' },
+    { label: 'Total Value', value: '₹54.5L', color: '#8b5cf6' },
+  ];
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -37,14 +42,9 @@ export default function AssetsPage() {
       </div>
 
       <div className="grid-4" style={{ marginBottom: 20 }}>
-        {[
-          { label: 'Total Assets', value: assets.length, color: '#dbeafe', textColor: '#3b82f6' },
-          { label: 'Active', value: assets.filter(a => a.status === 'Active').length, color: '#d1fae5', textColor: '#10b981' },
-          { label: 'Under Maintenance', value: assets.filter(a => a.status === 'Maintenance').length, color: '#fef3c7', textColor: '#f59e0b' },
-          { label: 'Total Value', value: '₹54.5L', color: '#ede9fe', textColor: '#8b5cf6' },
-        ].map((k, i) => (
-          <div key={i} className="kpi-card" style={{ background: k.color, border: 'none' }}>
-            <div className="kpi-value" style={{ color: k.textColor }}>{k.value}</div>
+        {kpis.map((k, i) => (
+          <div key={i} className="kpi-card">
+            <div className="kpi-value" style={{ color: k.color }}>{k.value}</div>
             <div className="kpi-label">{k.label}</div>
           </div>
         ))}
@@ -60,7 +60,7 @@ export default function AssetsPage() {
         <div className="card">
           <DataTable
             columns={[
-              { key: 'id', label: 'Asset ID', render: v => <span style={{ fontWeight: 600, color: 'var(--primary)' }}>{v}</span> },
+              { key: 'id', label: 'Asset ID', render: v => <span style={{ fontWeight: 600, color: '#c0392b' }}>{v}</span> },
               { key: 'name', label: 'Asset Name', render: v => <span style={{ fontWeight: 600 }}>{v}</span> },
               { key: 'category', label: 'Category' },
               { key: 'location', label: 'Location' },
@@ -76,46 +76,41 @@ export default function AssetsPage() {
       {activeTab === 1 && (
         <div className="grid-2">
           <div className="card">
-            <div style={{ fontWeight: 700, marginBottom: 16 }}>April 2024</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 8 }}>
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-                <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: 'var(--text-light)', padding: '4px 0' }}>{d}</div>
+            <div className="section-title" style={{ marginBottom: 16 }}>April 2024</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, marginBottom: 8 }}>
+              {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
+                <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: '#718096', padding: '4px 0' }}>{d}</div>
               ))}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
-              {/* Offset for April starting on Monday */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4 }}>
               <div />
               {calendarDays.map(d => (
                 <div key={d} style={{
-                  textAlign: 'center',
-                  padding: '6px 2px',
-                  borderRadius: 6,
-                  fontSize: 12,
+                  textAlign: 'center', padding: '6px 2px', borderRadius: 6, fontSize: 12, cursor: maintDays.includes(d) ? 'pointer' : 'default',
                   fontWeight: maintDays.includes(d) ? 700 : 400,
-                  background: maintDays.includes(d) ? 'var(--accent)' : d === 14 ? 'var(--primary)' : 'transparent',
-                  color: maintDays.includes(d) || d === 14 ? '#fff' : 'var(--text)',
-                  cursor: maintDays.includes(d) ? 'pointer' : 'default',
+                  background: maintDays.includes(d) ? '#f39c12' : d === 14 ? '#c0392b' : 'transparent',
+                  color: maintDays.includes(d) || d === 14 ? '#fff' : '#1c2833',
                 }}>
                   {d}
                 </div>
               ))}
             </div>
             <div style={{ marginTop: 12, display: 'flex', gap: 12, fontSize: 11 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--accent)' }} /> Maintenance</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--primary)' }} /> Today</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: '#f39c12' }} /> Maintenance</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: '#c0392b' }} /> Today</div>
             </div>
           </div>
           <div className="card">
-            <div style={{ fontWeight: 700, marginBottom: 14 }}>Maintenance Schedule</div>
+            <div className="section-title" style={{ marginBottom: 14 }}>Maintenance Schedule</div>
             {maintenanceSchedule.map((m, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: i < maintenanceSchedule.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                <div style={{ width: 40, height: 40, borderRadius: 8, background: '#f0f4f8', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--primary)' }}>{m.date.split(' ')[0]}</div>
-                  <div style={{ fontSize: 9, color: 'var(--text-light)' }}>APR</div>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: i < maintenanceSchedule.length - 1 ? '1px solid #e2e8f0' : 'none' }}>
+                <div style={{ width: 40, height: 40, borderRadius: 8, background: '#f0f4f8', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#c0392b' }}>{m.date.split(' ')[0]}</div>
+                  <div style={{ fontSize: 9, color: '#718096' }}>APR</div>
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, fontSize: 13 }}>{m.asset}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-light)' }}>{m.type} · {m.technician}</div>
+                  <div style={{ fontSize: 11, color: '#718096' }}>{m.type} · {m.technician}</div>
                 </div>
                 <StatusBadge status={m.status} />
               </div>
@@ -124,34 +119,35 @@ export default function AssetsPage() {
         </div>
       )}
 
-      {/* Add Asset Modal */}
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Add New Asset"
-        footer={<><ModalBtn variant="outline" onClick={() => setShowModal(false)}>Cancel</ModalBtn><ModalBtn onClick={() => setShowModal(false)}>Save Asset</ModalBtn></>}>
-        <Grid2>
-          <Input label="Asset Name *" placeholder="e.g. CNC Machine M-300" />
-          <Select label="Category *">
-            <option>Machinery</option>
-            <option>Material Handling</option>
-            <option>Utilities</option>
-            <option>IT Equipment</option>
-            <option>Vehicles</option>
-          </Select>
-          <Input label="Location *" placeholder="e.g. Plant A" />
-          <Input label="Purchase Date" type="date" />
-          <Input label="Purchase Value (₹) *" type="number" placeholder="0.00" />
-          <Select label="Condition">
-            <option>New</option>
-            <option>Good</option>
-            <option>Fair</option>
-            <option>Poor</option>
-          </Select>
-          <Input label="Vendor / Supplier" placeholder="Supplier name" />
-          <Input label="Warranty Expiry" type="date" />
-          <Input label="Next Maintenance" type="date" />
-          <Input label="Assigned To" placeholder="Department / Person" />
-        </Grid2>
-        <Textarea label="Description / Notes" placeholder="Asset details..." />
-      </Modal>
+      {showModal && (
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Add New Asset</span>
+              <button className="btn btn-sm" style={{ background: 'none', color: '#718096', fontSize: 20, padding: '0 4px' }} onClick={() => setShowModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div className="form-group"><label className="form-label">Asset Name *</label><input className="form-input" placeholder="e.g. CNC Machine M-300" /></div>
+                <div className="form-group"><label className="form-label">Category *</label><select className="form-select"><option>Machinery</option><option>Material Handling</option><option>Utilities</option><option>IT Equipment</option><option>Vehicles</option></select></div>
+                <div className="form-group"><label className="form-label">Location *</label><input className="form-input" placeholder="e.g. Plant A" /></div>
+                <div className="form-group"><label className="form-label">Purchase Date</label><input type="date" className="form-input" /></div>
+                <div className="form-group"><label className="form-label">Purchase Value (₹) *</label><input type="number" className="form-input" placeholder="0.00" /></div>
+                <div className="form-group"><label className="form-label">Condition</label><select className="form-select"><option>New</option><option>Good</option><option>Fair</option><option>Poor</option></select></div>
+                <div className="form-group"><label className="form-label">Vendor / Supplier</label><input className="form-input" placeholder="Supplier name" /></div>
+                <div className="form-group"><label className="form-label">Warranty Expiry</label><input type="date" className="form-input" /></div>
+                <div className="form-group"><label className="form-label">Next Maintenance</label><input type="date" className="form-input" /></div>
+                <div className="form-group"><label className="form-label">Assigned To</label><input className="form-input" placeholder="Department / Person" /></div>
+              </div>
+              <div className="form-group"><label className="form-label">Description / Notes</label><textarea className="form-textarea" placeholder="Asset details..." /></div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={() => setShowModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={() => setShowModal(false)}>Save Asset</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,3 @@
-import React from 'react';
-
 export default function BarChart({ data, color = '#c0392b', height = 180 }) {
   const max = Math.max(...data.map(d => d.value), 1);
   return (
@@ -7,7 +5,9 @@ export default function BarChart({ data, color = '#c0392b', height = 180 }) {
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height, padding: '0 4px' }}>
         {data.map((d, i) => (
           <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, height: '100%', justifyContent: 'flex-end' }}>
-            <span style={{ fontSize: 10, color: 'var(--text-light)', fontWeight: 600 }}>{d.value >= 1000 ? `${(d.value/1000).toFixed(0)}k` : d.value}</span>
+            <span style={{ fontSize: 10, color: 'var(--text-light)', fontWeight: 600 }}>
+              {d.value >= 1000 ? `${(d.value / 1000).toFixed(0)}k` : d.value}
+            </span>
             <div
               style={{
                 width: '100%',
@@ -26,7 +26,9 @@ export default function BarChart({ data, color = '#c0392b', height = 180 }) {
       </div>
       <div style={{ display: 'flex', gap: 6, padding: '6px 4px 0', borderTop: '1px solid var(--border)' }}>
         {data.map((d, i) => (
-          <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: 10, color: 'var(--text-light)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.label}</div>
+          <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: 10, color: 'var(--text-light)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {d.label}
+          </div>
         ))}
       </div>
     </div>

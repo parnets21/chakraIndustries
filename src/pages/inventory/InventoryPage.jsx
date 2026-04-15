@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import BarChart from '../../components/charts/BarChart';
 import Modal from '../../components/common/Modal';
-import { Input, Select, Textarea, Grid2, ModalBtn } from '../../components/forms/FormField';
 
 const tabs = ['Stock Dashboard', 'Stock Table', 'Warehouses', 'Stock Movement'];
 
@@ -40,16 +39,22 @@ const stockChartData = [
 
 export default function InventoryPage() {
   const [activeTab, setActiveTab] = useState(0);
-  const [movTab, setMovTab]       = useState('Inward');
+  const [movTab, setMovTab] = useState('Inward');
   const [showModal, setShowModal] = useState(false);
 
   const total = stockData.reduce((s, i) => s + i.qty, 0);
   const low   = stockData.filter(i => i.qty < i.minQty && i.qty > 0).length;
   const dead  = stockData.filter(i => i.qty === 0).length;
 
+  const kpis = [
+    { label: 'Total Stock Units', value: total.toLocaleString(), color: '#c0392b' },
+    { label: 'Low Stock Items',   value: low,                    color: '#f39c12' },
+    { label: 'Dead Stock Items',  value: dead,                   color: '#7f8c8d' },
+    { label: 'Active SKUs',       value: stockData.filter(i => i.status === 'Active').length, color: '#27ae60' },
+  ];
+
   return (
     <div>
-      {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
           <div className="page-title">Inventory</div>
@@ -58,40 +63,30 @@ export default function InventoryPage() {
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Add Stock</button>
       </div>
 
-      {/* ── Tabs ── */}
       <div className="tabs">
-        {tabs.map((t, i) => (
-          <div key={i} className={`tab${activeTab === i ? ' active' : ''}`} onClick={() => setActiveTab(i)}>{t}</div>
-        ))}
+        {tabs.map((t, i) => <div key={i} className={`tab${activeTab === i ? ' active' : ''}`} onClick={() => setActiveTab(i)}>{t}</div>)}
       </div>
 
-      {/* ── Stock Dashboard ── */}
       {activeTab === 0 && (
         <div>
           <div className="grid-4" style={{ marginBottom: 20 }}>
-            {[
-              { label: 'Total Stock Units', value: total.toLocaleString(), color: '#fdf0ef', iconColor: '#c0392b' },
-              { label: 'Low Stock Items',   value: low,                    color: '#fef9e7', iconColor: '#f39c12' },
-              { label: 'Dead Stock Items',  value: dead,                   color: '#f2f3f4', iconColor: '#7f8c8d' },
-              { label: 'Active SKUs',       value: stockData.filter(i => i.status === 'Active').length, color: '#eafaf1', iconColor: '#27ae60' },
-            ].map((k, i) => (
-              <div key={i} className="kpi-card" style={{ background: k.color, border: 'none' }}>
-                <div className="kpi-value" style={{ color: k.iconColor }}>{k.value}</div>
+            {kpis.map((k, i) => (
+              <div key={i} className="kpi-card">
+                <div className="kpi-value" style={{ color: k.color }}>{k.value}</div>
                 <div className="kpi-label">{k.label}</div>
-                <div className="progress-bar" style={{ marginTop: 8 }}>
-                  <div className="progress-fill" style={{ width: '60%', background: k.iconColor }} />
+                <div className="progress-bar">
+                  <div className="progress-fill" style={{ width: '60%', background: k.color }} />
                 </div>
               </div>
             ))}
           </div>
           <div className="card">
-            <div style={{ fontWeight: 700, marginBottom: 12 }}>Stock by Category</div>
+            <div className="section-title" style={{ marginBottom: 12 }}>Stock by Category</div>
             <BarChart data={stockChartData} height={180} />
           </div>
         </div>
       )}
 
-      {/* ── Stock Table ── */}
       {activeTab === 1 && (
         <div className="card">
           <DataTable
@@ -106,7 +101,7 @@ export default function InventoryPage() {
               { key: 'sku',     label: 'Actions',    render: () => (
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button className="btn btn-outline btn-sm">Adjust</button>
-                  <button className="btn btn-sm" style={{ background: '#f1f5f9', color: 'var(--text)' }}>Move</button>
+                  <button className="btn btn-sm" style={{ background: '#f1f5f9', color: '#1c2833' }}>Move</button>
                 </div>
               )},
             ]}
@@ -115,7 +110,6 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* ── Warehouses ── */}
       {activeTab === 2 && (
         <div className="grid-3">
           {warehouses.map((wh, i) => (
@@ -123,21 +117,21 @@ export default function InventoryPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 15 }}>{wh.name}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-light)' }}>{wh.id} · {wh.location}</div>
+                  <div style={{ fontSize: 12, color: '#718096' }}>{wh.id} · {wh.location}</div>
                 </div>
                 <StatusBadge status="Active" />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+              <div className="grid-2" style={{ marginBottom: 14 }}>
                 <div style={{ background: '#f8fafc', borderRadius: 8, padding: 10 }}>
                   <div style={{ fontSize: 18, fontWeight: 800, color: '#c0392b' }}>{wh.skus}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-light)' }}>Active SKUs</div>
+                  <div style={{ fontSize: 11, color: '#718096' }}>Active SKUs</div>
                 </div>
                 <div style={{ background: '#f8fafc', borderRadius: 8, padding: 10 }}>
                   <div style={{ fontSize: 18, fontWeight: 800, color: '#f39c12' }}>{wh.manager.split(' ')[0]}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-light)' }}>Manager</div>
+                  <div style={{ fontSize: 11, color: '#718096' }}>Manager</div>
                 </div>
               </div>
-              <div style={{ marginBottom: 6, display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
                 <span>Capacity Used</span>
                 <span style={{ fontWeight: 700 }}>{wh.used}/{wh.capacity}</span>
               </div>
@@ -150,12 +144,14 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* ── Stock Movement ── */}
       {activeTab === 3 && (
         <div className="card">
           <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
             {['Inward', 'Outward', 'Transfer'].map(t => (
-              <button key={t} className={`btn btn-sm${movTab === t ? ' btn-primary' : ' btn-outline'}`} onClick={() => setMovTab(t)}>{t}</button>
+              <button key={t} onClick={() => setMovTab(t)}
+                className={movTab === t ? 'btn btn-primary btn-sm' : 'btn btn-outline btn-sm'}>
+                {t}
+              </button>
             ))}
           </div>
           <DataTable
@@ -175,46 +171,33 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* ── Add Stock Modal ── */}
-      <Modal
-        open={showModal}
-        onClose={() => setShowModal(false)}
-        title="Add Stock Entry"
-        footer={
-          <>
-            <ModalBtn variant="outline" onClick={() => setShowModal(false)}>Cancel</ModalBtn>
-            <ModalBtn onClick={() => setShowModal(false)}>Add Stock</ModalBtn>
-          </>
-        }
-      >
-        <Grid2>
-          <Input label="SKU *"        placeholder="e.g. SKU-1042" />
-          <Input label="Item Name *"  placeholder="Item description" />
-          <Select label="Warehouse *">
-            <option>WH-01 — Main Warehouse</option>
-            <option>WH-02 — Secondary Store</option>
-            <option>WH-03 — Finished Goods</option>
-          </Select>
-          <Input label="Quantity *"       type="number" placeholder="0" />
-          <Input label="Batch Number"     placeholder="e.g. B-2024-04" />
-          <Input label="Min Stock Level"  type="number" placeholder="0" />
-          <Select label="Category">
-            <option>Raw Material</option>
-            <option>WIP</option>
-            <option>Finished Good</option>
-            <option>Spare Parts</option>
-          </Select>
-          <Select label="Unit of Measure">
-            <option>Nos</option>
-            <option>Set</option>
-            <option>Kg</option>
-            <option>Litre</option>
-            <option>Metre</option>
-          </Select>
-        </Grid2>
-        <Textarea label="Remarks" placeholder="Optional notes..." />
-      </Modal>
-
+      {showModal && (
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Add Stock Entry</span>
+              <button className="btn btn-sm" style={{ background: 'none', color: '#718096', fontSize: 20, padding: '0 4px' }} onClick={() => setShowModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div className="form-group"><label className="form-label">SKU *</label><input className="form-input" placeholder="e.g. SKU-1042" /></div>
+                <div className="form-group"><label className="form-label">Item Name *</label><input className="form-input" placeholder="Item description" /></div>
+                <div className="form-group"><label className="form-label">Warehouse *</label><select className="form-select"><option>WH-01 — Main Warehouse</option><option>WH-02 — Secondary Store</option><option>WH-03 — Finished Goods</option></select></div>
+                <div className="form-group"><label className="form-label">Quantity *</label><input type="number" className="form-input" placeholder="0" /></div>
+                <div className="form-group"><label className="form-label">Batch Number</label><input className="form-input" placeholder="e.g. B-2024-04" /></div>
+                <div className="form-group"><label className="form-label">Min Stock Level</label><input type="number" className="form-input" placeholder="0" /></div>
+                <div className="form-group"><label className="form-label">Category</label><select className="form-select"><option>Raw Material</option><option>WIP</option><option>Finished Good</option><option>Spare Parts</option></select></div>
+                <div className="form-group"><label className="form-label">Unit of Measure</label><select className="form-select"><option>Nos</option><option>Set</option><option>Kg</option><option>Litre</option><option>Metre</option></select></div>
+              </div>
+              <div className="form-group"><label className="form-label">Remarks</label><textarea className="form-textarea" placeholder="Optional notes..." /></div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={() => setShowModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={() => setShowModal(false)}>Add Stock</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

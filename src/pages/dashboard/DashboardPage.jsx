@@ -12,6 +12,19 @@ const kpis = [
   { label: 'Pending Dispatch', value: '37', change: '-4.2%', up: false, color: '#eaf4fb', iconColor: '#2980b9', icon: <TruckIcon /> },
 ];
 
+const operationalAlerts = [
+  { label: 'Pending GRNs', value: 8, color: '#f59e0b', icon: '📋' },
+  { label: 'Return Requests', value: 3, color: '#ef4444', icon: '↩️' },
+  { label: "Today's Dispatches", value: 12, color: '#10b981', icon: '🚛' },
+  { label: 'Production vs Target', value: '94%', color: '#8b5cf6', icon: '🏭' },
+];
+
+const productionTarget = [
+  { product: 'Engine Assembly A', target: 50, actual: 50, pct: 100 },
+  { product: 'Gearbox Unit B', target: 30, actual: 18, pct: 60 },
+  { product: 'Clutch Assembly C', target: 80, actual: 0, pct: 0 },
+];
+
 const salesTrend = [
   { label: 'Jan', value: 320000 }, { label: 'Feb', value: 410000 }, { label: 'Mar', value: 380000 },
   { label: 'Apr', value: 520000 }, { label: 'May', value: 490000 }, { label: 'Jun', value: 610000 },
@@ -65,80 +78,119 @@ export default function DashboardPage() {
   return (
     <div>
       {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 18, marginBottom: 22 }}>
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
         {kpis.map((k, i) => (
-          <div key={i} className="kpi-card">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div className="kpi-icon" style={{ background: k.color }}>
+          <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
+            <div className="flex items-center justify-between">
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: k.color }}>
                 <span style={{ color: k.iconColor }}>{k.icon}</span>
               </div>
-              <span className={`kpi-change ${k.up ? 'up' : 'down'}`}>
+              <span className={`text-xs font-bold ${k.up ? 'text-green-600' : 'text-red-500'}`}>
                 {k.up ? '↑' : '↓'} {k.change}
               </span>
             </div>
-            <div className="kpi-value">{k.value}</div>
-            <div className="kpi-label">{k.label}</div>
+            <div className="text-2xl font-black tracking-tight mt-2">{k.value}</div>
+            <div className="text-xs text-gray-500 font-medium">{k.label}</div>
           </div>
         ))}
       </div>
 
       {/* Charts Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 18, marginBottom: 22 }}>
-        <div className="card">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4 mb-5">
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <div className="section-title">Sales Trend</div>
-              <div className="section-sub">Monthly revenue — FY 2024-25</div>
+              <div className="text-sm font-bold text-gray-800">Sales Trend</div>
+              <div className="text-xs text-gray-400 mt-0.5">Monthly revenue — FY 2024-25</div>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 24, fontWeight: 900, color: '#c0392b', letterSpacing: '-0.5px' }}>₹82.4L</div>
-              <div style={{ fontSize: 11, color: '#27ae60', fontWeight: 700 }}>↑ 18.2% vs last year</div>
+            <div className="text-right">
+              <div className="text-2xl font-black tracking-tight" style={{ color: '#c0392b' }}>₹82.4L</div>
+              <div className="text-xs font-bold" style={{ color: '#27ae60' }}>↑ 18.2% vs last year</div>
             </div>
           </div>
           <LineChart data={salesTrend} color="#c0392b" height={160} />
         </div>
-        <div className="card">
-          <div className="section-title" style={{ marginBottom: 4 }}>Order Status</div>
-          <div className="section-sub" style={{ marginBottom: 18 }}>Current distribution</div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="text-sm font-bold text-gray-800 mb-1">Order Status</div>
+          <div className="text-xs text-gray-400 mb-4">Current distribution</div>
           <DonutChart data={donutData} size={120} />
         </div>
       </div>
 
-      <div className="grid-2" style={{ marginBottom: 22 }}>
-        <div className="card">
-          <div className="section-title" style={{ marginBottom: 4 }}>Inventory Status</div>
-          <div className="section-sub" style={{ marginBottom: 14 }}>Units by category</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="text-sm font-bold text-gray-800 mb-1">Inventory Status</div>
+          <div className="text-xs text-gray-400 mb-3">Units by category</div>
           <BarChart data={inventoryStatus} height={150} />
         </div>
-        <div className="card">
-          <div className="section-title" style={{ marginBottom: 4 }}>Production Efficiency</div>
-          <div className="section-sub" style={{ marginBottom: 14 }}>This week (%)</div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="text-sm font-bold text-gray-800 mb-1">Production Efficiency</div>
+          <div className="text-xs text-gray-400 mb-3">This week (%)</div>
           <BarChart data={productionEff} height={150} />
         </div>
       </div>
 
+      {/* Operational Alerts Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+        {operationalAlerts.map((a, i) => (
+          <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style={{ background: a.color + '18' }}>{a.icon}</div>
+            <div>
+              <div className="text-2xl font-black leading-none" style={{ color: a.color }}>{a.value}</div>
+              <div className="text-xs text-gray-500 mt-0.5">{a.label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Production vs Target */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm mb-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="text-sm font-bold text-gray-800">Production vs Target — Today</div>
+            <div className="text-xs text-gray-400 mt-0.5">Work order progress</div>
+          </div>
+          <StatusBadge status="Active" />
+        </div>
+        <div className="flex flex-col gap-3.5">
+          {productionTarget.map((p, i) => (
+            <div key={i}>
+              <div className="flex justify-between text-sm mb-1.5">
+                <span className="font-semibold">{p.product}</span>
+                <span className="font-bold" style={{ color: p.pct === 100 ? '#27ae60' : p.pct > 50 ? '#f39c12' : '#e74c3c' }}>
+                  {p.actual}/{p.target} units ({p.pct}%)
+                </span>
+              </div>
+              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${p.pct}%`, background: p.pct === 100 ? '#27ae60' : p.pct > 50 ? '#f39c12' : '#e74c3c' }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Tables Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 18 }}>
-        <div className="card">
-          <div className="section-title" style={{ color: '#922b21', marginBottom: 14 }}>Recent Orders</div>
-          <div className="table-container">
-            <table>
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4">
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="text-sm font-bold mb-3.5" style={{ color: '#922b21' }}>Recent Orders</div>
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>
                   {['Order ID', 'Customer', 'Items', 'Value', 'Status', 'Date'].map(h => (
-                    <th key={h}>{h}</th>
+                    <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {recentOrders.map((o, i) => (
-                  <tr key={i}>
-                    <td style={{ fontWeight: 600, color: '#c0392b' }}>{o.id}</td>
-                    <td>{o.customer}</td>
-                    <td>{o.items}</td>
-                    <td style={{ fontWeight: 600 }}>{o.value}</td>
-                    <td><StatusBadge status={o.status} /></td>
-                    <td style={{ color: '#718096' }}>{o.date}</td>
+                  <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
+                    <td className="px-4 py-3 text-gray-800 align-middle font-semibold" style={{ color: '#c0392b' }}>{o.id}</td>
+                    <td className="px-4 py-3 text-gray-800 align-middle">{o.customer}</td>
+                    <td className="px-4 py-3 text-gray-800 align-middle">{o.items}</td>
+                    <td className="px-4 py-3 text-gray-800 align-middle font-semibold">{o.value}</td>
+                    <td className="px-4 py-3 text-gray-800 align-middle"><StatusBadge status={o.status} /></td>
+                    <td className="px-4 py-3 align-middle text-gray-400">{o.date}</td>
                   </tr>
                 ))}
               </tbody>
@@ -146,38 +198,38 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className="flex flex-col gap-4">
           {/* Low Stock */}
-          <div className="card">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div className="section-title" style={{ color: '#922b21' }}>Low Stock Alerts</div>
-              <span className="status-badge danger">{lowStock.length} items</span>
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold" style={{ color: '#922b21' }}>Low Stock Alerts</div>
+              <StatusBadge status="Critical" />
             </div>
             {lowStock.map((s, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < lowStock.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+              <div key={i} className={`flex items-center justify-between py-2 ${i < lowStock.length - 1 ? 'border-b border-gray-100' : ''}`}>
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600 }}>{s.name}</div>
-                  <div style={{ fontSize: 11, color: '#718096' }}>{s.sku} · {s.warehouse}</div>
+                  <div className="text-xs font-semibold">{s.name}</div>
+                  <div className="text-[11px] text-gray-400">{s.sku} · {s.warehouse}</div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#e74c3c' }}>{s.qty}</div>
-                  <div style={{ fontSize: 10, color: '#718096' }}>min: {s.min}</div>
+                <div className="text-right">
+                  <div className="text-sm font-bold text-red-500">{s.qty}</div>
+                  <div className="text-[10px] text-gray-400">min: {s.min}</div>
                 </div>
               </div>
             ))}
           </div>
 
           {/* Pending Approvals */}
-          <div className="card">
-            <div className="section-title" style={{ color: '#922b21', marginBottom: 12 }}>Pending Approvals</div>
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold mb-3" style={{ color: '#922b21' }}>Pending Approvals</div>
             {pendingApprovals.map((a, i) => (
-              <div key={i} style={{ padding: '8px 0', borderBottom: i < pendingApprovals.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#c0392b' }}>{a.id}</span>
-                  <span style={{ fontSize: 11, color: '#718096' }}>{a.age} ago</span>
+              <div key={i} className={`py-2 ${i < pendingApprovals.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-semibold" style={{ color: '#c0392b' }}>{a.id}</span>
+                  <span className="text-[11px] text-gray-400">{a.age} ago</span>
                 </div>
-                <div style={{ fontSize: 11, color: '#718096' }}>{a.type} · {a.requestedBy}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#f39c12', marginTop: 2 }}>{a.amount}</div>
+                <div className="text-[11px] text-gray-400">{a.type} · {a.requestedBy}</div>
+                <div className="text-xs font-bold mt-0.5" style={{ color: '#f39c12' }}>{a.amount}</div>
               </div>
             ))}
           </div>

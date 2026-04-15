@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
+import Modal from '../../components/common/Modal';
 
-const tabs = ['Dispatch Dashboard', 'Vehicle Allocation', 'Delivery Tracking'];
+const tabs = ['Dispatch Dashboard', 'Vehicle Allocation', 'Delivery Tracking', 'DC Regularization', 'Pendency', 'Courier & POD'];
 
 const readyOrders = [
   { id: 'ORD-2024-085', customer: 'TVS Motor', items: 18, value: '₹3,24,000', warehouse: 'WH-01', weight: '420 kg' },
@@ -30,6 +31,25 @@ const deliveryTimeline = [
   { event: 'Delivered', time: 'Expected: 15 Apr, 02:00 PM', location: 'Customer Warehouse', status: 'gray' },
 ];
 
+const dcEntries = [
+  { id: 'DC-2024-041', order: 'ORD-2024-085', customer: 'TVS Motor', dcDate: '14 Apr', invoiceNo: 'INV-2024-089', invoiceDate: '14 Apr', value: '₹3,24,000', status: 'Regularized' },
+  { id: 'DC-2024-040', order: 'ORD-2024-082', customer: 'Ashok Leyland', dcDate: '13 Apr', invoiceNo: '', invoiceDate: '', value: '₹6,80,000', status: 'Pending' },
+  { id: 'DC-2024-039', order: 'ORD-2024-079', customer: 'Force Motors', dcDate: '12 Apr', invoiceNo: 'INV-2024-087', invoiceDate: '13 Apr', value: '₹1,40,000', status: 'Regularized' },
+  { id: 'DC-2024-038', order: 'ORD-2024-076', customer: 'Eicher Motors', dcDate: '11 Apr', invoiceNo: '', invoiceDate: '', value: '₹2,10,000', status: 'Overdue' },
+];
+
+const pendencyData = [
+  { id: 'ORD-2024-087', customer: 'Bajaj Auto', items: 24, dispatched: 18, pending: 6, value: '₹1,03,000', daysOld: 2, reason: 'Stock shortage' },
+  { id: 'ORD-2024-083', customer: 'Eicher Motors', items: 15, dispatched: 10, pending: 5, value: '₹70,000', daysOld: 5, reason: 'Vehicle unavailable' },
+  { id: 'ORD-2024-078', customer: 'Force Motors', items: 8, dispatched: 0, pending: 8, value: '₹1,12,000', daysOld: 7, reason: 'Payment hold' },
+];
+
+const courierShipments = [
+  { id: 'SHP-001', courier: 'BlueDart', awb: 'BD123456789', order: 'ORD-2024-089', customer: 'Tata Motors', destination: 'Mumbai', status: 'In Transit', eta: '16 Apr', pod: false },
+  { id: 'SHP-002', courier: 'DTDC', awb: 'DT987654321', order: 'ORD-2024-086', customer: 'Hero MotoCorp', destination: 'Delhi', status: 'Delivered', eta: '13 Apr', pod: true },
+  { id: 'SHP-003', courier: 'Delhivery', awb: 'DL456789123', order: 'ORD-2024-084', customer: 'Ashok Leyland', destination: 'Chennai', status: 'Out for Delivery', eta: '15 Apr', pod: false },
+];
+
 export default function LogisticsPage() {
   const [activeTab, setActiveTab] = useState(0);
   const [showModal, setShowModal] = useState(false);
@@ -43,39 +63,69 @@ export default function LogisticsPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      {/* Page Header */}
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div>
-          <div className="page-title">Logistics</div>
-          <div className="breadcrumb"><span>Home</span><span>›</span><span className="current">Logistics</span></div>
+          <div className="text-xl font-black text-gray-900 tracking-tight">Logistics</div>
+          <div className="flex items-center gap-1 mt-0.5">
+            <span className="text-xs text-gray-400">Home</span>
+            <span className="text-xs text-gray-400">›</span>
+            <span className="text-xs text-red-600 font-semibold">Logistics</span>
+          </div>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ New Dispatch</button>
+        <div className="flex items-center gap-2">
+          <button
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]"
+            onClick={() => setShowModal(true)}
+          >
+            + New Dispatch
+          </button>
+        </div>
       </div>
 
-      <div className="tabs">
-        {tabs.map((t, i) => <div key={i} className={`tab${activeTab === i ? ' active' : ''}`} onClick={() => setActiveTab(i)}>{t}</div>)}
+      {/* Tabs */}
+      <div className="flex border-b-2 border-gray-200 mb-5 overflow-x-auto">
+        {tabs.map((t, i) => (
+          <button
+            key={i}
+            onClick={() => setActiveTab(i)}
+            className={`px-5 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 -mb-0.5 cursor-pointer flex-shrink-0 bg-transparent font-[inherit] ${
+              activeTab === i
+                ? 'text-red-700 border-red-600'
+                : 'text-gray-400 border-transparent hover:text-red-600'
+            }`}
+          >
+            {t}
+          </button>
+        ))}
       </div>
 
+      {/* Tab 0: Dispatch Dashboard */}
       {activeTab === 0 && (
         <div>
-          <div className="grid-4" style={{ marginBottom: 20 }}>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
             {kpis.map((k, i) => (
-              <div key={i} className="kpi-card">
-                <div className="kpi-value" style={{ color: k.color }}>{k.value}</div>
-                <div className="kpi-label">{k.label}</div>
+              <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
+                <div className="text-2xl font-black tracking-tight" style={{ color: k.color }}>{k.value}</div>
+                <div className="text-xs text-gray-500 font-medium mt-1">{k.label}</div>
               </div>
             ))}
           </div>
-          <div className="card">
-            <div className="section-title" style={{ marginBottom: 14 }}>Orders Ready for Dispatch</div>
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-3.5">Orders Ready for Dispatch</div>
             <DataTable
               columns={[
-                { key: 'id', label: 'Order ID', render: v => <span style={{ fontWeight: 600, color: '#c0392b' }}>{v}</span> },
+                { key: 'id', label: 'Order ID', render: v => <span className="font-semibold text-red-700">{v}</span> },
                 { key: 'customer', label: 'Customer' },
                 { key: 'items', label: 'Items' },
-                { key: 'value', label: 'Value', render: v => <span style={{ fontWeight: 700 }}>{v}</span> },
+                { key: 'value', label: 'Value', render: v => <span className="font-bold">{v}</span> },
                 { key: 'warehouse', label: 'Warehouse' },
                 { key: 'weight', label: 'Weight' },
-                { key: 'id', label: 'Actions', render: () => <button className="btn btn-accent btn-sm">Assign Vehicle</button> },
+                { key: 'id', label: 'Actions', render: () => (
+                  <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-amber-300 to-amber-500 text-white font-semibold border-0 cursor-pointer font-[inherit]">
+                    Assign Vehicle
+                  </button>
+                )},
               ]}
               data={readyOrders}
             />
@@ -83,28 +133,29 @@ export default function LogisticsPage() {
         </div>
       )}
 
+      {/* Tab 1: Vehicle Allocation */}
       {activeTab === 1 && (
-        <div className="grid-2">
-          <div className="card">
-            <div className="section-title" style={{ marginBottom: 14 }}>Fleet Status</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-3.5">Fleet Status</div>
             {vehicles.map((v, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: i < vehicles.length - 1 ? '1px solid #e2e8f0' : 'none' }}>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 8, background: '#f0f4f8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🚛</div>
+              <div key={i} className={`flex items-center justify-between py-3 ${i < vehicles.length - 1 ? 'border-b border-gray-200' : ''}`}>
+                <div className="flex gap-3 items-center">
+                  <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-lg">🚛</div>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 13 }}>{v.number}</div>
-                    <div style={{ fontSize: 11, color: '#718096' }}>{v.type} · {v.capacity} · {v.driver}</div>
+                    <div className="font-bold text-sm">{v.number}</div>
+                    <div className="text-[11px] text-gray-500">{v.type} · {v.capacity} · {v.driver}</div>
                   </div>
                 </div>
                 <StatusBadge status={v.status} />
               </div>
             ))}
           </div>
-          <div className="card">
-            <div className="section-title" style={{ marginBottom: 14 }}>Active Allocations</div>
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-3.5">Active Allocations</div>
             <DataTable
               columns={[
-                { key: 'order', label: 'Order', render: v => <span style={{ fontWeight: 600, color: '#c0392b' }}>{v}</span> },
+                { key: 'order', label: 'Order', render: v => <span className="font-semibold text-red-700">{v}</span> },
                 { key: 'driver', label: 'Driver' },
                 { key: 'destination', label: 'Destination' },
                 { key: 'eta', label: 'ETA' },
@@ -116,63 +167,217 @@ export default function LogisticsPage() {
         </div>
       )}
 
+      {/* Tab 2: Delivery Tracking */}
       {activeTab === 2 && (
-        <div className="grid-2">
-          <div className="card">
-            <div className="section-title" style={{ marginBottom: 4 }}>Tracking — ORD-2024-085</div>
-            <div className="section-sub" style={{ marginBottom: 20 }}>TVS Motor · Chennai</div>
-            <div className="timeline">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800">Tracking — ORD-2024-085</div>
+            <div className="text-xs text-gray-400 mt-0.5 mb-5">TVS Motor · Chennai</div>
+            <div className="relative pl-6">
+              <div className="absolute left-2.5 top-1.5 bottom-1.5 w-0.5 bg-gray-200 rounded" />
               {deliveryTimeline.map((item, i) => (
-                <div key={i} className="timeline-item">
-                  <div className={`timeline-dot ${item.status}`} />
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{item.event}</div>
-                    <div style={{ fontSize: 11, color: '#718096' }}>{item.time}</div>
-                    <div style={{ fontSize: 11, color: '#718096' }}>{item.location}</div>
-                  </div>
+                <div key={i} className="relative mb-5 last:mb-0">
+                  <div className={`absolute -left-[17px] top-1 w-3 h-3 rounded-full ring-2 ring-offset-1 ${
+                    item.status === 'success' ? 'bg-green-500 ring-green-500' :
+                    item.status === 'warning' ? 'bg-amber-400 ring-amber-400' :
+                    'bg-gray-300 ring-gray-300'
+                  }`} />
+                  <div className="text-sm font-semibold text-gray-800">{item.event}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">{item.time}</div>
+                  {item.location && <div className="text-xs text-gray-400">{item.location}</div>}
                 </div>
               ))}
             </div>
           </div>
-          <div className="card">
-            <div className="section-title" style={{ marginBottom: 14 }}>Delivery Summary</div>
-            {[['Order ID','ORD-2024-085'],['Customer','TVS Motor'],['Vehicle','MH-12-CD-5678'],['Driver','Suresh Kumar'],['Origin','Nashik Plant'],['Destination','Chennai'],['Dispatched','14 Apr, 09:00 AM'],['Expected Delivery','15 Apr, 02:00 PM'],['Status','In Transit']].map(([k, v]) => (
-              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f1f5f9', fontSize: 13 }}>
-                <span style={{ color: '#718096' }}>{k}</span>
-                <span style={{ fontWeight: 600 }}>{v}</span>
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-3.5">Delivery Summary</div>
+            {[
+              ['Order ID', 'ORD-2024-085'], ['Customer', 'TVS Motor'], ['Vehicle', 'MH-12-CD-5678'],
+              ['Driver', 'Suresh Kumar'], ['Origin', 'Nashik Plant'], ['Destination', 'Chennai'],
+              ['Dispatched', '14 Apr, 09:00 AM'], ['Expected Delivery', '15 Apr, 02:00 PM'], ['Status', 'In Transit'],
+            ].map(([k, v]) => (
+              <div key={k} className="flex justify-between py-2 border-b border-gray-50 text-sm last:border-0">
+                <span className="text-gray-500">{k}</span>
+                <span className="font-semibold">{v}</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <span className="modal-title">Create New Dispatch</span>
-              <button className="btn btn-sm" style={{ background: 'none', color: '#718096', fontSize: 20, padding: '0 4px' }} onClick={() => setShowModal(false)}>×</button>
+      {/* Tab 3: DC Regularization */}
+      {activeTab === 3 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="text-sm font-bold text-gray-800">DC to Invoice Regularization</div>
+              <div className="text-xs text-gray-400 mt-0.5">Match delivery challans with invoices</div>
             </div>
-            <div className="modal-body">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                <div className="form-group"><label className="form-label">Order Reference *</label><input className="form-input" placeholder="e.g. ORD-2024-089" /></div>
-                <div className="form-group"><label className="form-label">Customer Name *</label><input className="form-input" placeholder="Customer" /></div>
-                <div className="form-group"><label className="form-label">Vehicle *</label><select className="form-select"><option>MH-12-AB-1234 — Truck (5 Ton)</option><option>MH-14-EF-9012 — Tempo (1 Ton)</option></select></div>
-                <div className="form-group"><label className="form-label">Driver *</label><select className="form-select"><option>Ramesh Patil</option><option>Anil Rao</option></select></div>
-                <div className="form-group"><label className="form-label">Destination *</label><input className="form-input" placeholder="City / Address" /></div>
-                <div className="form-group"><label className="form-label">Dispatch Date</label><input type="date" className="form-input" /></div>
-                <div className="form-group"><label className="form-label">Expected Delivery</label><input type="date" className="form-input" /></div>
-                <div className="form-group"><label className="form-label">Total Weight (kg)</label><input type="number" className="form-input" placeholder="0" /></div>
+            <div className="flex gap-2 items-center">
+              <StatusBadge status="2 Pending" type="warning" />
+              <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">
+                Regularize All
+              </button>
+            </div>
+          </div>
+          <DataTable
+            columns={[
+              { key: 'id', label: 'DC No.', render: v => <span className="font-semibold text-red-700">{v}</span> },
+              { key: 'order', label: 'Order Ref' },
+              { key: 'customer', label: 'Customer', render: v => <span className="font-semibold">{v}</span> },
+              { key: 'dcDate', label: 'DC Date' },
+              { key: 'invoiceNo', label: 'Invoice No.', render: v => v ? <span className="font-semibold text-green-600">{v}</span> : <span className="text-red-500 italic">Not raised</span> },
+              { key: 'invoiceDate', label: 'Invoice Date', render: v => v || '—' },
+              { key: 'value', label: 'Value', render: v => <span className="font-bold">{v}</span> },
+              { key: 'status', label: 'Status', render: v => <StatusBadge status={v} type={v === 'Regularized' ? 'success' : v === 'Overdue' ? 'danger' : 'warning'} /> },
+              { key: 'id', label: 'Action', render: (_, row) => row.status !== 'Regularized' ? (
+                <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">Raise Invoice</button>
+              ) : <span className="text-green-600 text-xs">✓ Done</span> },
+            ]}
+            data={dcEntries}
+          />
+        </div>
+      )}
+
+      {/* Tab 4: Pendency */}
+      {activeTab === 4 && (
+        <div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
+            {[
+              { label: 'Total Pending Items', value: pendencyData.reduce((s, p) => s + p.pending, 0), color: '#ef4444' },
+              { label: 'Orders with Pendency', value: pendencyData.length, color: '#f59e0b' },
+              { label: 'Oldest Pendency', value: '7 days', color: '#8b5cf6' },
+            ].map((k, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
+                <div className="text-2xl font-black tracking-tight" style={{ color: k.color }}>{k.value}</div>
+                <div className="text-xs text-gray-500 font-medium mt-1">{k.label}</div>
               </div>
-              <div className="form-group"><label className="form-label">Delivery Instructions</label><textarea className="form-textarea" placeholder="Special handling notes..." /></div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-outline" onClick={() => setShowModal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={() => setShowModal(false)}>Create Dispatch</button>
+            ))}
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-3.5">Pendency Tracking</div>
+            <DataTable
+              columns={[
+                { key: 'id', label: 'Order ID', render: v => <span className="font-semibold text-red-700">{v}</span> },
+                { key: 'customer', label: 'Customer', render: v => <span className="font-semibold">{v}</span> },
+                { key: 'items', label: 'Ordered' },
+                { key: 'dispatched', label: 'Dispatched', render: v => <span className="text-green-600 font-bold">{v}</span> },
+                { key: 'pending', label: 'Pending', render: v => <span className="text-red-500 font-extrabold">{v}</span> },
+                { key: 'value', label: 'Pending Value', render: v => <span className="font-bold">{v}</span> },
+                { key: 'daysOld', label: 'Age', render: v => <span className={`font-bold ${v > 5 ? 'text-red-500' : v > 2 ? 'text-amber-500' : 'text-gray-500'}`}>{v}d</span> },
+                { key: 'reason', label: 'Reason', render: v => <span className="text-[11px] text-gray-500">{v}</span> },
+                { key: 'id', label: 'Action', render: () => (
+                  <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]">Resolve</button>
+                )},
+              ]}
+              data={pendencyData}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Tab 5: Courier & POD */}
+      {activeTab === 5 && (
+        <div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
+            {[
+              { label: 'Active Shipments', value: courierShipments.filter(s => s.status !== 'Delivered').length, color: '#3b82f6' },
+              { label: 'Delivered', value: courierShipments.filter(s => s.status === 'Delivered').length, color: '#10b981' },
+              { label: 'POD Pending', value: courierShipments.filter(s => !s.pod).length, color: '#f59e0b' },
+            ].map((k, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
+                <div className="text-2xl font-black tracking-tight" style={{ color: k.color }}>{k.value}</div>
+                <div className="text-xs text-gray-500 font-medium mt-1">{k.label}</div>
+              </div>
+            ))}
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm mb-4">
+            <div className="text-sm font-bold text-gray-800 mb-3.5">Courier Shipments</div>
+            <DataTable
+              columns={[
+                { key: 'id', label: 'Shipment ID', render: v => <span className="font-semibold text-red-700">{v}</span> },
+                { key: 'courier', label: 'Courier', render: v => <span className="font-bold">{v}</span> },
+                { key: 'awb', label: 'AWB No.', render: v => <span className="font-mono text-[11px]">{v}</span> },
+                { key: 'order', label: 'Order Ref' },
+                { key: 'customer', label: 'Customer' },
+                { key: 'destination', label: 'Destination' },
+                { key: 'eta', label: 'ETA' },
+                { key: 'status', label: 'Status', render: v => <StatusBadge status={v} type={v === 'Delivered' ? 'success' : v === 'Out for Delivery' ? 'warning' : 'info'} /> },
+                { key: 'pod', label: 'POD', render: v => v ? (
+                  <button className="px-2 py-1 text-[11px] rounded bg-green-100 text-green-800 border-0 cursor-pointer font-[inherit]">📄 View POD</button>
+                ) : (
+                  <button className="px-2 py-1 text-[11px] rounded bg-amber-100 text-amber-800 border-0 cursor-pointer font-[inherit]">⬆ Upload</button>
+                )},
+              ]}
+              data={courierShipments}
+            />
+          </div>
+
+          {/* POD Upload Panel */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-3.5">POD Upload — SHP-001</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center mb-4 cursor-pointer bg-gray-50">
+                  <div className="text-4xl mb-2">📷</div>
+                  <div className="font-semibold text-sm mb-1">Upload POD Image / Signature</div>
+                  <div className="text-[11px] text-gray-500">Drag & drop or click to browse</div>
+                  <div className="text-[10px] text-gray-400 mt-1">JPG, PNG, PDF — Max 5MB</div>
+                </div>
+                <div className="flex gap-2">
+                  <button className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]">Cancel</button>
+                  <button className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">Submit POD</button>
+                </div>
+              </div>
+              <div>
+                <div className="font-semibold text-sm mb-3">Delivery Details</div>
+                {[
+                  ['Shipment', 'SHP-001'], ['AWB No.', 'BD123456789'], ['Courier', 'BlueDart'],
+                  ['Customer', 'Tata Motors'], ['Destination', 'Mumbai'], ['Delivered On', '—'], ['Received By', '—'],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex justify-between py-1.5 border-b border-gray-50 text-sm last:border-0">
+                    <span className="text-gray-500">{k}</span>
+                    <span className="font-semibold">{v}</span>
+                  </div>
+                ))}
+                <div className="flex flex-col gap-1.5 mb-4 mt-3">
+                  <label className="text-xs font-semibold text-gray-600">Receiver Name</label>
+                  <input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Name of person who received" />
+                </div>
+                <div className="flex flex-col gap-1.5 mb-4">
+                  <label className="text-xs font-semibold text-gray-600">Delivery Date & Time</label>
+                  <input type="datetime-local" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* New Dispatch Modal */}
+      <Modal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        title="Create New Dispatch"
+        footer={
+          <>
+            <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Cancel</button>
+            <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Create Dispatch</button>
+          </>
+        }
+      >
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Order Reference *</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="e.g. ORD-2024-089" /></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Customer Name *</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Customer" /></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Vehicle *</label><select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]"><option>MH-12-AB-1234 — Truck (5 Ton)</option><option>MH-14-EF-9012 — Tempo (1 Ton)</option></select></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Driver *</label><select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]"><option>Ramesh Patil</option><option>Anil Rao</option></select></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Destination *</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="City / Address" /></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Dispatch Date</label><input type="date" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" /></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Expected Delivery</label><input type="date" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" /></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Total Weight (kg)</label><input type="number" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="0" /></div>
+        </div>
+        <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Delivery Instructions</label><textarea className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Special handling notes..." /></div>
+      </Modal>
     </div>
   );
 }

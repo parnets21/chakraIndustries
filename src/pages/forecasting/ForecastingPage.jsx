@@ -24,50 +24,66 @@ const suggestedPurchases = [
 export default function ForecastingPage() {
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div>
-          <div className="page-title">Demand Forecasting</div>
-          <div className="breadcrumb"><span>Home</span><span>›</span><span className="current">Forecasting</span></div>
+          <div className="text-xl font-black text-gray-900 tracking-tight">Demand Forecasting</div>
+          <div className="flex items-center gap-1 mt-0.5">
+            <span className="text-xs text-gray-400">Home</span>
+            <span className="text-xs text-gray-400">›</span>
+            <span className="text-xs text-red-600 font-semibold">Forecasting</span>
+          </div>
         </div>
-        <button className="btn btn-primary">Generate Forecast</button>
+        <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">
+          Generate Forecast
+        </button>
       </div>
 
-      <div className="grid-2" style={{ marginBottom: 20 }}>
-        <div className="card">
-          <div className="section-title" style={{ marginBottom: 4 }}>Historical Demand</div>
-          <div className="section-sub" style={{ marginBottom: 12 }}>Units sold — FY 2024-25</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="text-sm font-bold text-gray-800 mb-1">Historical Demand</div>
+          <div className="text-xs text-gray-400 mt-0.5 mb-3">Units sold — FY 2024-25</div>
           <LineChart data={demandData} color="#c0392b" height={180} />
         </div>
-        <div className="card">
-          <div className="section-title" style={{ marginBottom: 4 }}>Demand Forecast</div>
-          <div className="section-sub" style={{ marginBottom: 12 }}>Projected — Next 6 months</div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="text-sm font-bold text-gray-800 mb-1">Demand Forecast</div>
+          <div className="text-xs text-gray-400 mt-0.5 mb-3">Projected — Next 6 months</div>
           <LineChart data={forecastData} color="#f39c12" height={180} />
         </div>
       </div>
 
-      <div className="card">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <div className="section-title">Suggested Purchase Orders</div>
-          <button className="btn btn-accent btn-sm">Auto-Generate POs</button>
+      <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-3.5">
+          <div className="text-sm font-bold text-gray-800">Suggested Purchase Orders</div>
+          <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-amber-300 to-amber-500 text-white font-semibold border-0 cursor-pointer font-[inherit]">
+            Auto-Generate POs
+          </button>
         </div>
-        <div className="table-container">
-          <table>
+        <div className="overflow-x-auto rounded-xl border border-gray-200">
+          <table className="w-full">
             <thead>
               <tr>
-                {['SKU','Item Name','Current Stock','Forecast Demand','Suggested Qty','Preferred Vendor','Urgency','Action'].map(h => <th key={h}>{h}</th>)}
+                {['SKU','Item Name','Current Stock','Forecast Demand','Suggested Qty','Preferred Vendor','Urgency','Action'].map(h => (
+                  <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {suggestedPurchases.map((s, i) => (
-                <tr key={i}>
-                  <td style={{ fontWeight: 600, color: '#c0392b', fontFamily: 'monospace' }}>{s.sku}</td>
-                  <td style={{ fontWeight: 600 }}>{s.name}</td>
-                  <td style={{ fontWeight: 700, color: s.currentStock < 50 ? '#e74c3c' : '#27ae60' }}>{s.currentStock}</td>
-                  <td>{s.forecastDemand}</td>
-                  <td style={{ fontWeight: 700 }}>{s.suggestedQty}</td>
-                  <td>{s.vendor}</td>
-                  <td><StatusBadge status={s.urgency} type={s.urgency === 'Critical' ? 'danger' : s.urgency === 'Normal' ? 'warning' : 'info'} /></td>
-                  <td><button className="btn btn-primary btn-sm">Create PO</button></td>
+                <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
+                  <td className="px-4 py-3 align-middle font-semibold text-red-700 font-mono">{s.sku}</td>
+                  <td className="px-4 py-3 align-middle font-semibold text-gray-800">{s.name}</td>
+                  <td className={`px-4 py-3 align-middle font-bold ${s.currentStock < 50 ? 'text-red-500' : 'text-green-600'}`}>{s.currentStock}</td>
+                  <td className="px-4 py-3 text-gray-800 align-middle">{s.forecastDemand}</td>
+                  <td className="px-4 py-3 align-middle font-bold text-gray-800">{s.suggestedQty}</td>
+                  <td className="px-4 py-3 text-gray-800 align-middle">{s.vendor}</td>
+                  <td className="px-4 py-3 text-gray-800 align-middle">
+                    <StatusBadge status={s.urgency} type={s.urgency === 'Critical' ? 'danger' : s.urgency === 'Normal' ? 'warning' : 'info'} />
+                  </td>
+                  <td className="px-4 py-3 text-gray-800 align-middle">
+                    <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">
+                      Create PO
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

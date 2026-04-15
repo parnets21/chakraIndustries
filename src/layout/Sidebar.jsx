@@ -1,81 +1,191 @@
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
   MdDashboard, MdShoppingCart, MdInventory2, MdPrecisionManufacturing,
   MdStar, MdAssignment, MdLocalShipping, MdAssignmentReturn,
   MdAccountBalance, MdTrendingUp, MdBarChart, MdBuild,
-  MdQrCode2, MdTask, MdSettings,
-  MdChevronLeft, MdChevronRight
+  MdQrCode2, MdTask, MdSettings, MdBusinessCenter,
+  MdChevronLeft, MdChevronRight, MdClose, MdAdminPanelSettings,
 } from 'react-icons/md';
+import { useAuth } from '../auth/AuthContext';
+import { getNavForRole, ROLES } from '../auth/rbac';
 
-const NAV_ITEMS = [
-  { section: 'MAIN' },
-  { id: 'dashboard',   label: 'Dashboard',   Icon: MdDashboard },
-  { section: 'OPERATIONS' },
-  { id: 'procurement', label: 'Procurement', Icon: MdShoppingCart },
-  { id: 'inventory',   label: 'Inventory',   Icon: MdInventory2 },
-  { id: 'production',  label: 'Production',  Icon: MdPrecisionManufacturing },
-  { id: 'oem',         label: 'OEM',         Icon: MdStar },
-  { id: 'orders',      label: 'Orders',      Icon: MdAssignment },
-  { id: 'logistics',   label: 'Logistics',   Icon: MdLocalShipping },
-  { id: 'returns',     label: 'Returns',     Icon: MdAssignmentReturn },
-  { section: 'FINANCE & ANALYTICS' },
-  { id: 'finance',     label: 'Finance',     Icon: MdAccountBalance },
-  { id: 'forecasting', label: 'Forecasting', Icon: MdTrendingUp },
-  { id: 'reports',     label: 'BI Reports',  Icon: MdBarChart },
-  { section: 'TOOLS' },
-  { id: 'assets',      label: 'Assets',      Icon: MdBuild },
-  { id: 'barcode',     label: 'Barcode',     Icon: MdQrCode2 },
-  { id: 'tasks',       label: 'Tasks',       Icon: MdTask },
-  { section: 'SYSTEM' },
-  { id: 'settings',    label: 'Settings',    Icon: MdSettings },
-];
+const ICON_MAP = {
+  MdDashboard, MdShoppingCart, MdInventory2, MdPrecisionManufacturing,
+  MdStar, MdAssignment, MdLocalShipping, MdAssignmentReturn,
+  MdAccountBalance, MdTrendingUp, MdBarChart, MdBuild,
+  MdQrCode2, MdTask, MdSettings, MdBusinessCenter,
+};
 
-export default function Sidebar({ collapsed, setCollapsed, activePage, setActivePage }) {
+const ROLE_COLORS = {
+  super_admin:        '#c0392b',
+  management:         '#8e44ad',
+  purchase_manager:   '#2980b9',
+  production_manager: '#27ae60',
+  dealer:             '#f39c12',
+  corporate_client:   '#16a085',
+};
+
+export default function Sidebar({ collapsed, setCollapsed, sidebarOpen, setSidebarOpen, isMobile }) {
+  const { user } = useAuth();
+  const showLabels = !collapsed || isMobile;
+  const sidebarWidth = isMobile ? 260 : collapsed ? 68 : 252;
+
+  const navItems = user ? getNavForRole(user.role) : [];
+  const roleColor = user ? (ROLE_COLORS[user.role] || '#c0392b') : '#c0392b';
+
   return (
-    <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
+    <aside style={{
+      position: 'fixed', left: 0, top: 0, height: '100vh',
+      width: sidebarWidth,
+      background: '#fff',
+      borderRight: '1px solid #e2e8f0',
+      display: 'flex', flexDirection: 'column',
+      zIndex: 200,
+      overflow: 'hidden',
+      transition: 'width 0.28s cubic-bezier(0.4,0,0.2,1), transform 0.28s cubic-bezier(0.4,0,0.2,1)',
+      transform: isMobile ? (sidebarOpen ? 'translateX(0)' : 'translateX(-100%)') : 'translateX(0)',
+      boxShadow: isMobile && sidebarOpen ? '6px 0 32px rgba(0,0,0,0.18)' : '1px 0 0 #e2e8f0',
+    }}>
+
       {/* Logo */}
-      <div className="sb-logo">
-        <div className="sb-logo-icon">
-          <img src="/logos.png" alt="Chakra" />
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '0 16px', height: 64, minHeight: 64, maxHeight: 64,
+        borderBottom: '1px solid #e2e8f0', flexShrink: 0,
+      }}>
+        <div style={{
+          width: 40, height: 40, borderRadius: 10, background: '#fff',
+          border: '2px solid #f5c6c2', boxShadow: '0 2px 8px rgba(192,57,43,0.12)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0, overflow: 'hidden',
+        }}>
+          <img src="/logos.png" alt="Chakra" style={{ width: 32, height: 32, objectFit: 'contain' }} />
         </div>
-        <div className="sb-logo-text">
-          <div className="sb-logo-name">Chakra Industries</div>
-          <div className="sb-logo-tag">ERP Platform</div>
-        </div>
+        {showLabels && (
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#1c2833', whiteSpace: 'nowrap', letterSpacing: '-0.2px' }}>
+              Chakra Industries
+            </div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: '#c0392b', letterSpacing: '2px', textTransform: 'uppercase', marginTop: 2 }}>
+              ERP Platform
+            </div>
+          </div>
+        )}
+        {isMobile && (
+          <button onClick={() => setSidebarOpen(false)} style={{
+            marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer',
+            color: '#718096', padding: 6, borderRadius: 7, display: 'flex',
+          }}>
+            <MdClose size={20} />
+          </button>
+        )}
       </div>
 
+      {/* Role badge */}
+      {showLabels && user && (
+        <div style={{
+          margin: '10px 12px 2px',
+          padding: '7px 12px',
+          background: roleColor + '12',
+          border: `1px solid ${roleColor}30`,
+          borderRadius: 8,
+          display: 'flex', alignItems: 'center', gap: 8,
+          flexShrink: 0,
+        }}>
+          <div style={{
+            width: 8, height: 8, borderRadius: '50%',
+            background: roleColor, flexShrink: 0,
+          }} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: roleColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {ROLES[user.role]}
+            </div>
+            <div style={{ fontSize: 10, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {user.name}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Nav */}
-      <nav className="sb-nav">
-        {NAV_ITEMS.map((item, i) => {
+      <nav style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '8px 0' }}
+        className="scrollbar-none">
+        {navItems.map((item, i) => {
           if (item.section) {
-            return <div key={i} className="sb-section">{item.section}</div>;
+            return (
+              <div key={i} style={{
+                fontSize: 9, fontWeight: 700, letterSpacing: '1.8px',
+                textTransform: 'uppercase', color: '#a0aec0',
+                padding: '14px 18px 5px', whiteSpace: 'nowrap', minHeight: 30,
+                visibility: showLabels ? 'visible' : 'hidden',
+              }}>
+                {item.section}
+              </div>
+            );
           }
-          const isActive = activePage === item.id;
+          const Icon = ICON_MAP[item.icon];
           return (
-            <button
-              key={item.id}
-              className={`sb-item${isActive ? ' sb-item--active' : ''}`}
-              onClick={() => setActivePage(item.id)}
-              title={collapsed ? item.label : undefined}
+            <NavLink
+              key={item.path}
+              to={item.path}
+              end={item.path === '/dashboard'}
+              title={!showLabels ? item.label : undefined}
+              style={{ textDecoration: 'none' }}
+              className={({ isActive }) =>
+                ['nav-link', !showLabels ? 'nav-link-collapsed' : '', isActive ? 'active' : ''].filter(Boolean).join(' ')
+              }
             >
-              <span className="sb-item-icon">
-                <item.Icon size={19} />
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, flexShrink: 0 }}>
+                {Icon && <Icon size={19} />}
               </span>
-              <span className="sb-item-label">{item.label}</span>
-              {isActive && <span className="sb-item-dot" />}
-            </button>
+              {showLabels && (
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {item.label}
+                </span>
+              )}
+            </NavLink>
           );
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="sb-footer">
-        <button className="sb-collapse-btn" onClick={() => setCollapsed(c => !c)}>
-          <span className="sb-item-icon">
-            {collapsed ? <MdChevronRight size={20} /> : <MdChevronLeft size={20} />}
-          </span>
-          <span className="sb-item-label">Collapse</span>
-        </button>
-      </div>
+      {/* Role Permissions shortcut — Super Admin only */}
+      {user?.role === 'super_admin' && showLabels && (
+        <div style={{ flexShrink: 0, padding: '6px 10px 0', borderTop: '1px solid #f1f5f9' }}>
+          <NavLink
+            to="/settings"
+            style={{ textDecoration: 'none' }}
+            className={({ isActive }) => ['nav-link', isActive ? 'active' : ''].filter(Boolean).join(' ')}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, flexShrink: 0 }}>
+              <MdAdminPanelSettings size={19} />
+            </span>
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>
+              Role Permissions
+            </span>
+          </NavLink>
+        </div>
+      )}
+
+      {/* Collapse toggle — desktop only */}
+      {!isMobile && (
+        <div style={{ flexShrink: 0, padding: 8, borderTop: '1px solid #e2e8f0' }}>
+          <button
+            onClick={() => setCollapsed(c => !c)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+              padding: collapsed ? 10 : '9px 12px', borderRadius: 8, border: 'none',
+              background: 'transparent', color: '#718096', fontSize: 12, fontWeight: 500,
+              fontFamily: 'inherit', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden',
+              justifyContent: collapsed ? 'center' : 'flex-start',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#fdf0ef'; e.currentTarget.style.color = '#c0392b'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#718096'; }}
+          >
+            <span style={{ flexShrink: 0 }}>{collapsed ? <MdChevronRight size={20} /> : <MdChevronLeft size={20} />}</span>
+            {!collapsed && <span>Collapse</span>}
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

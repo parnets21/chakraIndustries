@@ -42,56 +42,95 @@ export default function OEMPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      {/* Page Header */}
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div>
-          <div className="page-title">OEM Module</div>
-          <div className="breadcrumb"><span>Home</span><span>›</span><span className="current">OEM</span></div>
+          <div className="text-xl font-black text-gray-900 tracking-tight">OEM Module</div>
+          <div className="flex items-center gap-1 mt-0.5">
+            <span className="text-xs text-gray-400">Home</span>
+            <span className="text-xs text-gray-400">›</span>
+            <span className="text-xs text-red-600 font-semibold">OEM</span>
+          </div>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Add OEM Brand</button>
+        <div className="flex items-center gap-2">
+          <button
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]"
+            onClick={() => setShowModal(true)}
+          >
+            + Add OEM Brand
+          </button>
+        </div>
       </div>
 
       {/* Brand Tabs */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+      <div className="flex gap-2.5 mb-5 flex-wrap">
         {brands.map(b => (
-          <button key={b} onClick={() => setActiveBrand(b)}
+          <button
+            key={b}
+            onClick={() => setActiveBrand(b)}
+            className="px-6 py-2.5 rounded-xl border-2 font-bold text-sm cursor-pointer transition-all font-[inherit]"
             style={{
-              padding: '10px 24px', borderRadius: 10, border: `2px solid ${activeBrand === b ? brandData[b].color : '#e2e8f0'}`,
+              borderColor: activeBrand === b ? brandData[b].color : '#e2e8f0',
               background: activeBrand === b ? brandData[b].color : '#fff',
               color: activeBrand === b ? '#fff' : '#1c2833',
-              fontWeight: 700, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s',
-            }}>
+            }}
+          >
             {b}
           </button>
         ))}
       </div>
 
-      <div className="grid-4" style={{ marginBottom: 20 }}>
+      {/* KPIs */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         {kpis.map((k, i) => (
-          <div key={i} className="kpi-card">
-            <div className="kpi-value" style={{ color: data.color }}>{k.value}</div>
-            <div className="kpi-label">{k.label}</div>
+          <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
+            <div className="text-2xl font-black tracking-tight" style={{ color: data.color }}>{k.value}</div>
+            <div className="text-xs text-gray-500 font-medium mt-1">{k.label}</div>
           </div>
         ))}
       </div>
 
-      <div className="tabs">
-        {innerTabs.map((t, i) => <div key={i} className={`tab${innerTab === t ? ' active' : ''}`} onClick={() => setInnerTab(t)}>{t}</div>)}
+      {/* Inner Tabs */}
+      <div className="flex border-b-2 border-gray-200 mb-5 overflow-x-auto">
+        {innerTabs.map((t) => (
+          <button
+            key={t}
+            onClick={() => setInnerTab(t)}
+            className={`px-5 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 -mb-0.5 cursor-pointer flex-shrink-0 bg-transparent font-[inherit] ${
+              innerTab === t
+                ? 'text-red-700 border-red-600'
+                : 'text-gray-400 border-transparent hover:text-red-600'
+            }`}
+          >
+            {t}
+          </button>
+        ))}
       </div>
 
       {innerTab === 'BOM' && (
-        <div className="card">
-          <div className="section-title" style={{ marginBottom: 14 }}>BOM — {activeBrand}</div>
-          <div className="table-container">
-            <table>
-              <thead><tr>{['BOM ID','Product','Components','Status','Actions'].map(h => <th key={h}>{h}</th>)}</tr></thead>
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="text-sm font-bold text-gray-800 mb-3.5">BOM — {activeBrand}</div>
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  {['BOM ID', 'Product', 'Components', 'Status', 'Actions'].map(h => (
+                    <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
               <tbody>
                 {data.bom.map((b, i) => (
-                  <tr key={i}>
-                    <td style={{ fontWeight: 600, color: '#c0392b' }}>{b.id}</td>
-                    <td style={{ fontWeight: 600 }}>{b.product}</td>
-                    <td>{b.components}</td>
-                    <td><StatusBadge status={b.status} /></td>
-                    <td><button className="btn btn-outline btn-sm">View BOM</button></td>
+                  <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
+                    <td className="px-4 py-3 text-gray-800 align-middle font-semibold text-red-700">{b.id}</td>
+                    <td className="px-4 py-3 text-gray-800 align-middle font-semibold">{b.product}</td>
+                    <td className="px-4 py-3 text-gray-800 align-middle">{b.components}</td>
+                    <td className="px-4 py-3 text-gray-800 align-middle"><StatusBadge status={b.status} /></td>
+                    <td className="px-4 py-3 text-gray-800 align-middle">
+                      <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]">
+                        View BOM
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -101,25 +140,31 @@ export default function OEMPage() {
       )}
 
       {innerTab === 'Production' && (
-        <div className="card">
-          <div className="section-title" style={{ marginBottom: 14 }}>Production — {activeBrand}</div>
-          <div className="table-container">
-            <table>
-              <thead><tr>{['WO ID','Product','Target','Produced','Progress','Status'].map(h => <th key={h}>{h}</th>)}</tr></thead>
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="text-sm font-bold text-gray-800 mb-3.5">Production — {activeBrand}</div>
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  {['WO ID', 'Product', 'Target', 'Produced', 'Progress', 'Status'].map(h => (
+                    <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
               <tbody>
                 {data.production.map((p, i) => (
-                  <tr key={i}>
-                    <td style={{ fontWeight: 600, color: '#c0392b' }}>{p.wo}</td>
-                    <td style={{ fontWeight: 600 }}>{p.product}</td>
-                    <td>{p.qty}</td>
-                    <td style={{ fontWeight: 700 }}>{p.produced}</td>
-                    <td style={{ minWidth: 120 }}>
-                      <div className="progress-bar">
-                        <div className="progress-fill" style={{ width: `${(p.produced / p.qty) * 100}%`, background: data.color }} />
+                  <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
+                    <td className="px-4 py-3 text-gray-800 align-middle font-semibold text-red-700">{p.wo}</td>
+                    <td className="px-4 py-3 text-gray-800 align-middle font-semibold">{p.product}</td>
+                    <td className="px-4 py-3 text-gray-800 align-middle">{p.qty}</td>
+                    <td className="px-4 py-3 text-gray-800 align-middle font-bold">{p.produced}</td>
+                    <td className="px-4 py-3 text-gray-800 align-middle min-w-[120px]">
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(p.produced / p.qty) * 100}%`, background: data.color }} />
                       </div>
-                      <span style={{ fontSize: 11, color: '#718096' }}>{Math.round((p.produced / p.qty) * 100)}%</span>
+                      <span className="text-[11px] text-gray-500">{Math.round((p.produced / p.qty) * 100)}%</span>
                     </td>
-                    <td><StatusBadge status={p.status} /></td>
+                    <td className="px-4 py-3 text-gray-800 align-middle"><StatusBadge status={p.status} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -129,47 +174,50 @@ export default function OEMPage() {
       )}
 
       {innerTab === 'Billing' && (
-        <div className="grid-2">
-          <div className="card">
-            <div className="section-title" style={{ marginBottom: 12 }}>Monthly Production Trend</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-3">Monthly Production Trend</div>
             <BarChart data={data.chartData} color={data.color} height={160} />
           </div>
-          <div className="card">
-            <div className="section-title" style={{ marginBottom: 16 }}>Billing Configuration</div>
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-4">Billing Configuration</div>
             {[['Billing Type', data.billing], ['Rate per Unit', '₹1,200'], ['GST Rate', '18%'], ['Payment Terms', 'Net 30']].map(([k, v]) => (
-              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #e2e8f0', fontSize: 13 }}>
-                <span style={{ color: '#718096' }}>{k}</span>
-                <span style={{ fontWeight: 700 }}>{v}</span>
+              <div key={k} className="flex justify-between py-2.5 border-b border-gray-200 text-sm last:border-0">
+                <span className="text-gray-500">{k}</span>
+                <span className="font-bold">{v}</span>
               </div>
             ))}
-            <button className="btn btn-primary" style={{ marginTop: 16, width: '100%' }}>Generate Invoice</button>
+            <button className="inline-flex items-center justify-center gap-1.5 w-full mt-4 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">
+              Generate Invoice
+            </button>
           </div>
         </div>
       )}
 
+      {/* Modal */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <span className="modal-title">Add OEM Brand</span>
-              <button className="btn btn-sm" style={{ background: 'none', color: '#718096', fontSize: 20, padding: '0 4px' }} onClick={() => setShowModal(false)}>×</button>
+        <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-5 bg-black/60 backdrop-blur-sm" onClick={() => setShowModal(false)}>
+          <div className="bg-white w-full max-w-lg max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
+              <span className="text-base font-black text-gray-900">Add OEM Brand</span>
+              <button className="text-gray-400 text-xl leading-none px-1 bg-transparent border-0 cursor-pointer" onClick={() => setShowModal(false)}>×</button>
             </div>
-            <div className="modal-body">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                <div className="form-group"><label className="form-label">Brand Name *</label><input className="form-input" placeholder="e.g. Maruti Suzuki" /></div>
-                <div className="form-group"><label className="form-label">Brand Code *</label><input className="form-input" placeholder="e.g. MS" /></div>
-                <div className="form-group"><label className="form-label">Billing Type *</label><select className="form-select"><option>Per Unit</option><option>Lump Sum</option><option>Monthly Contract</option></select></div>
-                <div className="form-group"><label className="form-label">Rate per Unit (₹)</label><input type="number" className="form-input" placeholder="0.00" /></div>
-                <div className="form-group"><label className="form-label">Monthly Target</label><input type="number" className="form-input" placeholder="0" /></div>
-                <div className="form-group"><label className="form-label">GST Rate</label><select className="form-select"><option>18%</option><option>12%</option><option>5%</option></select></div>
-                <div className="form-group"><label className="form-label">Contact Person</label><input className="form-input" placeholder="Name" /></div>
-                <div className="form-group"><label className="form-label">Contact Email</label><input type="email" className="form-input" placeholder="email@brand.com" /></div>
+            <div className="px-6 py-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Brand Name *</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="e.g. Maruti Suzuki" /></div>
+                <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Brand Code *</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="e.g. MS" /></div>
+                <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Billing Type *</label><select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]"><option>Per Unit</option><option>Lump Sum</option><option>Monthly Contract</option></select></div>
+                <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Rate per Unit (₹)</label><input type="number" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="0.00" /></div>
+                <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Monthly Target</label><input type="number" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="0" /></div>
+                <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">GST Rate</label><select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]"><option>18%</option><option>12%</option><option>5%</option></select></div>
+                <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Contact Person</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Name" /></div>
+                <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Contact Email</label><input type="email" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="email@brand.com" /></div>
               </div>
-              <div className="form-group"><label className="form-label">Contract Notes</label><textarea className="form-textarea" placeholder="Any special terms or notes..." /></div>
+              <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Contract Notes</label><textarea className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Any special terms or notes..." /></div>
             </div>
-            <div className="modal-footer">
-              <button className="btn btn-outline" onClick={() => setShowModal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={() => setShowModal(false)}>Add Brand</button>
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-2.5 justify-end">
+              <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Cancel</button>
+              <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Add Brand</button>
             </div>
           </div>
         </div>

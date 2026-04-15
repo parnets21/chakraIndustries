@@ -10,16 +10,20 @@ const movementLogs = [
 
 function BarcodeDisplay({ value }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: 20, background: '#fff', borderRadius: 8, border: '1px solid #e2e8f0' }}>
-      <div style={{ display: 'flex', gap: 1, height: 60, alignItems: 'flex-end' }}>
+    <div className="flex flex-col items-center gap-2 p-5 bg-white rounded-lg border border-gray-200">
+      <div className="flex gap-px h-15 items-end" style={{ height: 60 }}>
         {Array.from({ length: 60 }, (_, i) => (
-          <div key={i} style={{ background: '#1a3c6e', borderRadius: 1, width: i % 3 === 0 ? 3 : 1.5, height: i % 5 === 0 ? 60 : i % 3 === 0 ? 50 : 40 }} />
+          <div key={i} className="bg-blue-900 rounded-sm" style={{ width: i % 3 === 0 ? 3 : 1.5, height: i % 5 === 0 ? 60 : i % 3 === 0 ? 50 : 40 }} />
         ))}
       </div>
-      <div style={{ fontFamily: 'monospace', fontSize: 12, letterSpacing: 2, color: '#1c2833' }}>{value}</div>
+      <div className="font-mono text-xs tracking-widest text-gray-800">{value}</div>
     </div>
   );
 }
+
+const thCls = "bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap";
+const tdCls = "px-4 py-3 text-gray-800 align-middle";
+const trCls = "border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors";
 
 export default function BarcodePage() {
   const [activeTab, setActiveTab] = useState(0);
@@ -35,45 +39,52 @@ export default function BarcodePage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div>
-          <div className="page-title">Barcode System</div>
-          <div className="breadcrumb"><span>Home</span><span>›</span><span className="current">Barcode</span></div>
+          <div className="text-xl font-black text-gray-900 tracking-tight">Barcode System</div>
+          <div className="flex items-center gap-1 mt-0.5">
+            <span className="text-xs text-gray-400">Home</span>
+            <span className="text-xs text-gray-400">›</span>
+            <span className="text-xs text-red-600 font-semibold">Barcode</span>
+          </div>
         </div>
       </div>
 
-      <div className="tabs">
+      <div className="flex border-b-2 border-gray-200 mb-5 overflow-x-auto">
         {['Generate Barcode', 'Scan & Lookup', 'Movement Logs'].map((t, i) => (
-          <div key={i} className={`tab${activeTab === i ? ' active' : ''}`} onClick={() => setActiveTab(i)}>{t}</div>
+          <button key={i} onClick={() => setActiveTab(i)}
+            className={`px-5 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 -mb-0.5 cursor-pointer flex-shrink-0 bg-transparent font-[inherit] ${activeTab === i ? 'text-red-700 border-red-600' : 'text-gray-400 border-transparent hover:text-red-600'}`}>
+            {t}
+          </button>
         ))}
       </div>
 
       {activeTab === 0 && (
-        <div className="grid-2">
-          <div className="card">
-            <div className="section-title" style={{ marginBottom: 16 }}>Generate Barcode</div>
-            <div className="form-group">
-              <label className="form-label">Select SKU</label>
-              <select className="form-select" value={genSKU} onChange={e => setGenSKU(e.target.value)}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-4">Generate Barcode</div>
+            <div className="flex flex-col gap-1.5 mb-4">
+              <label className="text-xs font-semibold text-gray-600">Select SKU</label>
+              <select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" value={genSKU} onChange={e => setGenSKU(e.target.value)}>
                 <option>SKU-1042</option><option>SKU-2187</option><option>SKU-3301</option><option>SKU-4412</option>
               </select>
             </div>
-            <div className="form-group">
-              <label className="form-label">Batch Number</label>
-              <input className="form-input" defaultValue="B-2024-04" />
+            <div className="flex flex-col gap-1.5 mb-4">
+              <label className="text-xs font-semibold text-gray-600">Batch Number</label>
+              <input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" defaultValue="B-2024-04" />
             </div>
-            <div className="form-group">
-              <label className="form-label">Quantity</label>
-              <input type="number" className="form-input" defaultValue="100" />
+            <div className="flex flex-col gap-1.5 mb-4">
+              <label className="text-xs font-semibold text-gray-600">Quantity</label>
+              <input type="number" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" defaultValue="100" />
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn btn-primary" style={{ flex: 1 }}>Generate</button>
-              <button className="btn btn-outline" style={{ flex: 1 }}>Print Labels</button>
+            <div className="flex gap-2.5">
+              <button className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">Generate</button>
+              <button className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]">Print Labels</button>
             </div>
           </div>
-          <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm flex flex-col items-center justify-center gap-4">
             <BarcodeDisplay value={`BC-${genSKU.replace('-', '')}-B202404`} />
-            <div style={{ fontSize: 12, color: '#718096', textAlign: 'center' }}>
+            <div className="text-xs text-gray-400 text-center">
               Barcode generated for <strong>{genSKU}</strong><br />Batch: B-2024-04
             </div>
           </div>
@@ -81,38 +92,37 @@ export default function BarcodePage() {
       )}
 
       {activeTab === 1 && (
-        <div className="grid-2">
-          <div className="card">
-            <div className="section-title" style={{ marginBottom: 16 }}>Scan Barcode</div>
-            <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-4">Scan Barcode</div>
+            <div className="flex gap-2.5 mb-5">
               <input
-                className="form-input"
-                style={{ flex: 1 }}
+                className="flex-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]"
                 placeholder="Scan or enter barcode..."
                 value={scanInput}
                 onChange={e => setScanInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleScan()}
               />
-              <button className="btn btn-primary" onClick={handleScan}>Lookup</button>
+              <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={handleScan}>Lookup</button>
             </div>
-            <div style={{ textAlign: 'center', padding: 40, background: '#f8fafc', borderRadius: 12, border: '2px dashed #e2e8f0' }}>
-              <div style={{ fontSize: 48, marginBottom: 8 }}>📷</div>
-              <div style={{ fontSize: 13, color: '#718096' }}>Point camera at barcode or type manually above</div>
+            <div className="text-center p-10 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+              <div className="text-5xl mb-2">📷</div>
+              <div className="text-[13px] text-gray-400">Point camera at barcode or type manually above</div>
             </div>
           </div>
           {scanned && (
-            <div className="card">
-              <div className="section-title" style={{ color: '#27ae60', marginBottom: 16 }}>✓ Item Found</div>
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+              <div className="text-sm font-bold text-green-600 mb-4">✓ Item Found</div>
               {[['SKU', scanned.sku], ['Item Name', scanned.name], ['Location', scanned.location], ['Current Qty', scanned.qty], ['Status', scanned.status]].map(([k, v]) => (
-                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #e2e8f0', fontSize: 13 }}>
-                  <span style={{ color: '#718096' }}>{k}</span>
-                  <span style={{ fontWeight: 600 }}>{v}</span>
+                <div key={k} className="flex justify-between py-2.5 border-b border-gray-200 text-[13px]">
+                  <span className="text-gray-400">{k}</span>
+                  <span className="font-semibold text-gray-800">{v}</span>
                 </div>
               ))}
-              <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                <button className="btn btn-primary btn-sm" style={{ flex: 1 }}>Inward</button>
-                <button className="btn btn-outline btn-sm" style={{ flex: 1 }}>Outward</button>
-                <button className="btn btn-sm" style={{ flex: 1, background: '#f1f5f9', color: '#1c2833' }}>Transfer</button>
+              <div className="flex gap-2 mt-4">
+                <button className="flex-1 inline-flex items-center justify-center px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">Inward</button>
+                <button className="flex-1 inline-flex items-center justify-center px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold cursor-pointer font-[inherit]">Outward</button>
+                <button className="flex-1 inline-flex items-center justify-center px-3 py-1.5 text-xs rounded-lg bg-gray-100 text-gray-800 font-semibold border-0 cursor-pointer font-[inherit]">Transfer</button>
               </div>
             </div>
           )}
@@ -120,21 +130,27 @@ export default function BarcodePage() {
       )}
 
       {activeTab === 2 && (
-        <div className="card">
-          <div className="section-title" style={{ marginBottom: 14 }}>Movement Logs</div>
-          <div className="table-container">
-            <table>
-              <thead><tr>{['Log ID','Barcode','Item','Action','Location','Operator','Time'].map(h => <th key={h}>{h}</th>)}</tr></thead>
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="text-sm font-bold text-gray-800 mb-3.5">Movement Logs</div>
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  {['Log ID','Barcode','Item','Action','Location','Operator','Time'].map(h => (
+                    <th key={h} className={thCls}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
               <tbody>
                 {movementLogs.map((l, i) => (
-                  <tr key={i}>
-                    <td style={{ fontWeight: 600, color: '#c0392b' }}>{l.id}</td>
-                    <td style={{ fontFamily: 'monospace', fontSize: 11 }}>{l.barcode}</td>
-                    <td style={{ fontWeight: 600 }}>{l.item}</td>
-                    <td><StatusBadge status={l.action} type={l.action === 'Inward' ? 'success' : l.action === 'Outward' ? 'danger' : 'info'} /></td>
-                    <td>{l.location}</td>
-                    <td>{l.operator}</td>
-                    <td style={{ color: '#718096', fontSize: 12 }}>{l.time}</td>
+                  <tr key={i} className={trCls}>
+                    <td className={`${tdCls} font-semibold text-red-700`}>{l.id}</td>
+                    <td className={`${tdCls} font-mono text-xs`}>{l.barcode}</td>
+                    <td className={`${tdCls} font-semibold`}>{l.item}</td>
+                    <td className={tdCls}><StatusBadge status={l.action} type={l.action === 'Inward' ? 'success' : l.action === 'Outward' ? 'danger' : 'info'} /></td>
+                    <td className={tdCls}>{l.location}</td>
+                    <td className={tdCls}>{l.operator}</td>
+                    <td className={`${tdCls} text-gray-400 text-xs`}>{l.time}</td>
                   </tr>
                 ))}
               </tbody>

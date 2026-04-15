@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
+import Modal from '../../components/common/Modal';
 
 const assets = [
   { id: 'AST-001', name: 'CNC Machine M-200', category: 'Machinery', location: 'Plant A', purchaseDate: '15 Jan 2022', value: '₹24,00,000', status: 'Active', nextMaint: '20 Apr 2024' },
@@ -33,38 +34,50 @@ export default function AssetsPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div>
-          <div className="page-title">Asset Management</div>
-          <div className="breadcrumb"><span>Home</span><span>›</span><span className="current">Assets</span></div>
+          <div className="text-xl font-black text-gray-900 tracking-tight">Asset Management</div>
+          <div className="flex items-center gap-1 mt-0.5">
+            <span className="text-xs text-gray-400">Home</span>
+            <span className="text-xs text-gray-400">›</span>
+            <span className="text-xs text-red-600 font-semibold">Assets</span>
+          </div>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Add Asset</button>
+        <button
+          className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]"
+          onClick={() => setShowModal(true)}
+        >
+          + Add Asset
+        </button>
       </div>
 
-      <div className="grid-4" style={{ marginBottom: 20 }}>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         {kpis.map((k, i) => (
-          <div key={i} className="kpi-card">
-            <div className="kpi-value" style={{ color: k.color }}>{k.value}</div>
-            <div className="kpi-label">{k.label}</div>
+          <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
+            <div className="text-2xl font-black tracking-tight" style={{ color: k.color }}>{k.value}</div>
+            <div className="text-xs text-gray-500 font-medium mt-1">{k.label}</div>
           </div>
         ))}
       </div>
 
-      <div className="tabs">
+      <div className="flex border-b-2 border-gray-200 mb-5 overflow-x-auto">
         {['Asset Register', 'Maintenance Calendar'].map((t, i) => (
-          <div key={i} className={`tab${activeTab === i ? ' active' : ''}`} onClick={() => setActiveTab(i)}>{t}</div>
+          <button key={i} onClick={() => setActiveTab(i)}
+            className={`px-5 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 -mb-0.5 cursor-pointer flex-shrink-0 bg-transparent font-[inherit] ${activeTab === i ? 'text-red-700 border-red-600' : 'text-gray-400 border-transparent hover:text-red-600'}`}>
+            {t}
+          </button>
         ))}
       </div>
 
       {activeTab === 0 && (
-        <div className="card">
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
           <DataTable
             columns={[
-              { key: 'id', label: 'Asset ID', render: v => <span style={{ fontWeight: 600, color: '#c0392b' }}>{v}</span> },
-              { key: 'name', label: 'Asset Name', render: v => <span style={{ fontWeight: 600 }}>{v}</span> },
+              { key: 'id', label: 'Asset ID', render: v => <span className="font-semibold text-red-700">{v}</span> },
+              { key: 'name', label: 'Asset Name', render: v => <span className="font-semibold">{v}</span> },
               { key: 'category', label: 'Category' },
               { key: 'location', label: 'Location' },
-              { key: 'value', label: 'Value', render: v => <span style={{ fontWeight: 700 }}>{v}</span> },
+              { key: 'value', label: 'Value', render: v => <span className="font-bold">{v}</span> },
               { key: 'nextMaint', label: 'Next Maintenance' },
               { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
             ]}
@@ -74,43 +87,39 @@ export default function AssetsPage() {
       )}
 
       {activeTab === 1 && (
-        <div className="grid-2">
-          <div className="card">
-            <div className="section-title" style={{ marginBottom: 16 }}>April 2024</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, marginBottom: 8 }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-4">April 2024</div>
+            <div className="grid grid-cols-7 gap-1 mb-2">
               {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
-                <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: '#718096', padding: '4px 0' }}>{d}</div>
+                <div key={d} className="text-center text-[11px] font-bold text-gray-400 py-1">{d}</div>
               ))}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4 }}>
+            <div className="grid grid-cols-7 gap-1">
               <div />
               {calendarDays.map(d => (
-                <div key={d} style={{
-                  textAlign: 'center', padding: '6px 2px', borderRadius: 6, fontSize: 12, cursor: maintDays.includes(d) ? 'pointer' : 'default',
-                  fontWeight: maintDays.includes(d) ? 700 : 400,
-                  background: maintDays.includes(d) ? '#f39c12' : d === 14 ? '#c0392b' : 'transparent',
-                  color: maintDays.includes(d) || d === 14 ? '#fff' : '#1c2833',
-                }}>
+                <div key={d} className={`text-center px-0.5 py-1.5 rounded-md text-xs cursor-default
+                  ${maintDays.includes(d) ? 'bg-amber-400 text-white font-bold cursor-pointer' : d === 14 ? 'bg-red-700 text-white' : 'text-gray-800'}`}>
                   {d}
                 </div>
               ))}
             </div>
-            <div style={{ marginTop: 12, display: 'flex', gap: 12, fontSize: 11 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: '#f39c12' }} /> Maintenance</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: '#c0392b' }} /> Today</div>
+            <div className="mt-3 flex gap-3 text-[11px]">
+              <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-amber-400" /> Maintenance</div>
+              <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-red-700" /> Today</div>
             </div>
           </div>
-          <div className="card">
-            <div className="section-title" style={{ marginBottom: 14 }}>Maintenance Schedule</div>
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-3.5">Maintenance Schedule</div>
             {maintenanceSchedule.map((m, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: i < maintenanceSchedule.length - 1 ? '1px solid #e2e8f0' : 'none' }}>
-                <div style={{ width: 40, height: 40, borderRadius: 8, background: '#f0f4f8', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: '#c0392b' }}>{m.date.split(' ')[0]}</div>
-                  <div style={{ fontSize: 9, color: '#718096' }}>APR</div>
+              <div key={i} className={`flex items-center gap-3 py-2.5 ${i < maintenanceSchedule.length - 1 ? 'border-b border-gray-200' : ''}`}>
+                <div className="w-10 h-10 rounded-lg bg-gray-100 flex flex-col items-center justify-center flex-shrink-0">
+                  <div className="text-sm font-extrabold text-red-700">{m.date.split(' ')[0]}</div>
+                  <div className="text-[9px] text-gray-400">APR</div>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13 }}>{m.asset}</div>
-                  <div style={{ fontSize: 11, color: '#718096' }}>{m.type} · {m.technician}</div>
+                <div className="flex-1">
+                  <div className="font-semibold text-[13px] text-gray-800">{m.asset}</div>
+                  <div className="text-[11px] text-gray-400">{m.type} · {m.technician}</div>
                 </div>
                 <StatusBadge status={m.status} />
               </div>
@@ -119,35 +128,25 @@ export default function AssetsPage() {
         </div>
       )}
 
-      {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <span className="modal-title">Add New Asset</span>
-              <button className="btn btn-sm" style={{ background: 'none', color: '#718096', fontSize: 20, padding: '0 4px' }} onClick={() => setShowModal(false)}>×</button>
-            </div>
-            <div className="modal-body">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                <div className="form-group"><label className="form-label">Asset Name *</label><input className="form-input" placeholder="e.g. CNC Machine M-300" /></div>
-                <div className="form-group"><label className="form-label">Category *</label><select className="form-select"><option>Machinery</option><option>Material Handling</option><option>Utilities</option><option>IT Equipment</option><option>Vehicles</option></select></div>
-                <div className="form-group"><label className="form-label">Location *</label><input className="form-input" placeholder="e.g. Plant A" /></div>
-                <div className="form-group"><label className="form-label">Purchase Date</label><input type="date" className="form-input" /></div>
-                <div className="form-group"><label className="form-label">Purchase Value (₹) *</label><input type="number" className="form-input" placeholder="0.00" /></div>
-                <div className="form-group"><label className="form-label">Condition</label><select className="form-select"><option>New</option><option>Good</option><option>Fair</option><option>Poor</option></select></div>
-                <div className="form-group"><label className="form-label">Vendor / Supplier</label><input className="form-input" placeholder="Supplier name" /></div>
-                <div className="form-group"><label className="form-label">Warranty Expiry</label><input type="date" className="form-input" /></div>
-                <div className="form-group"><label className="form-label">Next Maintenance</label><input type="date" className="form-input" /></div>
-                <div className="form-group"><label className="form-label">Assigned To</label><input className="form-input" placeholder="Department / Person" /></div>
-              </div>
-              <div className="form-group"><label className="form-label">Description / Notes</label><textarea className="form-textarea" placeholder="Asset details..." /></div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-outline" onClick={() => setShowModal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={() => setShowModal(false)}>Save Asset</button>
-            </div>
-          </div>
+      <Modal open={showModal} onClose={() => setShowModal(false)} title="Add New Asset"
+        footer={<>
+          <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Cancel</button>
+          <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Save Asset</button>
+        </>}>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Asset Name *</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="e.g. CNC Machine M-300" /></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Category *</label><select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]"><option>Machinery</option><option>Material Handling</option><option>Utilities</option><option>IT Equipment</option><option>Vehicles</option></select></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Location *</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="e.g. Plant A" /></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Purchase Date</label><input type="date" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" /></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Purchase Value (₹) *</label><input type="number" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="0.00" /></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Condition</label><select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]"><option>New</option><option>Good</option><option>Fair</option><option>Poor</option></select></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Vendor / Supplier</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Supplier name" /></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Warranty Expiry</label><input type="date" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" /></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Next Maintenance</label><input type="date" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" /></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Assigned To</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Department / Person" /></div>
         </div>
-      )}
+        <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Description / Notes</label><textarea className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Asset details..." /></div>
+      </Modal>
     </div>
   );
 }

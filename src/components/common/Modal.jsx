@@ -34,6 +34,7 @@ export default function Modal({ open, onClose, title, children, footer, size = '
         style={{
           background: '#ffffff', borderRadius: 18, width: '100%',
           maxWidth: maxW, maxHeight: '88vh', overflowY: 'auto',
+          scrollbarWidth: 'none', msOverflowStyle: 'none',
           boxShadow: '0 32px 80px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.15)',
           fontFamily: "'Inter','Segoe UI',system-ui,sans-serif", position: 'relative',
         }}

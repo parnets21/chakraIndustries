@@ -2,6 +2,7 @@ import LineChart from '../../components/charts/LineChart';
 import BarChart from '../../components/charts/BarChart';
 import DonutChart from '../../components/charts/DonutChart';
 import StatusBadge from '../../components/common/StatusBadge';
+import { useEffect, useState } from 'react';
 
 const kpis = [
   { label: 'Total Sales', value: '₹48.2L', change: '+12.4%', up: true, color: '#fdf0ef', iconColor: '#c0392b', icon: <SalesIcon /> },
@@ -60,6 +61,7 @@ const pendingApprovals = [
 ];
 
 export default function DashboardPage() {
+ 
   return (
     <div>
       {/* KPI Cards */}

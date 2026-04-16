@@ -25,8 +25,8 @@ const thCls = "bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gra
 const tdCls = "px-4 py-3 text-gray-800 align-middle";
 const trCls = "border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors";
 
-export default function BarcodePage() {
-  const [activeTab, setActiveTab] = useState(0);
+export default function BarcodePage({ initialTab = 0 }) {
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [scanInput, setScanInput] = useState('');
   const [scanned, setScanned] = useState(null);
   const [genSKU, setGenSKU] = useState('SKU-1042');

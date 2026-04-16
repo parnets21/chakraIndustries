@@ -77,9 +77,9 @@ function IconBtn({ children, badge, onClick, active }) {
 }
 
 /* ── dropdown panel ───────────────────────────────────────────────────────── */
-function Panel({ children, width = 280, right = 0 }) {
+function Panel({ children, width = 280, right = 0, className = '' }) {
   return (
-    <div style={{
+    <div className={className} style={{
       position: 'absolute',
       top: 'calc(100% + 8px)',
       right,
@@ -139,7 +139,16 @@ export default function Navbar({ activePage, onMenuClick }) {
         .nb-kbd { position: absolute; right: 10px; font-size: 10px; color: #9ca3af; background: #f3f4f6; padding: 2px 6px; border-radius: 5px; font-weight: 600; pointer-events: none; }
         .nb-search-icon { position: absolute; left: 11px; color: #9ca3af; pointer-events: none; display: flex; }
         @media (max-width: 900px) { .nb-search-wrap { display: none !important; } }
-        @media (max-width: 640px) { .nb-profile-text { display: none !important; } .nb-create-text { display: none !important; } }
+        @media (max-width: 640px) {
+          .nb-profile-text { display: none !important; }
+          .nb-create-text { display: none !important; }
+          .nb-notif-panel { right: -60px !important; width: calc(100vw - 24px) !important; max-width: 340px; }
+          .nb-profile-panel { right: -40px !important; }
+          .nb-create-panel { right: 0 !important; }
+        }
+        @media (max-width: 400px) {
+          .nb-notif-panel { right: 50% !important; transform: translateX(50%) !important; width: calc(100vw - 16px) !important; }
+        }
         @media (min-width: 1025px) { .nb-hamburger { display: none !important; } }
       `}</style>
 
@@ -149,8 +158,8 @@ export default function Navbar({ activePage, onMenuClick }) {
         borderBottom: '1px solid #eaecf0',
         display: 'flex',
         alignItems: 'center',
-        padding: '0 20px',
-        gap: 8,
+        padding: '0 16px',
+        gap: 6,
         position: 'sticky',
         top: 0,
         zIndex: 100,
@@ -248,7 +257,7 @@ export default function Navbar({ activePage, onMenuClick }) {
             </IconBtn>
 
             {open === 'notif' && (
-              <Panel width={320}>
+              <Panel width={320} className="nb-notif-panel">
                 <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Notifications</span>

@@ -2,8 +2,9 @@ import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
+import { MdDeleteOutline } from 'react-icons/md';
 
-const assets = [
+const initialAssets = [
   { id: 'AST-001', name: 'CNC Machine M-200', category: 'Machinery', location: 'Plant A', purchaseDate: '15 Jan 2022', value: '₹24,00,000', status: 'Active', nextMaint: '20 Apr 2024' },
   { id: 'AST-002', name: 'Hydraulic Press HP-50', category: 'Machinery', location: 'Plant B', purchaseDate: '10 Mar 2021', value: '₹8,50,000', status: 'Active', nextMaint: '25 Apr 2024' },
   { id: 'AST-003', name: 'Forklift FL-3T', category: 'Material Handling', location: 'WH-01', purchaseDate: '5 Jun 2020', value: '₹6,20,000', status: 'Maintenance', nextMaint: '15 Apr 2024' },
@@ -21,9 +22,16 @@ const maintenanceSchedule = [
 const calendarDays = Array.from({ length: 30 }, (_, i) => i + 1);
 const maintDays = [15, 20, 25, 30];
 
-export default function AssetsPage() {
-  const [activeTab, setActiveTab] = useState(0);
-  const [showModal, setShowModal] = useState(false);
+export default function AssetsPage({ initialTab = 0 }) {
+  const [activeTab, setActiveTab]       = useState(initialTab);
+  const [showModal, setShowModal]       = useState(false);
+  const [assets, setAssets]             = useState(initialAssets);
+  const [deleteAsset, setDeleteAsset]   = useState(null);
+
+  const confirmDelete = () => {
+    setAssets(prev => prev.filter(a => a.id !== deleteAsset.id));
+    setDeleteAsset(null);
+  };
 
   const kpis = [
     { label: 'Total Assets', value: assets.length, color: '#3b82f6' },
@@ -61,7 +69,7 @@ export default function AssetsPage() {
       </div>
 
       <div className="flex border-b-2 border-gray-200 mb-5 overflow-x-auto">
-        {['Asset Register', 'Maintenance Calendar'].map((t, i) => (
+        {['Asset Register', 'Maintenance Calendar', 'Asset Lifecycle'].map((t, i) => (
           <button key={i} onClick={() => setActiveTab(i)}
             className={`px-5 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 -mb-0.5 cursor-pointer flex-shrink-0 bg-transparent font-[inherit] ${activeTab === i ? 'text-red-700 border-red-600' : 'text-gray-400 border-transparent hover:text-red-600'}`}>
             {t}
@@ -80,6 +88,14 @@ export default function AssetsPage() {
               { key: 'value', label: 'Value', render: v => <span className="font-bold">{v}</span> },
               { key: 'nextMaint', label: 'Next Maintenance' },
               { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
+              { key: 'id', label: 'Actions', render: (_, row) => (
+                <button
+                  className="inline-flex items-center gap-1 px-2 py-1.5 text-xs rounded-lg bg-red-50 text-red-600 border border-red-200 font-semibold hover:bg-red-600 hover:text-white transition-all cursor-pointer font-[inherit]"
+                  title="Delete" onClick={() => setDeleteAsset(row)}
+                >
+                  <MdDeleteOutline size={15} />
+                </button>
+              )},
             ]}
             data={assets}
           />
@@ -127,6 +143,57 @@ export default function AssetsPage() {
           </div>
         </div>
       )}
+
+      {activeTab === 2 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="text-sm font-bold text-gray-800 mb-3.5">Asset Lifecycle Tracking</div>
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <table className="w-full">
+              <thead><tr>{['Asset ID','Asset Name','Purchase Date','Purchase Value','Current Value','Depreciation','Age','Lifecycle Stage','Action'].map(h => (
+                <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
+              ))}</tr></thead>
+              <tbody>
+                {[
+                  { id: 'AST-001', name: 'CNC Machine M-200', purchaseDate: 'Jan 2022', purchaseVal: '₹24,00,000', currentVal: '₹18,00,000', dep: '25%', age: '2.3 yrs', stage: 'Active' },
+                  { id: 'AST-002', name: 'Hydraulic Press HP-50', purchaseDate: 'Mar 2021', purchaseVal: '₹8,50,000', currentVal: '₹5,10,000', dep: '40%', age: '3.1 yrs', stage: 'Active' },
+                  { id: 'AST-003', name: 'Forklift FL-3T', purchaseDate: 'Jun 2020', purchaseVal: '₹6,20,000', currentVal: '₹2,48,000', dep: '60%', age: '3.9 yrs', stage: 'Maintenance' },
+                  { id: 'AST-005', name: 'Lathe Machine LM-400', purchaseDate: 'Feb 2019', purchaseVal: '₹12,00,000', currentVal: '₹1,20,000', dep: '90%', age: '5.2 yrs', stage: 'End of Life' },
+                ].map((r, i) => (
+                  <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
+                    <td className="px-4 py-3 align-middle font-semibold text-red-700">{r.id}</td>
+                    <td className="px-4 py-3 align-middle font-semibold">{r.name}</td>
+                    <td className="px-4 py-3 align-middle text-gray-500">{r.purchaseDate}</td>
+                    <td className="px-4 py-3 align-middle font-bold">{r.purchaseVal}</td>
+                    <td className="px-4 py-3 align-middle font-bold text-green-600">{r.currentVal}</td>
+                    <td className="px-4 py-3 align-middle font-bold text-red-500">{r.dep}</td>
+                    <td className="px-4 py-3 align-middle">{r.age}</td>
+                    <td className="px-4 py-3 align-middle">
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${r.stage === 'Active' ? 'bg-green-100 text-green-700' : r.stage === 'End of Life' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{r.stage}</span>
+                    </td>
+                    <td className="px-4 py-3 align-middle">
+                      {r.stage === 'End of Life'
+                        ? <button className="px-3 py-1.5 text-xs rounded-lg bg-red-100 text-red-700 font-semibold border-0 cursor-pointer font-[inherit]">Dispose</button>
+                        : <button className="px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold cursor-pointer font-[inherit]">View History</button>
+                      }
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirm Modal */}
+      <Modal open={!!deleteAsset} onClose={() => setDeleteAsset(null)} title="Delete Asset"
+        footer={
+          <>
+            <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold cursor-pointer font-[inherit]" onClick={() => setDeleteAsset(null)}>Cancel</button>
+            <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-semibold cursor-pointer font-[inherit] border-0" onClick={confirmDelete}>Delete</button>
+          </>
+        }>
+        <p className="text-sm text-gray-700">Are you sure you want to delete <strong>{deleteAsset?.name}</strong>? This action cannot be undone.</p>
+      </Modal>
 
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Add New Asset"
         footer={<>

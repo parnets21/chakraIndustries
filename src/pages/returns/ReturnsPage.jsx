@@ -38,8 +38,8 @@ const lossTracking = [
   { id: 'RET-004', customer: 'Tata Motors', returnValue: '₹12,000', recoverable: '₹0', loss: '₹12,000', reason: 'Return rejected — no defect found', status: 'Disputed' },
 ];
 
-export default function ReturnsPage() {
-  const [activeTab, setActiveTab] = useState(0);
+export default function ReturnsPage({ initialTab = 0 }) {
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [selected, setSelected] = useState(returns[0]);
   const [showModal, setShowModal] = useState(false);
 

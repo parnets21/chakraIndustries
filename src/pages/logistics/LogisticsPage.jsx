@@ -50,8 +50,8 @@ const courierShipments = [
   { id: 'SHP-003', courier: 'Delhivery', awb: 'DL456789123', order: 'ORD-2024-084', customer: 'Ashok Leyland', destination: 'Chennai', status: 'Out for Delivery', eta: '15 Apr', pod: false },
 ];
 
-export default function LogisticsPage() {
-  const [activeTab, setActiveTab] = useState(0);
+export default function LogisticsPage({ initialTab = 0 }) {
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [showModal, setShowModal] = useState(false);
 
   const kpis = [

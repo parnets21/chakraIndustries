@@ -557,16 +557,16 @@ export default function LoginPage() {
             
             <div className="stats-grid">
               <div className="stat-card">
-                <span className="stat-number">6+</span>
-                <span className="stat-label">Modules</span>
+                <span className="stat-number">📊</span>
+                <span className="stat-label">Smart Analytics</span>
               </div>
               <div className="stat-card">
-                <span className="stat-number">100%</span>
-                <span className="stat-label">Integrated</span>
+                <span className="stat-number">�</span>
+                <span className="stat-label">Fast Performance</span>
               </div>
               <div className="stat-card">
-                <span className="stat-number">24/7</span>
-                <span className="stat-label">Access</span>
+                <span className="stat-number">🎯</span>
+                <span className="stat-label">Goal Driven</span>
               </div>
             </div>
           </div>
@@ -605,8 +605,8 @@ export default function LoginPage() {
                     className="form-input"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="your.email@chakra.in"
-                    autoComplete="email"
+                    placeholder="Enter your Email id"
+                    autoComplete="off"
                   />
                   <MdEmail className="input-icon" size={20} />
                 </div>
@@ -622,7 +622,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
-                    autoComplete="current-password"
+                    autoComplete="new-password"
                     style={{ paddingRight: '52px' }}
                   />
                   <MdLock className="input-icon" size={20} />

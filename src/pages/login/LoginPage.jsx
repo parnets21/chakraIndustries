@@ -77,7 +77,7 @@ export default function LoginPage() {
           flex-direction: column;
           justify-content: center;
           align-items: center;
-          padding: 80px 60px;
+          padding: 60px 50px;
           position: relative;
           background: linear-gradient(135deg, #ffffff 0%, #fef2f2 50%, #fee2e2 100%);
           overflow: hidden;
@@ -105,14 +105,14 @@ export default function LoginPage() {
         }
 
         .brand-logo {
-          width: 160px;
-          height: 160px;
+          width: 120px;
+          height: 120px;
           background: white;
-          border-radius: 32px;
+          border-radius: 24px;
           display: flex;
           align-items: center;
           justify-content: center;
-          margin: 0 auto 40px;
+          margin: 0 auto 32px;
           box-shadow: 
             0 20px 40px rgba(192, 57, 43, 0.15),
             0 0 0 1px rgba(192, 57, 43, 0.1);
@@ -126,16 +126,16 @@ export default function LoginPage() {
         }
 
         .brand-logo img {
-          width: 110px;
-          height: 110px;
+          width: 80px;
+          height: 80px;
           object-fit: contain;
         }
 
         .brand-title {
-          font-size: 48px;
+          font-size: 36px;
           font-weight: 900;
-          margin-bottom: 16px;
-          letter-spacing: -1.5px;
+          margin-bottom: 12px;
+          letter-spacing: -1px;
           line-height: 1.1;
           background: linear-gradient(135deg, #1a202c 0%, #4a5568 100%);
           -webkit-background-clip: text;
@@ -144,22 +144,22 @@ export default function LoginPage() {
         }
 
         .brand-subtitle {
-          font-size: 11px;
+          font-size: 10px;
           font-weight: 800;
-          letter-spacing: 5px;
-          margin-bottom: 32px;
+          letter-spacing: 4px;
+          margin-bottom: 24px;
           color: #c0392b;
           background: rgba(192, 57, 43, 0.08);
           display: inline-block;
-          padding: 10px 28px;
-          border-radius: 24px;
+          padding: 8px 20px;
+          border-radius: 20px;
         }
 
         .brand-description {
-          font-size: 17px;
-          line-height: 1.8;
-          max-width: 480px;
-          margin: 0 auto 48px;
+          font-size: 15px;
+          line-height: 1.7;
+          max-width: 420px;
+          margin: 0 auto 36px;
           font-weight: 500;
           color: #4a5568;
         }
@@ -167,16 +167,16 @@ export default function LoginPage() {
         .stats-grid {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
-          gap: 16px;
-          max-width: 480px;
+          gap: 14px;
+          max-width: 420px;
           margin: 0 auto;
         }
 
         .stat-card {
           background: white;
           border: 2px solid rgba(192, 57, 43, 0.15);
-          border-radius: 20px;
-          padding: 24px 16px;
+          border-radius: 16px;
+          padding: 18px 12px;
           text-align: center;
           transition: all 0.3s ease;
           box-shadow: 0 4px 12px rgba(192, 57, 43, 0.08);
@@ -190,9 +190,9 @@ export default function LoginPage() {
         }
 
         .stat-number {
-          font-size: 36px;
+          font-size: 28px;
           font-weight: 900;
-          margin-bottom: 6px;
+          margin-bottom: 4px;
           display: block;
           background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%);
           -webkit-background-clip: text;
@@ -201,10 +201,10 @@ export default function LoginPage() {
         }
 
         .stat-label {
-          font-size: 11px;
+          font-size: 10px;
           font-weight: 700;
           text-transform: uppercase;
-          letter-spacing: 1.5px;
+          letter-spacing: 1px;
           color: #64748b;
         }
 
@@ -266,11 +266,11 @@ export default function LoginPage() {
 
         .login-card {
           width: 100%;
-          max-width: 480px;
+          max-width: 440px;
           background: rgba(255, 255, 255, 0.95);
           backdrop-filter: blur(20px);
-          border-radius: 32px;
-          padding: 48px;
+          border-radius: 28px;
+          padding: 40px;
           box-shadow: 0 24px 48px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.5) inset;
           border: 1px solid rgba(226, 232, 240, 0.6);
           animation: fadeInUp 0.6s ease;
@@ -280,11 +280,11 @@ export default function LoginPage() {
 
         .login-header {
           text-align: center;
-          margin-bottom: 40px;
+          margin-bottom: 32px;
         }
 
         .login-title {
-          font-size: 32px;
+          font-size: 28px;
           font-weight: 800;
           color: #1a202c;
           margin-bottom: 8px;
@@ -292,7 +292,7 @@ export default function LoginPage() {
         }
 
         .login-subtitle {
-          font-size: 15px;
+          font-size: 14px;
           color: #64748b;
           font-weight: 500;
         }
@@ -313,15 +313,15 @@ export default function LoginPage() {
         }
 
         .form-group {
-          margin-bottom: 24px;
+          margin-bottom: 20px;
         }
 
         .form-label {
           display: block;
-          font-size: 14px;
+          font-size: 13px;
           font-weight: 600;
           color: #374151;
-          margin-bottom: 10px;
+          margin-bottom: 8px;
           margin-left: 4px;
         }
 
@@ -331,7 +331,7 @@ export default function LoginPage() {
 
         .input-icon {
           position: absolute;
-          left: 18px;
+          left: 16px;
           top: 50%;
           transform: translateY(-50%);
           color: #9ca3af;
@@ -341,13 +341,13 @@ export default function LoginPage() {
 
         .form-input {
           width: 100%;
-          padding: 15px 18px 15px 52px;
-          font-size: 15px;
+          padding: 13px 16px 13px 48px;
+          font-size: 14px;
           font-weight: 500;
           color: #1a202c;
           background: #f8fafc;
           border: 2px solid #e2e8f0;
-          border-radius: 16px;
+          border-radius: 14px;
           outline: none;
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           font-family: inherit;
@@ -389,32 +389,32 @@ export default function LoginPage() {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin-bottom: 32px;
+          margin-bottom: 28px;
         }
 
         .checkbox-wrapper {
           display: flex;
           align-items: center;
-          gap: 10px;
+          gap: 8px;
           cursor: pointer;
           user-select: none;
         }
 
         .checkbox-input {
-          width: 20px;
-          height: 20px;
+          width: 18px;
+          height: 18px;
           cursor: pointer;
           accent-color: #c0392b;
         }
 
         .checkbox-label {
-          font-size: 14px;
+          font-size: 13px;
           color: #4b5563;
           font-weight: 500;
         }
 
         .forgot-link {
-          font-size: 14px;
+          font-size: 13px;
           color: #64748b;
           text-decoration: none;
           font-weight: 600;
@@ -446,18 +446,18 @@ export default function LoginPage() {
 
         .submit-btn {
           width: 100%;
-          padding: 16px 24px;
-          font-size: 16px;
+          padding: 14px 20px;
+          font-size: 15px;
           font-weight: 700;
           color: #fff;
           background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%);
           border: none;
-          border-radius: 16px;
+          border-radius: 14px;
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 12px;
+          gap: 10px;
           box-shadow: 0 8px 24px rgba(192, 57, 43, 0.35);
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           font-family: inherit;

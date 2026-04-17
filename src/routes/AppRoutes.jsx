@@ -34,6 +34,9 @@ import ReturnsSubPage from '../pages/returns/ReturnsSubPage';
 // Finance
 import FinanceSubPage from '../pages/finance/FinanceSubPage';
 
+// Tally Integration
+import TallySubPage from '../pages/tally/TallySubPage';
+
 // Forecasting
 import ForecastingSubPage from '../pages/forecasting/ForecastingSubPage';
 
@@ -160,6 +163,14 @@ export default function AppRoutes() {
       <Route path="/tasks/kanban"  element={<P element={<TasksSubPage tab="kanban" />} />} />
       <Route path="/tasks/todo"    element={<P element={<TasksSubPage tab="todo" />} />} />
       <Route path="/tasks/notifs"  element={<P element={<TasksSubPage tab="notifs" />} />} />
+
+      {/* Tally Integration */}
+      <Route path="/tally"              element={<Navigate to="/tally/dashboard" replace />} />
+      <Route path="/tally/dashboard"    element={<P element={<TallySubPage tab="dashboard" />} />} />
+      <Route path="/tally/master"       element={<P element={<TallySubPage tab="master" />} />} />
+      <Route path="/tally/transactions" element={<P element={<TallySubPage tab="transactions" />} />} />
+      <Route path="/tally/logs"         element={<P element={<TallySubPage tab="logs" />} />} />
+      <Route path="/tally/config"       element={<P element={<TallySubPage tab="config" />} />} />
 
       <Route path="/settings" element={<P element={<SettingsPage />} />} />
       <Route path="*"         element={<Navigate to="/dashboard" replace />} />

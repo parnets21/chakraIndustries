@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   MdDashboard, MdShoppingCart, MdInventory2, MdPrecisionManufacturing,
   MdStar, MdAssignment, MdLocalShipping, MdAssignmentReturn,
-  MdAccountBalance, MdTrendingUp, MdBarChart, MdBuild,
+  MdAccountBalance, MdSync, MdTrendingUp, MdBarChart, MdBuild,
   MdQrCode2, MdTask, MdSettings, MdBusinessCenter,
   MdChevronLeft, MdChevronRight, MdClose, MdAdminPanelSettings,
   MdExpandMore, MdExpandLess,
@@ -14,7 +14,7 @@ import { getNavForRole, ROLES } from '../auth/rbac';
 const ICON_MAP = {
   MdDashboard, MdShoppingCart, MdInventory2, MdPrecisionManufacturing,
   MdStar, MdAssignment, MdLocalShipping, MdAssignmentReturn,
-  MdAccountBalance, MdTrendingUp, MdBarChart, MdBuild,
+  MdAccountBalance, MdSync, MdTrendingUp, MdBarChart, MdBuild,
   MdQrCode2, MdTask, MdSettings, MdBusinessCenter,
 };
 

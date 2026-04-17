@@ -120,7 +120,8 @@ export default function VendorsTab({ categories, showVendorModal, setShowVendorM
             <div className="form-group"><label className="form-label">Contact Person</label>
               <input className="form-input" defaultValue={editVendor.contact} /></div>
             <div className="form-group"><label className="form-label">Phone</label>
-              <input className="form-input" defaultValue={editVendor.phone} /></div>
+              <input className="form-input" defaultValue={editVendor.phone} maxLength={10} inputMode="numeric"
+                onChange={e => e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10)} /></div>
             <div className="form-group"><label className="form-label">City</label>
               <input className="form-input" defaultValue={editVendor.city} /></div>
             <div className="form-group"><label className="form-label">Status</label>
@@ -178,7 +179,14 @@ export default function VendorsTab({ categories, showVendorModal, setShowVendorM
           </div>
           <div className="form-group">
             <label className="form-label">Phone</label>
-            <input className="form-input" placeholder="10-digit number" value={form.phone} onChange={e => setF('phone', e.target.value)} />
+            <input
+              className="form-input"
+              placeholder="10-digit number"
+              value={form.phone}
+              maxLength={10}
+              inputMode="numeric"
+              onChange={e => setF('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+            />
           </div>
           <div className="form-group">
             <label className="form-label">Email</label>

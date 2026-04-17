@@ -24,6 +24,7 @@ export const DEFAULT_PAGE_ACCESS = {
   logistics:    { super_admin: 'full', management: 'view',  purchase_manager: 'view',  production_manager: false,   dealer: false,  corporate_client: 'view' },
   returns:      { super_admin: 'full', management: 'view',  purchase_manager: 'full',  production_manager: false,   dealer: 'view', corporate_client: 'view' },
   finance:      { super_admin: 'full', management: 'full',  purchase_manager: 'view',  production_manager: false,   dealer: false,  corporate_client: false  },
+  tally:        { super_admin: 'full', management: 'view',  purchase_manager: false,   production_manager: false,   dealer: false,  corporate_client: false  },
   forecasting:  { super_admin: 'full', management: 'full',  purchase_manager: 'view',  production_manager: 'view',  dealer: false,  corporate_client: false  },
   reports:      { super_admin: 'full', management: 'full',  purchase_manager: 'full',  production_manager: 'full',  dealer: false,  corporate_client: false  },
   assets:       { super_admin: 'full', management: 'view',  purchase_manager: false,   production_manager: 'view',  dealer: false,  corporate_client: false  },
@@ -164,6 +165,16 @@ export const NAV_ITEMS = [
       { path: '/finance/payments', label: 'Payments',            page: 'finance' },
       { path: '/finance/notes',    label: 'Credit/Debit Notes',  page: 'finance' },
       { path: '/finance/matching', label: 'Ledger Matching',     page: 'finance' },
+    ],
+  },
+  {
+    label: 'Tally Integration', page: 'tally', icon: 'MdSync',
+    children: [
+      { path: '/tally/dashboard',     label: 'Sync Dashboard',      page: 'tally' },
+      { path: '/tally/master',        label: 'Master Data Sync',    page: 'tally' },
+      { path: '/tally/transactions',  label: 'Transaction Sync',    page: 'tally' },
+      { path: '/tally/logs',          label: 'Sync Logs',           page: 'tally' },
+      { path: '/tally/config',        label: 'Configuration',       page: 'tally' },
     ],
   },
   {

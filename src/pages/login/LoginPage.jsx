@@ -190,14 +190,10 @@ export default function LoginPage() {
         }
 
         .stat-number {
-          font-size: 28px;
+          font-size: 32px;
           font-weight: 900;
           margin-bottom: 4px;
           display: block;
-          background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
         }
 
         .stat-label {
@@ -561,7 +557,7 @@ export default function LoginPage() {
                 <span className="stat-label">Smart Analytics</span>
               </div>
               <div className="stat-card">
-                <span className="stat-number">�</span>
+                <span className="stat-number">🚀</span>
                 <span className="stat-label">Fast Performance</span>
               </div>
               <div className="stat-card">

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { defaultCategories } from './components/data';
+import { useState, useEffect } from 'react';
+import { categoryApi } from '../../api/categoryApi';
 import VendorsTab from './components/VendorsTab';
 import RFQTab from './components/RFQTab';
 import PurchaseRequisitionTab from './components/PurchaseRequisitionTab';
@@ -14,8 +14,39 @@ export default function ProcurementPage() {
   const [showVendorModal, setShowVendorModal] = useState(false);
   const [showPOModal, setShowPOModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [categories, setCategories] = useState(defaultCategories);
+
+  // Categories — loaded from DB
+  const [categories, setCategories] = useState([]);
   const [newCategory, setNewCategory] = useState('');
+
+  useEffect(() => {
+    categoryApi.getAll().then(res => setCategories(res.data)).catch(console.error);
+  }, []);
+
+  // Add category to DB + local state
+  const handleAddCategory = async (name) => {
+    if (!name.trim()) return;
+    try {
+      const res = await categoryApi.create(name.trim());
+      setCategories(prev => [...prev, res.data]);
+      setNewCategory('');
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  // Delete category from DB + local state
+  const handleDeleteCategory = async (cat) => {
+    try {
+      await categoryApi.delete(cat._id);
+      setCategories(prev => prev.filter(c => c._id !== cat._id));
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  // Category names for dropdowns
+  const categoryNames = categories.map(c => c.name);
 
   return (
     <div>
@@ -39,10 +70,12 @@ export default function ProcurementPage() {
 
       {activeTab === 0 && (
         <VendorsTab
-          categories={categories}
-          setCategories={setCategories}
+          categories={categoryNames}
           newCategory={newCategory}
           setNewCategory={setNewCategory}
+          onAddCategory={handleAddCategory}
+          onDeleteCategory={handleDeleteCategory}
+          categoriesRaw={categories}
           showVendorModal={showVendorModal}
           setShowVendorModal={setShowVendorModal}
           showCategoryModal={showCategoryModal}

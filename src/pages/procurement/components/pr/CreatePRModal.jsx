@@ -1,14 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Modal from '../../../../components/common/Modal';
 import Stepper from '../../../../components/common/Stepper';
+import { prApi } from '../../../../api/prApi';
+import { departmentApi } from '../../../../api/departmentApi';
+import { useAuth } from '../../../../auth/AuthContext';
 
 const steps = ['Details', 'Items', 'Review', 'Submit'];
 const emptyItem = { name: '', qty: '', unit: 'Nos', estimatedPrice: '' };
+const emptyForm = { department: '', requiredBy: '', priority: 'Normal', costCenter: '', remarks: '' };
 
-export default function CreatePRModal({ open, onClose }) {
+export default function CreatePRModal({ open, onClose, onSaved, editData }) {
+  const { user } = useAuth();
   const [step, setStep] = useState(0);
-  const [form, setForm] = useState({ dept: 'Production', requiredBy: '', priority: 'Normal', remarks: '' });
+  const [form, setForm] = useState(emptyForm);
   const [items, setItems] = useState([{ ...emptyItem }]);
+  const [saving, setSaving] = useState(false);
+  const [departments, setDepartments] = useState([]);
+
+  useEffect(() => {
+    departmentApi.getAll().then(res => setDepartments(res.data)).catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    if (editData) {
+      setForm({
+        department: editData.department || 'Production',
+        requiredBy: editData.requiredBy ? editData.requiredBy.slice(0, 10) : '',
+        priority: editData.priority || 'Normal',
+        costCenter: editData.costCenter || '',
+        remarks: editData.remarks || '',
+      });
+      setItems(editData.items?.length ? editData.items : [{ ...emptyItem }]);
+    } else {
+      setForm(emptyForm);
+      setItems([{ ...emptyItem }]);
+    }
+    setStep(0);
+  }, [editData, open]);
 
   const updateForm = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const updateItem = (i, k, v) => setItems(prev => prev.map((it, idx) => idx === i ? { ...it, [k]: v } : it));
@@ -19,8 +47,30 @@ export default function CreatePRModal({ open, onClose }) {
 
   const handleClose = () => { setStep(0); onClose(); };
 
+  const handleSubmit = async () => {
+    setSaving(true);
+    try {
+      const payload = {
+        ...form,
+        items,
+        requestedBy: user?.name || user?.email || 'Unknown',
+      };
+      if (editData) {
+        await prApi.update(editData._id, payload);
+      } else {
+        await prApi.create(payload);
+      }
+      onSaved?.();
+      handleClose();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <Modal open={open} onClose={handleClose} title="Create Purchase Requisition" size="lg"
+    <Modal open={open} onClose={handleClose} title={editData ? 'Edit Purchase Requisition' : 'Create Purchase Requisition'} size="lg"
       footer={
         <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
           <button className="btn btn-outline" onClick={() => step === 0 ? handleClose() : setStep(s => s - 1)}>
@@ -28,7 +78,9 @@ export default function CreatePRModal({ open, onClose }) {
           </button>
           {step < steps.length - 1
             ? <button className="btn btn-primary" onClick={() => setStep(s => s + 1)}>Next →</button>
-            : <button className="btn btn-primary" onClick={handleClose}>Submit PR</button>
+            : <button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>
+                {saving ? 'Submitting...' : editData ? 'Update PR' : 'Submit PR'}
+              </button>
           }
         </div>
       }>
@@ -40,8 +92,9 @@ export default function CreatePRModal({ open, onClose }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <div className="form-group">
             <label className="form-label">Department *</label>
-            <select className="form-select" value={form.dept} onChange={e => updateForm('dept', e.target.value)}>
-              <option>Production</option><option>Maintenance</option><option>Admin</option><option>Logistics</option><option>Finance</option>
+            <select className="form-select" value={form.department} onChange={e => updateForm('department', e.target.value)}>
+              <option value="">Select department</option>
+              {departments.map(d => <option key={d._id} value={d.name}>{d.name}</option>)}
             </select>
           </div>
           <div className="form-group">
@@ -56,7 +109,7 @@ export default function CreatePRModal({ open, onClose }) {
           </div>
           <div className="form-group">
             <label className="form-label">Cost Center</label>
-            <input className="form-input" placeholder="e.g. CC-PROD-01" />
+            <input className="form-input" placeholder="e.g. CC-PROD-01" value={form.costCenter} onChange={e => updateForm('costCenter', e.target.value)} />
           </div>
           <div className="form-group" style={{ gridColumn: 'span 2' }}>
             <label className="form-label">Remarks</label>
@@ -74,11 +127,9 @@ export default function CreatePRModal({ open, onClose }) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: 10 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>ITEM NAME</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>QTY</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>UNIT</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>EST. PRICE (₹)</span>
-              <span />
+              {['ITEM NAME', 'QTY', 'UNIT', 'EST. PRICE (₹)', ''].map(h => (
+                <span key={h} style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>{h}</span>
+              ))}
             </div>
             {items.map((item, i) => (
               <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: 10, alignItems: 'center' }}>
@@ -106,9 +157,10 @@ export default function CreatePRModal({ open, onClose }) {
         <div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
             {[
-              ['Department', form.dept],
+              ['Department', form.department],
               ['Required By', form.requiredBy || '—'],
               ['Priority', form.priority],
+              ['Cost Center', form.costCenter || '—'],
               ['Remarks', form.remarks || '—'],
             ].map(([k, v]) => (
               <div key={k} style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid var(--border)' }}>
@@ -151,7 +203,7 @@ export default function CreatePRModal({ open, onClose }) {
           </div>
           <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, display: 'inline-block', textAlign: 'left', minWidth: 260 }}>
             <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Department</div>
-            <div style={{ fontWeight: 700, marginBottom: 10 }}>{form.dept}</div>
+            <div style={{ fontWeight: 700, marginBottom: 10 }}>{form.department}</div>
             <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Items</div>
             <div style={{ fontWeight: 700, marginBottom: 10 }}>{items.length} item(s)</div>
             <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Estimated Value</div>

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 
+const tabs = ['Kanban Board', 'Daily To-Do', 'Notifications'];
+
 const initialTasks = {
   todo: [
     { id: 'T-001', title: 'Review Q1 Inventory Report', priority: 'High', assignee: 'Priya Nair', due: '16 Apr', tag: 'Inventory' },
@@ -26,10 +28,37 @@ const colConfig = [
   { key: 'done', label: 'Done', color: '#10b981', bg: 'bg-green-50' },
 ];
 
-export default function TasksPage() {
+const dailyTodos = [
+  { id: 'DT-001', task: 'Check pending GRNs', module: 'Procurement', time: '09:00 AM', done: true },
+  { id: 'DT-002', task: 'Review low stock alerts', module: 'Inventory', time: '10:00 AM', done: true },
+  { id: 'DT-003', task: 'Approve WO-0892 progress update', module: 'Production', time: '11:30 AM', done: false },
+  { id: 'DT-004', task: 'Follow up on PO-2024-089 approval', module: 'Procurement', time: '02:00 PM', done: false },
+  { id: 'DT-005', task: 'Dispatch planning for ORD-2024-085', module: 'Logistics', time: '03:30 PM', done: false },
+  { id: 'DT-006', task: 'End-of-day production report', module: 'Production', time: '06:00 PM', done: false },
+];
+
+const notifications = [
+  { id: 'N-001', title: 'PO #PO-2024-089 awaiting approval', module: 'Procurement', time: '5m ago', type: 'warning', read: false },
+  { id: 'N-002', title: 'Low stock: SKU-1042 (Bearing 6205) — only 12 units', module: 'Inventory', time: '12m ago', type: 'danger', read: false },
+  { id: 'N-003', title: 'GRN #GRN-0234 received successfully', module: 'Procurement', time: '1h ago', type: 'success', read: false },
+  { id: 'N-004', title: 'Work Order WO-0891 completed', module: 'Production', time: '2h ago', type: 'info', read: true },
+  { id: 'N-005', title: 'Task T-002 due today: Approve PO-2024-089', module: 'Tasks', time: '3h ago', type: 'warning', read: true },
+  { id: 'N-006', title: 'Dispatch ORD-2024-085 — vehicle assigned', module: 'Logistics', time: '4h ago', type: 'success', read: true },
+];
+
+const notifColors = {
+  warning: { bg: '#fffbeb', border: '#fde68a', color: '#d97706', dot: '#f59e0b' },
+  danger:  { bg: '#fef2f2', border: '#fecaca', color: '#dc2626', dot: '#ef4444' },
+  success: { bg: '#f0fdf4', border: '#bbf7d0', color: '#16a34a', dot: '#22c55e' },
+  info:    { bg: '#eff6ff', border: '#bfdbfe', color: '#2563eb', dot: '#3b82f6' },
+};
+
+export default function TasksPage({ initialTab = 0 }) {
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [tasks, setTasks] = useState(initialTasks);
   const [dragging, setDragging] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [todos, setTodos] = useState(dailyTodos);
 
   const moveTask = (taskId, fromCol, toCol) => {
     if (fromCol === toCol) return;
@@ -40,6 +69,8 @@ export default function TasksPage() {
       [toCol]: [...prev[toCol], task],
     }));
   };
+
+  const toggleTodo = (id) => setTodos(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
 
   return (
     <div>
@@ -60,64 +91,148 @@ export default function TasksPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
-        {colConfig.map(col => (
-          <div key={col.key} className={`bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all ${col.bg}`}>
-            <div className="text-2xl font-black tracking-tight" style={{ color: col.color }}>{tasks[col.key].length}</div>
-            <div className="text-xs text-gray-500 font-medium mt-1">{col.label}</div>
-          </div>
+      <div className="flex border-b-2 border-gray-200 mb-5 overflow-x-auto">
+        {tabs.map((t, i) => (
+          <button key={i} onClick={() => setActiveTab(i)}
+            className={`px-5 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 -mb-0.5 cursor-pointer flex-shrink-0 bg-transparent font-[inherit] ${activeTab === i ? 'text-red-700 border-red-600' : 'text-gray-400 border-transparent hover:text-red-600'}`}>
+            {t}
+          </button>
         ))}
       </div>
 
-      <div className="flex gap-4 overflow-x-auto pb-2">
-        {colConfig.map(col => (
-          <div
-            key={col.key}
-            className="min-w-[270px] bg-gray-50 rounded-2xl p-4 border border-gray-200 flex-shrink-0"
-            onDragOver={e => e.preventDefault()}
-            onDrop={e => { e.preventDefault(); if (dragging) moveTask(dragging.id, dragging.col, col.key); setDragging(null); }}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-bold" style={{ color: col.color }}>{col.label}</span>
-              <span className="text-[11px] font-bold text-white px-2 py-0.5 rounded-full" style={{ background: col.color }}>{tasks[col.key].length}</span>
-            </div>
-            {tasks[col.key].map(task => (
-              <div
-                key={task.id}
-                className="bg-white rounded-xl p-3.5 mb-2.5 border border-gray-200 shadow-sm cursor-grab hover:shadow-md hover:-translate-y-0.5 transition-all"
-                draggable
-                onDragStart={() => setDragging({ id: task.id, col: col.key })}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <span className="text-[11px] text-gray-400 font-mono">{task.id}</span>
-                  <StatusBadge status={task.priority} type={priorityType[task.priority]} />
-                </div>
-                <div className="font-semibold text-[13px] text-gray-800 mb-2 leading-snug">{task.title}</div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold" style={{ background: (tagColor[task.tag] || '#6b7280') + '20', color: tagColor[task.tag] || '#6b7280' }}>{task.tag}</span>
-                  <span className="text-[11px] text-gray-400">Due: {task.due}</span>
-                </div>
-                <div className="mt-2 flex items-center gap-1.5">
-                  <div className="w-[22px] h-[22px] rounded-full flex items-center justify-center text-white text-[9px] font-bold bg-gradient-to-br from-red-500 to-amber-400">
-                    {task.assignee.split(' ').map(n => n[0]).join('')}
-                  </div>
-                  <span className="text-[11px] text-gray-400">{task.assignee}</span>
-                </div>
-                {col.key !== 'done' && (
-                  <div className="flex gap-1.5 mt-2">
-                    {col.key === 'todo' && (
-                      <button className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-amber-100 text-amber-800 font-semibold border-0 cursor-pointer font-[inherit]" onClick={() => moveTask(task.id, 'todo', 'inProgress')}>Start →</button>
-                    )}
-                    {col.key === 'inProgress' && (
-                      <button className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-green-100 text-green-800 font-semibold border-0 cursor-pointer font-[inherit]" onClick={() => moveTask(task.id, 'inProgress', 'done')}>Complete ✓</button>
-                    )}
-                  </div>
-                )}
+      {activeTab === 0 && (
+        <div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
+            {colConfig.map(col => (
+              <div key={col.key} className={`bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all`}>
+                <div className="text-2xl font-black tracking-tight" style={{ color: col.color }}>{tasks[col.key].length}</div>
+                <div className="text-xs text-gray-500 font-medium mt-1">{col.label}</div>
               </div>
             ))}
           </div>
-        ))}
-      </div>
+          <div className="flex gap-4 overflow-x-auto pb-2">
+            {colConfig.map(col => (
+              <div
+                key={col.key}
+                className="min-w-[270px] bg-gray-50 rounded-2xl p-4 border border-gray-200 flex-shrink-0"
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => { e.preventDefault(); if (dragging) moveTask(dragging.id, dragging.col, col.key); setDragging(null); }}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-bold" style={{ color: col.color }}>{col.label}</span>
+                  <span className="text-[11px] font-bold text-white px-2 py-0.5 rounded-full" style={{ background: col.color }}>{tasks[col.key].length}</span>
+                </div>
+                {tasks[col.key].map(task => (
+                  <div
+                    key={task.id}
+                    className="bg-white rounded-xl p-3.5 mb-2.5 border border-gray-200 shadow-sm cursor-grab hover:shadow-md hover:-translate-y-0.5 transition-all"
+                    draggable
+                    onDragStart={() => setDragging({ id: task.id, col: col.key })}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-[11px] text-gray-400 font-mono">{task.id}</span>
+                      <StatusBadge status={task.priority} type={priorityType[task.priority]} />
+                    </div>
+                    <div className="font-semibold text-[13px] text-gray-800 mb-2 leading-snug">{task.title}</div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold" style={{ background: (tagColor[task.tag] || '#6b7280') + '20', color: tagColor[task.tag] || '#6b7280' }}>{task.tag}</span>
+                      <span className="text-[11px] text-gray-400">Due: {task.due}</span>
+                    </div>
+                    <div className="mt-2 flex items-center gap-1.5">
+                      <div className="w-[22px] h-[22px] rounded-full flex items-center justify-center text-white text-[9px] font-bold bg-gradient-to-br from-red-500 to-amber-400">
+                        {task.assignee.split(' ').map(n => n[0]).join('')}
+                      </div>
+                      <span className="text-[11px] text-gray-400">{task.assignee}</span>
+                    </div>
+                    {col.key !== 'done' && (
+                      <div className="flex gap-1.5 mt-2">
+                        {col.key === 'todo' && (
+                          <button className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-amber-100 text-amber-800 font-semibold border-0 cursor-pointer font-[inherit]" onClick={() => moveTask(task.id, 'todo', 'inProgress')}>Start →</button>
+                        )}
+                        {col.key === 'inProgress' && (
+                          <button className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-green-100 text-green-800 font-semibold border-0 cursor-pointer font-[inherit]" onClick={() => moveTask(task.id, 'inProgress', 'done')}>Complete ✓</button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 1 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="text-sm font-bold text-gray-800">Today's To-Do — 16 Apr 2024</div>
+                <div className="text-xs text-gray-400 mt-0.5">{todos.filter(t => t.done).length}/{todos.length} completed</div>
+              </div>
+              <div className="h-1.5 w-24 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full bg-green-500 transition-all" style={{ width: `${(todos.filter(t => t.done).length / todos.length) * 100}%` }} />
+              </div>
+            </div>
+            {todos.map((t, i) => (
+              <div key={t.id} className={`flex items-center gap-3 py-3 ${i < todos.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                <button
+                  onClick={() => toggleTodo(t.id)}
+                  className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center border-0 cursor-pointer ${t.done ? 'bg-green-500' : 'border-gray-300 bg-white'}`}
+                  style={{ border: t.done ? 'none' : '2px solid #d1d5db' }}
+                >
+                  {t.done && <span className="text-white text-[10px] font-bold">✓</span>}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className={`text-sm font-semibold ${t.done ? 'line-through text-gray-400' : 'text-gray-800'}`}>{t.task}</div>
+                  <div className="text-[11px] text-gray-400">{t.module} · {t.time}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-4">Add To-Do Item</div>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Task *</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="What needs to be done?" /></div>
+              <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Module</label><select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]"><option>Procurement</option><option>Inventory</option><option>Production</option><option>Logistics</option><option>Finance</option></select></div>
+              <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Time</label><input type="time" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" /></div>
+              <button className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">+ Add Item</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 2 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="text-sm font-bold text-gray-800">Notifications & Reminders</div>
+              <div className="text-xs text-gray-400 mt-0.5">{notifications.filter(n => !n.read).length} unread</div>
+            </div>
+            <button className="px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold cursor-pointer font-[inherit]">Mark All Read</button>
+          </div>
+          <div className="flex flex-col gap-2">
+            {notifications.map((n, i) => {
+              const m = notifColors[n.type];
+              return (
+                <div key={n.id} className={`flex items-start gap-3 p-3.5 rounded-xl border transition-all ${n.read ? 'bg-white border-gray-100' : 'border'}`}
+                  style={!n.read ? { background: m.bg, borderColor: m.border } : {}}>
+                  <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ background: n.read ? '#d1d5db' : m.dot }} />
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-sm font-semibold ${n.read ? 'text-gray-500' : 'text-gray-800'}`}>{n.title}</div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[11px] text-gray-400">{n.module}</span>
+                      <span className="text-[11px] text-gray-400">·</span>
+                      <span className="text-[11px] text-gray-400">{n.time}</span>
+                    </div>
+                  </div>
+                  {!n.read && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white flex-shrink-0" style={{ background: m.dot }}>NEW</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {showModal && (
         <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-5 bg-black/60 backdrop-blur-sm" onClick={() => setShowModal(false)}>

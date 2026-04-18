@@ -1,5 +1,9 @@
+import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import LineChart from '../../components/charts/LineChart';
+import BarChart from '../../components/charts/BarChart';
+
+const tabs = ['Demand Forecast', 'Purchase Planning', 'Inventory Optimization'];
 
 const demandData = [
   { label: 'Jan', value: 4200 }, { label: 'Feb', value: 4800 }, { label: 'Mar', value: 5100 },
@@ -21,7 +25,13 @@ const suggestedPurchases = [
   { sku: 'SKU-5523', name: 'Valve Spring Set', currentStock: 180, forecastDemand: 350, suggestedQty: 200, vendor: 'Precision Parts', urgency: 'Low' },
 ];
 
-export default function ForecastingPage() {
+const thCls = "bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap";
+const tdCls = "px-4 py-3 text-gray-800 align-middle";
+const trCls = "border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors";
+
+export default function ForecastingPage({ initialTab = 0 }) {
+  const [activeTab, setActiveTab] = useState(initialTab);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
@@ -38,58 +48,128 @@ export default function ForecastingPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="text-sm font-bold text-gray-800 mb-1">Historical Demand</div>
-          <div className="text-xs text-gray-400 mt-0.5 mb-3">Units sold — FY 2024-25</div>
-          <LineChart data={demandData} color="#c0392b" height={180} />
-        </div>
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="text-sm font-bold text-gray-800 mb-1">Demand Forecast</div>
-          <div className="text-xs text-gray-400 mt-0.5 mb-3">Projected — Next 6 months</div>
-          <LineChart data={forecastData} color="#f39c12" height={180} />
-        </div>
+      <div className="flex border-b-2 border-gray-200 mb-5 overflow-x-auto">
+        {tabs.map((t, i) => (
+          <button key={i} onClick={() => setActiveTab(i)}
+            className={`px-5 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 -mb-0.5 cursor-pointer flex-shrink-0 bg-transparent font-[inherit] ${activeTab === i ? 'text-red-700 border-red-600' : 'text-gray-400 border-transparent hover:text-red-600'}`}>
+            {t}
+          </button>
+        ))}
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-3.5">
-          <div className="text-sm font-bold text-gray-800">Suggested Purchase Orders</div>
-          <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-amber-300 to-amber-500 text-white font-semibold border-0 cursor-pointer font-[inherit]">
-            Auto-Generate POs
-          </button>
+      {activeTab === 0 && (
+        <div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+              <div className="text-sm font-bold text-gray-800 mb-1">Historical Demand</div>
+              <div className="text-xs text-gray-400 mt-0.5 mb-3">Units sold — FY 2024-25</div>
+              <LineChart data={demandData} color="#c0392b" height={180} />
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+              <div className="text-sm font-bold text-gray-800 mb-1">Demand Forecast</div>
+              <div className="text-xs text-gray-400 mt-0.5 mb-3">Projected — Next 6 months</div>
+              <LineChart data={forecastData} color="#f39c12" height={180} />
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-3.5">SKU-wise Demand Forecast</div>
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
+              <table className="w-full">
+                <thead><tr>{['SKU','Item','Apr Actual','May Forecast','Jun Forecast','Jul Forecast','Trend'].map(h => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {[
+                    { sku: 'SKU-1042', item: 'Bearing 6205', apr: 420, may: 450, jun: 480, jul: 510, trend: '+10%' },
+                    { sku: 'SKU-3301', item: 'Piston Ring 80mm', apr: 580, may: 600, jun: 640, jul: 680, trend: '+8%' },
+                    { sku: 'SKU-4412', item: 'Crankshaft Seal', apr: 380, may: 400, jun: 420, jul: 440, trend: '+6%' },
+                    { sku: 'SKU-5523', item: 'Valve Spring Set', apr: 320, may: 350, jun: 360, jul: 370, trend: '+5%' },
+                  ].map((r, i) => (
+                    <tr key={i} className={trCls}>
+                      <td className={`${tdCls} font-mono text-xs font-semibold text-red-700`}>{r.sku}</td>
+                      <td className={`${tdCls} font-semibold`}>{r.item}</td>
+                      <td className={tdCls}>{r.apr}</td>
+                      <td className={`${tdCls} font-bold text-amber-600`}>{r.may}</td>
+                      <td className={`${tdCls} font-bold text-amber-600`}>{r.jun}</td>
+                      <td className={`${tdCls} font-bold text-amber-600`}>{r.jul}</td>
+                      <td className={`${tdCls} font-bold text-green-600`}>{r.trend}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-        <div className="overflow-x-auto rounded-xl border border-gray-200">
-          <table className="w-full">
-            <thead>
-              <tr>
-                {['SKU','Item Name','Current Stock','Forecast Demand','Suggested Qty','Preferred Vendor','Urgency','Action'].map(h => (
-                  <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
+      )}
+
+      {activeTab === 1 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-3.5">
+            <div className="text-sm font-bold text-gray-800">Suggested Purchase Orders</div>
+            <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-amber-300 to-amber-500 text-white font-semibold border-0 cursor-pointer font-[inherit]">
+              Auto-Generate POs
+            </button>
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <table className="w-full">
+              <thead><tr>{['SKU','Item Name','Current Stock','Forecast Demand','Suggested Qty','Preferred Vendor','Urgency','Action'].map(h => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+              <tbody>
+                {suggestedPurchases.map((s, i) => (
+                  <tr key={i} className={trCls}>
+                    <td className={`${tdCls} font-semibold text-red-700 font-mono`}>{s.sku}</td>
+                    <td className={`${tdCls} font-semibold`}>{s.name}</td>
+                    <td className={`${tdCls} font-bold ${s.currentStock < 50 ? 'text-red-500' : 'text-green-600'}`}>{s.currentStock}</td>
+                    <td className={tdCls}>{s.forecastDemand}</td>
+                    <td className={`${tdCls} font-bold`}>{s.suggestedQty}</td>
+                    <td className={tdCls}>{s.vendor}</td>
+                    <td className={tdCls}><StatusBadge status={s.urgency} type={s.urgency === 'Critical' ? 'danger' : s.urgency === 'Normal' ? 'warning' : 'info'} /></td>
+                    <td className={tdCls}>
+                      <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">Create PO</button>
+                    </td>
+                  </tr>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {suggestedPurchases.map((s, i) => (
-                <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
-                  <td className="px-4 py-3 align-middle font-semibold text-red-700 font-mono">{s.sku}</td>
-                  <td className="px-4 py-3 align-middle font-semibold text-gray-800">{s.name}</td>
-                  <td className={`px-4 py-3 align-middle font-bold ${s.currentStock < 50 ? 'text-red-500' : 'text-green-600'}`}>{s.currentStock}</td>
-                  <td className="px-4 py-3 text-gray-800 align-middle">{s.forecastDemand}</td>
-                  <td className="px-4 py-3 align-middle font-bold text-gray-800">{s.suggestedQty}</td>
-                  <td className="px-4 py-3 text-gray-800 align-middle">{s.vendor}</td>
-                  <td className="px-4 py-3 text-gray-800 align-middle">
-                    <StatusBadge status={s.urgency} type={s.urgency === 'Critical' ? 'danger' : s.urgency === 'Normal' ? 'warning' : 'info'} />
-                  </td>
-                  <td className="px-4 py-3 text-gray-800 align-middle">
-                    <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">
-                      Create PO
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
+
+      {activeTab === 2 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-3.5">Inventory Optimization Recommendations</div>
+            {[
+              { sku: 'SKU-1042', item: 'Bearing 6205', current: 12, optimal: 500, action: 'Reorder Immediately', color: '#ef4444' },
+              { sku: 'SKU-3301', item: 'Piston Ring 80mm', current: 340, optimal: 400, action: 'Reorder Soon', color: '#f59e0b' },
+              { sku: 'SKU-4412', item: 'Crankshaft Seal', current: 220, optimal: 250, action: 'Monitor', color: '#3b82f6' },
+              { sku: 'SKU-6634', item: 'Timing Chain Kit', current: 0, optimal: 50, action: 'Clearance / Write-off', color: '#6b7280' },
+            ].map((r, i) => (
+              <div key={i} className={`py-3 ${i < 3 ? 'border-b border-gray-100' : ''}`}>
+                <div className="flex justify-between items-center mb-1">
+                  <div>
+                    <div className="font-semibold text-sm">{r.item}</div>
+                    <div className="text-xs text-gray-400">{r.sku}</div>
+                  </div>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: r.color + '20', color: r.color }}>{r.action}</span>
+                </div>
+                <div className="flex gap-4 text-xs mt-1">
+                  <span className="text-gray-400">Current: <strong className="text-gray-800">{r.current}</strong></span>
+                  <span className="text-gray-400">Optimal: <strong className="text-gray-800">{r.optimal}</strong></span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-1">Stock Coverage (Days)</div>
+            <div className="text-xs text-gray-400 mb-3">Days of stock remaining at current demand rate</div>
+            <BarChart data={[
+              { label: 'SKU-1042', value: 3, color: '#ef4444' },
+              { label: 'SKU-2187', value: 5, color: '#ef4444' },
+              { label: 'SKU-3301', value: 45, color: '#27ae60' },
+              { label: 'SKU-4412', value: 38, color: '#27ae60' },
+              { label: 'SKU-5523', value: 30, color: '#f39c12' },
+            ]} height={200} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

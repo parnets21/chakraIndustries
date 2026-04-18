@@ -1,10 +1,12 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   MdDashboard, MdShoppingCart, MdInventory2, MdPrecisionManufacturing,
   MdStar, MdAssignment, MdLocalShipping, MdAssignmentReturn,
-  MdAccountBalance, MdTrendingUp, MdBarChart, MdBuild,
+  MdAccountBalance, MdSync, MdTrendingUp, MdBarChart, MdBuild,
   MdQrCode2, MdTask, MdSettings, MdBusinessCenter,
   MdChevronLeft, MdChevronRight, MdClose, MdAdminPanelSettings,
+  MdExpandMore, MdExpandLess,
 } from 'react-icons/md';
 import { useAuth } from '../auth/AuthContext';
 import { getNavForRole, ROLES } from '../auth/rbac';
@@ -12,7 +14,7 @@ import { getNavForRole, ROLES } from '../auth/rbac';
 const ICON_MAP = {
   MdDashboard, MdShoppingCart, MdInventory2, MdPrecisionManufacturing,
   MdStar, MdAssignment, MdLocalShipping, MdAssignmentReturn,
-  MdAccountBalance, MdTrendingUp, MdBarChart, MdBuild,
+  MdAccountBalance, MdSync, MdTrendingUp, MdBarChart, MdBuild,
   MdQrCode2, MdTask, MdSettings, MdBusinessCenter,
 };
 
@@ -24,6 +26,86 @@ const ROLE_COLORS = {
   dealer:             '#f39c12',
   corporate_client:   '#16a085',
 };
+
+function NavGroup({ item, showLabels, collapsed }) {
+  const location = useLocation();
+  const isAnyChildActive = item.children?.some(c => location.pathname.startsWith(c.path));
+  const [open, setOpen] = useState(isAnyChildActive);
+  const Icon = ICON_MAP[item.icon];
+
+  // When collapsed, show tooltip-style icon only; clicking navigates to first child
+  if (collapsed && !showLabels) {
+    return (
+      <NavLink
+        to={item.children[0].path}
+        title={item.label}
+        style={{ textDecoration: 'none' }}
+        className={isAnyChildActive ? 'nav-link active nav-link-collapsed' : 'nav-link nav-link-collapsed'}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, flexShrink: 0 }}>
+          {Icon && <Icon size={19} />}
+        </span>
+      </NavLink>
+    );
+  }
+
+  return (
+    <div>
+      {/* Group header button */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          width: '100%', padding: '9px 14px', border: 'none',
+          background: isAnyChildActive ? '#fef2f2' : 'transparent',
+          color: isAnyChildActive ? '#c0392b' : '#4a5568',
+          fontSize: 13, fontWeight: isAnyChildActive ? 700 : 500,
+          fontFamily: 'inherit', cursor: 'pointer', borderRadius: 8,
+          margin: '1px 6px', width: 'calc(100% - 12px)',
+          transition: 'background 0.15s, color 0.15s',
+          borderLeft: isAnyChildActive ? '3px solid #c0392b' : '3px solid transparent',
+        }}
+        onMouseEnter={e => { if (!isAnyChildActive) { e.currentTarget.style.background = '#fdf0ef'; e.currentTarget.style.color = '#c0392b'; } }}
+        onMouseLeave={e => { if (!isAnyChildActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#4a5568'; } }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, flexShrink: 0 }}>
+          {Icon && <Icon size={19} />}
+        </span>
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' }}>
+          {item.label}
+        </span>
+        <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+          {open ? <MdExpandLess size={17} /> : <MdExpandMore size={17} />}
+        </span>
+      </button>
+
+      {/* Children */}
+      {open && (
+        <div style={{ paddingLeft: 14, paddingBottom: 2 }}>
+          {item.children.map(child => (
+            <NavLink
+              key={child.path}
+              to={child.path}
+              style={{ textDecoration: 'none' }}
+              className={({ isActive }) =>
+                ['nav-link', isActive ? 'active' : ''].filter(Boolean).join(' ')
+              }
+            >
+              <span style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                background: 'currentColor', marginLeft: 7, marginRight: 3,
+              }} />
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {child.label}
+              </span>
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Sidebar({ collapsed, setCollapsed, sidebarOpen, setSidebarOpen, isMobile }) {
   const { user } = useAuth();
@@ -92,10 +174,7 @@ export default function Sidebar({ collapsed, setCollapsed, sidebarOpen, setSideb
           display: 'flex', alignItems: 'center', gap: 8,
           flexShrink: 0,
         }}>
-          <div style={{
-            width: 8, height: 8, borderRadius: '50%',
-            background: roleColor, flexShrink: 0,
-          }} />
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: roleColor, flexShrink: 0 }} />
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: roleColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {ROLES[user.role]}
@@ -123,6 +202,14 @@ export default function Sidebar({ collapsed, setCollapsed, sidebarOpen, setSideb
               </div>
             );
           }
+
+          // Expandable group (has children)
+          if (item.children) {
+            return (
+              <NavGroup key={item.label} item={item} showLabels={showLabels} collapsed={collapsed && !isMobile} />
+            );
+          }
+
           const Icon = ICON_MAP[item.icon];
           return (
             <NavLink

@@ -3,7 +3,7 @@ import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
 
-const tabs = ['Ledger', 'BRS', 'Payments'];
+const tabs = ['Ledger', 'BRS', 'Payments', 'Credit / Debit Notes', 'Ledger Matching'];
 
 const ledgerEntries = [
   { date: '14 Apr', ref: 'INV-2024-089', description: 'Sales — Tata Motors', debit: '', credit: '₹2,84,000', balance: '₹48,20,000' },
@@ -31,8 +31,8 @@ const payments = [
   { id: 'PAY-0232', party: 'Hero MotoCorp', type: 'Received', amount: '₹98,000', mode: 'Cheque', date: '12 Apr', status: 'Pending' },
 ];
 
-export default function FinancePage() {
-  const [activeTab, setActiveTab] = useState(0);
+export default function FinancePage({ initialTab = 0 }) {
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [showPayModal, setShowPayModal] = useState(false);
 
   const kpis = [
@@ -167,6 +167,87 @@ export default function FinancePage() {
             ]}
             data={payments}
           />
+        </div>
+      )}
+
+      {activeTab === 3 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="text-sm font-bold text-gray-800">Credit / Debit Note Register</div>
+              <div className="text-xs text-gray-400 mt-0.5">All credit and debit notes issued</div>
+            </div>
+            <div className="flex gap-2">
+              <button className="px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold cursor-pointer font-[inherit]">+ Debit Note</button>
+              <button className="px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">+ Credit Note</button>
+            </div>
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <table className="w-full">
+              <thead><tr>{['Note No.','Type','Party','Against','Amount','Date','Reason','Status'].map(h => (
+                <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
+              ))}</tr></thead>
+              <tbody>
+                {[
+                  { no: 'CN-2024-012', type: 'Credit Note', party: 'Hero MotoCorp', against: 'INV-2024-075', amount: '₹22,000', date: '14 Apr', reason: 'Return — Wrong Item', status: 'Issued' },
+                  { no: 'CN-2024-009', type: 'Credit Note', party: 'TVS Motor', against: 'INV-2024-070', amount: '₹80,000', date: '13 Apr', reason: 'Return — Defective', status: 'Issued' },
+                  { no: 'DN-2024-012', type: 'Debit Note', party: 'Shree Metals', against: 'PO-2024-080', amount: '₹15,000', date: '12 Apr', reason: 'Short Supply', status: 'Issued' },
+                  { no: 'DN-2024-009', type: 'Debit Note', party: 'Global Bearings', against: 'PO-2024-075', amount: '₹8,400', date: '11 Apr', reason: 'Quality Rejection', status: 'Pending' },
+                ].map((r, i) => (
+                  <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
+                    <td className="px-4 py-3 align-middle font-semibold text-red-700">{r.no}</td>
+                    <td className="px-4 py-3 align-middle">
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${r.type === 'Credit Note' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{r.type}</span>
+                    </td>
+                    <td className="px-4 py-3 align-middle font-semibold">{r.party}</td>
+                    <td className="px-4 py-3 align-middle font-mono text-xs">{r.against}</td>
+                    <td className={`px-4 py-3 align-middle font-bold ${r.type === 'Credit Note' ? 'text-green-600' : 'text-red-500'}`}>{r.amount}</td>
+                    <td className="px-4 py-3 align-middle text-gray-500">{r.date}</td>
+                    <td className="px-4 py-3 align-middle text-xs text-gray-500">{r.reason}</td>
+                    <td className="px-4 py-3 align-middle"><StatusBadge status={r.status} type={r.status === 'Issued' ? 'success' : 'warning'} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 4 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="text-sm font-bold text-gray-800">Ledger Matching Engine</div>
+              <div className="text-xs text-gray-400 mt-0.5">Auto-match invoices, payments and credit notes</div>
+            </div>
+            <button className="px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">Run Auto-Match</button>
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <table className="w-full">
+              <thead><tr>{['Invoice','Party','Invoice Amt','Payment Ref','Payment Amt','Credit Note','Net Balance','Match Status'].map(h => (
+                <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
+              ))}</tr></thead>
+              <tbody>
+                {[
+                  { inv: 'INV-2024-089', party: 'Tata Motors', invAmt: '₹2,84,000', payRef: 'PAY-0234', payAmt: '₹2,84,000', cn: '—', balance: '₹0', status: 'Matched' },
+                  { inv: 'INV-2024-088', party: 'Mahindra', invAmt: '₹1,56,000', payRef: 'PAY-0231', payAmt: '₹1,34,000', cn: '—', balance: '₹22,000', status: 'Partial' },
+                  { inv: 'INV-2024-087', party: 'Bajaj Auto', invAmt: '₹4,12,000', payRef: '—', payAmt: '—', cn: '—', balance: '₹4,12,000', status: 'Unmatched' },
+                  { inv: 'INV-2024-075', party: 'Hero MotoCorp', invAmt: '₹98,000', payRef: 'PAY-0228', payAmt: '₹76,000', cn: 'CN-2024-012', balance: '₹0', status: 'Matched' },
+                ].map((r, i) => (
+                  <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
+                    <td className="px-4 py-3 align-middle font-semibold text-red-700">{r.inv}</td>
+                    <td className="px-4 py-3 align-middle font-semibold">{r.party}</td>
+                    <td className="px-4 py-3 align-middle font-bold">{r.invAmt}</td>
+                    <td className="px-4 py-3 align-middle font-mono text-xs">{r.payRef}</td>
+                    <td className="px-4 py-3 align-middle font-bold text-green-600">{r.payAmt}</td>
+                    <td className="px-4 py-3 align-middle font-mono text-xs text-green-600">{r.cn}</td>
+                    <td className={`px-4 py-3 align-middle font-extrabold ${r.balance === '₹0' ? 'text-green-600' : 'text-red-500'}`}>{r.balance}</td>
+                    <td className="px-4 py-3 align-middle"><StatusBadge status={r.status} type={r.status === 'Matched' ? 'success' : r.status === 'Partial' ? 'warning' : 'danger'} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

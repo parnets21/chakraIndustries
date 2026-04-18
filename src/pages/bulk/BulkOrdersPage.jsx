@@ -45,8 +45,8 @@ const btnPrimary = "inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br
 const btnOutline = "inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]";
 const btnSm = "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg";
 
-export default function BulkOrdersPage() {
-  const [activeTab, setActiveTab] = useState(0);
+export default function BulkOrdersPage({ initialTab = 0 }) {
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [showClientModal, setShowClientModal] = useState(false);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [selectedPkg, setSelectedPkg] = useState('PKG-02');
@@ -89,7 +89,7 @@ export default function BulkOrdersPage() {
       </div>
 
       <div className="flex border-b-2 border-gray-200 mb-5 overflow-x-auto">
-        {['Corporate Clients', 'Bulk Quotations', 'Packaging Options'].map((t, i) => (
+        {['Corporate Clients', 'Bulk Quotations', 'Packaging Options', 'Delivery Scheduling'].map((t, i) => (
           <button key={i} onClick={() => setActiveTab(i)}
             className={`px-5 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 -mb-0.5 cursor-pointer flex-shrink-0 bg-transparent font-[inherit] ${activeTab === i ? 'text-red-700 border-red-600' : 'text-gray-400 border-transparent hover:text-red-600'}`}>
             {t}
@@ -186,6 +186,42 @@ export default function BulkOrdersPage() {
               ))}
             </div>
             <button className={`${btnPrimary} mt-4 w-full justify-center`}>Apply to Quotation</button>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 3 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="text-sm font-bold text-gray-800">Delivery Scheduling</div>
+              <div className="text-xs text-gray-400 mt-0.5">Plan and schedule bulk order deliveries</div>
+            </div>
+            <button className={btnPrimary}>+ Schedule Delivery</button>
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <table className="w-full">
+              <thead><tr>{['Quote ID','Client','Items','Qty','Delivery Date','Slot','Warehouse','Vehicle','Status'].map(h => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+              <tbody>
+                {[
+                  { id: 'BQ-2024-017', client: 'Bajaj Auto Ltd', items: 8, qty: 3200, date: '20 Apr', slot: '10:00–12:00', wh: 'WH-01', vehicle: 'MH-12-AB-1234', status: 'Confirmed' },
+                  { id: 'BQ-2024-018', client: 'Tata Motors Ltd', items: 12, qty: 5000, date: '22 Apr', slot: '02:00–04:00', wh: 'WH-03', vehicle: 'Pending', status: 'Pending' },
+                  { id: 'BQ-2024-016', client: 'Mahindra & Mahindra', items: 15, qty: 4800, date: '25 Apr', slot: '09:00–11:00', wh: 'WH-01', vehicle: 'Pending', status: 'Draft' },
+                ].map((r, i) => (
+                  <tr key={i} className={trCls}>
+                    <td className={`${tdCls} font-semibold text-red-700`}>{r.id}</td>
+                    <td className={`${tdCls} font-semibold`}>{r.client}</td>
+                    <td className={tdCls}>{r.items}</td>
+                    <td className={`${tdCls} font-bold`}>{r.qty.toLocaleString()}</td>
+                    <td className={tdCls}>{r.date}</td>
+                    <td className={tdCls}>{r.slot}</td>
+                    <td className={tdCls}>{r.wh}</td>
+                    <td className={`${tdCls} ${r.vehicle === 'Pending' ? 'text-amber-500 font-semibold' : 'font-mono text-xs'}`}>{r.vehicle}</td>
+                    <td className={tdCls}><StatusBadge status={r.status} type={r.status === 'Confirmed' ? 'success' : r.status === 'Pending' ? 'warning' : 'info'} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

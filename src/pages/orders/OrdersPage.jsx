@@ -2,8 +2,9 @@ import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
+import { MdDeleteOutline } from 'react-icons/md';
 
-const orders = [
+const initialOrders = [
   { id: 'ORD-2024-089', customer: 'Tata Motors Ltd', items: 12, value: '₹2,84,000', status: 'Processing', date: '14 Apr', priority: 'High' },
   { id: 'ORD-2024-088', customer: 'Mahindra & Mahindra', items: 8, value: '₹1,56,000', status: 'Delivered', date: '13 Apr', priority: 'Normal' },
   { id: 'ORD-2024-087', customer: 'Bajaj Auto', items: 24, value: '₹4,12,000', status: 'Pending', date: '13 Apr', priority: 'Urgent' },
@@ -14,8 +15,15 @@ const orders = [
 ];
 
 export default function OrdersPage() {
-  const [showModal, setShowModal] = useState(false);
+  const [orders, setOrders]           = useState(initialOrders);
+  const [showModal, setShowModal]     = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [deleteOrder, setDeleteOrder] = useState(null);
+
+  const confirmDelete = () => {
+    setOrders(prev => prev.filter(o => o.id !== deleteOrder.id));
+    setDeleteOrder(null);
+  };
 
   const kpis = [
     { label: 'Total Orders', value: orders.length, color: '#3b82f6' },
@@ -79,6 +87,12 @@ export default function OrdersPage() {
                   <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gray-100 text-gray-800 font-semibold cursor-pointer font-[inherit] border-0">
                     Edit
                   </button>
+                  <button
+                    className="inline-flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-lg bg-red-50 text-red-600 font-semibold cursor-pointer font-[inherit] border border-red-200 hover:bg-red-600 hover:text-white transition-all"
+                    title="Delete" onClick={() => setDeleteOrder(row)}
+                  >
+                    <MdDeleteOutline size={15} />
+                  </button>
                 </div>
               )
             },
@@ -86,6 +100,17 @@ export default function OrdersPage() {
           data={orders}
         />
       </div>
+
+      {/* Delete Confirm Modal */}
+      <Modal open={!!deleteOrder} onClose={() => setDeleteOrder(null)} title="Delete Order"
+        footer={
+          <>
+            <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold cursor-pointer font-[inherit]" onClick={() => setDeleteOrder(null)}>Cancel</button>
+            <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-semibold cursor-pointer font-[inherit] border-0" onClick={confirmDelete}>Delete</button>
+          </>
+        }>
+        <p className="text-sm text-gray-700">Are you sure you want to delete order <strong>{deleteOrder?.id}</strong>? This action cannot be undone.</p>
+      </Modal>
 
       {/* New Order Modal */}
       <Modal

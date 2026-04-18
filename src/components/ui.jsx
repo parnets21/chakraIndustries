@@ -192,8 +192,8 @@ export function Table({ columns, data, onRowClick }) {
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr>
-              {columns.map(col => (
-                <th key={col.key} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">
+              {columns.map((col, ci) => (
+                <th key={`col-${ci}-${col.key}`} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">
                   {col.label}
                 </th>
               ))}
@@ -207,8 +207,8 @@ export function Table({ columns, data, onRowClick }) {
                 onClick={() => onRowClick?.(row)}
                 className={`border-b border-gray-50 last:border-0 transition-colors ${onRowClick ? 'cursor-pointer' : ''} hover:bg-red-50/40`}
               >
-                {columns.map(col => (
-                  <td key={col.key} className="px-4 py-3 text-gray-800 align-middle">
+                {columns.map((col, ci) => (
+                  <td key={`cell-${i}-${ci}-${col.key}`} className="px-4 py-3 text-gray-800 align-middle">
                     {col.render ? col.render(row[col.key], row) : row[col.key]}
                   </td>
                 ))}

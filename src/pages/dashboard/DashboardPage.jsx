@@ -78,18 +78,18 @@ export default function DashboardPage() {
   return (
     <div>
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
         {kpis.map((k, i) => (
-          <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
+          <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
             <div className="flex items-center justify-between">
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: k.color }}>
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: k.color }}>
                 <span style={{ color: k.iconColor }}>{k.icon}</span>
               </div>
               <span className={`text-xs font-bold ${k.up ? 'text-green-600' : 'text-red-500'}`}>
                 {k.up ? '↑' : '↓'} {k.change}
               </span>
             </div>
-            <div className="text-2xl font-black tracking-tight mt-2">{k.value}</div>
+            <div className="text-xl font-black tracking-tight mt-2">{k.value}</div>
             <div className="text-xs text-gray-500 font-medium">{k.label}</div>
           </div>
         ))}
@@ -131,13 +131,13 @@ export default function DashboardPage() {
       </div>
 
       {/* Operational Alerts Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         {operationalAlerts.map((a, i) => (
-          <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style={{ background: a.color + '18' }}>{a.icon}</div>
-            <div>
-              <div className="text-2xl font-black leading-none" style={{ color: a.color }}>{a.value}</div>
-              <div className="text-xs text-gray-500 mt-0.5">{a.label}</div>
+          <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: a.color + '18' }}>{a.icon}</div>
+            <div className="min-w-0">
+              <div className="text-xl font-black leading-none" style={{ color: a.color }}>{a.value}</div>
+              <div className="text-xs text-gray-500 mt-0.5 truncate">{a.label}</div>
             </div>
           </div>
         ))}
@@ -173,8 +173,8 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4">
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
           <div className="text-sm font-bold mb-3.5" style={{ color: '#922b21' }}>Recent Orders</div>
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
-            <table className="w-full border-collapse text-sm">
+          <div className="overflow-x-auto rounded-xl border border-gray-200" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <table className="w-full border-collapse text-sm" style={{ minWidth: 520 }}>
               <thead>
                 <tr>
                   {['Order ID', 'Customer', 'Items', 'Value', 'Status', 'Date'].map(h => (

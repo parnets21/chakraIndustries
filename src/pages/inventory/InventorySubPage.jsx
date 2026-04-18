@@ -11,6 +11,8 @@ const TAB_MAP = {
   batch:      6,
   ageing:     7,
   defective:  8,
+  storage:    9,
+  pincode:    10,
 };
 
 export default function InventorySubPage({ tab }) {

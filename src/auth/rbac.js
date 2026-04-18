@@ -30,6 +30,9 @@ export const DEFAULT_PAGE_ACCESS = {
   assets:       { super_admin: 'full', management: 'view',  purchase_manager: false,   production_manager: 'view',  dealer: false,  corporate_client: false  },
   barcode:      { super_admin: 'full', management: 'view',  purchase_manager: 'full',  production_manager: 'full',  dealer: false,  corporate_client: false  },
   tasks:        { super_admin: 'full', management: 'full',  purchase_manager: 'full',  production_manager: 'full',  dealer: 'full', corporate_client: 'full' },
+  vinculum:     { super_admin: 'full', management: 'view',  purchase_manager: 'full',  production_manager: false,   dealer: false,  corporate_client: false  },
+  creditnotes:  { super_admin: 'full', management: 'full',  purchase_manager: 'view',  production_manager: false,   dealer: false,  corporate_client: false  },
+  livetracking: { super_admin: 'full', management: 'view',  purchase_manager: 'view',  production_manager: false,   dealer: 'view', corporate_client: 'view' },
   settings:     { super_admin: 'full', management: false,   purchase_manager: false,   production_manager: false,   dealer: false,  corporate_client: false  },
 };
 
@@ -97,6 +100,7 @@ export const NAV_ITEMS = [
       { path: '/procurement/po',        label: 'Purchase Orders',       page: 'procurement' },
       { path: '/procurement/grn',       label: 'GRN',                   page: 'procurement' },
       { path: '/procurement/qc',        label: 'Quality Check',         page: 'procurement' },
+      { path: '/procurement/excess',    label: 'Excess PO Monitor',     page: 'procurement' },
     ],
   },
   {
@@ -111,6 +115,8 @@ export const NAV_ITEMS = [
       { path: '/inventory/batch',      label: 'Batch Tracking',     page: 'inventory' },
       { path: '/inventory/ageing',     label: 'Ageing Stock',       page: 'inventory' },
       { path: '/inventory/defective',  label: 'Defective Stock',    page: 'inventory' },
+      { path: '/inventory/storage',    label: 'Storage Locations',  page: 'inventory' },
+      { path: '/inventory/pincode',    label: 'Pincode Stock View', page: 'inventory' },
     ],
   },
   {
@@ -145,15 +151,17 @@ export const NAV_ITEMS = [
       { path: '/logistics/dc',        label: 'DC Regularization',   page: 'logistics' },
       { path: '/logistics/pendency',  label: 'Pendency',            page: 'logistics' },
       { path: '/logistics/courier',   label: 'Courier & POD',       page: 'logistics' },
+      { path: '/logistics/livetrack', label: 'Live Tracking',       page: 'livetracking' },
     ],
   },
   {
     label: 'Returns', page: 'returns', icon: 'MdAssignmentReturn',
     children: [
-      { path: '/returns/requests', label: 'Return Requests',       page: 'returns' },
-      { path: '/returns/docket',   label: 'Docket Tracking',       page: 'returns' },
-      { path: '/returns/matching', label: 'Debit/Credit Matching', page: 'returns' },
-      { path: '/returns/loss',     label: 'Loss Tracking',         page: 'returns' },
+      { path: '/returns/requests',  label: 'Return Requests',       page: 'returns' },
+      { path: '/returns/docket',    label: 'Docket Tracking',       page: 'returns' },
+      { path: '/returns/matching',  label: 'Debit/Credit Matching', page: 'returns' },
+      { path: '/returns/loss',      label: 'Loss Tracking',         page: 'returns' },
+      { path: '/returns/material',  label: 'Material Returns',      page: 'returns' },
     ],
   },
   { section: 'FINANCE & ANALYTICS' },
@@ -165,6 +173,7 @@ export const NAV_ITEMS = [
       { path: '/finance/payments', label: 'Payments',            page: 'finance' },
       { path: '/finance/notes',    label: 'Credit/Debit Notes',  page: 'finance' },
       { path: '/finance/matching', label: 'Ledger Matching',     page: 'finance' },
+      { path: '/finance/cntracks', label: 'CN Tracking',         page: 'creditnotes' },
     ],
   },
   {
@@ -183,6 +192,7 @@ export const NAV_ITEMS = [
       { path: '/forecasting/demand',    label: 'Demand Forecast',         page: 'forecasting' },
       { path: '/forecasting/planning',  label: 'Purchase Planning',       page: 'forecasting' },
       { path: '/forecasting/inventory', label: 'Inventory Optimization',  page: 'forecasting' },
+      { path: '/forecasting/seasonal',  label: 'Seasonal Trends',         page: 'forecasting' },
     ],
   },
   {
@@ -198,6 +208,15 @@ export const NAV_ITEMS = [
     ],
   },
   { section: 'TOOLS' },
+  {
+    label: 'Vinculum', page: 'vinculum', icon: 'MdSync',
+    children: [
+      { path: '/vinculum/config', label: 'API Configuration', page: 'vinculum' },
+      { path: '/vinculum/logs',   label: 'Sync Logs',         page: 'vinculum' },
+      { path: '/vinculum/sku',    label: 'SKU Matching',      page: 'vinculum' },
+      { path: '/vinculum/sync',   label: 'Manual Sync',       page: 'vinculum' },
+    ],
+  },
   {
     label: 'Assets', page: 'assets', icon: 'MdBuild',
     children: [
@@ -217,9 +236,10 @@ export const NAV_ITEMS = [
   {
     label: 'Tasks', page: 'tasks', icon: 'MdTask',
     children: [
-      { path: '/tasks/kanban',  label: 'Kanban Board',  page: 'tasks' },
-      { path: '/tasks/todo',    label: 'Daily To-Do',   page: 'tasks' },
-      { path: '/tasks/notifs',  label: 'Notifications', page: 'tasks' },
+      { path: '/tasks/kanban',    label: 'Kanban Board',       page: 'tasks' },
+      { path: '/tasks/todo',      label: 'Daily To-Do',        page: 'tasks' },
+      { path: '/tasks/recurring', label: 'Recurring Templates',page: 'tasks' },
+      { path: '/tasks/notifs',    label: 'Notifications',      page: 'tasks' },
     ],
   },
   { section: 'SYSTEM' },

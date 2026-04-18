@@ -123,7 +123,6 @@ export default function VendorsTab({
           <option>Inactive</option>
           <option>Blacklisted</option>
         </select>
-        <button className="btn btn-primary btn-sm" onClick={openAdd}>+ Add Vendor</button>
       </div>
 
       <div className="card">

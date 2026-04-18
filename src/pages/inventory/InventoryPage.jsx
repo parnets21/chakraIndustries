@@ -3,8 +3,10 @@ import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import BarChart from '../../components/charts/BarChart';
 import Modal from '../../components/common/Modal';
+import StorageLocationPage from './StorageLocationPage';
+import PincodeStockPage from './PincodeStockPage';
 
-const tabList = ['Stock Dashboard', 'Stock Table', 'Warehouses', 'Stock Movement', 'Picking', 'Sorting & Packing', 'Batch Tracking', 'Ageing Stock', 'Defective Stock'];
+const tabList = ['Stock Dashboard', 'Stock Table', 'Warehouses', 'Stock Movement', 'Picking', 'Sorting & Packing', 'Batch Tracking', 'Ageing Stock', 'Defective Stock', 'Storage Locations', 'Pincode Stock'];
 
 const stockData = [
   { sku: 'SKU-1042', name: 'Bearing 6205',      warehouse: 'WH-01', qty: 12,  batch: 'B-2024-04', minQty: 50, status: 'Critical' },
@@ -290,86 +292,139 @@ export default function InventoryPage({ initialTab = 0 }) {
       )}
 
       {activeTab === 7 && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-3.5">
-            <div>
-              <div className="text-sm font-bold text-gray-800">Ageing Stock Analysis</div>
-              <div className="text-xs text-gray-400 mt-0.5">Items not moved in 90+ days</div>
-            </div>
-            <button className="px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">Export Report</button>
+        <div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+            {[
+              { label: '0–30 days', value: 2, color: '#10b981' },
+              { label: '31–60 days', value: 1, color: '#f59e0b' },
+              { label: '61–90 days', value: 1, color: '#ef4444' },
+              { label: '90+ days', value: 1, color: '#7f8c8d' },
+            ].map((k, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
+                <div className="text-2xl font-black tracking-tight" style={{ color: k.color }}>{k.value}</div>
+                <div className="text-xs text-gray-500 font-medium mt-1">{k.label}</div>
+              </div>
+            ))}
           </div>
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
-            <table className="w-full">
-              <thead><tr>{['SKU','Item','Warehouse','Qty','Last Movement','Days Idle','Value','Action'].map(h => (
-                <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
-              ))}</tr></thead>
-              <tbody>
-                {[
-                  { sku: 'SKU-6634', item: 'Timing Chain Kit', wh: 'WH-03', qty: 0, lastMov: 'Jan 2024', days: 105, value: '₹0' },
-                  { sku: 'SKU-0934', item: 'Gasket Set A', wh: 'WH-01', qty: 5, lastMov: 'Dec 2023', days: 120, value: '₹3,250' },
-                  { sku: 'SKU-2187', item: 'Oil Seal 35x52', wh: 'WH-02', qty: 8, lastMov: 'Jan 2024', days: 95, value: '₹920' },
-                ].map((r, i) => (
-                  <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
-                    <td className="px-4 py-3 align-middle font-mono text-xs font-semibold text-red-700">{r.sku}</td>
-                    <td className="px-4 py-3 align-middle font-semibold">{r.item}</td>
-                    <td className="px-4 py-3 align-middle">{r.wh}</td>
-                    <td className="px-4 py-3 align-middle font-bold">{r.qty}</td>
-                    <td className="px-4 py-3 align-middle text-gray-500">{r.lastMov}</td>
-                    <td className={`px-4 py-3 align-middle font-extrabold ${r.days > 100 ? 'text-red-500' : 'text-amber-500'}`}>{r.days}d</td>
-                    <td className="px-4 py-3 align-middle font-bold">{r.value}</td>
-                    <td className="px-4 py-3 align-middle">
-                      <button className="px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold cursor-pointer font-[inherit]">Mark for Clearance</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-3.5">
+              <div>
+                <div className="text-sm font-bold text-gray-800">Ageing Stock Analysis</div>
+                <div className="text-xs text-gray-400 mt-0.5">Items not moved — with action suggestions</div>
+              </div>
+              <button className="px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">Export Report</button>
+            </div>
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
+              <table className="w-full">
+                <thead><tr>{['SKU','Item','Warehouse','Qty','Last Movement','Days Idle','Bucket','Value','Suggested Action'].map(h => (
+                  <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
+                ))}</tr></thead>
+                <tbody>
+                  {[
+                    { sku: 'SKU-6634', item: 'Timing Chain Kit', wh: 'WH-03', qty: 0, lastMov: 'Jan 2024', days: 105, bucket: '90+', value: '₹0', action: 'Write-off', actionColor: '#ef4444' },
+                    { sku: 'SKU-0934', item: 'Gasket Set A', wh: 'WH-01', qty: 5, lastMov: 'Dec 2023', days: 120, bucket: '90+', value: '₹3,250', action: 'Return to Supplier', actionColor: '#ef4444' },
+                    { sku: 'SKU-2187', item: 'Oil Seal 35x52', wh: 'WH-02', qty: 8, lastMov: 'Jan 2024', days: 75, bucket: '61–90', value: '₹920', action: 'Offer Discount', actionColor: '#f59e0b' },
+                    { sku: 'SKU-1042', item: 'Bearing 6205', wh: 'WH-01', qty: 12, lastMov: 'Feb 2024', days: 45, bucket: '31–60', value: '₹1,440', action: 'Monitor', actionColor: '#f59e0b' },
+                    { sku: 'SKU-7745', item: 'Clutch Plate Set', wh: 'WH-01', qty: 95, lastMov: 'Mar 2024', days: 20, bucket: '0–30', value: '₹28,500', action: 'No Action', actionColor: '#10b981' },
+                  ].map((r, i) => (
+                    <tr key={i} className={`border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors ${r.days > 90 ? 'bg-red-50/20' : r.days > 60 ? 'bg-amber-50/20' : ''}`}>
+                      <td className="px-4 py-3 align-middle font-mono text-xs font-semibold text-red-700">{r.sku}</td>
+                      <td className="px-4 py-3 align-middle font-semibold">{r.item}</td>
+                      <td className="px-4 py-3 align-middle">{r.wh}</td>
+                      <td className="px-4 py-3 align-middle font-bold">{r.qty}</td>
+                      <td className="px-4 py-3 align-middle text-gray-500">{r.lastMov}</td>
+                      <td className={`px-4 py-3 align-middle font-extrabold ${r.days > 90 ? 'text-red-500' : r.days > 60 ? 'text-amber-500' : r.days > 30 ? 'text-amber-400' : 'text-green-600'}`}>{r.days}d</td>
+                      <td className="px-4 py-3 align-middle">
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: r.actionColor + '20', color: r.actionColor }}>{r.bucket}</span>
+                      </td>
+                      <td className="px-4 py-3 align-middle font-bold">{r.value}</td>
+                      <td className="px-4 py-3 align-middle">
+                        <span className="text-xs font-semibold px-2 py-1 rounded-lg" style={{ background: r.actionColor + '15', color: r.actionColor }}>{r.action}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
 
       {activeTab === 8 && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-3.5">
-            <div>
-              <div className="text-sm font-bold text-gray-800">Defective Stock Management</div>
-              <div className="text-xs text-gray-400 mt-0.5">Quarantined & rejected items</div>
-            </div>
-            <button className="px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">+ Log Defect</button>
+        <div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+            {[
+              { label: 'Total Defective Units', value: 10, color: '#ef4444' },
+              { label: 'Pending QC', value: 3, color: '#f59e0b' },
+              { label: 'Awaiting Disposal', value: 5, color: '#8b5cf6' },
+              { label: 'Repair in Progress', value: 2, color: '#3b82f6' },
+            ].map((k, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
+                <div className="text-2xl font-black tracking-tight" style={{ color: k.color }}>{k.value}</div>
+                <div className="text-xs text-gray-500 font-medium mt-1">{k.label}</div>
+              </div>
+            ))}
           </div>
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
-            <table className="w-full">
-              <thead><tr>{['Defect ID','SKU','Item','Qty','Defect Type','Source','Reported By','Date','Action'].map(h => (
-                <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
-              ))}</tr></thead>
-              <tbody>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-3.5">
+                <div className="text-sm font-bold text-gray-800">Defective Stock Register</div>
+                <button className="px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">+ Log Defect</button>
+              </div>
+              {[
+                { id: 'DEF-001', sku: 'SKU-1042', item: 'Bearing 6205', qty: 3, type: 'Dimensional', source: 'GRN Inspection', date: '14 Apr', daysAged: 1, stage: 'QC Hold' },
+                { id: 'DEF-002', sku: 'SKU-4412', item: 'Crankshaft Seal', qty: 5, type: 'Surface Defect', source: 'Production', date: '13 Apr', daysAged: 2, stage: 'Defective Bin' },
+                { id: 'DEF-003', sku: 'SKU-7745', item: 'Clutch Plate Set', qty: 2, type: 'Packaging Damage', source: 'Customer Return', date: '12 Apr', daysAged: 3, stage: 'Repair' },
+              ].map((r, i) => (
+                <div key={i} className={`py-3 ${i < 2 ? 'border-b border-gray-100' : ''}`}>
+                  <div className="flex justify-between items-start mb-1">
+                    <div>
+                      <span className="font-bold text-sm text-red-700">{r.id}</span>
+                      <span className="text-xs text-gray-400 ml-2">{r.sku}</span>
+                    </div>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                      r.stage === 'QC Hold' ? 'bg-amber-100 text-amber-700' :
+                      r.stage === 'Repair' ? 'bg-blue-100 text-blue-700' :
+                      'bg-red-100 text-red-700'
+                    }`}>{r.stage}</span>
+                  </div>
+                  <div className="font-semibold text-sm">{r.item} — {r.qty} units</div>
+                  <div className="text-xs text-gray-400 mt-0.5">{r.type} · {r.source} · {r.date} · <span className={r.daysAged > 2 ? 'text-red-500 font-bold' : 'text-gray-400'}>{r.daysAged}d aged</span></div>
+                  <div className="flex gap-1.5 mt-2">
+                    <button className="px-2 py-1 text-[11px] rounded bg-blue-100 text-blue-800 font-semibold border-0 cursor-pointer font-[inherit]">Repair</button>
+                    <button className="px-2 py-1 text-[11px] rounded bg-amber-100 text-amber-800 font-semibold border-0 cursor-pointer font-[inherit]">Rework</button>
+                    <button className="px-2 py-1 text-[11px] rounded bg-red-100 text-red-700 font-semibold border-0 cursor-pointer font-[inherit]">Scrap</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+              <div className="text-sm font-bold text-gray-800 mb-3.5">Movement Log — QC → Defective → Disposal/Repair</div>
+              <div className="relative pl-6">
+                <div className="absolute left-2.5 top-1.5 bottom-1.5 w-0.5 bg-gray-200 rounded" />
                 {[
-                  { id: 'DEF-001', sku: 'SKU-1042', item: 'Bearing 6205', qty: 3, type: 'Dimensional', source: 'GRN Inspection', by: 'Vijay Singh', date: '14 Apr' },
-                  { id: 'DEF-002', sku: 'SKU-4412', item: 'Crankshaft Seal', qty: 5, type: 'Surface Defect', source: 'Production', by: 'Anil Rao', date: '13 Apr' },
-                  { id: 'DEF-003', sku: 'SKU-7745', item: 'Clutch Plate Set', qty: 2, type: 'Packaging Damage', source: 'Customer Return', by: 'Suresh Kumar', date: '12 Apr' },
-                ].map((r, i) => (
-                  <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
-                    <td className="px-4 py-3 align-middle font-semibold text-red-700">{r.id}</td>
-                    <td className="px-4 py-3 align-middle font-mono text-xs">{r.sku}</td>
-                    <td className="px-4 py-3 align-middle font-semibold">{r.item}</td>
-                    <td className="px-4 py-3 align-middle font-bold text-red-500">{r.qty}</td>
-                    <td className="px-4 py-3 align-middle">{r.type}</td>
-                    <td className="px-4 py-3 align-middle text-xs text-gray-500">{r.source}</td>
-                    <td className="px-4 py-3 align-middle">{r.by}</td>
-                    <td className="px-4 py-3 align-middle text-gray-400">{r.date}</td>
-                    <td className="px-4 py-3 align-middle">
-                      <div className="flex gap-1.5">
-                        <button className="px-2 py-1.5 text-xs rounded-lg bg-amber-100 text-amber-800 font-semibold border-0 cursor-pointer font-[inherit]">Rework</button>
-                        <button className="px-2 py-1.5 text-xs rounded-lg bg-red-100 text-red-700 font-semibold border-0 cursor-pointer font-[inherit]">Scrap</button>
-                      </div>
-                    </td>
-                  </tr>
+                  { event: 'DEF-001 — Bearing 6205 (3 units) flagged at GRN QC', time: '14 Apr, 09:15 AM', stage: 'QC Hold', color: '#f59e0b' },
+                  { event: 'DEF-002 — Crankshaft Seal (5 units) moved to Defective Bin', time: '13 Apr, 02:00 PM', stage: 'Defective Bin', color: '#ef4444' },
+                  { event: 'DEF-003 — Clutch Plate Set (2 units) sent for Repair', time: '12 Apr, 11:00 AM', stage: 'Repair', color: '#3b82f6' },
+                  { event: 'DEF-000 — Oil Seal (4 units) scrapped & written off', time: '10 Apr, 04:00 PM', stage: 'Disposed', color: '#6b7280' },
+                ].map((item, i) => (
+                  <div key={i} className="relative mb-4 last:mb-0">
+                    <div className="absolute -left-[17px] top-1 w-3 h-3 rounded-full ring-2 ring-offset-1" style={{ background: item.color, borderColor: item.color }} />
+                    <div className="text-sm font-semibold text-gray-800">{item.event}</div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs text-gray-400">{item.time}</span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: item.color + '20', color: item.color }}>{item.stage}</span>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            </div>
           </div>
         </div>
       )}
+
+      {activeTab === 9 && <StorageLocationPage />}
+      {activeTab === 10 && <PincodeStockPage />}
 
       <Modal
         open={showModal}

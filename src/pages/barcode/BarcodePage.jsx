@@ -124,6 +124,19 @@ export default function BarcodePage({ initialTab = 0 }) {
                 <button className="flex-1 inline-flex items-center justify-center px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold cursor-pointer font-[inherit]">Outward</button>
                 <button className="flex-1 inline-flex items-center justify-center px-3 py-1.5 text-xs rounded-lg bg-gray-100 text-gray-800 font-semibold border-0 cursor-pointer font-[inherit]">Transfer</button>
               </div>
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <div className="text-xs font-semibold text-gray-600 mb-2">Scan-based Actions</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: '📦 GRN Receipt', color: 'bg-green-100 text-green-800' },
+                    { label: '🔍 Picking', color: 'bg-blue-100 text-blue-800' },
+                    { label: '🚚 Dispatch', color: 'bg-amber-100 text-amber-800' },
+                    { label: '↔ Stock Transfer', color: 'bg-purple-100 text-purple-800' },
+                  ].map((a, i) => (
+                    <button key={i} className={`px-3 py-2 text-xs rounded-lg font-semibold border-0 cursor-pointer font-[inherit] ${a.color}`}>{a.label}</button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>

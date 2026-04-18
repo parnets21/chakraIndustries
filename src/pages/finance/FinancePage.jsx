@@ -5,6 +5,18 @@ import Modal from '../../components/common/Modal';
 
 const tabs = ['Ledger', 'BRS', 'Payments', 'Credit / Debit Notes', 'Ledger Matching'];
 
+const brsUnmatched = [
+  { id: 'BRS-U01', date: '14 Apr', bankDesc: 'NEFT Credit — Unknown Party', bankAmt: '₹1,20,000', ledgerRef: '—', ledgerAmt: '—', diff: '₹1,20,000', status: 'Unmatched' },
+  { id: 'BRS-U02', date: '13 Apr', bankDesc: 'Cheque Debit — 004521', bankAmt: '₹45,000', ledgerRef: '—', ledgerAmt: '—', diff: '₹45,000', status: 'Unmatched' },
+  { id: 'BRS-U03', date: '12 Apr', bankDesc: 'RTGS Credit — Eicher Motors', bankAmt: '₹3,80,000', ledgerRef: 'INV-2024-086', ledgerAmt: '₹3,80,000', diff: '₹0', status: 'Matched' },
+];
+
+const brsMatched = [
+  { bank: 'NEFT Credit — Tata Motors', bankAmt: '₹2,84,000', ledger: 'INV-2024-089', ledgerAmt: '₹2,84,000', date: '14 Apr', status: 'Matched' },
+  { bank: 'RTGS Debit — Shree Metals', bankAmt: '₹4,95,600', ledger: 'PO-2024-089', ledgerAmt: '₹4,95,600', date: '14 Apr', status: 'Matched' },
+  { bank: 'NEFT Credit — Mahindra', bankAmt: '₹1,56,000', ledger: 'INV-2024-088', ledgerAmt: '₹1,56,000', date: '13 Apr', status: 'Matched' },
+];
+
 const ledgerEntries = [
   { date: '14 Apr', ref: 'INV-2024-089', description: 'Sales — Tata Motors', debit: '', credit: '₹2,84,000', balance: '₹48,20,000' },
   { date: '14 Apr', ref: 'PO-2024-089', description: 'Purchase — Shree Metals', debit: '₹4,95,600', credit: '', balance: '₹43,24,400' },
@@ -116,40 +128,125 @@ export default function FinancePage({ initialTab = 0 }) {
       )}
 
       {activeTab === 1 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[
-            { title: 'Bank Statement', entries: bankEntries, titleColor: 'text-red-700', balanceColor: 'text-green-600', balanceBg: 'bg-green-50', balance: '₹43,24,400', balanceLabel: 'Bank Balance' },
-            { title: 'System Records', entries: systemEntries, titleColor: 'text-amber-500', balanceColor: 'text-amber-500', balanceBg: 'bg-amber-50', balance: '₹43,24,400', balanceLabel: 'System Balance' }
-          ].map((section, si) => (
-            <div key={si} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-              <div className={`text-sm font-bold mb-3.5 ${section.titleColor}`}>{section.title}</div>
-              <div className="overflow-x-auto rounded-xl border border-gray-200">
-                <table className="w-full">
-                  <thead>
-                    <tr>
-                      {['Date','Description','Amount','Type'].map(h => (
-                        <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {section.entries.map((e, i) => (
-                      <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
-                        <td className="px-4 py-3 text-gray-800 align-middle">{e.date}</td>
-                        <td className="px-4 py-3 text-gray-800 align-middle">{e.description}</td>
-                        <td className={`px-4 py-3 align-middle font-bold ${e.type === 'Credit' ? 'text-green-600' : 'text-red-500'}`}>{e.amount}</td>
-                        <td className="px-4 py-3 text-gray-800 align-middle"><StatusBadge status={e.type} type={e.type === 'Credit' ? 'success' : 'danger'} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        <div>
+          {/* Upload + Auto-match controls */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="md:col-span-2 bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+              <div className="text-sm font-bold text-gray-800 mb-3">Upload Bank Statement</div>
+              <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center bg-gray-50 mb-3 cursor-pointer hover:border-red-300 transition-colors">
+                <div className="text-3xl mb-1">📄</div>
+                <div className="font-semibold text-sm text-gray-700">Drag & drop bank statement or click to browse</div>
+                <div className="text-xs text-gray-400 mt-1">CSV, XLS, PDF — Max 10MB</div>
               </div>
-              <div className={`mt-3.5 p-3 rounded-lg flex justify-between ${section.balanceBg}`}>
-                <span className="font-semibold text-sm">{section.balanceLabel}</span>
-                <span className={`font-extrabold text-sm ${section.balanceColor}`}>{section.balance}</span>
+              <div className="flex gap-2">
+                <button className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">
+                  ⚡ Auto-Match with Ledger
+                </button>
+                <button className="px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]">
+                  Export BRS
+                </button>
               </div>
             </div>
-          ))}
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+              <div className="text-sm font-bold text-gray-800 mb-3">BRS Summary</div>
+              {[
+                { label: 'Bank Balance', value: '₹43,24,400', color: 'text-green-600' },
+                { label: 'System Balance', value: '₹43,24,400', color: 'text-blue-600' },
+                { label: 'Matched', value: '3 entries', color: 'text-green-600' },
+                { label: 'Unmatched', value: '2 entries', color: 'text-red-500' },
+              ].map(([, k, v, c] = [null, ...Object.values({label: '', value: '', color: ''})], i) => null) && null}
+              {[
+                { label: 'Bank Balance', value: '₹43,24,400', color: 'text-green-600' },
+                { label: 'System Balance', value: '₹43,24,400', color: 'text-blue-600' },
+                { label: 'Matched Entries', value: '3', color: 'text-green-600' },
+                { label: 'Unmatched', value: '2', color: 'text-red-500' },
+              ].map((item, i) => (
+                <div key={i} className="flex justify-between py-2 border-b border-gray-100 last:border-0 text-sm">
+                  <span className="text-gray-500">{item.label}</span>
+                  <span className={`font-bold ${item.color}`}>{item.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Unmatched transactions */}
+          <div className="bg-white rounded-2xl border border-red-200 p-5 shadow-sm mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-sm font-bold text-red-700">⚠ Unmatched Transactions</div>
+                <div className="text-xs text-gray-400 mt-0.5">Transactions in bank statement not found in ledger</div>
+              </div>
+              <button className="px-3 py-1.5 text-xs rounded-lg bg-red-600 text-white font-semibold border-0 cursor-pointer font-[inherit]">Resolve All</button>
+            </div>
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
+              <table className="w-full">
+                <thead>
+                  <tr>{['ID', 'Date', 'Bank Description', 'Bank Amount', 'Ledger Ref', 'Ledger Amount', 'Difference', 'Status', 'Action'].map(h => (
+                    <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
+                  ))}</tr>
+                </thead>
+                <tbody>
+                  {brsUnmatched.map((row, i) => (
+                    <tr key={i} className={`border-b border-gray-50 last:border-0 transition-colors ${row.status === 'Unmatched' ? 'bg-red-50/30' : 'bg-green-50/20'}`}>
+                      <td className="px-4 py-3 align-middle font-mono text-xs text-red-700">{row.id}</td>
+                      <td className="px-4 py-3 align-middle text-gray-500">{row.date}</td>
+                      <td className="px-4 py-3 align-middle font-semibold">{row.bankDesc}</td>
+                      <td className="px-4 py-3 align-middle font-bold text-green-600">{row.bankAmt}</td>
+                      <td className="px-4 py-3 align-middle font-mono text-xs">{row.ledgerRef}</td>
+                      <td className="px-4 py-3 align-middle font-bold">{row.ledgerAmt}</td>
+                      <td className={`px-4 py-3 align-middle font-extrabold ${row.diff === '₹0' ? 'text-green-600' : 'text-red-500'}`}>{row.diff}</td>
+                      <td className="px-4 py-3 align-middle"><StatusBadge status={row.status} type={row.status === 'Matched' ? 'success' : 'danger'} /></td>
+                      <td className="px-4 py-3 align-middle">
+                        {row.status === 'Unmatched' ? (
+                          <div className="flex gap-1">
+                            <button className="px-2 py-1 text-[11px] rounded bg-green-100 text-green-800 font-semibold border-0 cursor-pointer font-[inherit]">Match</button>
+                            <button className="px-2 py-1 text-[11px] rounded bg-gray-100 text-gray-700 font-semibold border-0 cursor-pointer font-[inherit]">Ignore</button>
+                          </div>
+                        ) : <span className="text-green-600 text-xs font-bold">✓ Confirmed</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Matched transactions */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[
+              { title: 'Bank Statement', entries: bankEntries, titleColor: 'text-red-700', balanceColor: 'text-green-600', balanceBg: 'bg-green-50', balance: '₹43,24,400', balanceLabel: 'Bank Balance' },
+              { title: 'System Records', entries: systemEntries, titleColor: 'text-amber-500', balanceColor: 'text-amber-500', balanceBg: 'bg-amber-50', balance: '₹43,24,400', balanceLabel: 'System Balance' }
+            ].map((section, si) => (
+              <div key={si} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+                <div className={`text-sm font-bold mb-3.5 ${section.titleColor}`}>{section.title}</div>
+                <div className="overflow-x-auto rounded-xl border border-gray-200">
+                  <table className="w-full">
+                    <thead>
+                      <tr>
+                        {['Date','Description','Amount','Type'].map(h => (
+                          <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {section.entries.map((e, i) => (
+                        <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
+                          <td className="px-4 py-3 text-gray-800 align-middle">{e.date}</td>
+                          <td className="px-4 py-3 text-gray-800 align-middle">{e.description}</td>
+                          <td className={`px-4 py-3 align-middle font-bold ${e.type === 'Credit' ? 'text-green-600' : 'text-red-500'}`}>{e.amount}</td>
+                          <td className="px-4 py-3 text-gray-800 align-middle"><StatusBadge status={e.type} type={e.type === 'Credit' ? 'success' : 'danger'} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className={`mt-3.5 p-3 rounded-lg flex justify-between ${section.balanceBg}`}>
+                  <span className="font-semibold text-sm">{section.balanceLabel}</span>
+                  <span className={`font-extrabold text-sm ${section.balanceColor}`}>{section.balance}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

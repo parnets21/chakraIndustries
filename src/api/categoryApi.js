@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL || 'https://chakraindustries-backend.onrender.com0/api';
+const BASE = import.meta.env.VITE_API_URL || 'https://chakraindustries-backend.onrender.com/api';
 
 const handle = async (res) => {
   const data = await res.json();

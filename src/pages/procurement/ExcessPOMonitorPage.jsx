@@ -34,21 +34,6 @@ export default function ExcessPOMonitorPage({ initialTab = 0 }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <div>
-          <div className="text-xl font-black text-gray-900 tracking-tight">Excess PO Load Monitoring</div>
-          <div className="flex items-center gap-1 mt-0.5">
-            <span className="text-xs text-gray-400">Procurement</span>
-            <span className="text-xs text-gray-400">›</span>
-            <span className="text-xs text-red-600 font-semibold">Excess PO Monitor</span>
-          </div>
-        </div>
-        <button onClick={() => setShowModal(true)}
-          className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">
-          Set Thresholds
-        </button>
-      </div>
-
       {/* Warning banner */}
       {excessCount > 0 && (
         <div className="mb-5 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3">

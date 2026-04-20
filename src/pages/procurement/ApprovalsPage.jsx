@@ -13,14 +13,6 @@ export default function ApprovalsPage() {
 
   return (
     <div>
-      <div className="mb-4">
-        <div className="text-xl font-black text-gray-900 tracking-tight">Multi-Level Approval System</div>
-        <div className="flex items-center gap-1 mt-0.5">
-          <span className="text-xs text-gray-400">Procurement</span>
-          <span className="text-xs text-gray-400">›</span>
-          <span className="text-xs text-red-600 font-semibold">Approvals</span>
-        </div>
-      </div>
       <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
         <div className="flex items-center justify-between mb-3.5">
           <div className="text-sm font-bold text-gray-800">Pending Approvals</div>

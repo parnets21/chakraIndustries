@@ -33,7 +33,6 @@ function NavGroup({ item, showLabels, collapsed }) {
   const [open, setOpen] = useState(isAnyChildActive);
   const Icon = ICON_MAP[item.icon];
 
-  // When collapsed, show tooltip-style icon only; clicking navigates to first child
   if (collapsed && !showLabels) {
     return (
       <NavLink
@@ -51,12 +50,11 @@ function NavGroup({ item, showLabels, collapsed }) {
 
   return (
     <div>
-      {/* Group header button */}
       <button
         onClick={() => setOpen(o => !o)}
         style={{
           display: 'flex', alignItems: 'center', gap: 10,
-          width: '100%', padding: '9px 14px', border: 'none',
+          padding: '9px 14px', border: 'none',
           background: isAnyChildActive ? '#fef2f2' : 'transparent',
           color: isAnyChildActive ? '#c0392b' : '#4a5568',
           fontSize: 13, fontWeight: isAnyChildActive ? 700 : 500,
@@ -79,7 +77,6 @@ function NavGroup({ item, showLabels, collapsed }) {
         </span>
       </button>
 
-      {/* Children */}
       {open && (
         <div style={{ paddingLeft: 14, paddingBottom: 2 }}>
           {item.children.map(child => (
@@ -203,7 +200,6 @@ export default function Sidebar({ collapsed, setCollapsed, sidebarOpen, setSideb
             );
           }
 
-          // Expandable group (has children)
           if (item.children) {
             return (
               <NavGroup key={item.label} item={item} showLabels={showLabels} collapsed={collapsed && !isMobile} />
@@ -235,7 +231,7 @@ export default function Sidebar({ collapsed, setCollapsed, sidebarOpen, setSideb
         })}
       </nav>
 
-      {/* Role Permissions shortcut — Super Admin only */}
+      {/* Admin shortcut */}
       {user?.role === 'super_admin' && showLabels && (
         <div style={{ flexShrink: 0, padding: '6px 10px 0', borderTop: '1px solid #f1f5f9' }}>
           <NavLink
@@ -253,7 +249,7 @@ export default function Sidebar({ collapsed, setCollapsed, sidebarOpen, setSideb
         </div>
       )}
 
-      {/* Collapse toggle — desktop only */}
+      {/* Collapse toggle */}
       {!isMobile && (
         <div style={{ flexShrink: 0, padding: 8, borderTop: '1px solid #e2e8f0' }}>
           <button

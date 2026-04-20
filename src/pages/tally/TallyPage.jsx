@@ -59,24 +59,6 @@ export default function TallyPage({ initialTab = 0 }) {
 
   return (
     <div>
-      {/* Page Header */}
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <div>
-          <div className="text-xl font-black text-gray-900 tracking-tight">Tally Integration</div>
-          <div className="flex items-center gap-1 mt-0.5">
-            <span className="text-xs text-gray-400">Home</span>
-            <span className="text-xs text-gray-400">›</span>
-            <span className="text-xs text-red-600 font-semibold">Tally Sync</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button className={btnOutline} onClick={() => setShowConfigModal(true)}>⚙️ Configuration</button>
-          <button className={btnPrimary} onClick={() => handleManualSync('all')} disabled={syncing}>
-            {syncing ? '🔄 Syncing...' : '🔄 Sync Now'}
-          </button>
-        </div>
-      </div>
-
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         {kpis.map((k, i) => (
@@ -87,23 +69,6 @@ export default function TallyPage({ initialTab = 0 }) {
             </div>
             <div className="text-xs text-gray-500 font-medium">{k.label}</div>
           </div>
-        ))}
-      </div>
-
-      {/* Tabs */}
-      <div className="flex border-b-2 border-gray-200 mb-5 overflow-x-auto">
-        {tabs.map((t, i) => (
-          <button
-            key={i}
-            onClick={() => setActiveTab(i)}
-            className={`px-5 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 -mb-0.5 cursor-pointer flex-shrink-0 bg-transparent font-[inherit] ${
-              activeTab === i
-                ? 'text-red-700 border-red-600'
-                : 'text-gray-400 border-transparent hover:text-red-600'
-            }`}
-          >
-            {t}
-          </button>
         ))}
       </div>
 

@@ -6,210 +6,326 @@ import Modal from '../../components/common/Modal';
 import StorageLocationPage from './StorageLocationPage';
 import PincodeStockPage from './PincodeStockPage';
 
-const tabList = ['Stock Dashboard', 'Stock Table', 'Warehouses', 'Stock Movement', 'Picking', 'Sorting & Packing', 'Batch Tracking', 'Ageing Stock', 'Defective Stock', 'Storage Locations', 'Pincode Stock'];
+// ─── Design tokens ───────────────────────────────────────────────────────────
+const BG_PAGE   = '#f0f4f8';
+const BG_CARD   = '#ffffff';
+const BORDER    = '1px solid #e8edf2';
+const RADIUS_LG = 18;
+const RADIUS_MD = 12;
+const RADIUS_SM = 8;
+const SHADOW_CARD  = '0 2px 12px rgba(15,23,42,0.06)';
+const RED       = '#c0392b';
+const RED_LIGHT = '#ef4444';
+const AMBER     = '#f59e0b';
+const GREEN     = '#22c55e';
+const BLUE      = '#3b82f6';
+const PURPLE    = '#a855f7';
+const TEXT_DARK = '#0f172a';
+const TEXT_MID  = '#475569';
+const TEXT_LIGHT= '#94a3b8';
 
+const tabList = [
+  'Stock Dashboard','Stock Table','Warehouses','Stock Movement',
+  'Picking','Sorting & Packing','Batch Tracking','Ageing Stock',
+  'Defective Stock','Storage Locations','Pincode Stock',
+];
+
+// ─── Data ─────────────────────────────────────────────────────────────────────
 const stockData = [
-  { sku: 'SKU-1042', name: 'Bearing 6205',      warehouse: 'WH-01', qty: 12,  batch: 'B-2024-04', minQty: 50, status: 'Critical' },
-  { sku: 'SKU-2187', name: 'Oil Seal 35x52',    warehouse: 'WH-02', qty: 8,   batch: 'B-2024-03', minQty: 30, status: 'Critical' },
-  { sku: 'SKU-0934', name: 'Gasket Set A',       warehouse: 'WH-01', qty: 5,   batch: 'B-2024-04', minQty: 25, status: 'Critical' },
-  { sku: 'SKU-3301', name: 'Piston Ring 80mm',   warehouse: 'WH-03', qty: 340, batch: 'B-2024-02', minQty: 40, status: 'Active'   },
-  { sku: 'SKU-4412', name: 'Crankshaft Seal',    warehouse: 'WH-01', qty: 220, batch: 'B-2024-04', minQty: 20, status: 'Active'   },
-  { sku: 'SKU-5523', name: 'Valve Spring Set',   warehouse: 'WH-02', qty: 180, batch: 'B-2024-03', minQty: 30, status: 'Active'   },
-  { sku: 'SKU-6634', name: 'Timing Chain Kit',   warehouse: 'WH-03', qty: 0,   batch: 'B-2024-01', minQty: 10, status: 'Dead'     },
-  { sku: 'SKU-7745', name: 'Clutch Plate Set',   warehouse: 'WH-01', qty: 95,  batch: 'B-2024-04', minQty: 15, status: 'Active'   },
+  { sku:'SKU-1042', name:'Bearing 6205',      warehouse:'WH-01', qty:12,  batch:'B-2024-04', minQty:50, status:'Critical' },
+  { sku:'SKU-2187', name:'Oil Seal 35x52',    warehouse:'WH-02', qty:8,   batch:'B-2024-03', minQty:30, status:'Critical' },
+  { sku:'SKU-0934', name:'Gasket Set A',       warehouse:'WH-01', qty:5,   batch:'B-2024-04', minQty:25, status:'Critical' },
+  { sku:'SKU-3301', name:'Piston Ring 80mm',   warehouse:'WH-03', qty:340, batch:'B-2024-02', minQty:40, status:'Active'   },
+  { sku:'SKU-4412', name:'Crankshaft Seal',    warehouse:'WH-01', qty:220, batch:'B-2024-04', minQty:20, status:'Active'   },
+  { sku:'SKU-5523', name:'Valve Spring Set',   warehouse:'WH-02', qty:180, batch:'B-2024-03', minQty:30, status:'Active'   },
+  { sku:'SKU-6634', name:'Timing Chain Kit',   warehouse:'WH-03', qty:0,   batch:'B-2024-01', minQty:10, status:'Dead'     },
+  { sku:'SKU-7745', name:'Clutch Plate Set',   warehouse:'WH-01', qty:95,  batch:'B-2024-04', minQty:15, status:'Active'   },
 ];
 
 const warehouses = [
-  { id: 'WH-01', name: 'Main Warehouse',  location: 'Pune - Sector 4', capacity: 5000, used: 3200, skus: 142, manager: 'Rajesh Patil' },
-  { id: 'WH-02', name: 'Secondary Store', location: 'Pune - Sector 7', capacity: 2000, used: 1100, skus: 68,  manager: 'Meena Joshi'  },
-  { id: 'WH-03', name: 'Finished Goods',  location: 'Nashik Plant',    capacity: 3000, used: 2400, skus: 95,  manager: 'Suresh Rao'   },
+  { id:'WH-01', name:'Main Warehouse',  location:'Pune - Sector 4', capacity:5000, used:3200, skus:142, manager:'Rajesh Patil' },
+  { id:'WH-02', name:'Secondary Store', location:'Pune - Sector 7', capacity:2000, used:1100, skus:68,  manager:'Meena Joshi'  },
+  { id:'WH-03', name:'Finished Goods',  location:'Nashik Plant',    capacity:3000, used:2400, skus:95,  manager:'Suresh Rao'   },
 ];
 
 const movements = [
-  { id: 'MV-001', type: 'Inward',   sku: 'SKU-3301', name: 'Piston Ring 80mm',  qty: 200, from: 'Supplier', to: 'WH-01',     date: '14 Apr', ref: 'GRN-0234' },
-  { id: 'MV-002', type: 'Outward',  sku: 'SKU-4412', name: 'Crankshaft Seal',   qty: 50,  from: 'WH-01',    to: 'Production', date: '14 Apr', ref: 'WO-0891'  },
-  { id: 'MV-003', type: 'Transfer', sku: 'SKU-5523', name: 'Valve Spring Set',  qty: 30,  from: 'WH-02',    to: 'WH-01',     date: '13 Apr', ref: 'TR-0045'  },
-  { id: 'MV-004', type: 'Inward',   sku: 'SKU-7745', name: 'Clutch Plate Set',  qty: 100, from: 'Supplier', to: 'WH-03',     date: '13 Apr', ref: 'GRN-0233' },
+  { id:'MV-001', type:'Inward',   sku:'SKU-3301', name:'Piston Ring 80mm',  qty:200, from:'Supplier', to:'WH-01',      date:'14 Apr', ref:'GRN-0234' },
+  { id:'MV-002', type:'Outward',  sku:'SKU-4412', name:'Crankshaft Seal',   qty:50,  from:'WH-01',    to:'Production', date:'14 Apr', ref:'WO-0891'  },
+  { id:'MV-003', type:'Transfer', sku:'SKU-5523', name:'Valve Spring Set',  qty:30,  from:'WH-02',    to:'WH-01',      date:'13 Apr', ref:'TR-0045'  },
+  { id:'MV-004', type:'Inward',   sku:'SKU-7745', name:'Clutch Plate Set',  qty:100, from:'Supplier', to:'WH-03',      date:'13 Apr', ref:'GRN-0233' },
 ];
 
 const stockChartData = [
-  { label: 'Raw Mat',  value: 4200, color: '#c0392b' },
-  { label: 'WIP',      value: 1800, color: '#f39c12' },
-  { label: 'Finished', value: 3100, color: '#27ae60' },
-  { label: 'Dead',     value: 420,  color: '#7f8c8d' },
+  { label:'Raw Mat',  value:4200, color:'#c0392b' },
+  { label:'WIP',      value:1800, color:'#f39c12' },
+  { label:'Finished', value:3100, color:'#27ae60' },
+  { label:'Dead',     value:420,  color:'#7f8c8d' },
 ];
 
-const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]';
+const pickData = [
+  { id:'PCK-001', order:'ORD-2024-089', sku:'SKU-3301', item:'Piston Ring 80mm', qty:50, loc:'WH-01 / A3', picker:'Ramesh', status:'Completed' },
+  { id:'PCK-002', order:'ORD-2024-089', sku:'SKU-4412', item:'Crankshaft Seal',  qty:20, loc:'WH-01 / B2', picker:'Suresh', status:'In Progress' },
+  { id:'PCK-003', order:'ORD-2024-087', sku:'SKU-5523', item:'Valve Spring Set', qty:30, loc:'WH-02 / B1', picker:'Anil',   status:'Pending' },
+];
 
-export default function InventoryPage({ initialTab = 0 }) {
-  const [activeTab, setActiveTab] = useState(initialTab);
-  const [movTab, setMovTab] = useState('Inward');
-  const [showModal, setShowModal] = useState(false);
+const sortData = [
+  { id:'SRT-001', sku:'SKU-3301', item:'Piston Ring 80mm', qty:200, grade:'Grade A', status:'Sorted' },
+  { id:'SRT-002', sku:'SKU-1042', item:'Bearing 6205',     qty:50,  grade:'Grade B', status:'Pending' },
+  { id:'SRT-003', sku:'SKU-7745', item:'Clutch Plate Set', qty:80,  grade:'Grade A', status:'In Progress' },
+];
 
-  const total = stockData.reduce((s, i) => s + i.qty, 0);
-  const low   = stockData.filter(i => i.qty < i.minQty && i.qty > 0).length;
-  const dead  = stockData.filter(i => i.qty === 0).length;
+const packData = [
+  { id:'PKG-001', order:'ORD-2024-089', items:3, weight:'42 kg', type:'Standard Box',    status:'Packed'  },
+  { id:'PKG-002', order:'ORD-2024-087', items:5, weight:'68 kg', type:'Custom Branded',  status:'Packing' },
+  { id:'PKG-003', order:'ORD-2024-085', items:2, weight:'28 kg', type:'Bulk Loose',       status:'Pending' },
+];
 
-  const kpis = [
-    { label: 'Total Stock Units', value: total.toLocaleString(), color: '#c0392b' },
-    { label: 'Low Stock Items',   value: low,                    color: '#f39c12' },
-    { label: 'Dead Stock Items',  value: dead,                   color: '#7f8c8d' },
-    { label: 'Active SKUs',       value: stockData.filter(i => i.status === 'Active').length, color: '#27ae60' },
-  ];
+const batchData = [
+  { batch:'B-2024-04', sku:'SKU-3301', item:'Piston Ring 80mm', qty:340, mfg:'Apr 2024', exp:'Apr 2026', wh:'WH-03', status:'Active',   shelfPct:90 },
+  { batch:'B-2024-03', sku:'SKU-5523', item:'Valve Spring Set', qty:180, mfg:'Mar 2024', exp:'Mar 2026', wh:'WH-02', status:'Active',   shelfPct:85 },
+  { batch:'B-2024-01', sku:'SKU-6634', item:'Timing Chain Kit', qty:0,   mfg:'Jan 2024', exp:'Jan 2026', wh:'WH-03', status:'Dead',     shelfPct:10 },
+  { batch:'B-2023-12', sku:'SKU-1042', item:'Bearing 6205',     qty:12,  mfg:'Dec 2023', exp:'Dec 2025', wh:'WH-01', status:'Critical', shelfPct:40 },
+];
 
+const ageingData = [
+  { sku:'SKU-6634', item:'Timing Chain Kit', wh:'WH-03', qty:0,  lastMov:'Jan 2024', days:105, bucket:'90+',   value:'₹0',      action:'Write-off',          actionColor:'#ef4444' },
+  { sku:'SKU-0934', item:'Gasket Set A',      wh:'WH-01', qty:5,  lastMov:'Dec 2023', days:120, bucket:'90+',   value:'₹3,250',  action:'Return to Supplier', actionColor:'#ef4444' },
+  { sku:'SKU-2187', item:'Oil Seal 35x52',    wh:'WH-02', qty:8,  lastMov:'Jan 2024', days:75,  bucket:'61–90', value:'₹920',    action:'Offer Discount',     actionColor:'#f59e0b' },
+  { sku:'SKU-1042', item:'Bearing 6205',      wh:'WH-01', qty:12, lastMov:'Feb 2024', days:45,  bucket:'31–60', value:'₹1,440',  action:'Monitor',            actionColor:'#f59e0b' },
+  { sku:'SKU-7745', item:'Clutch Plate Set',  wh:'WH-01', qty:95, lastMov:'Mar 2024', days:20,  bucket:'0–30',  value:'₹28,500', action:'No Action',          actionColor:'#22c55e' },
+];
+
+const defectData = [
+  { id:'DEF-001', sku:'SKU-1042', item:'Bearing 6205',     qty:3, type:'Dimensional',     source:'GRN Inspection',  date:'14 Apr', daysAged:1, stage:'QC Hold'      },
+  { id:'DEF-002', sku:'SKU-4412', item:'Crankshaft Seal',  qty:5, type:'Surface Defect',  source:'Production',      date:'13 Apr', daysAged:2, stage:'Defective Bin' },
+  { id:'DEF-003', sku:'SKU-7745', item:'Clutch Plate Set', qty:2, type:'Packaging Damage',source:'Customer Return', date:'12 Apr', daysAged:3, stage:'Repair'        },
+];
+
+const defectLog = [
+  { event:'DEF-001 — Bearing 6205 (3 units) flagged at GRN QC',          time:'14 Apr, 09:15 AM', stage:'QC Hold',      color:'#f59e0b' },
+  { event:'DEF-002 — Crankshaft Seal (5 units) moved to Defective Bin',  time:'13 Apr, 02:00 PM', stage:'Defective Bin',color:'#ef4444' },
+  { event:'DEF-003 — Clutch Plate Set (2 units) sent for Repair',        time:'12 Apr, 11:00 AM', stage:'Repair',       color:'#3b82f6' },
+  { event:'DEF-000 — Oil Seal (4 units) scrapped & written off',         time:'10 Apr, 04:00 PM', stage:'Disposed',     color:'#6b7280' },
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const card = (extra={}) => ({
+  background: BG_CARD, border: BORDER, borderRadius: RADIUS_LG,
+  boxShadow: SHADOW_CARD, ...extra,
+});
+
+const inputStyle = {
+  width:'100%', padding:'8px 12px', border:'1px solid #e2e8f0',
+  borderRadius: RADIUS_SM, fontSize:13, outline:'none',
+  background:'#fff', color: TEXT_DARK, fontFamily:'inherit',
+  boxSizing:'border-box',
+};
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+function KpiCard({ label, value, color, icon, sparkBars }) {
   return (
-    <div>
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+    <div style={{ ...card(), padding:20, borderTop:`3px solid ${color}`, position:'relative', overflow:'hidden' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
         <div>
-          <div className="text-xl font-black text-gray-900 tracking-tight">Inventory</div>
-          <div className="flex items-center gap-1 mt-0.5">
-            <span className="text-xs text-gray-400">Home</span>
-            <span className="text-xs text-gray-400">›</span>
-            <span className="text-xs text-red-600 font-semibold">Inventory</span>
-          </div>
+          <div style={{ fontSize:28, fontWeight:900, color, letterSpacing:'-1px', lineHeight:1 }}>{value}</div>
+          <div style={{ fontSize:12, color: TEXT_MID, fontWeight:600, marginTop:6 }}>{label}</div>
         </div>
-        <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all" onClick={() => setShowModal(true)}>+ Add Stock</button>
+        <div style={{ fontSize:22, opacity:0.18, position:'absolute', right:16, top:14 }}>{icon}</div>
       </div>
-
-      <div className="flex border-b-2 border-gray-200 mb-5 overflow-x-auto">
-        {tabList.map((t, i) => (
-          <div key={i}
-            className={`px-5 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 -mb-0.5 transition-all cursor-pointer flex-shrink-0 bg-transparent ${activeTab === i ? 'text-red-700 border-red-600' : 'text-gray-400 border-transparent hover:text-red-600'}`}
-            onClick={() => setActiveTab(i)}>{t}</div>
-        ))}
-      </div>
-
-      {activeTab === 0 && (
-        <div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-            {kpis.map((k, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
-                <div className="text-2xl font-black tracking-tight" style={{ color: k.color }}>{k.value}</div>
-                <div className="text-xs text-gray-500 font-medium mt-1">{k.label}</div>
-                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mt-2">
-                  <div className="h-full rounded-full transition-all duration-500" style={{ width: '60%', background: k.color }} />
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <div className="text-sm font-bold text-gray-800 mb-3">Stock by Category</div>
-            <BarChart data={stockChartData} height={180} />
-          </div>
-        </div>
-      )}
-
-      {activeTab === 1 && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <DataTable
-            columns={[
-              { key: 'sku',     label: 'SKU',       render: v => <span className="font-semibold text-red-600 font-mono">{v}</span> },
-              { key: 'name',    label: 'Item Name',  render: v => <span className="font-semibold">{v}</span> },
-              { key: 'warehouse', label: 'Warehouse' },
-              { key: 'qty',     label: 'Qty',        render: (v, row) => <span className="font-bold" style={{ color: v < row.minQty ? '#e74c3c' : '#27ae60' }}>{v}</span> },
-              { key: 'minQty',  label: 'Min Qty' },
-              { key: 'batch',   label: 'Batch' },
-              { key: 'status',  label: 'Status',     render: v => <StatusBadge status={v} /> },
-              { key: 'sku',     label: 'Actions',    render: () => (
-                <div className="flex gap-1.5">
-                  <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 font-semibold hover:bg-red-700 hover:text-white transition-all">Adjust</button>
-                  <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gray-100 text-gray-800 font-semibold">Move</button>
-                </div>
-              )},
-            ]}
-            data={stockData}
-          />
-        </div>
-      )}
-
-      {activeTab === 2 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {warehouses.map((wh, i) => (
-            <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <div className="font-bold text-[15px]">{wh.name}</div>
-                  <div className="text-xs text-gray-400">{wh.id} · {wh.location}</div>
-                </div>
-                <StatusBadge status="Active" />
-              </div>
-              <div className="grid grid-cols-2 gap-3 mb-3.5">
-                <div className="bg-gray-50 rounded-lg p-2.5">
-                  <div className="text-lg font-black" style={{ color: '#c0392b' }}>{wh.skus}</div>
-                  <div className="text-[11px] text-gray-400">Active SKUs</div>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-2.5">
-                  <div className="text-lg font-black" style={{ color: '#f39c12' }}>{wh.manager.split(' ')[0]}</div>
-                  <div className="text-[11px] text-gray-400">Manager</div>
-                </div>
-              </div>
-              <div className="flex justify-between text-xs mb-1.5">
-                <span>Capacity Used</span>
-                <span className="font-bold">{wh.used}/{wh.capacity}</span>
-              </div>
-              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(wh.used / wh.capacity) * 100}%`, background: wh.used / wh.capacity > 0.8 ? '#e74c3c' : '#c0392b' }} />
-              </div>
-              <button className="inline-flex items-center justify-center gap-1.5 w-full mt-3.5 px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 font-semibold hover:bg-red-700 hover:text-white transition-all">View Location Map</button>
-            </div>
+      {sparkBars && (
+        <div style={{ display:'flex', gap:3, alignItems:'flex-end', marginTop:14, height:24 }}>
+          {sparkBars.map((h,i) => (
+            <div key={i} style={{ flex:1, height:`${h}%`, background:color, borderRadius:3, opacity:0.6+(i*0.08) }} />
           ))}
         </div>
       )}
+    </div>
+  );
+}
 
-      {activeTab === 3 && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="flex gap-2 mb-4">
-            {['Inward', 'Outward', 'Transfer'].map(t => (
-              <button key={t} onClick={() => setMovTab(t)}
-                className={movTab === t
-                  ? 'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold shadow-md'
-                  : 'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 font-semibold hover:bg-red-700 hover:text-white transition-all'}>
-                {t}
-              </button>
-            ))}
+function SectionHeader({ title, subtitle, action }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+      <div>
+        <div style={{ fontSize:14, fontWeight:700, color: TEXT_DARK }}>{title}</div>
+        {subtitle && <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginTop:2 }}>{subtitle}</div>}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function Pill({ label, color, bg }) {
+  return (
+    <span style={{
+      display:'inline-block', padding:'3px 10px', borderRadius:20,
+      fontSize:11, fontWeight:700, background: bg || color+'18', color,
+    }}>{label}</span>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+export default function InventoryPage({ initialTab = 0 }) {
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [movTab, setMovTab]       = useState('Inward');
+  const [showModal, setShowModal] = useState(false);
+  const [stockFilter, setStockFilter] = useState('All');
+
+  const total = stockData.reduce((s,i) => s + i.qty, 0);
+  const low   = stockData.filter(i => i.qty < i.minQty && i.qty > 0).length;
+  const dead  = stockData.filter(i => i.qty === 0).length;
+  const active= stockData.filter(i => i.status === 'Active').length;
+
+  const kpis = [
+    { label:'Total Stock Units', value: total.toLocaleString(), color: RED,   icon:'📦', sparkBars:[40,55,45,70,60,80,65] },
+    { label:'Low Stock Items',   value: low,                    color: AMBER,  icon:'⚠️', sparkBars:[20,35,30,50,40,60,45] },
+    { label:'Dead Stock Items',  value: dead,                   color:'#64748b',icon:'💀', sparkBars:[10,15,10,20,15,25,20] },
+    { label:'Active SKUs',       value: active,                 color: GREEN,  icon:'✅', sparkBars:[60,70,65,80,75,90,85] },
+  ];
+
+  const filteredStock = stockFilter === 'All' ? stockData
+    : stockData.filter(r => r.status === stockFilter);
+
+  return (
+    <div>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          TAB 0 — Stock Dashboard  (Analytics-first layout)
+      ══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 0 && (
+        <div>
+          {/* KPI row */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:20 }}>
+            {kpis.map((k,i) => <KpiCard key={i} {...k} />)}
           </div>
-          <DataTable
-            columns={[
-              { key: 'id',   label: 'Mov ID', render: v => <span className="font-semibold text-red-600">{v}</span> },
-              { key: 'sku',  label: 'SKU' },
-              { key: 'name', label: 'Item' },
-              { key: 'qty',  label: 'Qty',  render: v => <span className="font-bold">{v}</span> },
-              { key: 'from', label: 'From' },
-              { key: 'to',   label: 'To' },
-              { key: 'ref',  label: 'Reference' },
-              { key: 'date', label: 'Date' },
-              { key: 'type', label: 'Type', render: v => <StatusBadge status={v} type={v === 'Inward' ? 'success' : v === 'Outward' ? 'danger' : 'info'} /> },
-            ]}
-            data={movements.filter(m => m.type === movTab)}
-          />
+
+          {/* 2-col grid */}
+          <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:16 }}>
+            {/* Bar chart card */}
+            <div style={{ ...card(), overflow:'hidden' }}>
+              <div style={{
+                background:'linear-gradient(90deg,#c0392b,#e74c3c)',
+                padding:'14px 20px',
+              }}>
+                <div style={{ fontSize:13, fontWeight:700, color:'#fff' }}>Stock by Category</div>
+                <div style={{ fontSize:11, color:'rgba(255,255,255,0.7)', marginTop:2 }}>Units across all warehouses</div>
+              </div>
+              <div style={{ padding:20 }}>
+                <BarChart data={stockChartData} height={180} />
+              </div>
+            </div>
+
+            {/* Quick Alerts */}
+            <div style={{ ...card(), padding:0, overflow:'hidden' }}>
+              <div style={{ padding:'14px 20px', borderBottom: BORDER }}>
+                <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>Quick Alerts</div>
+              </div>
+              <div style={{ padding:'8px 0' }}>
+                {[
+                  { msg:'Bearing 6205 — critically low (12 units)', color: RED_LIGHT,  bg:'#fef2f2' },
+                  { msg:'Oil Seal 35x52 — below minimum threshold', color: AMBER,      bg:'#fffbeb' },
+                  { msg:'Piston Ring 80mm — stock replenished',     color: GREEN,      bg:'#f0fdf4' },
+                ].map((a,i) => (
+                  <div key={i} style={{
+                    display:'flex', alignItems:'center', gap:12,
+                    padding:'12px 20px', background: a.bg,
+                    borderLeft:`4px solid ${a.color}`,
+                    marginBottom: i < 2 ? 1 : 0,
+                  }}>
+                    <div style={{ width:8, height:8, borderRadius:'50%', background: a.color, flexShrink:0 }} />
+                    <div style={{ fontSize:12, color: TEXT_DARK, fontWeight:500 }}>{a.msg}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
-      {activeTab === 4 && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="text-sm font-bold text-gray-800 mb-3.5">Picking Workflow</div>
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
-            <table className="w-full">
-              <thead><tr>{['Pick ID','Order Ref','SKU','Item','Qty','Location','Picker','Status','Action'].map(h => (
-                <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
-              ))}</tr></thead>
+      {/* ══════════════════════════════════════════════════════════════════════
+          TAB 1 — Stock Table  (Data-grid with filter toolbar)
+      ══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 1 && (
+        <div style={{ ...card(), overflow:'hidden' }}>
+          {/* Toolbar */}
+          <div style={{
+            display:'flex', alignItems:'center', gap:12, padding:'14px 20px',
+            borderBottom: BORDER, background:'#fafbfc', flexWrap:'wrap',
+          }}>
+            <div style={{ position:'relative', flex:1, minWidth:180 }}>
+              <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', fontSize:14, color: TEXT_LIGHT }}>🔍</span>
+              <input placeholder="Search SKU or item…" style={{ ...inputStyle, paddingLeft:32, width:'100%' }} />
+            </div>
+            <div style={{ display:'flex', gap:6 }}>
+              {['All','Active','Critical','Dead'].map(f => (
+                <button key={f} onClick={() => setStockFilter(f)} style={{
+                  padding:'5px 14px', borderRadius:20, fontSize:12, fontWeight:600,
+                  border: stockFilter===f ? 'none' : `1px solid #e2e8f0`,
+                  background: stockFilter===f ? RED : '#fff',
+                  color: stockFilter===f ? '#fff' : TEXT_MID,
+                  cursor:'pointer', fontFamily:'inherit',
+                }}>{f}</button>
+              ))}
+            </div>
+            <button style={{
+              padding:'6px 16px', borderRadius: RADIUS_SM, fontSize:12, fontWeight:600,
+              background:'#f1f5f9', border: BORDER, color: TEXT_MID,
+              cursor:'pointer', fontFamily:'inherit',
+            }}>⬇ Export</button>
+          </div>
+
+          {/* Table */}
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse' }}>
+              <thead>
+                <tr style={{ position:'sticky', top:0, background:'#f8fafc', zIndex:1 }}>
+                  {['SKU','Item Name','Warehouse','Qty','Min Qty','Batch','Status','Actions'].map(h => (
+                    <th key={h} style={{
+                      padding:'10px 16px', textAlign:'left', fontSize:10.5,
+                      fontWeight:700, color: TEXT_LIGHT, textTransform:'uppercase',
+                      letterSpacing:'0.06em', borderBottom: BORDER, whiteSpace:'nowrap',
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
               <tbody>
-                {[
-                  { id: 'PCK-001', order: 'ORD-2024-089', sku: 'SKU-3301', item: 'Piston Ring 80mm', qty: 50, loc: 'WH-01 / A3', picker: 'Ramesh', status: 'Completed' },
-                  { id: 'PCK-002', order: 'ORD-2024-089', sku: 'SKU-4412', item: 'Crankshaft Seal', qty: 20, loc: 'WH-01 / B2', picker: 'Suresh', status: 'In Progress' },
-                  { id: 'PCK-003', order: 'ORD-2024-087', sku: 'SKU-5523', item: 'Valve Spring Set', qty: 30, loc: 'WH-02 / B1', picker: 'Anil', status: 'Pending' },
-                ].map((r, i) => (
-                  <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
-                    <td className="px-4 py-3 align-middle font-semibold text-red-700">{r.id}</td>
-                    <td className="px-4 py-3 align-middle">{r.order}</td>
-                    <td className="px-4 py-3 align-middle font-mono text-xs text-red-700">{r.sku}</td>
-                    <td className="px-4 py-3 align-middle font-semibold">{r.item}</td>
-                    <td className="px-4 py-3 align-middle font-bold">{r.qty}</td>
-                    <td className="px-4 py-3 align-middle text-xs">{r.loc}</td>
-                    <td className="px-4 py-3 align-middle">{r.picker}</td>
-                    <td className="px-4 py-3 align-middle"><StatusBadge status={r.status} /></td>
-                    <td className="px-4 py-3 align-middle">
-                      <button className="px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold cursor-pointer font-[inherit]">Confirm Pick</button>
+                {filteredStock.map((r,i) => (
+                  <tr key={i} style={{ background: i%2===0 ? '#f8fafc' : '#fff', borderBottom:'1px solid #f1f5f9' }}>
+                    <td style={{ padding:'11px 16px' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                        <div style={{
+                          width:7, height:7, borderRadius:'50%', flexShrink:0,
+                          background: r.status==='Critical' ? RED_LIGHT : r.status==='Dead' ? '#94a3b8' : GREEN,
+                        }} />
+                        <span style={{ fontFamily:'monospace', fontSize:12, fontWeight:700, color: RED }}>{r.sku}</span>
+                      </div>
+                    </td>
+                    <td style={{ padding:'11px 16px', fontSize:13, fontWeight:600, color: TEXT_DARK }}>{r.name}</td>
+                    <td style={{ padding:'11px 16px', fontSize:13, color: TEXT_MID }}>{r.warehouse}</td>
+                    <td style={{ padding:'11px 16px' }}>
+                      <span style={{
+                        display:'inline-block', padding:'3px 10px', borderRadius:20,
+                        fontSize:12, fontWeight:700,
+                        background: r.qty < r.minQty ? '#fef2f2' : '#f0fdf4',
+                        color: r.qty < r.minQty ? RED_LIGHT : GREEN,
+                      }}>{r.qty}</span>
+                    </td>
+                    <td style={{ padding:'11px 16px', fontSize:13, color: TEXT_MID }}>{r.minQty}</td>
+                    <td style={{ padding:'11px 16px', fontSize:12, fontFamily:'monospace', color: TEXT_MID }}>{r.batch}</td>
+                    <td style={{ padding:'11px 16px' }}><StatusBadge status={r.status} /></td>
+                    <td style={{ padding:'11px 16px' }}>
+                      <div style={{ display:'flex', gap:6 }}>
+                        <button style={{
+                          padding:'4px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600,
+                          border:`1px solid ${RED}`, color: RED, background:'transparent',
+                          cursor:'pointer', fontFamily:'inherit',
+                        }}>✏ Adjust</button>
+                        <button style={{
+                          padding:'4px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600,
+                          border:'1px solid #e2e8f0', color: TEXT_MID, background:'#f8fafc',
+                          cursor:'pointer', fontFamily:'inherit',
+                        }}>⇄ Move</button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -219,130 +335,471 @@ export default function InventoryPage({ initialTab = 0 }) {
         </div>
       )}
 
+      {/* ══════════════════════════════════════════════════════════════════════
+          TAB 2 — Warehouses  (Card grid with visual capacity meters)
+      ══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 2 && (
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:20 }}>
+          {warehouses.map((wh,i) => {
+            const pct = Math.round((wh.used / wh.capacity) * 100);
+            const barColor = pct > 85 ? RED_LIGHT : pct > 70 ? AMBER : GREEN;
+            const gradients = [
+              'linear-gradient(135deg,#c0392b,#e74c3c)',
+              'linear-gradient(135deg,#7c3aed,#a855f7)',
+              'linear-gradient(135deg,#0369a1,#3b82f6)',
+            ];
+            return (
+              <div key={i} style={{
+                ...card(), overflow:'hidden', cursor:'default',
+                transition:'transform 0.18s, box-shadow 0.18s',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.transform='translateY(-4px)'; e.currentTarget.style.boxShadow='0 12px 32px rgba(15,23,42,0.12)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow=SHADOW_CARD; }}
+              >
+                {/* Banner */}
+                <div style={{ background: gradients[i], padding:'18px 20px' }}>
+                  <div style={{ fontSize:16, fontWeight:800, color:'#fff' }}>{wh.name}</div>
+                  <div style={{ fontSize:11.5, color:'rgba(255,255,255,0.75)', marginTop:3 }}>{wh.id} · {wh.location}</div>
+                </div>
+
+                {/* Stats 2x2 */}
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:1, background:'#f1f5f9', margin:'0 0 0 0' }}>
+                  {[
+                    { label:'Active SKUs', value: wh.skus },
+                    { label:'Manager',     value: wh.manager.split(' ')[0] },
+                    { label:'Capacity',    value: `${wh.capacity.toLocaleString()} u` },
+                    { label:'Status',      value: '● Active' },
+                  ].map((s,j) => (
+                    <div key={j} style={{ background:'#fff', padding:'12px 16px' }}>
+                      <div style={{ fontSize:11, color: TEXT_LIGHT, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em' }}>{s.label}</div>
+                      <div style={{ fontSize:14, fontWeight:700, color: TEXT_DARK, marginTop:3 }}>{s.value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Capacity bar */}
+                <div style={{ padding:'16px 20px' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
+                    <span style={{ fontSize:12, color: TEXT_MID, fontWeight:600 }}>Capacity Used</span>
+                    <span style={{ fontSize:12, fontWeight:700, color: barColor }}>{pct}%</span>
+                  </div>
+                  <div style={{ height:12, background:'#f1f5f9', borderRadius:6, overflow:'hidden' }}>
+                    <div style={{
+                      height:'100%', width:`${pct}%`, borderRadius:6,
+                      background: barColor, transition:'width 0.5s',
+                      display:'flex', alignItems:'center', justifyContent:'flex-end', paddingRight:4,
+                    }}>
+                      {pct > 20 && <span style={{ fontSize:9, color:'#fff', fontWeight:700 }}>{pct}%</span>}
+                    </div>
+                  </div>
+                  <div style={{ fontSize:11, color: TEXT_LIGHT, marginTop:4 }}>{wh.used.toLocaleString()} / {wh.capacity.toLocaleString()} units</div>
+                </div>
+
+                {/* View Map button */}
+                <div style={{ padding:'0 20px 18px' }}>
+                  <button style={{
+                    width:'100%', padding:'9px 0', borderRadius: RADIUS_SM,
+                    border:`1.5px solid ${gradients[i].includes('c0392b') ? RED : gradients[i].includes('7c3aed') ? PURPLE : BLUE}`,
+                    background:'transparent', fontSize:12.5, fontWeight:700,
+                    color: gradients[i].includes('c0392b') ? RED : gradients[i].includes('7c3aed') ? PURPLE : BLUE,
+                    cursor:'pointer', fontFamily:'inherit',
+                  }}>View Map →</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          TAB 3 — Stock Movement  (Timeline + filter layout)
+      ══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 3 && (
+        <div>
+          {/* Pill toggles */}
+          <div style={{ display:'flex', gap:10, marginBottom:20 }}>
+            {[
+              { label:'Inward',   color: GREEN,  bg:'#f0fdf4' },
+              { label:'Outward',  color: RED_LIGHT, bg:'#fef2f2' },
+              { label:'Transfer', color: BLUE,   bg:'#eff6ff' },
+            ].map(({ label, color, bg }) => (
+              <button key={label} onClick={() => setMovTab(label)} style={{
+                padding:'8px 22px', borderRadius:24, fontSize:13, fontWeight:700,
+                border: movTab===label ? 'none' : `1.5px solid #e2e8f0`,
+                background: movTab===label ? color : '#fff',
+                color: movTab===label ? '#fff' : TEXT_MID,
+                cursor:'pointer', fontFamily:'inherit',
+                boxShadow: movTab===label ? `0 3px 10px ${color}40` : 'none',
+                transition:'all 0.15s',
+              }}>{label}</button>
+            ))}
+          </div>
+
+          {/* Movement cards */}
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            {movements.filter(m => m.type === movTab).map((mv,i) => {
+              const typeColor = mv.type==='Inward' ? GREEN : mv.type==='Outward' ? RED_LIGHT : BLUE;
+              const typeIcon  = mv.type==='Inward' ? '↓' : mv.type==='Outward' ? '↑' : '⇄';
+              return (
+                <div key={i} style={{
+                  ...card(), padding:'16px 20px',
+                  borderLeft:`4px solid ${typeColor}`,
+                  display:'flex', alignItems:'center', gap:20,
+                }}>
+                  {/* Icon circle */}
+                  <div style={{
+                    width:44, height:44, borderRadius:'50%', flexShrink:0,
+                    background: typeColor+'18', display:'flex', alignItems:'center',
+                    justifyContent:'center', fontSize:20, color: typeColor, fontWeight:900,
+                  }}>{typeIcon}</div>
+
+                  {/* Center info */}
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:14, fontWeight:700, color: TEXT_DARK }}>{mv.name}</div>
+                    <div style={{ display:'flex', gap:10, marginTop:4, flexWrap:'wrap' }}>
+                      <span style={{ fontSize:11.5, fontFamily:'monospace', color: RED, fontWeight:600 }}>{mv.sku}</span>
+                      <span style={{ fontSize:11.5, color: TEXT_LIGHT }}>Ref: {mv.ref}</span>
+                      <span style={{ fontSize:11.5, color: TEXT_LIGHT }}>{mv.id}</span>
+                    </div>
+                    <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:6 }}>
+                      <span style={{ fontSize:12, color: TEXT_MID, fontWeight:600 }}>{mv.from}</span>
+                      <span style={{ fontSize:14, color: typeColor }}>→</span>
+                      <span style={{ fontSize:12, color: TEXT_MID, fontWeight:600 }}>{mv.to}</span>
+                    </div>
+                  </div>
+
+                  {/* Right: qty + date */}
+                  <div style={{ textAlign:'right', flexShrink:0 }}>
+                    <div style={{
+                      fontSize:20, fontWeight:900, color: typeColor,
+                    }}>{mv.qty}</div>
+                    <div style={{ fontSize:11, color: TEXT_LIGHT, marginTop:2 }}>units</div>
+                    <div style={{ fontSize:11.5, color: TEXT_MID, marginTop:6, fontWeight:600 }}>{mv.date}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          TAB 4 — Picking  (Kanban-style workflow board)
+      ══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 4 && (() => {
+        const cols = [
+          { label:'Pending',     color: AMBER,  bg:'#fffbeb', items: pickData.filter(p => p.status==='Pending') },
+          { label:'In Progress', color: BLUE,   bg:'#eff6ff', items: pickData.filter(p => p.status==='In Progress') },
+          { label:'Completed',   color: GREEN,  bg:'#f0fdf4', items: pickData.filter(p => p.status==='Completed') },
+        ];
+        return (
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16 }}>
+            {cols.map((col,ci) => (
+              <div key={ci} style={{ ...card(), overflow:'hidden' }}>
+                {/* Column header */}
+                <div style={{
+                  background: col.color, padding:'12px 16px',
+                  display:'flex', alignItems:'center', justifyContent:'space-between',
+                }}>
+                  <span style={{ fontSize:13, fontWeight:800, color:'#fff' }}>{col.label}</span>
+                  <span style={{
+                    background:'rgba(255,255,255,0.3)', color:'#fff',
+                    borderRadius:12, padding:'1px 9px', fontSize:12, fontWeight:700,
+                  }}>{col.items.length}</span>
+                </div>
+
+                {/* Cards */}
+                <div style={{ padding:12, display:'flex', flexDirection:'column', gap:10 }}>
+                  {col.items.length === 0 && (
+                    <div style={{ textAlign:'center', padding:'24px 0', color: TEXT_LIGHT, fontSize:12 }}>No items</div>
+                  )}
+                  {col.items.map((p,pi) => (
+                    <div key={pi} style={{
+                      background:'#fff', border: BORDER, borderRadius: RADIUS_MD,
+                      padding:'14px 14px', boxShadow:'0 1px 4px rgba(15,23,42,0.05)',
+                    }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+                        <span style={{ fontSize:12, fontWeight:800, color: col.color }}>{p.id}</span>
+                        {/* Picker avatar */}
+                        <div style={{
+                          width:28, height:28, borderRadius:'50%', background: col.color+'22',
+                          display:'flex', alignItems:'center', justifyContent:'center',
+                          fontSize:11, fontWeight:800, color: col.color,
+                        }}>{p.picker.slice(0,2).toUpperCase()}</div>
+                      </div>
+                      <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK, marginBottom:4 }}>{p.item}</div>
+                      <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginBottom:2 }}>Order: {p.order}</div>
+                      <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginBottom:2 }}>SKU: <span style={{ fontFamily:'monospace', color: RED }}>{p.sku}</span></div>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:8 }}>
+                        <span style={{ fontSize:11.5, color: TEXT_MID }}>📍 {p.loc}</span>
+                        <span style={{
+                          background: col.color+'18', color: col.color,
+                          borderRadius:12, padding:'2px 9px', fontSize:11, fontWeight:700,
+                        }}>Qty: {p.qty}</span>
+                      </div>
+                      {p.status === 'In Progress' && (
+                        <button style={{
+                          marginTop:10, width:'100%', padding:'7px 0',
+                          borderRadius: RADIUS_SM, border:'none',
+                          background: BLUE, color:'#fff',
+                          fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit',
+                        }}>✓ Confirm Pick</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          TAB 5 — Sorting & Packing  (Split workflow panels)
+      ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === 5 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <div className="text-sm font-bold text-gray-800 mb-3.5">Sorting Queue</div>
-            {[
-              { id: 'SRT-001', sku: 'SKU-3301', item: 'Piston Ring 80mm', qty: 200, category: 'Grade A', status: 'Sorted' },
-              { id: 'SRT-002', sku: 'SKU-1042', item: 'Bearing 6205', qty: 50, category: 'Grade B', status: 'Pending' },
-              { id: 'SRT-003', sku: 'SKU-7745', item: 'Clutch Plate Set', qty: 80, category: 'Grade A', status: 'In Progress' },
-            ].map((r, i) => (
-              <div key={i} className={`flex items-center justify-between py-3 ${i < 2 ? 'border-b border-gray-100' : ''}`}>
-                <div>
-                  <div className="font-semibold text-sm">{r.item}</div>
-                  <div className="text-xs text-gray-400">{r.id} · {r.sku} · Qty: {r.qty}</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-blue-600">{r.category}</span>
-                  <StatusBadge status={r.status} />
-                </div>
-              </div>
-            ))}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
+          {/* Sorting Queue */}
+          <div style={{ ...card(), overflow:'hidden' }}>
+            <div style={{ background:'linear-gradient(90deg,#7c3aed,#a855f7)', padding:'14px 20px' }}>
+              <div style={{ fontSize:13, fontWeight:800, color:'#fff' }}>Sorting Queue</div>
+              <div style={{ fontSize:11, color:'rgba(255,255,255,0.7)', marginTop:2 }}>Grade & classify incoming stock</div>
+            </div>
+            <div style={{ padding:'8px 0' }}>
+              {sortData.map((r,i) => {
+                const gradeColor = r.grade==='Grade A' ? GREEN : AMBER;
+                const statusBorder = r.status==='Sorted' ? GREEN : r.status==='In Progress' ? BLUE : '#e2e8f0';
+                return (
+                  <div key={i} style={{
+                    padding:'14px 20px', borderLeft:`4px solid ${statusBorder}`,
+                    borderBottom: i < sortData.length-1 ? BORDER : 'none',
+                    background: r.status==='Sorted' ? '#f0fdf4' : r.status==='In Progress' ? '#eff6ff' : '#fff',
+                  }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                      <div>
+                        <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>{r.item}</div>
+                        <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginTop:2 }}>{r.id} · {r.sku} · Qty: {r.qty}</div>
+                      </div>
+                      <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:5 }}>
+                        <span style={{
+                          padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700,
+                          background: gradeColor+'18', color: gradeColor,
+                        }}>{r.grade}</span>
+                        <span style={{
+                          padding:'2px 8px', borderRadius:20, fontSize:10.5, fontWeight:600,
+                          background: statusBorder+'18', color: statusBorder,
+                        }}>{r.status}</span>
+                      </div>
+                    </div>
+                    {/* Progress indicator */}
+                    <div style={{ marginTop:10, height:4, background:'#f1f5f9', borderRadius:2, overflow:'hidden' }}>
+                      <div style={{
+                        height:'100%', borderRadius:2,
+                        width: r.status==='Sorted' ? '100%' : r.status==='In Progress' ? '55%' : '10%',
+                        background: statusBorder,
+                        transition:'width 0.5s',
+                      }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <div className="text-sm font-bold text-gray-800 mb-3.5">Packing Queue</div>
-            {[
-              { id: 'PKG-001', order: 'ORD-2024-089', items: 3, weight: '42 kg', type: 'Standard Box', status: 'Packed' },
-              { id: 'PKG-002', order: 'ORD-2024-087', items: 5, weight: '68 kg', type: 'Custom Branded', status: 'Packing' },
-              { id: 'PKG-003', order: 'ORD-2024-085', items: 2, weight: '28 kg', type: 'Bulk Loose', status: 'Pending' },
-            ].map((r, i) => (
-              <div key={i} className={`flex items-center justify-between py-3 ${i < 2 ? 'border-b border-gray-100' : ''}`}>
-                <div>
-                  <div className="font-semibold text-sm">{r.order}</div>
-                  <div className="text-xs text-gray-400">{r.id} · {r.items} items · {r.weight} · {r.type}</div>
-                </div>
-                <StatusBadge status={r.status} />
-              </div>
-            ))}
+
+          {/* Packing Queue */}
+          <div style={{ ...card(), overflow:'hidden' }}>
+            <div style={{ background:'linear-gradient(90deg,#0d9488,#14b8a6)', padding:'14px 20px' }}>
+              <div style={{ fontSize:13, fontWeight:800, color:'#fff' }}>Packing Queue</div>
+              <div style={{ fontSize:11, color:'rgba(255,255,255,0.7)', marginTop:2 }}>Package & dispatch ready orders</div>
+            </div>
+            <div style={{ padding:'8px 0' }}>
+              {packData.map((r,i) => {
+                const statusIcon  = r.status==='Packed' ? '📦' : r.status==='Packing' ? '⏳' : '🕐';
+                const statusColor = r.status==='Packed' ? GREEN : r.status==='Packing' ? BLUE : TEXT_LIGHT;
+                return (
+                  <div key={i} style={{
+                    padding:'14px 20px',
+                    borderBottom: i < packData.length-1 ? BORDER : 'none',
+                  }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                      <div>
+                        <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>{r.order}</div>
+                        <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginTop:2 }}>{r.id} · {r.items} items</div>
+                      </div>
+                      <span style={{
+                        padding:'4px 10px', borderRadius:20, fontSize:11.5, fontWeight:700,
+                        background: statusColor+'18', color: statusColor,
+                      }}>{statusIcon} {r.status}</span>
+                    </div>
+                    <div style={{ display:'flex', gap:8, marginTop:10, flexWrap:'wrap' }}>
+                      <span style={{
+                        padding:'3px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600,
+                        background:'#f1f5f9', color: TEXT_MID,
+                      }}>⚖ {r.weight}</span>
+                      <span style={{
+                        padding:'3px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600,
+                        background:'#f1f5f9', color: TEXT_MID,
+                      }}>📋 {r.type}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
 
+      {/* ══════════════════════════════════════════════════════════════════════
+          TAB 6 — Batch Tracking  (Timeline-style batch cards)
+      ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === 6 && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="text-sm font-bold text-gray-800 mb-3.5">Batch Tracking</div>
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
-            <table className="w-full">
-              <thead><tr>{['Batch No.','SKU','Item','Qty','Mfg Date','Expiry','Warehouse','Status'].map(h => (
-                <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
-              ))}</tr></thead>
-              <tbody>
-                {[
-                  { batch: 'B-2024-04', sku: 'SKU-3301', item: 'Piston Ring 80mm', qty: 340, mfg: 'Apr 2024', exp: 'Apr 2026', wh: 'WH-03', status: 'Active' },
-                  { batch: 'B-2024-03', sku: 'SKU-5523', item: 'Valve Spring Set', qty: 180, mfg: 'Mar 2024', exp: 'Mar 2026', wh: 'WH-02', status: 'Active' },
-                  { batch: 'B-2024-01', sku: 'SKU-6634', item: 'Timing Chain Kit', qty: 0, mfg: 'Jan 2024', exp: 'Jan 2026', wh: 'WH-03', status: 'Dead' },
-                  { batch: 'B-2023-12', sku: 'SKU-1042', item: 'Bearing 6205', qty: 12, mfg: 'Dec 2023', exp: 'Dec 2025', wh: 'WH-01', status: 'Critical' },
-                ].map((r, i) => (
-                  <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
-                    <td className="px-4 py-3 align-middle font-mono text-xs font-bold text-red-700">{r.batch}</td>
-                    <td className="px-4 py-3 align-middle font-mono text-xs">{r.sku}</td>
-                    <td className="px-4 py-3 align-middle font-semibold">{r.item}</td>
-                    <td className="px-4 py-3 align-middle font-bold">{r.qty}</td>
-                    <td className="px-4 py-3 align-middle text-gray-500">{r.mfg}</td>
-                    <td className="px-4 py-3 align-middle text-gray-500">{r.exp}</td>
-                    <td className="px-4 py-3 align-middle">{r.wh}</td>
-                    <td className="px-4 py-3 align-middle"><StatusBadge status={r.status} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          <SectionHeader
+            title="Batch Tracking"
+            subtitle="Shelf life, expiry & status per batch"
+          />
+          {batchData.map((b,i) => {
+            const statusColor = b.status==='Active' ? GREEN : b.status==='Critical' ? AMBER : '#94a3b8';
+            const barColor    = b.shelfPct > 60 ? GREEN : b.shelfPct > 30 ? AMBER : RED_LIGHT;
+            return (
+              <div key={i} style={{ ...card(), padding:0, overflow:'hidden' }}>
+                <div style={{ display:'flex', alignItems:'stretch' }}>
+                  {/* Batch chip */}
+                  <div style={{
+                    background: statusColor+'18', borderRight:`3px solid ${statusColor}`,
+                    padding:'20px 18px', display:'flex', flexDirection:'column',
+                    alignItems:'center', justifyContent:'center', minWidth:110,
+                  }}>
+                    <div style={{ fontSize:11, color: TEXT_LIGHT, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:6 }}>Batch</div>
+                    <div style={{ fontFamily:'monospace', fontSize:13, fontWeight:900, color: statusColor, textAlign:'center' }}>{b.batch}</div>
+                  </div>
+
+                  {/* Center details */}
+                  <div style={{ flex:1, padding:'16px 20px' }}>
+                    <div style={{ fontSize:14, fontWeight:700, color: TEXT_DARK }}>{b.item}</div>
+                    <div style={{ display:'flex', gap:12, marginTop:4, flexWrap:'wrap' }}>
+                      <span style={{ fontSize:11.5, fontFamily:'monospace', color: RED }}>{b.sku}</span>
+                      <span style={{ fontSize:11.5, color: TEXT_LIGHT }}>📍 {b.wh}</span>
+                      <span style={{ fontSize:11.5, color: TEXT_LIGHT }}>Mfg: {b.mfg}</span>
+                    </div>
+                    {/* Shelf life bar */}
+                    <div style={{ marginTop:12 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                        <span style={{ fontSize:11, color: TEXT_LIGHT }}>Shelf life remaining</span>
+                        <span style={{ fontSize:11, fontWeight:700, color: barColor }}>{b.shelfPct}%</span>
+                      </div>
+                      <div style={{ height:6, background:'#f1f5f9', borderRadius:3, overflow:'hidden' }}>
+                        <div style={{ height:'100%', width:`${b.shelfPct}%`, background: barColor, borderRadius:3, transition:'width 0.5s' }} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right: qty + expiry */}
+                  <div style={{
+                    padding:'16px 20px', textAlign:'right', borderLeft: BORDER,
+                    display:'flex', flexDirection:'column', justifyContent:'center', minWidth:120,
+                  }}>
+                    <div style={{ fontSize:24, fontWeight:900, color: statusColor, lineHeight:1 }}>{b.qty}</div>
+                    <div style={{ fontSize:11, color: TEXT_LIGHT, marginTop:2 }}>units</div>
+                    <div style={{ marginTop:10 }}>
+                      <div style={{ fontSize:10.5, color: TEXT_LIGHT }}>Expires</div>
+                      <div style={{ fontSize:12, fontWeight:700, color: b.status==='Dead' ? RED_LIGHT : TEXT_DARK, marginTop:2 }}>{b.exp}</div>
+                    </div>
+                    <span style={{
+                      marginTop:8, display:'inline-block', padding:'3px 10px', borderRadius:20,
+                      fontSize:11, fontWeight:700, background: statusColor+'18', color: statusColor,
+                    }}>{b.status}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
+      {/* ══════════════════════════════════════════════════════════════════════
+          TAB 7 — Ageing Stock  (Heat-map style analysis)
+      ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === 7 && (
         <div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+          {/* Age-bucket cards */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:20 }}>
             {[
-              { label: '0–30 days', value: 2, color: '#10b981' },
-              { label: '31–60 days', value: 1, color: '#f59e0b' },
-              { label: '61–90 days', value: 1, color: '#ef4444' },
-              { label: '90+ days', value: 1, color: '#7f8c8d' },
-            ].map((k, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
-                <div className="text-2xl font-black tracking-tight" style={{ color: k.color }}>{k.value}</div>
-                <div className="text-xs text-gray-500 font-medium mt-1">{k.label}</div>
+              { label:'0–30 days',  count:2, color: GREEN,      icon:'🟢', bg:'#f0fdf4' },
+              { label:'31–60 days', count:1, color: AMBER,      icon:'🟡', bg:'#fffbeb' },
+              { label:'61–90 days', count:1, color:'#f97316',   icon:'🟠', bg:'#fff7ed' },
+              { label:'90+ days',   count:2, color: RED_LIGHT,  icon:'🔴', bg:'#fef2f2' },
+            ].map((b,i) => (
+              <div key={i} style={{
+                ...card(), padding:'18px 20px', background: b.bg,
+                borderTop:`3px solid ${b.color}`,
+              }}>
+                <div style={{ fontSize:22 }}>{b.icon}</div>
+                <div style={{ fontSize:26, fontWeight:900, color: b.color, marginTop:8, lineHeight:1 }}>{b.count}</div>
+                <div style={{ fontSize:12, color: TEXT_MID, fontWeight:600, marginTop:4 }}>{b.label}</div>
               </div>
             ))}
           </div>
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-3.5">
+
+          {/* Main table */}
+          <div style={{ ...card(), overflow:'hidden' }}>
+            <div style={{
+              display:'flex', alignItems:'center', justifyContent:'space-between',
+              padding:'14px 20px', borderBottom: BORDER,
+            }}>
               <div>
-                <div className="text-sm font-bold text-gray-800">Ageing Stock Analysis</div>
-                <div className="text-xs text-gray-400 mt-0.5">Items not moved — with action suggestions</div>
+                <div style={{ fontSize:14, fontWeight:700, color: TEXT_DARK }}>Ageing Stock Analysis</div>
+                <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginTop:2 }}>Items not moved — with action suggestions</div>
               </div>
-              <button className="px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">Export Report</button>
+              <button style={{
+                padding:'7px 16px', borderRadius: RADIUS_SM, fontSize:12, fontWeight:700,
+                background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff',
+                border:'none', cursor:'pointer', fontFamily:'inherit',
+              }}>⬇ Export Report</button>
             </div>
-            <div className="overflow-x-auto rounded-xl border border-gray-200">
-              <table className="w-full">
-                <thead><tr>{['SKU','Item','Warehouse','Qty','Last Movement','Days Idle','Bucket','Value','Suggested Action'].map(h => (
-                  <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
-                ))}</tr></thead>
+            <div style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                <thead>
+                  <tr style={{ background:'#f8fafc' }}>
+                    {['SKU','Item','Warehouse','Qty','Last Movement','Days Idle','Bucket','Value','Suggested Action'].map(h => (
+                      <th key={h} style={{
+                        padding:'10px 16px', textAlign:'left', fontSize:10.5,
+                        fontWeight:700, color: TEXT_LIGHT, textTransform:'uppercase',
+                        letterSpacing:'0.06em', borderBottom: BORDER, whiteSpace:'nowrap',
+                      }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
                 <tbody>
-                  {[
-                    { sku: 'SKU-6634', item: 'Timing Chain Kit', wh: 'WH-03', qty: 0, lastMov: 'Jan 2024', days: 105, bucket: '90+', value: '₹0', action: 'Write-off', actionColor: '#ef4444' },
-                    { sku: 'SKU-0934', item: 'Gasket Set A', wh: 'WH-01', qty: 5, lastMov: 'Dec 2023', days: 120, bucket: '90+', value: '₹3,250', action: 'Return to Supplier', actionColor: '#ef4444' },
-                    { sku: 'SKU-2187', item: 'Oil Seal 35x52', wh: 'WH-02', qty: 8, lastMov: 'Jan 2024', days: 75, bucket: '61–90', value: '₹920', action: 'Offer Discount', actionColor: '#f59e0b' },
-                    { sku: 'SKU-1042', item: 'Bearing 6205', wh: 'WH-01', qty: 12, lastMov: 'Feb 2024', days: 45, bucket: '31–60', value: '₹1,440', action: 'Monitor', actionColor: '#f59e0b' },
-                    { sku: 'SKU-7745', item: 'Clutch Plate Set', wh: 'WH-01', qty: 95, lastMov: 'Mar 2024', days: 20, bucket: '0–30', value: '₹28,500', action: 'No Action', actionColor: '#10b981' },
-                  ].map((r, i) => (
-                    <tr key={i} className={`border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors ${r.days > 90 ? 'bg-red-50/20' : r.days > 60 ? 'bg-amber-50/20' : ''}`}>
-                      <td className="px-4 py-3 align-middle font-mono text-xs font-semibold text-red-700">{r.sku}</td>
-                      <td className="px-4 py-3 align-middle font-semibold">{r.item}</td>
-                      <td className="px-4 py-3 align-middle">{r.wh}</td>
-                      <td className="px-4 py-3 align-middle font-bold">{r.qty}</td>
-                      <td className="px-4 py-3 align-middle text-gray-500">{r.lastMov}</td>
-                      <td className={`px-4 py-3 align-middle font-extrabold ${r.days > 90 ? 'text-red-500' : r.days > 60 ? 'text-amber-500' : r.days > 30 ? 'text-amber-400' : 'text-green-600'}`}>{r.days}d</td>
-                      <td className="px-4 py-3 align-middle">
-                        <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: r.actionColor + '20', color: r.actionColor }}>{r.bucket}</span>
-                      </td>
-                      <td className="px-4 py-3 align-middle font-bold">{r.value}</td>
-                      <td className="px-4 py-3 align-middle">
-                        <span className="text-xs font-semibold px-2 py-1 rounded-lg" style={{ background: r.actionColor + '15', color: r.actionColor }}>{r.action}</span>
-                      </td>
-                    </tr>
-                  ))}
+                  {ageingData.map((r,i) => {
+                    const rowBg = r.days > 90 ? 'rgba(239,68,68,0.08)' : r.days > 60 ? 'rgba(245,158,11,0.08)' : r.days > 30 ? 'rgba(251,191,36,0.05)' : '#fff';
+                    const daysColor = r.days > 90 ? RED_LIGHT : r.days > 60 ? '#f97316' : r.days > 30 ? AMBER : GREEN;
+                    return (
+                      <tr key={i} style={{ background: rowBg, borderBottom:'1px solid #f1f5f9' }}>
+                        <td style={{ padding:'12px 16px', fontFamily:'monospace', fontSize:12, fontWeight:700, color: RED }}>{r.sku}</td>
+                        <td style={{ padding:'12px 16px', fontSize:13, fontWeight:600, color: TEXT_DARK }}>{r.item}</td>
+                        <td style={{ padding:'12px 16px', fontSize:13, color: TEXT_MID }}>{r.wh}</td>
+                        <td style={{ padding:'12px 16px', fontSize:13, fontWeight:700, color: TEXT_DARK }}>{r.qty}</td>
+                        <td style={{ padding:'12px 16px', fontSize:12, color: TEXT_MID }}>{r.lastMov}</td>
+                        <td style={{ padding:'12px 16px' }}>
+                          <span style={{ fontSize:18, fontWeight:900, color: daysColor }}>{r.days}</span>
+                          <span style={{ fontSize:11, color: TEXT_LIGHT, marginLeft:2 }}>d</span>
+                        </td>
+                        <td style={{ padding:'12px 16px' }}>
+                          <Pill label={r.bucket} color={r.actionColor} />
+                        </td>
+                        <td style={{ padding:'12px 16px', fontSize:13, fontWeight:700, color: TEXT_DARK }}>{r.value}</td>
+                        <td style={{ padding:'12px 16px' }}>
+                          <span style={{
+                            display:'inline-block', padding:'4px 12px', borderRadius: RADIUS_SM,
+                            fontSize:11.5, fontWeight:700,
+                            background: r.actionColor+'18', color: r.actionColor,
+                            border:`1px solid ${r.actionColor}30`,
+                          }}>{r.action}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -350,70 +807,117 @@ export default function InventoryPage({ initialTab = 0 }) {
         </div>
       )}
 
+      {/* ══════════════════════════════════════════════════════════════════════
+          TAB 8 — Defective Stock  (Status-flow layout)
+      ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === 8 && (
         <div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+          {/* KPI cards */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:20 }}>
             {[
-              { label: 'Total Defective Units', value: 10, color: '#ef4444' },
-              { label: 'Pending QC', value: 3, color: '#f59e0b' },
-              { label: 'Awaiting Disposal', value: 5, color: '#8b5cf6' },
-              { label: 'Repair in Progress', value: 2, color: '#3b82f6' },
-            ].map((k, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
-                <div className="text-2xl font-black tracking-tight" style={{ color: k.color }}>{k.value}</div>
-                <div className="text-xs text-gray-500 font-medium mt-1">{k.label}</div>
+              { label:'Total Defective', value:10, color: RED_LIGHT,  icon:'🔴' },
+              { label:'QC Hold',         value:3,  color: AMBER,      icon:'🟡' },
+              { label:'Repair',          value:2,  color: BLUE,       icon:'🔵' },
+              { label:'Disposed',        value:5,  color:'#6b7280',   icon:'⚫' },
+            ].map((k,i) => (
+              <div key={i} style={{
+                ...card(), padding:'18px 20px',
+                borderTop:`3px solid ${k.color}`,
+              }}>
+                <div style={{ fontSize:22 }}>{k.icon}</div>
+                <div style={{ fontSize:26, fontWeight:900, color: k.color, marginTop:8, lineHeight:1 }}>{k.value}</div>
+                <div style={{ fontSize:12, color: TEXT_MID, fontWeight:600, marginTop:4 }}>{k.label}</div>
               </div>
             ))}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-              <div className="flex items-center justify-between mb-3.5">
-                <div className="text-sm font-bold text-gray-800">Defective Stock Register</div>
-                <button className="px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">+ Log Defect</button>
+
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
+            {/* Defective register */}
+            <div style={{ ...card(), overflow:'hidden' }}>
+              <div style={{
+                display:'flex', alignItems:'center', justifyContent:'space-between',
+                padding:'14px 20px', borderBottom: BORDER,
+                background:'linear-gradient(90deg,#fef2f2,#fff)',
+              }}>
+                <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>Defective Stock Register</div>
+                <button style={{
+                  padding:'6px 14px', borderRadius: RADIUS_SM, fontSize:12, fontWeight:700,
+                  background: RED_LIGHT, color:'#fff', border:'none', cursor:'pointer', fontFamily:'inherit',
+                }}>+ Log Defect</button>
               </div>
-              {[
-                { id: 'DEF-001', sku: 'SKU-1042', item: 'Bearing 6205', qty: 3, type: 'Dimensional', source: 'GRN Inspection', date: '14 Apr', daysAged: 1, stage: 'QC Hold' },
-                { id: 'DEF-002', sku: 'SKU-4412', item: 'Crankshaft Seal', qty: 5, type: 'Surface Defect', source: 'Production', date: '13 Apr', daysAged: 2, stage: 'Defective Bin' },
-                { id: 'DEF-003', sku: 'SKU-7745', item: 'Clutch Plate Set', qty: 2, type: 'Packaging Damage', source: 'Customer Return', date: '12 Apr', daysAged: 3, stage: 'Repair' },
-              ].map((r, i) => (
-                <div key={i} className={`py-3 ${i < 2 ? 'border-b border-gray-100' : ''}`}>
-                  <div className="flex justify-between items-start mb-1">
-                    <div>
-                      <span className="font-bold text-sm text-red-700">{r.id}</span>
-                      <span className="text-xs text-gray-400 ml-2">{r.sku}</span>
+              <div style={{ padding:'4px 0' }}>
+                {defectData.map((r,i) => {
+                  const stageBorder = r.stage==='QC Hold' ? AMBER : r.stage==='Repair' ? BLUE : RED_LIGHT;
+                  const stageBg     = r.stage==='QC Hold' ? '#fffbeb' : r.stage==='Repair' ? '#eff6ff' : '#fef2f2';
+                  return (
+                    <div key={i} style={{
+                      padding:'14px 20px', borderLeft:`4px solid ${stageBorder}`,
+                      background: stageBg,
+                      borderBottom: i < defectData.length-1 ? BORDER : 'none',
+                    }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:4 }}>
+                        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                          <span style={{ fontSize:13, fontWeight:800, color: RED }}>{r.id}</span>
+                          <span style={{ fontSize:11.5, fontFamily:'monospace', color: TEXT_LIGHT }}>{r.sku}</span>
+                        </div>
+                        <span style={{
+                          padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700,
+                          background: stageBorder+'22', color: stageBorder,
+                        }}>{r.stage}</span>
+                      </div>
+                      <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>{r.item} — {r.qty} units</div>
+                      <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginTop:3 }}>
+                        {r.type} · {r.source} · {r.date} ·{' '}
+                        <span style={{ color: r.daysAged > 2 ? RED_LIGHT : TEXT_LIGHT, fontWeight: r.daysAged > 2 ? 700 : 400 }}>
+                          {r.daysAged}d aged
+                        </span>
+                      </div>
+                      <div style={{ display:'flex', gap:8, marginTop:10 }}>
+                        {[
+                          { label:'Repair', color: BLUE },
+                          { label:'Rework', color: AMBER },
+                          { label:'Scrap',  color: RED_LIGHT },
+                        ].map(btn => (
+                          <button key={btn.label} style={{
+                            padding:'4px 12px', borderRadius:20, fontSize:11, fontWeight:700,
+                            background: btn.color+'18', color: btn.color,
+                            border:`1px solid ${btn.color}40`, cursor:'pointer', fontFamily:'inherit',
+                          }}>{btn.label}</button>
+                        ))}
+                      </div>
                     </div>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                      r.stage === 'QC Hold' ? 'bg-amber-100 text-amber-700' :
-                      r.stage === 'Repair' ? 'bg-blue-100 text-blue-700' :
-                      'bg-red-100 text-red-700'
-                    }`}>{r.stage}</span>
-                  </div>
-                  <div className="font-semibold text-sm">{r.item} — {r.qty} units</div>
-                  <div className="text-xs text-gray-400 mt-0.5">{r.type} · {r.source} · {r.date} · <span className={r.daysAged > 2 ? 'text-red-500 font-bold' : 'text-gray-400'}>{r.daysAged}d aged</span></div>
-                  <div className="flex gap-1.5 mt-2">
-                    <button className="px-2 py-1 text-[11px] rounded bg-blue-100 text-blue-800 font-semibold border-0 cursor-pointer font-[inherit]">Repair</button>
-                    <button className="px-2 py-1 text-[11px] rounded bg-amber-100 text-amber-800 font-semibold border-0 cursor-pointer font-[inherit]">Rework</button>
-                    <button className="px-2 py-1 text-[11px] rounded bg-red-100 text-red-700 font-semibold border-0 cursor-pointer font-[inherit]">Scrap</button>
-                  </div>
-                </div>
-              ))}
+                  );
+                })}
+              </div>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-              <div className="text-sm font-bold text-gray-800 mb-3.5">Movement Log — QC → Defective → Disposal/Repair</div>
-              <div className="relative pl-6">
-                <div className="absolute left-2.5 top-1.5 bottom-1.5 w-0.5 bg-gray-200 rounded" />
-                {[
-                  { event: 'DEF-001 — Bearing 6205 (3 units) flagged at GRN QC', time: '14 Apr, 09:15 AM', stage: 'QC Hold', color: '#f59e0b' },
-                  { event: 'DEF-002 — Crankshaft Seal (5 units) moved to Defective Bin', time: '13 Apr, 02:00 PM', stage: 'Defective Bin', color: '#ef4444' },
-                  { event: 'DEF-003 — Clutch Plate Set (2 units) sent for Repair', time: '12 Apr, 11:00 AM', stage: 'Repair', color: '#3b82f6' },
-                  { event: 'DEF-000 — Oil Seal (4 units) scrapped & written off', time: '10 Apr, 04:00 PM', stage: 'Disposed', color: '#6b7280' },
-                ].map((item, i) => (
-                  <div key={i} className="relative mb-4 last:mb-0">
-                    <div className="absolute -left-[17px] top-1 w-3 h-3 rounded-full ring-2 ring-offset-1" style={{ background: item.color, borderColor: item.color }} />
-                    <div className="text-sm font-semibold text-gray-800">{item.event}</div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-gray-400">{item.time}</span>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: item.color + '20', color: item.color }}>{item.stage}</span>
+
+            {/* Timeline */}
+            <div style={{ ...card(), padding:20 }}>
+              <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK, marginBottom:20 }}>
+                Movement Log — QC → Defective → Disposal/Repair
+              </div>
+              <div style={{ position:'relative', paddingLeft:28 }}>
+                {/* Connecting line */}
+                <div style={{
+                  position:'absolute', left:9, top:6, bottom:6,
+                  width:2, background:'#e2e8f0', borderRadius:1,
+                }} />
+                {defectLog.map((item,i) => (
+                  <div key={i} style={{ position:'relative', marginBottom: i < defectLog.length-1 ? 22 : 0 }}>
+                    {/* Dot */}
+                    <div style={{
+                      position:'absolute', left:-19, top:3,
+                      width:12, height:12, borderRadius:'50%',
+                      background: item.color,
+                      boxShadow:`0 0 0 3px ${item.color}30`,
+                    }} />
+                    <div style={{ fontSize:13, fontWeight:600, color: TEXT_DARK, lineHeight:1.4 }}>{item.event}</div>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:5 }}>
+                      <span style={{ fontSize:11.5, color: TEXT_LIGHT }}>{item.time}</span>
+                      <span style={{
+                        padding:'2px 8px', borderRadius:20, fontSize:10.5, fontWeight:700,
+                        background: item.color+'20', color: item.color,
+                      }}>{item.stage}</span>
                     </div>
                   </div>
                 ))}
@@ -423,33 +927,76 @@ export default function InventoryPage({ initialTab = 0 }) {
         </div>
       )}
 
-      {activeTab === 9 && <StorageLocationPage />}
+      {/* ── Tabs 9 & 10 ── */}
+      {activeTab === 9  && <StorageLocationPage />}
       {activeTab === 10 && <PincodeStockPage />}
 
+      {/* ── Add Stock Modal ── */}
       <Modal
         open={showModal}
         onClose={() => setShowModal(false)}
         title="Add Stock Entry"
         footer={
           <>
-            <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all" onClick={() => setShowModal(false)}>Cancel</button>
-            <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all" onClick={() => setShowModal(false)}>Add Stock</button>
+            <button style={{
+              padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`,
+              color: RED, background:'transparent', fontSize:13, fontWeight:600,
+              cursor:'pointer', fontFamily:'inherit',
+            }} onClick={() => setShowModal(false)}>Cancel</button>
+            <button style={{
+              padding:'8px 18px', borderRadius:10, border:'none',
+              background:'linear-gradient(135deg,#ef4444,#b91c1c)',
+              color:'#fff', fontSize:13, fontWeight:600,
+              cursor:'pointer', fontFamily:'inherit',
+              boxShadow:'0 3px 10px rgba(185,28,28,0.3)',
+            }} onClick={() => setShowModal(false)}>Add Stock</button>
           </>
         }
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">SKU *</label><input className={inputCls} placeholder="e.g. SKU-1042" /></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Item Name *</label><input className={inputCls} placeholder="Item description" /></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Warehouse *</label><select className={inputCls}><option>WH-01 — Main Warehouse</option><option>WH-02 — Secondary Store</option><option>WH-03 — Finished Goods</option></select></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Quantity *</label><input type="number" className={inputCls} placeholder="0" /></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Batch Number</label><input className={inputCls} placeholder="e.g. B-2024-04" /></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Min Stock Level</label><input type="number" className={inputCls} placeholder="0" /></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Category</label><select className={inputCls}><option>Raw Material</option><option>WIP</option><option>Finished Good</option><option>Spare Parts</option></select></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Unit of Measure</label><select className={inputCls}><option>Nos</option><option>Set</option><option>Kg</option><option>Litre</option><option>Metre</option></select></div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+          {[
+            { label:'SKU *',           placeholder:'e.g. SKU-1042',           type:'text'   },
+            { label:'Item Name *',     placeholder:'Item description',         type:'text'   },
+            { label:'Quantity *',      placeholder:'0',                        type:'number' },
+            { label:'Batch Number',    placeholder:'e.g. B-2024-04',           type:'text'   },
+            { label:'Min Stock Level', placeholder:'0',                        type:'number' },
+          ].map((f,i) => (
+            <div key={i} style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color: TEXT_MID }}>{f.label}</label>
+              <input type={f.type} placeholder={f.placeholder} style={inputStyle} />
+            </div>
+          ))}
+          <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+            <label style={{ fontSize:12, fontWeight:600, color: TEXT_MID }}>Warehouse *</label>
+            <select style={inputStyle}>
+              <option>WH-01 — Main Warehouse</option>
+              <option>WH-02 — Secondary Store</option>
+              <option>WH-03 — Finished Goods</option>
+            </select>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+            <label style={{ fontSize:12, fontWeight:600, color: TEXT_MID }}>Category</label>
+            <select style={inputStyle}>
+              <option>Raw Material</option>
+              <option>WIP</option>
+              <option>Finished Good</option>
+              <option>Spare Parts</option>
+            </select>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+            <label style={{ fontSize:12, fontWeight:600, color: TEXT_MID }}>Unit of Measure</label>
+            <select style={inputStyle}>
+              <option>Nos</option>
+              <option>Set</option>
+              <option>Kg</option>
+              <option>Litre</option>
+              <option>Metre</option>
+            </select>
+          </div>
         </div>
-        <div className="flex flex-col gap-1.5 mt-1">
-          <label className="text-xs font-semibold text-gray-600">Remarks</label>
-          <textarea className={`${inputCls} resize-y min-h-[80px]`} placeholder="Optional notes..." />
+        <div style={{ display:'flex', flexDirection:'column', gap:5, marginTop:10 }}>
+          <label style={{ fontSize:12, fontWeight:600, color: TEXT_MID }}>Remarks</label>
+          <textarea placeholder="Optional notes…" style={{ ...inputStyle, minHeight:72, resize:'vertical' }} />
         </div>
       </Modal>
     </div>

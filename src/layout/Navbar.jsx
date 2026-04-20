@@ -18,10 +18,10 @@ const PAGE_LABELS = {
 };
 
 const NOTIF_META = {
-  warning: { icon: <MdWarning size={14} />, color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
-  danger:  { icon: <MdError size={14} />,   color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
-  success: { icon: <MdCheckCircle size={14} />, color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
-  info:    { icon: <MdInfo size={14} />,    color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+  warning: { icon: <MdWarning size={13} />, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.2)' },
+  danger:  { icon: <MdError size={13} />,   color: '#ef4444', bg: 'rgba(239,68,68,0.1)',  border: 'rgba(239,68,68,0.2)'  },
+  success: { icon: <MdCheckCircle size={13} />, color: '#22c55e', bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.2)' },
+  info:    { icon: <MdInfo size={13} />,    color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', border: 'rgba(59,130,246,0.2)' },
 };
 
 const NOTIFICATIONS = [
@@ -32,52 +32,38 @@ const NOTIFICATIONS = [
 ];
 
 const QUICK_ITEMS = [
-  { label: 'Purchase Order', path: '/procurement' },
-  { label: 'Work Order',     path: '/production'  },
-  { label: 'Sales Order',    path: '/orders'      },
-  { label: 'GRN Entry',      path: '/procurement' },
-  { label: 'New Task',       path: '/tasks'       },
+  { label: 'Purchase Order', path: '/procurement/po',  color: '#ef4444' },
+  { label: 'Work Order',     path: '/production/workorders', color: '#a855f7' },
+  { label: 'Sales Order',    path: '/orders',          color: '#3b82f6' },
+  { label: 'GRN Entry',      path: '/procurement/grn', color: '#22c55e' },
+  { label: 'New Task',       path: '/tasks/kanban',    color: '#f59e0b' },
 ];
 
-/* ── tiny icon-button ─────────────────────────────────────────────────────── */
-function IconBtn({ children, badge, onClick, active }) {
-  const [hov, setHov] = useState(false);
+const ROLE_GRADIENTS = {
+  super_admin:        'linear-gradient(135deg,#ef4444,#b91c1c)',
+  management:         'linear-gradient(135deg,#a855f7,#7c3aed)',
+  purchase_manager:   'linear-gradient(135deg,#3b82f6,#1d4ed8)',
+  production_manager: 'linear-gradient(135deg,#22c55e,#15803d)',
+  dealer:             'linear-gradient(135deg,#f59e0b,#d97706)',
+  corporate_client:   'linear-gradient(135deg,#14b8a6,#0f766e)',
+};
+
+function Avatar({ size = 32, name, role }) {
+  const gradient = ROLE_GRADIENTS[role] || ROLE_GRADIENTS.super_admin;
   return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        position: 'relative',
-        width: 38, height: 38,
-        borderRadius: 10,
-        border: `1.5px solid ${hov || active ? '#fca5a5' : '#e5e7eb'}`,
-        background: hov || active ? '#fef2f2' : '#fff',
-        color: hov || active ? '#ef4444' : '#6b7280',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        cursor: 'pointer',
-        transition: 'border-color .15s, background .15s, color .15s',
-        flexShrink: 0,
-      }}
-    >
-      {children}
-      {badge != null && (
-        <span style={{
-          position: 'absolute', top: -5, right: -5,
-          minWidth: 17, height: 17,
-          background: '#ef4444', color: '#fff',
-          fontSize: 9, fontWeight: 800,
-          borderRadius: 99, border: '2px solid #fff',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: '0 3px',
-        }}>{badge}</span>
-      )}
-    </button>
+    <div style={{
+      width: size, height: size, borderRadius: Math.round(size * 0.3),
+      background: gradient,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: '#fff', fontSize: Math.round(size * 0.38), fontWeight: 800, flexShrink: 0,
+    }}>
+      {(name || 'U').charAt(0).toUpperCase()}
+    </div>
   );
 }
 
-/* ── dropdown panel ───────────────────────────────────────────────────────── */
-function Panel({ children, width = 280, right = 0, className = '' }) {
+/* Dropdown panel — anchors to viewport edge on mobile */
+function Panel({ children, width = 300, right = 0, className = '' }) {
   return (
     <div className={className} style={{
       position: 'absolute',
@@ -86,35 +72,48 @@ function Panel({ children, width = 280, right = 0, className = '' }) {
       width,
       background: '#fff',
       borderRadius: 14,
-      border: '1px solid #e5e7eb',
-      boxShadow: '0 12px 40px rgba(0,0,0,0.13), 0 2px 8px rgba(0,0,0,0.06)',
-      zIndex: 400,
+      border: '1px solid #e2e8f0',
+      boxShadow: '0 16px 48px rgba(0,0,0,0.14), 0 4px 12px rgba(0,0,0,0.06)',
+      zIndex: 500,
       overflow: 'hidden',
       transformOrigin: 'top right',
-      animation: 'panelIn .14s cubic-bezier(.4,0,.2,1)',
+      animation: 'nbPanelIn .15s cubic-bezier(.4,0,.2,1)',
     }}>
       {children}
     </div>
   );
 }
 
-export default function Navbar({ activePage, onMenuClick }) {
+function DropItem({ children, onClick, danger }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <button onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 16px',
+        background: hov ? (danger ? '#fef2f2' : '#f8fafc') : 'transparent',
+        border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit',
+        color: danger ? '#ef4444' : '#374151', textAlign: 'left',
+        transition: 'background .1s',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+export default function Navbar({ activePage, onMenuClick, isMobile }) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const [open, setOpen] = useState(null); // 'create' | 'notif' | 'profile'
+  const [open, setOpen] = useState(null);
 
-  const createRef  = useRef();
-  const notifRef   = useRef();
-  const profileRef = useRef();
+  const wrapRef = useRef();
 
-  /* close on outside click */
   useEffect(() => {
     const handler = (e) => {
-      if (
-        createRef.current  && !createRef.current.contains(e.target)  &&
-        notifRef.current   && !notifRef.current.contains(e.target)   &&
-        profileRef.current && !profileRef.current.contains(e.target)
-      ) setOpen(null);
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(null);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -122,86 +121,150 @@ export default function Navbar({ activePage, onMenuClick }) {
 
   const toggle = (k) => setOpen(p => (p === k ? null : k));
   const close  = ()  => setOpen(null);
-
-  const label = PAGE_LABELS[activePage] || 'Dashboard';
+  const label  = PAGE_LABELS[activePage] || 'Dashboard';
 
   return (
     <>
       <style>{`
-        @keyframes panelIn {
-          from { opacity: 0; transform: scale(.96) translateY(-4px); }
-          to   { opacity: 1; transform: scale(1)   translateY(0);    }
+        @keyframes nbPanelIn {
+          from { opacity:0; transform:scale(.96) translateY(-4px); }
+          to   { opacity:1; transform:scale(1)   translateY(0);    }
         }
-        .nb-search-wrap { flex: 1; max-width: 360px; margin-left: 20px; position: relative; display: flex; align-items: center; }
-        .nb-search { width: 100%; padding: 8px 42px 8px 34px; border: 1.5px solid #e5e7eb; border-radius: 10px; background: #f9fafb; font-size: 13px; color: #374151; outline: none; font-family: inherit; transition: border-color .15s, background .15s, box-shadow .15s; }
-        .nb-search:focus { border-color: #ef4444; background: #fff; box-shadow: 0 0 0 3px rgba(239,68,68,.1); }
-        .nb-search::placeholder { color: #9ca3af; }
-        .nb-kbd { position: absolute; right: 10px; font-size: 10px; color: #9ca3af; background: #f3f4f6; padding: 2px 6px; border-radius: 5px; font-weight: 600; pointer-events: none; }
-        .nb-search-icon { position: absolute; left: 11px; color: #9ca3af; pointer-events: none; display: flex; }
-        @media (max-width: 900px) { .nb-search-wrap { display: none !important; } }
-        @media (max-width: 640px) {
-          .nb-profile-text { display: none !important; }
-          .nb-create-text { display: none !important; }
-          .nb-notif-panel { right: -60px !important; width: calc(100vw - 24px) !important; max-width: 340px; }
-          .nb-profile-panel { right: -40px !important; }
-          .nb-create-panel { right: 0 !important; }
+
+        /* ── search bar ── */
+        .nb-search-wrap {
+          flex:1; max-width:360px; margin-left:12px;
+          position:relative; display:flex; align-items:center;
         }
-        @media (max-width: 400px) {
-          .nb-notif-panel { right: 50% !important; transform: translateX(50%) !important; width: calc(100vw - 16px) !important; }
+        .nb-search {
+          width:100%; padding:8px 36px 8px 34px;
+          border:1.5px solid #e2e8f0; border-radius:10px;
+          background:#f8fafc; font-size:13px; color:#1e293b;
+          outline:none; font-family:inherit; transition:all .2s;
         }
-        @media (min-width: 1025px) { .nb-hamburger { display: none !important; } }
+        .nb-search:focus { border-color:#ef4444; background:#fff; box-shadow:0 0 0 3px rgba(239,68,68,0.08); }
+        .nb-search::placeholder { color:#94a3b8; }
+        .nb-search-icon { position:absolute; left:10px; color:#94a3b8; pointer-events:none; display:flex; }
+        .nb-kbd {
+          position:absolute; right:9px; font-size:10px; color:#94a3b8;
+          background:#f1f5f9; padding:2px 6px; border-radius:5px;
+          font-weight:600; pointer-events:none; border:1px solid #e2e8f0;
+        }
+
+        /* hide search on tablet/mobile */
+        @media (max-width:900px) { .nb-search-wrap { display:none !important; } }
+
+        /* hamburger only on mobile/tablet */
+        @media (min-width:1025px) { .nb-hamburger { display:none !important; } }
+
+        /* ── icon button ── */
+        .nb-icon-btn {
+          position:relative; width:36px; height:36px; border-radius:10px;
+          border:1.5px solid #e2e8f0; background:#fff;
+          color:#64748b; display:flex; align-items:center; justify-content:center;
+          cursor:pointer; transition:all .15s; flex-shrink:0;
+        }
+        .nb-icon-btn:hover, .nb-icon-btn.active {
+          border-color:#fca5a5; background:#fef2f2; color:#ef4444;
+        }
+
+        /* ── notification panel — full-width on small screens ── */
+        .nb-notif-panel {
+          right: 0 !important;
+          width: 320px;
+        }
+        @media (max-width:480px) {
+          .nb-notif-panel {
+            position: fixed !important;
+            top: 64px !important;
+            left: 8px !important;
+            right: 8px !important;
+            width: auto !important;
+          }
+        }
+
+        /* ── profile panel ── */
+        .nb-profile-panel { right: 0 !important; }
+        @media (max-width:480px) {
+          .nb-profile-panel {
+            position: fixed !important;
+            top: 64px !important;
+            left: 8px !important;
+            right: 8px !important;
+            width: auto !important;
+          }
+        }
+
+        /* ── create panel ── */
+        .nb-create-panel { right: 0 !important; }
+        @media (max-width:480px) {
+          .nb-create-panel {
+            position: fixed !important;
+            top: 64px !important;
+            left: 8px !important;
+            right: 8px !important;
+            width: auto !important;
+          }
+        }
+
+        /* hide text labels on small screens */
+        @media (max-width:640px) {
+          .nb-profile-name { display:none !important; }
+          .nb-create-label { display:none !important; }
+        }
       `}</style>
 
       <header style={{
-        height: 64,
+        height: 60,
         background: '#fff',
-        borderBottom: '1px solid #eaecf0',
+        borderBottom: '1px solid #f1f5f9',
         display: 'flex',
         alignItems: 'center',
-        padding: '0 16px',
+        padding: '0 14px',
         gap: 6,
         position: 'sticky',
         top: 0,
         zIndex: 100,
         flexShrink: 0,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+        minWidth: 0,
+        overflow: 'visible',
       }}>
 
-        {/* ── hamburger (mobile / tablet) ── */}
-        <button
-          className="nb-hamburger"
-          onClick={onMenuClick}
-          style={{
-            width: 38, height: 38, borderRadius: 10,
-            border: '1.5px solid #e5e7eb', background: '#fff',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', color: '#6b7280', flexShrink: 0,
-          }}
-        >
+        {/* ── hamburger ── */}
+        <button className="nb-hamburger nb-icon-btn" onClick={onMenuClick}>
           <MdMenu size={20} />
         </button>
 
         {/* ── page title ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexShrink: 1 }}>
           <div style={{
-            width: 3, height: 26, borderRadius: 2, flexShrink: 0,
-            background: 'linear-gradient(180deg,#f87171 0%,#b91c1c 100%)',
-          }} />
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', lineHeight: 1.25, letterSpacing: '-0.2px' }}>
+            width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+            background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 2px 8px rgba(239,68,68,0.3)',
+          }}>
+            <span style={{ color: '#fff', fontSize: 13, fontWeight: 800 }}>{label.charAt(0)}</span>
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{
+              fontSize: 14, fontWeight: 700, color: '#0f172a',
+              lineHeight: 1.2, letterSpacing: '-0.2px',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
               {label}
             </div>
-            <div style={{ fontSize: 10, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: 3, marginTop: 1 }}>
-              Chakra ERP
-              <span style={{ color: '#d1d5db' }}>›</span>
+            <div style={{ fontSize: 10, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 2, marginTop: 1 }}>
+              <span>Chakra ERP</span>
+              <span style={{ color: '#cbd5e1' }}>›</span>
               <span style={{ color: '#ef4444', fontWeight: 600 }}>{label}</span>
             </div>
           </div>
         </div>
 
-        {/* ── search ── */}
+        {/* ── search (hidden on mobile) ── */}
         <div className="nb-search-wrap">
-          <span className="nb-search-icon"><MdSearch size={15} /></span>
+          <span className="nb-search-icon"><MdSearch size={14} /></span>
           <input className="nb-search" placeholder="Search orders, SKUs, vendors…" />
           <span className="nb-kbd">⌘K</span>
         </div>
@@ -209,37 +272,35 @@ export default function Navbar({ activePage, onMenuClick }) {
         {/* ── spacer ── */}
         <div style={{ flex: 1 }} />
 
-        {/* ── right cluster ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {/* ── right cluster — all wrapped in one ref for outside-click ── */}
+        <div ref={wrapRef} style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
 
           {/* Create button */}
-          <div ref={createRef} style={{ position: 'relative' }}>
+          <div style={{ position: 'relative' }}>
             <button
               onClick={() => toggle('create')}
               style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '8px 14px', borderRadius: 10,
-                background: 'linear-gradient(135deg,#ef4444 0%,#b91c1c 100%)',
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '7px 12px', borderRadius: 10,
+                background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
                 color: '#fff', border: 'none', cursor: 'pointer',
                 fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-                boxShadow: '0 2px 8px rgba(185,28,28,.28)',
-                transition: 'transform .1s, box-shadow .1s',
+                boxShadow: '0 2px 8px rgba(185,28,28,0.3)',
+                flexShrink: 0,
               }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(185,28,28,.38)'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)';    e.currentTarget.style.boxShadow = '0 2px 8px rgba(185,28,28,.28)'; }}
             >
               <MdAdd size={16} />
-              <span className="nb-create-text">Create</span>
+              <span className="nb-create-label">Create</span>
             </button>
 
             {open === 'create' && (
-              <Panel width={210}>
-                <div style={{ padding: '12px 16px 8px', borderBottom: '1px solid #f3f4f6' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', letterSpacing: '.8px', textTransform: 'uppercase' }}>Quick Create</span>
+              <Panel width={210} className="nb-create-panel">
+                <div style={{ padding: '10px 14px 7px', borderBottom: '1px solid #f1f5f9' }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '1.2px', textTransform: 'uppercase' }}>Quick Create</span>
                 </div>
                 {QUICK_ITEMS.map(item => (
                   <DropItem key={item.label} onClick={() => { navigate(item.path); close(); }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} />
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: item.color, flexShrink: 0 }} />
                     {item.label}
                   </DropItem>
                 ))}
@@ -248,19 +309,31 @@ export default function Navbar({ activePage, onMenuClick }) {
           </div>
 
           {/* divider */}
-          <div style={{ width: 1, height: 24, background: '#e5e7eb', margin: '0 2px' }} />
+          <div style={{ width: 1, height: 20, background: '#e2e8f0', margin: '0 1px' }} />
 
           {/* Notifications */}
-          <div ref={notifRef} style={{ position: 'relative' }}>
-            <IconBtn badge={4} onClick={() => toggle('notif')} active={open === 'notif'}>
-              <MdNotifications size={20} />
-            </IconBtn>
+          <div style={{ position: 'relative' }}>
+            <button
+              className={`nb-icon-btn ${open === 'notif' ? 'active' : ''}`}
+              onClick={() => toggle('notif')}
+            >
+              <MdNotifications size={18} />
+              <span style={{
+                position: 'absolute', top: -4, right: -4,
+                minWidth: 15, height: 15,
+                background: '#ef4444', color: '#fff',
+                fontSize: 8, fontWeight: 800,
+                borderRadius: 99, border: '2px solid #fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '0 2px',
+              }}>4</span>
+            </button>
 
             {open === 'notif' && (
               <Panel width={320} className="nb-notif-panel">
-                <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ padding: '12px 14px 9px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Notifications</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Notifications</span>
                     <span style={{ background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 20 }}>4</span>
                   </div>
                   <span style={{ fontSize: 11, color: '#ef4444', fontWeight: 600, cursor: 'pointer' }}>Mark all read</span>
@@ -269,7 +342,7 @@ export default function Navbar({ activePage, onMenuClick }) {
                   const m = NOTIF_META[n.type];
                   return (
                     <div key={n.id}
-                      style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '11px 16px', borderBottom: '1px solid #f9fafb', cursor: 'pointer' }}
+                      style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', borderBottom: '1px solid #f8fafc', cursor: 'pointer' }}
                       onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
@@ -277,34 +350,50 @@ export default function Navbar({ activePage, onMenuClick }) {
                         {m.icon}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, color: '#374151', fontWeight: 500, lineHeight: 1.45 }}>{n.text}</div>
-                        <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 3 }}>{n.time}</div>
+                        <div style={{ fontSize: 12, color: '#1e293b', fontWeight: 500, lineHeight: 1.4 }}>{n.text}</div>
+                        <div style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 2 }}>{n.time}</div>
                       </div>
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: m.color, flexShrink: 0, marginTop: 7 }} />
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: m.color, flexShrink: 0, marginTop: 6 }} />
                     </div>
                   );
                 })}
-                <div style={{ padding: '10px 16px', textAlign: 'center', fontSize: 12, color: '#ef4444', fontWeight: 600, cursor: 'pointer' }}
+                <div style={{ padding: '9px 14px', textAlign: 'center', fontSize: 12, color: '#ef4444', fontWeight: 600, cursor: 'pointer' }}
                   onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
-                  View all notifications →
+                  View all →
                 </div>
               </Panel>
             )}
           </div>
 
           {/* Profile */}
-          <div ref={profileRef} style={{ position: 'relative' }}>
-            <ProfileBtn onClick={() => toggle('profile')} active={open === 'profile'} user={user} />
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => toggle('profile')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '4px 8px 4px 4px', borderRadius: 10,
+                border: `1.5px solid ${open === 'profile' ? '#fca5a5' : '#e2e8f0'}`,
+                background: open === 'profile' ? '#fef2f2' : '#fff',
+                cursor: 'pointer', transition: 'all .15s', flexShrink: 0,
+              }}
+            >
+              <Avatar size={28} name={user?.name} role={user?.role} />
+              <div className="nb-profile-name" style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', lineHeight: 1.2, whiteSpace: 'nowrap' }}>{user?.name || 'User'}</div>
+                <div style={{ fontSize: 10, color: '#ef4444', fontWeight: 600 }}>{ROLES[user?.role] || 'User'}</div>
+              </div>
+              <MdKeyboardArrowDown size={13} style={{ color: '#94a3b8', flexShrink: 0 }} className="nb-profile-name" />
+            </button>
 
             {open === 'profile' && (
-              <Panel width={220}>
-                <div style={{ padding: '14px 16px', borderBottom: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Avatar size={36} initials={user?.avatar} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{user?.name || 'User'}</div>
-                    <div style={{ fontSize: 11, color: '#9ca3af' }}>{user?.email || ''}</div>
+              <Panel width={220} className="nb-profile-panel">
+                <div style={{ padding: '12px 14px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Avatar size={36} name={user?.name} role={user?.role} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name || 'User'}</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.email || ''}</div>
                     <div style={{ fontSize: 10, color: '#ef4444', fontWeight: 600, marginTop: 2 }}>{ROLES[user?.role] || ''}</div>
                   </div>
                 </div>
@@ -320,7 +409,7 @@ export default function Navbar({ activePage, onMenuClick }) {
                       if (item.path) { navigate(item.path); close(); }
                     }}
                   >
-                    <span style={{ color: item.danger ? '#ef4444' : '#9ca3af', display: 'flex' }}>{item.icon}</span>
+                    <span style={{ color: item.danger ? '#ef4444' : '#94a3b8', display: 'flex' }}>{item.icon}</span>
                     {item.label}
                   </DropItem>
                 ))}
@@ -331,64 +420,5 @@ export default function Navbar({ activePage, onMenuClick }) {
         </div>
       </header>
     </>
-  );
-}
-
-/* ── small reusable pieces ────────────────────────────────────────────────── */
-function Avatar({ size = 30, initials }) {
-  const letters = initials || 'U';
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: Math.round(size * 0.27),
-      background: 'linear-gradient(135deg,#ef4444 0%,#991b1b 100%)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: '#fff', fontSize: size * 0.37, fontWeight: 800, flexShrink: 0,
-    }}>{letters}</div>
-  );
-}
-
-function ProfileBtn({ onClick, active, user }) {
-  const [hov, setHov] = useState(false);
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        padding: '5px 10px 5px 5px', borderRadius: 10,
-        border: `1.5px solid ${hov || active ? '#fca5a5' : '#e5e7eb'}`,
-        background: hov || active ? '#fef2f2' : '#fff',
-        cursor: 'pointer', transition: 'all .15s',
-      }}
-    >
-      <Avatar size={30} initials={user?.avatar} />
-      <div className="nb-profile-text" style={{ textAlign: 'left' }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', lineHeight: 1.2 }}>{user?.name || 'User'}</div>
-        <div style={{ fontSize: 10, color: '#ef4444', fontWeight: 600 }}>{ROLES[user?.role] || 'User'}</div>
-      </div>
-      <MdKeyboardArrowDown size={14} style={{ color: '#9ca3af' }} className="nb-profile-text" />
-    </button>
-  );
-}
-
-function DropItem({ children, onClick, danger }) {
-  const [hov, setHov] = useState(false);
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-        padding: '9px 16px', background: hov ? (danger ? '#fef2f2' : '#f9fafb') : 'transparent',
-        border: 'none', borderBottom: '1px solid #f9fafb',
-        cursor: 'pointer', fontSize: 13, fontFamily: 'inherit',
-        color: danger ? '#ef4444' : '#374151', textAlign: 'left',
-        transition: 'background .1s',
-      }}
-    >
-      {children}
-    </button>
   );
 }

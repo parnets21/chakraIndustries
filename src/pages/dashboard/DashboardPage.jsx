@@ -2,27 +2,27 @@ import LineChart from '../../components/charts/LineChart';
 import BarChart from '../../components/charts/BarChart';
 import DonutChart from '../../components/charts/DonutChart';
 import StatusBadge from '../../components/common/StatusBadge';
-import { useEffect, useState } from 'react';
 
+// ── Data ──────────────────────────────────────────────────────────────────────
 const kpis = [
-  { label: 'Total Sales', value: '₹48.2L', change: '+12.4%', up: true, color: '#fdf0ef', iconColor: '#c0392b', icon: <SalesIcon /> },
-  { label: 'Active Orders', value: '284', change: '+8.1%', up: true, color: '#eafaf1', iconColor: '#27ae60', icon: <OrderIcon /> },
-  { label: 'Inventory Value', value: '₹1.2Cr', change: '-2.3%', up: false, color: '#fef9e7', iconColor: '#f39c12', icon: <BoxIcon /> },
-  { label: 'Production Today', value: '1,840', change: '+5.6%', up: true, color: '#f5eef8', iconColor: '#8e44ad', icon: <FactoryIcon /> },
-  { label: 'Pending Dispatch', value: '37', change: '-4.2%', up: false, color: '#eaf4fb', iconColor: '#2980b9', icon: <TruckIcon /> },
+  { label: 'Total Revenue',    value: '₹48.2L', change: '+12.4%', up: true,  gradient: 'linear-gradient(135deg,#ef4444,#b91c1c)', glow: 'rgba(239,68,68,0.3)',   icon: <SalesIcon />,   sub: 'vs last month'     },
+  { label: 'Active Orders',    value: '284',    change: '+8.1%',  up: true,  gradient: 'linear-gradient(135deg,#22c55e,#15803d)', glow: 'rgba(34,197,94,0.3)',   icon: <OrderIcon />,   sub: 'in progress'       },
+  { label: 'Inventory Value',  value: '₹1.2Cr', change: '-2.3%',  up: false, gradient: 'linear-gradient(135deg,#f59e0b,#d97706)', glow: 'rgba(245,158,11,0.3)',  icon: <BoxIcon />,     sub: 'across warehouses' },
+  { label: 'Production Today', value: '1,840',  change: '+5.6%',  up: true,  gradient: 'linear-gradient(135deg,#a855f7,#7c3aed)', glow: 'rgba(168,85,247,0.3)',  icon: <FactoryIcon />, sub: 'units produced'    },
+  { label: 'Pending Dispatch', value: '37',     change: '-4.2%',  up: false, gradient: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', glow: 'rgba(59,130,246,0.3)',  icon: <TruckIcon />,   sub: 'awaiting shipment' },
 ];
 
 const operationalAlerts = [
-  { label: 'Pending GRNs', value: 8, color: '#f59e0b', icon: '📋' },
-  { label: 'Return Requests', value: 3, color: '#ef4444', icon: '↩️' },
-  { label: "Today's Dispatches", value: 12, color: '#10b981', icon: '🚛' },
-  { label: 'Production vs Target', value: '94%', color: '#8b5cf6', icon: '🏭' },
+  { label: 'Pending GRNs',        value: 8,     color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  icon: '📋' },
+  { label: 'Return Requests',      value: 3,     color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   icon: '↩️' },
+  { label: "Today's Dispatches",   value: 12,    color: '#22c55e', bg: 'rgba(34,197,94,0.1)',   icon: '🚛' },
+  { label: 'Production vs Target', value: '94%', color: '#a855f7', bg: 'rgba(168,85,247,0.1)', icon: '🏭' },
 ];
 
 const productionTarget = [
   { product: 'Engine Assembly A', target: 50, actual: 50, pct: 100 },
-  { product: 'Gearbox Unit B', target: 30, actual: 18, pct: 60 },
-  { product: 'Clutch Assembly C', target: 80, actual: 0, pct: 0 },
+  { product: 'Gearbox Unit B',    target: 30, actual: 18, pct: 60  },
+  { product: 'Clutch Assembly C', target: 80, actual: 0,  pct: 0   },
 ];
 
 const salesTrend = [
@@ -33,214 +33,409 @@ const salesTrend = [
 ];
 
 const inventoryStatus = [
-  { label: 'Raw Mat', value: 4200, color: '#c0392b' },
-  { label: 'WIP', value: 1800, color: '#f39c12' },
-  { label: 'Finished', value: 3100, color: '#27ae60' },
-  { label: 'Dead', value: 420, color: '#922b21' },
-  { label: 'Quarant.', value: 280, color: '#8e44ad' },
+  { label: 'Raw Mat',  value: 4200, color: '#ef4444' },
+  { label: 'WIP',      value: 1800, color: '#f59e0b' },
+  { label: 'Finished', value: 3100, color: '#22c55e' },
+  { label: 'Dead',     value: 420,  color: '#64748b' },
+  { label: 'Quarant.', value: 280,  color: '#a855f7' },
 ];
 
 const productionEff = [
-  { label: 'Mon', value: 88, color: '#c0392b' }, { label: 'Tue', value: 92, color: '#c0392b' },
-  { label: 'Wed', value: 85, color: '#c0392b' }, { label: 'Thu', value: 94, color: '#c0392b' },
-  { label: 'Fri', value: 90, color: '#c0392b' }, { label: 'Sat', value: 78, color: '#f39c12' },
+  { label: 'Mon', value: 88, color: '#ef4444' }, { label: 'Tue', value: 92, color: '#ef4444' },
+  { label: 'Wed', value: 85, color: '#ef4444' }, { label: 'Thu', value: 94, color: '#ef4444' },
+  { label: 'Fri', value: 90, color: '#ef4444' }, { label: 'Sat', value: 78, color: '#f59e0b' },
 ];
 
 const donutData = [
-  { label: 'Delivered', value: 142, color: '#27ae60' },
-  { label: 'Processing', value: 87, color: '#c0392b' },
-  { label: 'Pending', value: 55, color: '#f39c12' },
+  { label: 'Delivered',  value: 142, color: '#22c55e' },
+  { label: 'Processing', value: 87,  color: '#ef4444' },
+  { label: 'Pending',    value: 55,  color: '#f59e0b' },
 ];
 
 const recentOrders = [
-  { id: 'ORD-2024-089', customer: 'Tata Motors Ltd', items: 12, value: '₹2,84,000', status: 'Processing', date: '14 Apr' },
-  { id: 'ORD-2024-088', customer: 'Mahindra & Mahindra', items: 8, value: '₹1,56,000', status: 'Delivered', date: '13 Apr' },
-  { id: 'ORD-2024-087', customer: 'Bajaj Auto', items: 24, value: '₹4,12,000', status: 'Pending', date: '13 Apr' },
-  { id: 'ORD-2024-086', customer: 'Hero MotoCorp', items: 6, value: '₹98,000', status: 'Delivered', date: '12 Apr' },
-  { id: 'ORD-2024-085', customer: 'TVS Motor', items: 18, value: '₹3,24,000', status: 'Shipped', date: '12 Apr' },
+  { id: 'ORD-2024-089', customer: 'Tata Motors Ltd',     items: 12, value: '₹2,84,000', status: 'Processing', date: '14 Apr' },
+  { id: 'ORD-2024-088', customer: 'Mahindra & Mahindra', items: 8,  value: '₹1,56,000', status: 'Delivered',  date: '13 Apr' },
+  { id: 'ORD-2024-087', customer: 'Bajaj Auto',           items: 24, value: '₹4,12,000', status: 'Pending',    date: '13 Apr' },
+  { id: 'ORD-2024-086', customer: 'Hero MotoCorp',        items: 6,  value: '₹98,000',   status: 'Delivered',  date: '12 Apr' },
+  { id: 'ORD-2024-085', customer: 'TVS Motor',            items: 18, value: '₹3,24,000', status: 'Shipped',    date: '12 Apr' },
 ];
 
 const lowStock = [
-  { sku: 'SKU-1042', name: 'Bearing 6205', qty: 12, min: 50, warehouse: 'WH-01' },
-  { sku: 'SKU-2187', name: 'Oil Seal 35x52', qty: 8, min: 30, warehouse: 'WH-02' },
-  { sku: 'SKU-0934', name: 'Gasket Set A', qty: 5, min: 25, warehouse: 'WH-01' },
+  { sku: 'SKU-1042', name: 'Bearing 6205',     qty: 12, min: 50, warehouse: 'WH-01' },
+  { sku: 'SKU-2187', name: 'Oil Seal 35x52',   qty: 8,  min: 30, warehouse: 'WH-02' },
+  { sku: 'SKU-0934', name: 'Gasket Set A',      qty: 5,  min: 25, warehouse: 'WH-01' },
   { sku: 'SKU-3301', name: 'Piston Ring 80mm', qty: 18, min: 40, warehouse: 'WH-03' },
 ];
 
 const pendingApprovals = [
-  { id: 'PO-2024-089', type: 'Purchase Order', amount: '₹4,82,000', requestedBy: 'Ravi Sharma', age: '2d' },
-  { id: 'PR-2024-034', type: 'Purchase Requisition', amount: '₹1,20,000', requestedBy: 'Priya Nair', age: '1d' },
-  { id: 'RFQ-2024-012', type: 'RFQ', amount: '₹8,40,000', requestedBy: 'Amit Patel', age: '3d' },
+  { id: 'PO-2024-089',  type: 'Purchase Order',       amount: '₹4,82,000', requestedBy: 'Ravi Sharma', age: '2d', color: '#ef4444' },
+  { id: 'PR-2024-034',  type: 'Purchase Requisition', amount: '₹1,20,000', requestedBy: 'Priya Nair',  age: '1d', color: '#f59e0b' },
+  { id: 'RFQ-2024-012', type: 'RFQ',                  amount: '₹8,40,000', requestedBy: 'Amit Patel',  age: '3d', color: '#a855f7' },
 ];
 
-export default function DashboardPage() {
- 
+// ── Card shell ────────────────────────────────────────────────────────────────
+function Card({ children, style = {} }) {
   return (
-    <div>
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
-        {kpis.map((k, i) => (
-          <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
-            <div className="flex items-center justify-between">
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: k.color }}>
-                <span style={{ color: k.iconColor }}>{k.icon}</span>
-              </div>
-              <span className={`text-xs font-bold ${k.up ? 'text-green-600' : 'text-red-500'}`}>
-                {k.up ? '↑' : '↓'} {k.change}
-              </span>
-            </div>
-            <div className="text-xl font-black tracking-tight mt-2">{k.value}</div>
-            <div className="text-xs text-gray-500 font-medium">{k.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4 mb-5">
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <div className="text-sm font-bold text-gray-800">Sales Trend</div>
-              <div className="text-xs text-gray-400 mt-0.5">Monthly revenue — FY 2024-25</div>
-            </div>
-            <div className="text-right">
-              <div className="text-2xl font-black tracking-tight" style={{ color: '#c0392b' }}>₹82.4L</div>
-              <div className="text-xs font-bold" style={{ color: '#27ae60' }}>↑ 18.2% vs last year</div>
-            </div>
-          </div>
-          <LineChart data={salesTrend} color="#c0392b" height={160} />
-        </div>
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="text-sm font-bold text-gray-800 mb-1">Order Status</div>
-          <div className="text-xs text-gray-400 mb-4">Current distribution</div>
-          <DonutChart data={donutData} size={120} />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="text-sm font-bold text-gray-800 mb-1">Inventory Status</div>
-          <div className="text-xs text-gray-400 mb-3">Units by category</div>
-          <BarChart data={inventoryStatus} height={150} />
-        </div>
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="text-sm font-bold text-gray-800 mb-1">Production Efficiency</div>
-          <div className="text-xs text-gray-400 mb-3">This week (%)</div>
-          <BarChart data={productionEff} height={150} />
-        </div>
-      </div>
-
-      {/* Operational Alerts Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-        {operationalAlerts.map((a, i) => (
-          <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: a.color + '18' }}>{a.icon}</div>
-            <div className="min-w-0">
-              <div className="text-xl font-black leading-none" style={{ color: a.color }}>{a.value}</div>
-              <div className="text-xs text-gray-500 mt-0.5 truncate">{a.label}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Production vs Target */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm mb-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <div className="text-sm font-bold text-gray-800">Production vs Target — Today</div>
-            <div className="text-xs text-gray-400 mt-0.5">Work order progress</div>
-          </div>
-          <StatusBadge status="Active" />
-        </div>
-        <div className="flex flex-col gap-3.5">
-          {productionTarget.map((p, i) => (
-            <div key={i}>
-              <div className="flex justify-between text-sm mb-1.5">
-                <span className="font-semibold">{p.product}</span>
-                <span className="font-bold" style={{ color: p.pct === 100 ? '#27ae60' : p.pct > 50 ? '#f39c12' : '#e74c3c' }}>
-                  {p.actual}/{p.target} units ({p.pct}%)
-                </span>
-              </div>
-              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${p.pct}%`, background: p.pct === 100 ? '#27ae60' : p.pct > 50 ? '#f39c12' : '#e74c3c' }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Tables Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4">
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="text-sm font-bold mb-3.5" style={{ color: '#922b21' }}>Recent Orders</div>
-          <div className="overflow-x-auto rounded-xl border border-gray-200" style={{ WebkitOverflowScrolling: 'touch' }}>
-            <table className="w-full border-collapse text-sm" style={{ minWidth: 520 }}>
-              <thead>
-                <tr>
-                  {['Order ID', 'Customer', 'Items', 'Value', 'Status', 'Date'].map(h => (
-                    <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {recentOrders.map((o, i) => (
-                  <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
-                    <td className="px-4 py-3 text-gray-800 align-middle font-semibold" style={{ color: '#c0392b' }}>{o.id}</td>
-                    <td className="px-4 py-3 text-gray-800 align-middle">{o.customer}</td>
-                    <td className="px-4 py-3 text-gray-800 align-middle">{o.items}</td>
-                    <td className="px-4 py-3 text-gray-800 align-middle font-semibold">{o.value}</td>
-                    <td className="px-4 py-3 text-gray-800 align-middle"><StatusBadge status={o.status} /></td>
-                    <td className="px-4 py-3 align-middle text-gray-400">{o.date}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          {/* Low Stock */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold" style={{ color: '#922b21' }}>Low Stock Alerts</div>
-              <StatusBadge status="Critical" />
-            </div>
-            {lowStock.map((s, i) => (
-              <div key={i} className={`flex items-center justify-between py-2 ${i < lowStock.length - 1 ? 'border-b border-gray-100' : ''}`}>
-                <div>
-                  <div className="text-xs font-semibold">{s.name}</div>
-                  <div className="text-[11px] text-gray-400">{s.sku} · {s.warehouse}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-bold text-red-500">{s.qty}</div>
-                  <div className="text-[10px] text-gray-400">min: {s.min}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Pending Approvals */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <div className="text-sm font-bold mb-3" style={{ color: '#922b21' }}>Pending Approvals</div>
-            {pendingApprovals.map((a, i) => (
-              <div key={i} className={`py-2 ${i < pendingApprovals.length - 1 ? 'border-b border-gray-100' : ''}`}>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-semibold" style={{ color: '#c0392b' }}>{a.id}</span>
-                  <span className="text-[11px] text-gray-400">{a.age} ago</span>
-                </div>
-                <div className="text-[11px] text-gray-400">{a.type} · {a.requestedBy}</div>
-                <div className="text-xs font-bold mt-0.5" style={{ color: '#f39c12' }}>{a.amount}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+    <div style={{
+      background: '#fff', borderRadius: 16,
+      border: '1px solid #e8edf2',
+      boxShadow: '0 2px 10px rgba(15,23,42,0.05)',
+      overflow: 'hidden', ...style,
+    }}>
+      {children}
     </div>
   );
 }
 
-function SalesIcon() { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>; }
-function OrderIcon() { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>; }
-function BoxIcon() { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>; }
-function FactoryIcon() { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 20V8l6-4v4l6-4v4l6-4v16H2z"/></svg>; }
-function TruckIcon() { return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>; }
+function CardHead({ title, sub, right }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '16px 18px 0', marginBottom: 14 }}>
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{title}</div>
+        {sub && <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 2 }}>{sub}</div>}
+      </div>
+      {right && <div style={{ flexShrink: 0, marginLeft: 8 }}>{right}</div>}
+    </div>
+  );
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+export default function DashboardPage() {
+  const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  return (
+    <>
+      {/* ── Responsive styles ── */}
+      <style>{`
+        .db-wrap { display:flex; flex-direction:column; gap:16px; }
+
+        /* Welcome banner */
+        .db-banner {
+          background: linear-gradient(135deg,#0f172a 0%,#1e1b4b 55%,#0f172a 100%);
+          border-radius:16px;
+          padding:20px 22px;
+          display:flex; align-items:center; justify-content:space-between;
+          position:relative; overflow:hidden;
+          box-shadow:0 6px 24px rgba(15,23,42,0.18);
+          gap:16px;
+        }
+        .db-banner-stats {
+          display:flex; gap:10px; flex-shrink:0; flex-wrap:nowrap;
+        }
+        .db-banner-chip {
+          background:rgba(255,255,255,0.08);
+          border:1px solid rgba(255,255,255,0.12);
+          border-radius:12px; padding:10px 14px; text-align:center;
+          min-width:72px;
+        }
+
+        /* KPI grid — 2 cols on mobile, 3 on tablet, 5 on desktop */
+        .db-kpi-grid {
+          display:grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap:12px;
+        }
+        @media(min-width:640px)  { .db-kpi-grid { grid-template-columns:repeat(3,1fr); } }
+        @media(min-width:1024px) { .db-kpi-grid { grid-template-columns:repeat(5,1fr); } }
+
+        /* Charts row 1 — stacked on mobile, side-by-side on desktop */
+        .db-charts-1 {
+          display:grid; grid-template-columns:1fr; gap:14px;
+        }
+        @media(min-width:768px) { .db-charts-1 { grid-template-columns:2fr 1fr; } }
+
+        /* Operational alerts — 2 cols on mobile, 4 on desktop */
+        .db-alerts {
+          display:grid; grid-template-columns:repeat(2,1fr); gap:12px;
+        }
+        @media(min-width:768px) { .db-alerts { grid-template-columns:repeat(4,1fr); } }
+
+        /* Charts row 2 — stacked on mobile, side-by-side on desktop */
+        .db-charts-2 {
+          display:grid; grid-template-columns:1fr; gap:14px;
+        }
+        @media(min-width:768px) { .db-charts-2 { grid-template-columns:1fr 1fr; } }
+
+        /* Bottom tables — stacked on mobile, side-by-side on desktop */
+        .db-bottom {
+          display:grid; grid-template-columns:1fr; gap:14px;
+        }
+        @media(min-width:900px) { .db-bottom { grid-template-columns:2fr 1fr; } }
+
+        /* Banner responsive — stack on very small screens */
+        @media(max-width:480px) {
+          .db-banner { flex-direction:column; align-items:flex-start; }
+          .db-banner-stats { width:100%; justify-content:space-between; }
+          .db-banner-chip { flex:1; }
+        }
+
+        /* KPI card hover */
+        .db-kpi-card { transition:transform 0.2s, box-shadow 0.2s; }
+        .db-kpi-card:hover { transform:translateY(-2px); }
+      `}</style>
+
+      <div className="db-wrap">
+
+        {/* ── Welcome Banner ── */}
+        <div className="db-banner">
+          {/* Decorative blobs */}
+          <div style={{ position:'absolute', top:-40, right:80, width:160, height:160, borderRadius:'50%', background:'rgba(239,68,68,0.1)', pointerEvents:'none' }} />
+          <div style={{ position:'absolute', bottom:-20, right:30, width:100, height:100, borderRadius:'50%', background:'rgba(168,85,247,0.08)', pointerEvents:'none' }} />
+
+          <div style={{ position:'relative', zIndex:1, minWidth:0 }}>
+            <div style={{ fontSize:10, fontWeight:600, color:'rgba(148,163,184,0.8)', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:6 }}>
+              Good Morning 👋
+            </div>
+            <div style={{ fontSize:20, fontWeight:800, color:'#f1f5f9', letterSpacing:'-0.4px', marginBottom:4, lineHeight:1.2 }}>
+              Chakra Industries ERP
+            </div>
+            <div style={{ fontSize:11.5, color:'#64748b' }}>{today}</div>
+          </div>
+
+          <div className="db-banner-stats" style={{ position:'relative', zIndex:1 }}>
+            {[
+              { label:'FY Revenue', value:'₹82.4L', color:'#ef4444' },
+              { label:'Open POs',   value:'23',     color:'#f59e0b' },
+              { label:'Efficiency', value:'94%',    color:'#22c55e' },
+            ].map((s, i) => (
+              <div key={i} className="db-banner-chip">
+                <div style={{ fontSize:17, fontWeight:800, color:s.color, letterSpacing:'-0.3px' }}>{s.value}</div>
+                <div style={{ fontSize:10, color:'#94a3b8', marginTop:2, fontWeight:500, whiteSpace:'nowrap' }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── KPI Cards ── */}
+        <div className="db-kpi-grid">
+          {kpis.map((k, i) => (
+            <div key={i} className="db-kpi-card" style={{
+              background:'#fff', borderRadius:14,
+              border:'1px solid #e8edf2', padding:'16px',
+              boxShadow:'0 2px 8px rgba(15,23,42,0.05)',
+              position:'relative', overflow:'hidden', cursor:'default',
+            }}>
+              <div style={{ position:'absolute', top:0, left:0, right:0, height:3, background:k.gradient, borderRadius:'14px 14px 0 0' }} />
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+                <div style={{
+                  width:36, height:36, borderRadius:10,
+                  background:k.gradient,
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  color:'#fff', flexShrink:0,
+                }}>
+                  {k.icon}
+                </div>
+                <span style={{
+                  fontSize:10.5, fontWeight:700, padding:'2px 7px', borderRadius:20,
+                  background: k.up ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                  color: k.up ? '#16a34a' : '#dc2626',
+                }}>
+                  {k.up ? '↑' : '↓'} {k.change}
+                </span>
+              </div>
+              <div style={{ fontSize:22, fontWeight:800, color:'#0f172a', letterSpacing:'-0.5px', lineHeight:1 }}>{k.value}</div>
+              <div style={{ fontSize:11.5, color:'#64748b', fontWeight:500, marginTop:4 }}>{k.label}</div>
+              <div style={{ fontSize:10.5, color:'#94a3b8', marginTop:2 }}>{k.sub}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Charts Row 1: Revenue + Order Status ── */}
+        <div className="db-charts-1">
+          <Card>
+            <CardHead
+              title="Revenue Trend"
+              sub="Monthly revenue — FY 2024-25"
+              right={
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontSize:18, fontWeight:800, color:'#ef4444', letterSpacing:'-0.4px' }}>₹82.4L</div>
+                  <div style={{ fontSize:10.5, fontWeight:700, color:'#22c55e' }}>↑ 18.2% vs last year</div>
+                </div>
+              }
+            />
+            <div style={{ padding:'0 18px 18px' }}>
+              <LineChart data={salesTrend} color="#ef4444" height={150} />
+            </div>
+          </Card>
+
+          <Card>
+            <CardHead title="Order Status" sub="Current distribution" />
+            <div style={{ padding:'0 18px 18px' }}>
+              <DonutChart data={donutData} size={110} />
+            </div>
+          </Card>
+        </div>
+
+        {/* ── Operational Alerts ── */}
+        <div className="db-alerts">
+          {operationalAlerts.map((a, i) => (
+            <Card key={i} style={{ padding:'14px 16px', display:'flex', alignItems:'center', gap:12 }}>
+              <div style={{
+                width:42, height:42, borderRadius:12, flexShrink:0,
+                background:a.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18,
+              }}>{a.icon}</div>
+              <div>
+                <div style={{ fontSize:20, fontWeight:800, color:a.color, letterSpacing:'-0.5px', lineHeight:1 }}>{a.value}</div>
+                <div style={{ fontSize:11, color:'#64748b', marginTop:3, fontWeight:500 }}>{a.label}</div>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        {/* ── Charts Row 2: Inventory + Production Efficiency ── */}
+        <div className="db-charts-2">
+          <Card>
+            <CardHead title="Inventory Status" sub="Units by category" />
+            <div style={{ padding:'0 18px 18px' }}>
+              <BarChart data={inventoryStatus} height={140} />
+            </div>
+          </Card>
+          <Card>
+            <CardHead title="Production Efficiency" sub="This week (%)" />
+            <div style={{ padding:'0 18px 18px' }}>
+              <BarChart data={productionEff} height={140} />
+            </div>
+          </Card>
+        </div>
+
+        {/* ── Production vs Target ── */}
+        <Card>
+          <CardHead
+            title="Production vs Target — Today"
+            sub="Work order progress"
+            right={<StatusBadge status="Active" />}
+          />
+          <div style={{ padding:'0 18px 18px', display:'flex', flexDirection:'column', gap:14 }}>
+            {productionTarget.map((p, i) => {
+              const color = p.pct === 100 ? '#22c55e' : p.pct > 50 ? '#f59e0b' : '#ef4444';
+              return (
+                <div key={i}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:7, flexWrap:'wrap', gap:4 }}>
+                    <span style={{ fontSize:12.5, fontWeight:600, color:'#1e293b' }}>{p.product}</span>
+                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                      <span style={{ fontSize:11.5, color:'#94a3b8' }}>{p.actual}/{p.target} units</span>
+                      <span style={{ fontSize:11, fontWeight:700, padding:'2px 7px', borderRadius:20, background:color+'18', color }}>{p.pct}%</span>
+                    </div>
+                  </div>
+                  <div style={{ height:7, background:'#f1f5f9', borderRadius:99, overflow:'hidden' }}>
+                    <div style={{
+                      height:'100%', borderRadius:99, width:`${p.pct}%`,
+                      background: p.pct===100 ? 'linear-gradient(90deg,#22c55e,#16a34a)' : p.pct>50 ? 'linear-gradient(90deg,#f59e0b,#d97706)' : 'linear-gradient(90deg,#ef4444,#b91c1c)',
+                      transition:'width 0.6s cubic-bezier(0.4,0,0.2,1)',
+                    }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+
+        {/* ── Bottom: Recent Orders + Side panels ── */}
+        <div className="db-bottom">
+
+          {/* Recent Orders */}
+          <Card>
+            <CardHead
+              title="Recent Orders"
+              sub="Latest customer orders"
+              right={
+                <button style={{
+                  fontSize:11.5, fontWeight:600, color:'#ef4444',
+                  background:'rgba(239,68,68,0.08)', border:'none',
+                  padding:'4px 10px', borderRadius:7, cursor:'pointer',
+                }}>View all →</button>
+              }
+            />
+            <div style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', minWidth:460 }}>
+                <thead>
+                  <tr style={{ background:'#f8fafc' }}>
+                    {['Order ID','Customer','Value','Status','Date'].map(h => (
+                      <th key={h} style={{
+                        padding:'9px 16px', textAlign:'left', fontSize:10.5,
+                        fontWeight:700, color:'#94a3b8', textTransform:'uppercase',
+                        letterSpacing:'0.7px', borderBottom:'1px solid #f1f5f9', whiteSpace:'nowrap',
+                      }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentOrders.map((o, i) => (
+                    <tr key={i} style={{ borderBottom:'1px solid #f8fafc', cursor:'pointer' }}
+                      onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
+                      onMouseLeave={e => e.currentTarget.style.background='transparent'}
+                    >
+                      <td style={{ padding:'11px 16px', fontSize:12, fontWeight:700, color:'#ef4444' }}>{o.id}</td>
+                      <td style={{ padding:'11px 16px', fontSize:12, color:'#1e293b' }}>{o.customer}</td>
+                      <td style={{ padding:'11px 16px', fontSize:12, fontWeight:600, color:'#1e293b' }}>{o.value}</td>
+                      <td style={{ padding:'11px 16px' }}><StatusBadge status={o.status} /></td>
+                      <td style={{ padding:'11px 16px', fontSize:11.5, color:'#94a3b8' }}>{o.date}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          {/* Side: Low Stock + Pending Approvals */}
+          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+
+            <Card>
+              <CardHead
+                title="Low Stock Alerts"
+                sub="Items below minimum"
+                right={<StatusBadge status="Critical" />}
+              />
+              <div style={{ padding:'0 18px 14px' }}>
+                {lowStock.map((s, i) => (
+                  <div key={i} style={{
+                    display:'flex', alignItems:'center', justifyContent:'space-between',
+                    padding:'9px 0',
+                    borderBottom: i < lowStock.length-1 ? '1px solid #f1f5f9' : 'none',
+                  }}>
+                    <div>
+                      <div style={{ fontSize:12.5, fontWeight:600, color:'#1e293b' }}>{s.name}</div>
+                      <div style={{ fontSize:11, color:'#94a3b8', marginTop:2 }}>{s.sku} · {s.warehouse}</div>
+                    </div>
+                    <div style={{ textAlign:'right', flexShrink:0, marginLeft:8 }}>
+                      <div style={{ fontSize:14, fontWeight:800, color:'#ef4444' }}>{s.qty}</div>
+                      <div style={{ fontSize:10, color:'#94a3b8' }}>min: {s.min}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            <Card>
+              <CardHead title="Pending Approvals" sub="Awaiting your action" />
+              <div style={{ padding:'0 18px 14px' }}>
+                {pendingApprovals.map((a, i) => (
+                  <div key={i} style={{
+                    padding:'9px 0',
+                    borderBottom: i < pendingApprovals.length-1 ? '1px solid #f1f5f9' : 'none',
+                  }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:3 }}>
+                      <span style={{ fontSize:12, fontWeight:700, color:a.color }}>{a.id}</span>
+                      <span style={{ fontSize:10, fontWeight:600, padding:'2px 6px', borderRadius:20, background:'rgba(239,68,68,0.08)', color:'#ef4444' }}>{a.age} ago</span>
+                    </div>
+                    <div style={{ fontSize:11.5, color:'#64748b' }}>{a.type} · {a.requestedBy}</div>
+                    <div style={{ fontSize:12.5, fontWeight:700, color:'#f59e0b', marginTop:3 }}>{a.amount}</div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+          </div>
+        </div>
+
+      </div>
+    </>
+  );
+}
+
+// ── Icons ─────────────────────────────────────────────────────────────────────
+function SalesIcon()   { return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>; }
+function OrderIcon()   { return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>; }
+function BoxIcon()     { return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>; }
+function FactoryIcon() { return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 20V8l6-4v4l6-4v4l6-4v16H2z"/></svg>; }
+function TruckIcon()   { return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>; }

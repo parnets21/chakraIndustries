@@ -12,8 +12,8 @@
   --navy:           #1a252f;
   --navy-mid:       #212f3d;
   --navy-light:     #2e4057;
-  --bg:             #f4f6f9;
-  --bg-2:           #eef1f5;
+  --bg:             #f0f4f8;
+  --bg-2:           #e8edf4;
   --card-bg:        #ffffff;
   --sidebar-bg:     #1a252f;
   --sidebar-text:   #aab7c4;
@@ -45,7 +45,7 @@
 
   body {
     font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-    background: var(--bg);
+    background: #f0f4f8;
     color: var(--text);
     font-size: 13.5px;
     line-height: 1.5;
@@ -286,6 +286,19 @@
 
   /* MISC */
   .divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+  /* DASHBOARD RESPONSIVE */
+  @media (max-width: 1024px) {
+    .dash-charts-row { grid-template-columns: 1fr !important; }
+    .dash-bottom-row { grid-template-columns: 1fr !important; }
+    .dash-charts-row-2 { grid-template-columns: 1fr !important; }
+  }
+  @media (max-width: 768px) {
+    .dash-op-alerts { grid-template-columns: repeat(2, 1fr) !important; }
+  }
+  @media (max-width: 480px) {
+    .dash-op-alerts { grid-template-columns: 1fr !important; }
+  }
   .section-title { font-size: 14px; font-weight: 700; color: var(--text); letter-spacing: -0.1px; }
   .section-sub { font-size: 12px; color: var(--text-light); margin-top: 2px; }
   .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border-light); font-size: 13px; }

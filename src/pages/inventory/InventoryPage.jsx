@@ -171,6 +171,22 @@ export default function InventoryPage({ initialTab = 0 }) {
   const [showModal, setShowModal] = useState(false);
   const [stockFilter, setStockFilter] = useState('All');
 
+  const primaryBtn = {
+    display:'inline-flex', alignItems:'center', gap:6,
+    padding:'8px 16px', borderRadius:10,
+    background:'linear-gradient(135deg,#ef4444,#b91c1c)',
+    color:'#fff', border:'none', cursor:'pointer',
+    fontSize:13, fontWeight:600, fontFamily:'inherit',
+    boxShadow:'0 3px 10px rgba(185,28,28,0.3)',
+  };
+  const outlineBtn = {
+    display:'inline-flex', alignItems:'center', gap:6,
+    padding:'8px 16px', borderRadius:10,
+    background:'transparent', color:'#c0392b',
+    border:'1.5px solid #c0392b', cursor:'pointer',
+    fontSize:13, fontWeight:600, fontFamily:'inherit',
+  };
+
   const total = stockData.reduce((s,i) => s + i.qty, 0);
   const low   = stockData.filter(i => i.qty < i.minQty && i.qty > 0).length;
   const dead  = stockData.filter(i => i.qty === 0).length;
@@ -188,6 +204,22 @@ export default function InventoryPage({ initialTab = 0 }) {
 
   return (
     <div>
+
+      {/* Action Bar */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, marginBottom:20, flexWrap:'wrap' }}>
+        {activeTab === 0 && <button onClick={() => setShowModal(true)} style={primaryBtn}>+ Add Stock</button>}
+        {activeTab === 1 && <>
+          <button onClick={() => setShowModal(true)} style={primaryBtn}>+ Add Stock</button>
+          <button style={outlineBtn}>⬇ Export</button>
+        </>}
+        {activeTab === 2 && <button onClick={() => setShowModal(true)} style={primaryBtn}>+ Add Warehouse</button>}
+        {activeTab === 3 && <button onClick={() => setShowModal(true)} style={primaryBtn}>+ Record Movement</button>}
+        {activeTab === 4 && <button onClick={() => setShowModal(true)} style={primaryBtn}>+ New Pick List</button>}
+        {activeTab === 5 && <button onClick={() => setShowModal(true)} style={primaryBtn}>+ New Sort Job</button>}
+        {activeTab === 6 && <button onClick={() => setShowModal(true)} style={primaryBtn}>+ Add Batch</button>}
+        {activeTab === 7 && <button style={outlineBtn}>⬇ Export Report</button>}
+        {activeTab === 8 && <button onClick={() => setShowModal(true)} style={primaryBtn}>+ Log Defect</button>}
+      </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
           TAB 0 — Stock Dashboard  (Analytics-first layout)

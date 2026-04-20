@@ -54,6 +54,15 @@ export default function LogisticsPage({ initialTab = 0 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [showModal, setShowModal] = useState(false);
 
+  const primaryBtn = {
+    display:'inline-flex', alignItems:'center', gap:6,
+    padding:'8px 16px', borderRadius:10,
+    background:'linear-gradient(135deg,#ef4444,#b91c1c)',
+    color:'#fff', border:'none', cursor:'pointer',
+    fontSize:13, fontWeight:600, fontFamily:'inherit',
+    boxShadow:'0 3px 10px rgba(185,28,28,0.3)',
+  };
+
   const kpis = [
     { label: 'Ready to Dispatch', value: readyOrders.length, color: '#f59e0b' },
     { label: 'In Transit', value: 2, color: '#3b82f6' },
@@ -63,6 +72,12 @@ export default function LogisticsPage({ initialTab = 0 }) {
 
   return (
     <div>
+      {/* Action Bar */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, marginBottom:20, flexWrap:'wrap' }}>
+        {activeTab === 0 && <button onClick={() => setShowModal(true)} style={primaryBtn}>+ New Dispatch</button>}
+        {activeTab === 1 && <button onClick={() => setShowModal(true)} style={primaryBtn}>+ Add Vehicle</button>}
+        {activeTab === 5 && <button onClick={() => setShowModal(true)} style={primaryBtn}>+ New Shipment</button>}
+      </div>
       {/* Tab 0: Dispatch Dashboard */}
       {activeTab === 0 && (
         <div>

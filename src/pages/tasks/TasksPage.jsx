@@ -82,6 +82,38 @@ export default function TasksPage({ initialTab = 0 }) {
 
   return (
     <div>
+      {/* Action Bar */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, marginBottom:20, flexWrap:'wrap' }}>
+        {activeTab === 0 && <button onClick={() => setShowModal(true)} style={{
+          display:'inline-flex', alignItems:'center', gap:6,
+          padding:'8px 16px', borderRadius:10,
+          background:'linear-gradient(135deg,#ef4444,#b91c1c)',
+          color:'#fff', border:'none', cursor:'pointer',
+          fontSize:13, fontWeight:600, fontFamily:'inherit',
+          boxShadow:'0 3px 10px rgba(185,28,28,0.3)',
+        }}>+ New Task</button>}
+        {activeTab === 1 && <button style={{
+          display:'inline-flex', alignItems:'center', gap:6,
+          padding:'8px 16px', borderRadius:10,
+          background:'transparent', color:'#c0392b',
+          border:'1.5px solid #c0392b', cursor:'pointer',
+          fontSize:13, fontWeight:600, fontFamily:'inherit',
+        }}>+ Add Item</button>}
+        {activeTab === 2 && <button style={{
+          display:'inline-flex', alignItems:'center', gap:6,
+          padding:'8px 16px', borderRadius:10,
+          background:'transparent', color:'#c0392b',
+          border:'1.5px solid #c0392b', cursor:'pointer',
+          fontSize:13, fontWeight:600, fontFamily:'inherit',
+        }}>+ New Template</button>}
+        {activeTab === 3 && <button style={{
+          display:'inline-flex', alignItems:'center', gap:6,
+          padding:'8px 16px', borderRadius:10,
+          background:'transparent', color:'#c0392b',
+          border:'1.5px solid #c0392b', cursor:'pointer',
+          fontSize:13, fontWeight:600, fontFamily:'inherit',
+        }}>Mark All Read</button>}
+      </div>
       {activeTab === 0 && (
         <div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">

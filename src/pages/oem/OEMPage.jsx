@@ -42,6 +42,38 @@ export default function OEMPage() {
 
   return (
     <div>
+      {/* Action Bar */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, marginBottom:20, flexWrap:'wrap' }}>
+        <button onClick={() => setShowModal(true)} style={{
+          display:'inline-flex', alignItems:'center', gap:6,
+          padding:'8px 16px', borderRadius:10,
+          background:'linear-gradient(135deg,#ef4444,#b91c1c)',
+          color:'#fff', border:'none', cursor:'pointer',
+          fontSize:13, fontWeight:600, fontFamily:'inherit',
+          boxShadow:'0 3px 10px rgba(185,28,28,0.3)',
+        }}>+ Add OEM Brand</button>
+        {innerTab === 'BOM' && <button onClick={() => setShowModal(true)} style={{
+          display:'inline-flex', alignItems:'center', gap:6,
+          padding:'8px 16px', borderRadius:10,
+          background:'transparent', color:'#c0392b',
+          border:'1.5px solid #c0392b', cursor:'pointer',
+          fontSize:13, fontWeight:600, fontFamily:'inherit',
+        }}>+ New BOM</button>}
+        {innerTab === 'Production' && <button onClick={() => setShowModal(true)} style={{
+          display:'inline-flex', alignItems:'center', gap:6,
+          padding:'8px 16px', borderRadius:10,
+          background:'transparent', color:'#c0392b',
+          border:'1.5px solid #c0392b', cursor:'pointer',
+          fontSize:13, fontWeight:600, fontFamily:'inherit',
+        }}>+ New Work Order</button>}
+        {innerTab === 'Billing' && <button onClick={() => setShowModal(true)} style={{
+          display:'inline-flex', alignItems:'center', gap:6,
+          padding:'8px 16px', borderRadius:10,
+          background:'transparent', color:'#c0392b',
+          border:'1.5px solid #c0392b', cursor:'pointer',
+          fontSize:13, fontWeight:600, fontFamily:'inherit',
+        }}>Generate Invoice</button>}
+      </div>
       {/* Brand Tabs */}
       <div className="flex gap-2.5 mb-5 flex-wrap">
         {brands.map(b => (

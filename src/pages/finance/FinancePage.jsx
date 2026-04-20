@@ -47,6 +47,22 @@ export default function FinancePage({ initialTab = 0 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [showPayModal, setShowPayModal] = useState(false);
 
+  const primaryBtn = {
+    display:'inline-flex', alignItems:'center', gap:6,
+    padding:'8px 16px', borderRadius:10,
+    background:'linear-gradient(135deg,#ef4444,#b91c1c)',
+    color:'#fff', border:'none', cursor:'pointer',
+    fontSize:13, fontWeight:600, fontFamily:'inherit',
+    boxShadow:'0 3px 10px rgba(185,28,28,0.3)',
+  };
+  const outlineBtn = {
+    display:'inline-flex', alignItems:'center', gap:6,
+    padding:'8px 16px', borderRadius:10,
+    background:'transparent', color:'#c0392b',
+    border:'1.5px solid #c0392b', cursor:'pointer',
+    fontSize:13, fontWeight:600, fontFamily:'inherit',
+  };
+
   const kpis = [
     { label: 'Total Revenue', value: '₹48.2L', color: '#10b981' },
     { label: 'Total Expenses', value: '₹32.1L', color: '#ef4444' },
@@ -56,6 +72,17 @@ export default function FinancePage({ initialTab = 0 }) {
 
   return (
     <div>
+      {/* Action Bar */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, marginBottom:20, flexWrap:'wrap' }}>
+        {activeTab === 0 && <button onClick={() => setShowPayModal(true)} style={primaryBtn}>+ Add Entry</button>}
+        {activeTab === 1 && <button style={outlineBtn}>⬆ Upload Statement</button>}
+        {activeTab === 2 && <button onClick={() => setShowPayModal(true)} style={primaryBtn}>+ Add Payment</button>}
+        {activeTab === 3 && <>
+          <button onClick={() => setShowPayModal(true)} style={outlineBtn}>+ Debit Note</button>
+          <button onClick={() => setShowPayModal(true)} style={primaryBtn}>+ Credit Note</button>
+        </>}
+        {activeTab === 4 && <button style={outlineBtn}>Run Auto-Match</button>}
+      </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         {kpis.map((k, i) => (
           <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">

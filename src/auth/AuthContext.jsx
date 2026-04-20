@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://chakraindustries-backend.onrender.com0/api';
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 
 const AuthContext = createContext(null);

@@ -1,6 +1,16 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// ─── Mock users (replace with real API call) ──────────────────────────────────
+const MOCK_USERS = [
+  { id: 1, email: 'chakra@admin.com',     password: 'chakra123',   name: 'Admin User',     role: 'super_admin',      avatar: 'AU' },
+  { id: 2, email: 'admin@chakra.in',      password: 'admin123',    name: 'Arjun Kumar',    role: 'super_admin',      avatar: 'AK' },
+  { id: 3, email: 'ceo@chakra.in',        password: 'mgmt123',     name: 'Priya Sharma',   role: 'management',       avatar: 'PS' },
+  { id: 4, email: 'purchase@chakra.in',   password: 'purchase123', name: 'Ramesh Gupta',   role: 'purchase_manager', avatar: 'RG' },
+  { id: 5, email: 'production@chakra.in', password: 'prod123',     name: 'Sunil Das',      role: 'production_manager', avatar: 'SD' },
+  { id: 6, email: 'dealer@chakra.in',     password: 'dealer123',   name: 'Vijay Rao',      role: 'dealer',           avatar: 'VR' },
+  { id: 7, email: 'client@chakra.in',     password: 'client123',   name: 'Meera Patel',    role: 'corporate_client', avatar: 'MP' },
+];
+
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 
 const AuthContext = createContext(null);
@@ -18,9 +28,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     setUser(null);
     localStorage.removeItem('chakra_user');
-    localStorage.removeItem('chakra_token');
     sessionStorage.removeItem('chakra_user');
-    sessionStorage.removeItem('chakra_token');
     if (timerRef.current) clearTimeout(timerRef.current);
   }, []);
 
@@ -42,72 +50,25 @@ export function AuthProvider({ children }) {
   }, [user, resetTimer]);
 
   const login = async (email, password, remember = false) => {
-    const res = await fetch(`${API_BASE}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data.message || 'Invalid email or password');
-    }
-
-    const { user: userData, token } = data;
-    setUser(userData);
-
+    console.log('Login attempt:', { email, password });
+    console.log('Available users:', MOCK_USERS.map(u => ({ email: u.email, password: u.password })));
+    
+    const found = MOCK_USERS.find(
+      u => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+    );
+    
+    console.log('Found user:', found);
+    
+    if (!found) throw new Error('Invalid email or password');
+    const { password: _, ...safeUser } = found;
+    setUser(safeUser);
     const storage = remember ? localStorage : sessionStorage;
-    storage.setItem('chakra_user', JSON.stringify(userData));
-    storage.setItem('chakra_token', token);
-
-    return userData;
+    storage.setItem('chakra_user', JSON.stringify(safeUser));
+    return safeUser;
   };
-
-  const register = async (name, email, password, role) => {
-    const res = await fetch(`${API_BASE}/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password, role }),
-    });
-
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data.message || 'Registration failed');
-    }
-
-    const { user: userData, token } = data;
-    setUser(userData);
-    sessionStorage.setItem('chakra_user', JSON.stringify(userData));
-    sessionStorage.setItem('chakra_token', token);
-
-    return userData;
-  };
-
-  // Helper to make authenticated API calls
-  const authFetch = useCallback(async (url, options = {}) => {
-    const token =
-      localStorage.getItem('chakra_token') ||
-      sessionStorage.getItem('chakra_token');
-
-    const res = await fetch(`${API_BASE}${url}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...options.headers,
-      },
-    });
-
-    if (res.status === 401) {
-      logout();
-      throw new Error('Session expired. Please log in again.');
-    }
-
-    return res.json();
-  }, [logout]);
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, authFetch }}>
+    <AuthContext.Provider value={{ user, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

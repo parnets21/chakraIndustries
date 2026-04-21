@@ -3,19 +3,24 @@ import RFQList from './rfq/RFQList';
 import CreateRFQModal from './rfq/CreateRFQModal';
 import CompareQuotesModal from './rfq/CompareQuotesModal';
 
-export default function RFQTab() {
+export default function RFQTab({ externalShowCreate, onExternalClose }) {
   const [showCreate, setShowCreate] = useState(false);
   const [compareRFQ, setCompareRFQ] = useState(null);
 
+  const isOpen = externalShowCreate || showCreate;
+  const handleClose = () => { setShowCreate(false); onExternalClose?.(); };
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ Create RFQ</button>
-      </div>
+      {!externalShowCreate && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ Create RFQ</button>
+        </div>
+      )}
 
       <RFQList onCompare={(rfq) => setCompareRFQ(rfq)} />
 
-      <CreateRFQModal open={showCreate} onClose={() => setShowCreate(false)} />
+      <CreateRFQModal open={isOpen} onClose={handleClose} />
 
       <CompareQuotesModal
         open={!!compareRFQ}

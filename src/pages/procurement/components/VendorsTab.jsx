@@ -20,9 +20,7 @@ const inp = {
 const lbl = { fontSize: 11.5, fontWeight: 600, color: '#475569', marginBottom: 5, display: 'block' };
 
 export default function VendorsTab({
-  categories = [], showVendorModal, setShowVendorModal,
-  showCategoryModal, setShowCategoryModal, newCategory, setNewCategory,
-  onAddCategory, onDeleteCategory, categoriesRaw = [],
+  categories, showVendorModal, setShowVendorModal,
 }) {
   const [vendors, setVendors]       = useState([]);
   const [loading, setLoading]       = useState(false);
@@ -69,6 +67,7 @@ export default function VendorsTab({
     try {
       editId ? await vendorApi.update(editId, form) : await vendorApi.create(form);
       setShowVendorModal(false);
+      setForm('');
       fetchVendors();
     } catch (e) { alert(e.message); }
     finally { setSaving(false); }
@@ -191,10 +190,6 @@ export default function VendorsTab({
           <option>Inactive</option>
           <option>Blacklisted</option>
         </select>
-        <button className="vt-add-btn" onClick={openAdd}>
-          <MdAdd size={17} />
-          <span className="vt-add-label">Add Vendor</span>
-        </button>
       </div>
 
       {/* ── Error / Loading ── */}
@@ -207,131 +202,7 @@ export default function VendorsTab({
         <div style={{ padding: '32px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Loading vendors…</div>
       )}
 
-      {!loading && (
-        <>
-          {/* ── Desktop Table ── */}
-          <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e8edf2', boxShadow: '0 2px 10px rgba(15,23,42,0.05)', overflow: 'hidden' }}>
-            <div className="vt-table-wrap">
-              <table className="vt-table">
-                <thead>
-                  <tr>
-                    {['Vendor ID', 'Vendor Name', 'Category', 'Contact', 'City', 'Rating', 'Status', 'Actions'].map(h => (
-                      <th key={h}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {vendors.length === 0 ? (
-                    <tr><td colSpan={8} style={{ textAlign: 'center', padding: '32px 0', color: '#94a3b8' }}>No vendors found</td></tr>
-                  ) : vendors.map((v, i) => (
-                    <tr key={i}>
-                      <td style={{ fontFamily: 'monospace', fontSize: 12, color: '#ef4444', fontWeight: 600 }}>{v.vendorId}</td>
-                      <td style={{ fontWeight: 600 }}>{v.companyName}</td>
-                      <td style={{ color: '#64748b' }}>{v.category}</td>
-                      <td>{v.contactPerson}</td>
-                      <td>{v.city}</td>
-                      <td style={{ color: '#f59e0b', fontWeight: 700 }}>★ {v.rating}</td>
-                      <td><StatusBadge status={v.status} /></td>
-                      <td>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button onClick={() => openEdit(v)} title="Edit" style={{
-                            width: 30, height: 30, borderRadius: 7, border: '1px solid #fecaca',
-                            background: '#fef2f2', color: '#ef4444', cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          }}><MdEdit size={14} /></button>
-                          <button onClick={() => setViewVendor(v)} title="View" style={{
-                            width: 30, height: 30, borderRadius: 7, border: '1px solid #e2e8f0',
-                            background: '#f8fafc', color: '#475569', cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          }}><MdVisibility size={14} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* ── Mobile Cards ── */}
-            <div className="vt-cards" style={{ padding: '4px 0' }}>
-              {vendors.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '32px 0', color: '#94a3b8', fontSize: 13 }}>No vendors found</div>
-              ) : vendors.map((v, i) => (
-                <div key={i} className="vt-card">
-                  <div className="vt-card-top">
-                    <div>
-                      <div className="vt-card-name">{v.companyName}</div>
-                      <div className="vt-card-id">{v.vendorId}</div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b' }}>★ {v.rating}</span>
-                      <StatusBadge status={v.status} />
-                    </div>
-                  </div>
-
-                  <div className="vt-card-meta">
-                    <div className="vt-card-meta-item">
-                      <MdBusiness size={13} style={{ color: '#94a3b8', flexShrink: 0 }} />
-                      <span>{v.category || '—'}</span>
-                    </div>
-                    <div className="vt-card-meta-item">
-                      <MdPhone size={13} style={{ color: '#94a3b8', flexShrink: 0 }} />
-                      <span>{v.phone || '—'}</span>
-                    </div>
-                    <div className="vt-card-meta-item">
-                      <MdEmail size={13} style={{ color: '#94a3b8', flexShrink: 0 }} />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.email || '—'}</span>
-                    </div>
-                    <div className="vt-card-meta-item">
-                      <MdLocationOn size={13} style={{ color: '#94a3b8', flexShrink: 0 }} />
-                      <span>{v.city || '—'}</span>
-                    </div>
-                  </div>
-
-                  <div className="vt-card-actions">
-                    <button className="vt-card-btn vt-card-btn-edit" onClick={() => openEdit(v)}>
-                      <MdEdit size={14} /> Edit
-                    </button>
-                    <button className="vt-card-btn vt-card-btn-view" onClick={() => setViewVendor(v)}>
-                      <MdVisibility size={14} /> View
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* ── Manage Categories Modal ── */}
-      <Modal open={showCategoryModal} onClose={() => setShowCategoryModal(false)} title="Manage Vendor Categories"
-        footer={<button style={{ padding: '8px 18px', borderRadius: 9, background: 'linear-gradient(135deg,#ef4444,#b91c1c)', color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: 13 }} onClick={() => setShowCategoryModal(false)}>Done</button>}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-          <input style={{ ...inp, flex: 1 }} placeholder="New category name..." value={newCategory || ''}
-            onChange={e => setNewCategory && setNewCategory(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && onAddCategory) onAddCategory(newCategory); }} />
-          <button onClick={() => onAddCategory && onAddCategory(newCategory)} style={{
-            padding: '9px 14px', borderRadius: 9, background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
-            color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: 16,
-          }}>+</button>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {(categoriesRaw || []).map((cat) => (
-            <div key={cat._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', background: '#f8fafc', borderRadius: 9, border: '1px solid #e2e8f0' }}>
-              <span style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{cat.name}</span>
-              <button onClick={() => onDeleteCategory && onDeleteCategory(cat)} style={{
-                padding: '3px 10px', borderRadius: 7, background: '#fef2f2', color: '#ef4444',
-                border: '1px solid #fecaca', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600,
-              }}>✕ Remove</button>
-            </div>
-          ))}
-          {(categoriesRaw || []).length === 0 && (
-            <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: '16px 0' }}>No categories yet</div>
-          )}
-        </div>
-      </Modal>
-
-      {/* ── Add / Edit Vendor Modal ── */}
+      {/* Add / Edit Vendor Modal */}
       <Modal open={showVendorModal} onClose={() => setShowVendorModal(false)} title={editId ? 'Edit Vendor' : 'Add New Vendor'}
         footer={
           <>
@@ -372,52 +243,156 @@ export default function VendorsTab({
 
       {/* ── View Vendor Modal ── */}
       {viewVendor && (
-        <Modal open={!!viewVendor} onClose={() => setViewVendor(null)} title={viewVendor.companyName}
-          footer={<button onClick={() => setViewVendor(null)} style={{ padding: '8px 18px', borderRadius: 9, border: '1.5px solid #e2e8f0', color: '#475569', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: 13 }}>Close</button>}>
+        <Modal open={!!viewVendor} onClose={() => setViewVendor(null)} title={viewVendor.companyName} size="lg"
+          footer={
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+              <div style={{ fontSize: 12, color: '#64748B' }}>Vendor ID: <span style={{ fontWeight: 600, color: '#1E293B' }}>{viewVendor.vendorId}</span></div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button className="btn" style={{ background: 'transparent', border: '1px solid #CBD5E1', color: '#475569', padding: '8px 16px', borderRadius: 6, fontWeight: 500 }} onClick={() => setViewVendor(null)}>Close</button>
+                <button className="btn btn-primary" style={{ background: '#0F172A', color: 'white', padding: '8px 16px', borderRadius: 6, fontWeight: 500 }} onClick={() => openEdit(viewVendor)}>Edit Vendor</button>
+              </div>
+            </div>
+          }>
 
-          {/* Vendor header chip */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: '#fef2f2', borderRadius: 12, marginBottom: 16, border: '1px solid #fecaca' }}>
-            <div style={{ width: 42, height: 42, borderRadius: 11, background: 'linear-gradient(135deg,#ef4444,#b91c1c)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 18, fontWeight: 800, flexShrink: 0 }}>
-              {(viewVendor.companyName || 'V').charAt(0).toUpperCase()}
+          <style>{`
+            .vendor-details { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 20px; }
+            .section-full-width { grid-column: span 3; }
+            .section-half-width { grid-column: span 2; }
+            .field-group { display: flex; flex-direction: column; gap: 3px; }
+            .field-label { font-size: 11px; font-weight: 500; color: #64748B; text-transform: uppercase; letter-spacing: 0.3px; }
+            .field-value { font-size: 14px; font-weight: 400; color: #1E293B; }
+            .field-value.copyable { cursor: pointer; font-family: monospace; background: #F8FAFC; padding: 4px 8px; border-radius: 4px; transition: background 0.2s; }
+            .field-value.copyable:hover { background: #E2E8F0; }
+            .status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 40px; font-size: 12px; font-weight: 500; }
+            .status-badge.active { background: #ECFDF5; color: #047857; border: 1px solid #A7F3D0; }
+            .status-badge.active::before { content: ""; width: 6px; height: 6px; background: #12B76A; border-radius: 50%; box-shadow: 0 0 0 2px rgba(18,183,106,0.2); }
+            .status-badge.inactive { background: #F3F4F6; color: #6B7280; border: 1px solid #D1D5DB; }
+            .status-badge.inactive::before { content: ""; width: 6px; height: 6px; background: #9CA3AF; border-radius: 50%; }
+            .status-badge.blacklisted { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; }
+            .status-badge.blacklisted::before { content: ""; width: 6px; height: 6px; background: #EF4444; border-radius: 50%; }
+            .section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #E4E7EC; }
+            .section-header h3 { font-size: 13px; font-weight: 700; color: #0F172A; text-transform: uppercase; letter-spacing: 0.3px; margin: 0; }
+            .section-icon { width: 16px; height: 16px; color: #c0392b; }
+            .rating-container { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+            .rating-value { font-size: 16px; font-weight: 700; color: #0F172A; }
+            .rating-max { font-size: 12px; color: #64748B; }
+            .rating-bar { width: 80px; height: 5px; background: #E2E8F0; border-radius: 3px; overflow: hidden; }
+            .rating-bar-fill { height: 100%; background: linear-gradient(90deg, #F59E0B 0%, #FBBF24 100%); transition: width 0.3s; }
+            .rating-stars { color: #F59E0B; font-size: 14px; letter-spacing: 1px; }
+            .category-badge { display: inline-flex; padding: 4px 10px; background: #EFF6FF; color: #1E40AF; border-radius: 6px; font-size: 12px; font-weight: 600; border: 1px solid #DBEAFE; }
+            @media (max-width: 768px) {
+              .vendor-details { grid-template-columns: 1fr; }
+              .section-full-width, .section-half-width { grid-column: span 1; }
+            }
+          `}</style>
+
+          {/* Top Info Bar */}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+            <div className="category-badge">{viewVendor.category}</div>
+            <div className={`status-badge ${viewVendor.status.toLowerCase()}`}>{viewVendor.status}</div>
+          </div>
+
+          {/* Contact Information Section */}
+          <div style={{ marginBottom: 20 }}>
+            <div className="section-header">
+              <svg className="section-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              <h3>Contact Information</h3>
             </div>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{viewVendor.companyName}</div>
-              <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 2 }}>{viewVendor.vendorId} · {viewVendor.category}</div>
-            </div>
-            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#f59e0b' }}>★ {viewVendor.rating}</span>
-              <StatusBadge status={viewVendor.status} />
+            <div className="vendor-details">
+              <div className="field-group">
+                <div className="field-label">Contact Person</div>
+                <div className="field-value">{viewVendor.contactPerson}</div>
+              </div>
+              <div className="field-group">
+                <div className="field-label">Phone Number</div>
+                <div className="field-value">{viewVendor.phone}</div>
+              </div>
+              <div className="field-group">
+                <div className="field-label">Email Address</div>
+                <div className="field-value" style={{ color: '#2563EB' }}>{viewVendor.email}</div>
+              </div>
             </div>
           </div>
 
-          <div className="vt-detail-grid">
-            {[
-              ['Contact Person', viewVendor.contactPerson],
-              ['Phone',          viewVendor.phone],
-              ['Email',          viewVendor.email],
-              ['City',           viewVendor.city],
-              ['State',          viewVendor.state],
-              ['Pincode',        viewVendor.pincode],
-              ['GST Number',     viewVendor.gstNumber],
-              ['Payment Terms',  viewVendor.paymentTerms],
-              ['Lead Time',      `${viewVendor.leadTimeDays || '—'} days`],
-            ].map(([label, val]) => (
-              <div key={label} style={{ padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
-                <div style={{ fontSize: 10.5, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3 }}>{label}</div>
-                <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{val || '—'}</div>
-              </div>
-            ))}
-            <div className="vt-detail-span2" style={{ padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
-              <div style={{ fontSize: 10.5, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3 }}>Address</div>
-              <div style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{viewVendor.address || '—'}</div>
+          {/* Address Section */}
+          <div style={{ marginBottom: 20 }}>
+            <div className="section-header">
+              <svg className="section-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <h3>Address Details</h3>
             </div>
-            {viewVendor.remarks && (
-              <div className="vt-detail-span2" style={{ padding: '8px 0' }}>
-                <div style={{ fontSize: 10.5, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3 }}>Remarks</div>
-                <div style={{ fontSize: 13, color: '#475569' }}>{viewVendor.remarks}</div>
+            <div className="vendor-details">
+              <div className="field-group">
+                <div className="field-label">City</div>
+                <div className="field-value">{viewVendor.city}</div>
               </div>
-            )}
+              <div className="field-group">
+                <div className="field-label">State</div>
+                <div className="field-value">{viewVendor.state}</div>
+              </div>
+              <div className="field-group">
+                <div className="field-label">Pincode</div>
+                <div className="field-value">{viewVendor.pincode}</div>
+              </div>
+              <div className="field-group section-full-width">
+                <div className="field-label">Full Address</div>
+                <div className="field-value">{viewVendor.address}</div>
+              </div>
+            </div>
           </div>
+
+          {/* Financial & Business Terms */}
+          <div style={{ marginBottom: viewVendor.remarks ? 20 : 0 }}>
+            <div className="section-header">
+              <svg className="section-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <h3>Financial & Business Terms</h3>
+            </div>
+            <div className="vendor-details">
+              <div className="field-group">
+                <div className="field-label">GST Number</div>
+                <div className="field-value copyable" title="Click to copy" onClick={() => navigator.clipboard.writeText(viewVendor.gstNumber)}>{viewVendor.gstNumber}</div>
+              </div>
+              <div className="field-group">
+                <div className="field-label">Payment Terms</div>
+                <div className="field-value">{viewVendor.paymentTerms}</div>
+              </div>
+              <div className="field-group">
+                <div className="field-label">Lead Time</div>
+                <div className="field-value">{viewVendor.leadTimeDays} days</div>
+              </div>
+              <div className="field-group section-full-width">
+                <div className="field-label">Vendor Rating</div>
+                <div className="rating-container">
+                  <span className="rating-value">{viewVendor.rating}.0</span>
+                  <span className="rating-max">/5.0</span>
+                  <div className="rating-bar">
+                    <div className="rating-bar-fill" style={{ width: `${(viewVendor.rating / 5) * 100}%` }}></div>
+                  </div>
+                  <span className="rating-stars">{'★'.repeat(viewVendor.rating)}{'☆'.repeat(5 - viewVendor.rating)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Remarks Section */}
+          {viewVendor.remarks && (
+            <div style={{
+              background: '#FFFBEB',
+              border: '1px solid #FDE68A',
+              borderRadius: 6,
+              padding: '12px 16px',
+              marginTop: 20
+            }}>
+              <div className="field-label" style={{ color: '#92400E', marginBottom: 4 }}>Additional Remarks</div>
+              <div className="field-value" style={{ color: '#78350F', fontSize: 13 }}>{viewVendor.remarks}</div>
+            </div>
+          )}
         </Modal>
       )}
     </>

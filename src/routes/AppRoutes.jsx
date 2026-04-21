@@ -15,6 +15,7 @@ import ApprovalsPage           from '../pages/procurement/ApprovalsPage';
 import PurchaseOrdersPage      from '../pages/procurement/PurchaseOrdersPage';
 import GRNPage                 from '../pages/procurement/GRNPage';
 import QualityCheckPage        from '../pages/procurement/QualityCheckPage';
+import ExcessPOMonitorPage     from '../pages/procurement/ExcessPOMonitorPage';
 
 // Inventory
 import InventorySubPage from '../pages/inventory/InventorySubPage';
@@ -27,12 +28,15 @@ import BulkSubPage from '../pages/bulk/BulkSubPage';
 
 // Logistics
 import LogisticsSubPage from '../pages/logistics/LogisticsSubPage';
+import RealTimeTrackingPage from '../pages/logistics/RealTimeTrackingPage';
 
 // Returns
 import ReturnsSubPage from '../pages/returns/ReturnsSubPage';
+import MaterialReturnsPage from '../pages/returns/MaterialReturnsPage';
 
 // Finance
 import FinanceSubPage from '../pages/finance/FinanceSubPage';
+import CreditNoteTrackingPage from '../pages/finance/CreditNoteTrackingPage';
 
 // Tally Integration
 import TallySubPage from '../pages/tally/TallySubPage';
@@ -48,6 +52,9 @@ import AssetsSubPage from '../pages/assets/AssetsSubPage';
 
 // Barcode
 import BarcodeSubPage from '../pages/barcode/BarcodeSubPage';
+
+// Vinculum
+import VinculumSubPage from '../pages/vinculum/VinculumSubPage';
 
 // Tasks
 import TasksSubPage from '../pages/tasks/TasksSubPage';
@@ -72,6 +79,7 @@ export default function AppRoutes() {
       <Route path="/procurement/po"           element={<P element={<PurchaseOrdersPage />} />} />
       <Route path="/procurement/grn"          element={<P element={<GRNPage />} />} />
       <Route path="/procurement/qc"           element={<P element={<QualityCheckPage />} />} />
+      <Route path="/procurement/excess"       element={<P element={<ExcessPOMonitorPage />} />} />
 
       {/* Inventory */}
       <Route path="/inventory"             element={<Navigate to="/inventory/dashboard" replace />} />
@@ -84,6 +92,8 @@ export default function AppRoutes() {
       <Route path="/inventory/batch"       element={<P element={<InventorySubPage tab="batch" />} />} />
       <Route path="/inventory/ageing"      element={<P element={<InventorySubPage tab="ageing" />} />} />
       <Route path="/inventory/defective"   element={<P element={<InventorySubPage tab="defective" />} />} />
+      <Route path="/inventory/storage"     element={<P element={<InventorySubPage tab="storage" />} />} />
+      <Route path="/inventory/pincode"     element={<P element={<InventorySubPage tab="pincode" />} />} />
 
       {/* Production */}
       <Route path="/production"             element={<Navigate to="/production/bom" replace />} />
@@ -114,6 +124,7 @@ export default function AppRoutes() {
       <Route path="/logistics/dc"        element={<P element={<LogisticsSubPage tab="dc" />} />} />
       <Route path="/logistics/pendency"  element={<P element={<LogisticsSubPage tab="pendency" />} />} />
       <Route path="/logistics/courier"   element={<P element={<LogisticsSubPage tab="courier" />} />} />
+      <Route path="/logistics/livetrack" element={<P element={<RealTimeTrackingPage />} />} />
 
       {/* Returns */}
       <Route path="/returns"           element={<Navigate to="/returns/requests" replace />} />
@@ -121,6 +132,7 @@ export default function AppRoutes() {
       <Route path="/returns/docket"    element={<P element={<ReturnsSubPage tab="docket" />} />} />
       <Route path="/returns/matching"  element={<P element={<ReturnsSubPage tab="matching" />} />} />
       <Route path="/returns/loss"      element={<P element={<ReturnsSubPage tab="loss" />} />} />
+      <Route path="/returns/material"  element={<P element={<MaterialReturnsPage />} />} />
 
       {/* Finance */}
       <Route path="/finance"           element={<Navigate to="/finance/ledger" replace />} />
@@ -129,12 +141,14 @@ export default function AppRoutes() {
       <Route path="/finance/payments"  element={<P element={<FinanceSubPage tab="payments" />} />} />
       <Route path="/finance/notes"     element={<P element={<FinanceSubPage tab="notes" />} />} />
       <Route path="/finance/matching"  element={<P element={<FinanceSubPage tab="matching" />} />} />
+      <Route path="/finance/cntracks"  element={<P element={<CreditNoteTrackingPage />} />} />
 
       {/* Forecasting */}
       <Route path="/forecasting"            element={<Navigate to="/forecasting/demand" replace />} />
       <Route path="/forecasting/demand"     element={<P element={<ForecastingSubPage tab="demand" />} />} />
       <Route path="/forecasting/planning"   element={<P element={<ForecastingSubPage tab="planning" />} />} />
       <Route path="/forecasting/inventory"  element={<P element={<ForecastingSubPage tab="inventory" />} />} />
+      <Route path="/forecasting/seasonal"   element={<P element={<ForecastingSubPage tab="seasonal" />} />} />
 
       {/* Reports */}
       <Route path="/reports"            element={<Navigate to="/reports/sales" replace />} />
@@ -158,11 +172,19 @@ export default function AppRoutes() {
       <Route path="/barcode/scan"     element={<P element={<BarcodeSubPage tab="scan" />} />} />
       <Route path="/barcode/logs"     element={<P element={<BarcodeSubPage tab="logs" />} />} />
 
+      {/* Vinculum */}
+      <Route path="/vinculum"          element={<Navigate to="/vinculum/config" replace />} />
+      <Route path="/vinculum/config"   element={<P element={<VinculumSubPage tab="config" />} />} />
+      <Route path="/vinculum/logs"     element={<P element={<VinculumSubPage tab="logs" />} />} />
+      <Route path="/vinculum/sku"      element={<P element={<VinculumSubPage tab="sku" />} />} />
+      <Route path="/vinculum/sync"     element={<P element={<VinculumSubPage tab="sync" />} />} />
+
       {/* Tasks */}
-      <Route path="/tasks"         element={<Navigate to="/tasks/kanban" replace />} />
-      <Route path="/tasks/kanban"  element={<P element={<TasksSubPage tab="kanban" />} />} />
-      <Route path="/tasks/todo"    element={<P element={<TasksSubPage tab="todo" />} />} />
-      <Route path="/tasks/notifs"  element={<P element={<TasksSubPage tab="notifs" />} />} />
+      <Route path="/tasks"           element={<Navigate to="/tasks/kanban" replace />} />
+      <Route path="/tasks/kanban"    element={<P element={<TasksSubPage tab="kanban" />} />} />
+      <Route path="/tasks/todo"      element={<P element={<TasksSubPage tab="todo" />} />} />
+      <Route path="/tasks/recurring" element={<P element={<TasksSubPage tab="recurring" />} />} />
+      <Route path="/tasks/notifs"    element={<P element={<TasksSubPage tab="notifs" />} />} />
 
       {/* Tally Integration */}
       <Route path="/tally"              element={<Navigate to="/tally/dashboard" replace />} />

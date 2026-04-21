@@ -39,26 +39,24 @@ export default function BarcodePage({ initialTab = 0 }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <div>
-          <div className="text-xl font-black text-gray-900 tracking-tight">Barcode System</div>
-          <div className="flex items-center gap-1 mt-0.5">
-            <span className="text-xs text-gray-400">Home</span>
-            <span className="text-xs text-gray-400">›</span>
-            <span className="text-xs text-red-600 font-semibold">Barcode</span>
-          </div>
-        </div>
+      {/* Action Bar */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, marginBottom:20, flexWrap:'wrap' }}>
+        {activeTab === 0 && <button style={{
+          display:'inline-flex', alignItems:'center', gap:6,
+          padding:'8px 16px', borderRadius:10,
+          background:'linear-gradient(135deg,#ef4444,#b91c1c)',
+          color:'#fff', border:'none', cursor:'pointer',
+          fontSize:13, fontWeight:600, fontFamily:'inherit',
+          boxShadow:'0 3px 10px rgba(185,28,28,0.3)',
+        }}>Generate & Print</button>}
+        {activeTab === 2 && <button style={{
+          display:'inline-flex', alignItems:'center', gap:6,
+          padding:'8px 16px', borderRadius:10,
+          background:'transparent', color:'#c0392b',
+          border:'1.5px solid #c0392b', cursor:'pointer',
+          fontSize:13, fontWeight:600, fontFamily:'inherit',
+        }}>⬇ Export Logs</button>}
       </div>
-
-      <div className="flex border-b-2 border-gray-200 mb-5 overflow-x-auto">
-        {['Generate Barcode', 'Scan & Lookup', 'Movement Logs'].map((t, i) => (
-          <button key={i} onClick={() => setActiveTab(i)}
-            className={`px-5 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 -mb-0.5 cursor-pointer flex-shrink-0 bg-transparent font-[inherit] ${activeTab === i ? 'text-red-700 border-red-600' : 'text-gray-400 border-transparent hover:text-red-600'}`}>
-            {t}
-          </button>
-        ))}
-      </div>
-
       {activeTab === 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
@@ -123,6 +121,19 @@ export default function BarcodePage({ initialTab = 0 }) {
                 <button className="flex-1 inline-flex items-center justify-center px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">Inward</button>
                 <button className="flex-1 inline-flex items-center justify-center px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold cursor-pointer font-[inherit]">Outward</button>
                 <button className="flex-1 inline-flex items-center justify-center px-3 py-1.5 text-xs rounded-lg bg-gray-100 text-gray-800 font-semibold border-0 cursor-pointer font-[inherit]">Transfer</button>
+              </div>
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <div className="text-xs font-semibold text-gray-600 mb-2">Scan-based Actions</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: '📦 GRN Receipt', color: 'bg-green-100 text-green-800' },
+                    { label: '🔍 Picking', color: 'bg-blue-100 text-blue-800' },
+                    { label: '🚚 Dispatch', color: 'bg-amber-100 text-amber-800' },
+                    { label: '↔ Stock Transfer', color: 'bg-purple-100 text-purple-800' },
+                  ].map((a, i) => (
+                    <button key={i} className={`px-3 py-2 text-xs rounded-lg font-semibold border-0 cursor-pointer font-[inherit] ${a.color}`}>{a.label}</button>
+                  ))}
+                </div>
               </div>
             </div>
           )}

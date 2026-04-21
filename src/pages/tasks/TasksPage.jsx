@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 
-const tabs = ['Kanban Board', 'Daily To-Do', 'Notifications'];
+const tabs = ['Kanban Board', 'Daily To-Do', 'Recurring Templates', 'Notifications'];
 
 const initialTasks = {
   todo: [
@@ -29,12 +29,20 @@ const colConfig = [
 ];
 
 const dailyTodos = [
-  { id: 'DT-001', task: 'Check pending GRNs', module: 'Procurement', time: '09:00 AM', done: true },
-  { id: 'DT-002', task: 'Review low stock alerts', module: 'Inventory', time: '10:00 AM', done: true },
-  { id: 'DT-003', task: 'Approve WO-0892 progress update', module: 'Production', time: '11:30 AM', done: false },
-  { id: 'DT-004', task: 'Follow up on PO-2024-089 approval', module: 'Procurement', time: '02:00 PM', done: false },
-  { id: 'DT-005', task: 'Dispatch planning for ORD-2024-085', module: 'Logistics', time: '03:30 PM', done: false },
-  { id: 'DT-006', task: 'End-of-day production report', module: 'Production', time: '06:00 PM', done: false },
+  { id: 'DT-001', task: 'Check pending GRNs', module: 'Procurement', time: '09:00 AM', done: true, overdue: false },
+  { id: 'DT-002', task: 'Review low stock alerts', module: 'Inventory', time: '10:00 AM', done: true, overdue: false },
+  { id: 'DT-003', task: 'Approve WO-0892 progress update', module: 'Production', time: '11:30 AM', done: false, overdue: true },
+  { id: 'DT-004', task: 'Follow up on PO-2024-089 approval', module: 'Procurement', time: '02:00 PM', done: false, overdue: false },
+  { id: 'DT-005', task: 'Dispatch planning for ORD-2024-085', module: 'Logistics', time: '03:30 PM', done: false, overdue: false },
+  { id: 'DT-006', task: 'End-of-day production report', module: 'Production', time: '06:00 PM', done: false, overdue: false },
+];
+
+const recurringTemplates = [
+  { id: 'RT-001', title: 'Check pending GRNs', module: 'Procurement', frequency: 'Daily', time: '09:00 AM', assignee: 'Purchase Manager', active: true },
+  { id: 'RT-002', title: 'Review low stock alerts', module: 'Inventory', frequency: 'Daily', time: '10:00 AM', assignee: 'Warehouse Manager', active: true },
+  { id: 'RT-003', title: 'Weekly vendor payment review', module: 'Finance', frequency: 'Weekly (Mon)', time: '10:00 AM', assignee: 'Finance Manager', active: true },
+  { id: 'RT-004', title: 'Monthly inventory reconciliation', module: 'Inventory', frequency: 'Monthly (1st)', time: '09:00 AM', assignee: 'Warehouse Manager', active: false },
+  { id: 'RT-005', title: 'Daily dispatch planning', module: 'Logistics', frequency: 'Daily', time: '08:30 AM', assignee: 'Logistics Manager', active: true },
 ];
 
 const notifications = [
@@ -74,32 +82,38 @@ export default function TasksPage({ initialTab = 0 }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <div>
-          <div className="text-xl font-black text-gray-900 tracking-tight">Task Management</div>
-          <div className="flex items-center gap-1 mt-0.5">
-            <span className="text-xs text-gray-400">Home</span>
-            <span className="text-xs text-gray-400">›</span>
-            <span className="text-xs text-red-600 font-semibold">Tasks</span>
-          </div>
-        </div>
-        <button
-          className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]"
-          onClick={() => setShowModal(true)}
-        >
-          + New Task
-        </button>
+      {/* Action Bar */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, marginBottom:20, flexWrap:'wrap' }}>
+        {activeTab === 0 && <button onClick={() => setShowModal(true)} style={{
+          display:'inline-flex', alignItems:'center', gap:6,
+          padding:'8px 16px', borderRadius:10,
+          background:'linear-gradient(135deg,#ef4444,#b91c1c)',
+          color:'#fff', border:'none', cursor:'pointer',
+          fontSize:13, fontWeight:600, fontFamily:'inherit',
+          boxShadow:'0 3px 10px rgba(185,28,28,0.3)',
+        }}>+ New Task</button>}
+        {activeTab === 1 && <button style={{
+          display:'inline-flex', alignItems:'center', gap:6,
+          padding:'8px 16px', borderRadius:10,
+          background:'transparent', color:'#c0392b',
+          border:'1.5px solid #c0392b', cursor:'pointer',
+          fontSize:13, fontWeight:600, fontFamily:'inherit',
+        }}>+ Add Item</button>}
+        {activeTab === 2 && <button style={{
+          display:'inline-flex', alignItems:'center', gap:6,
+          padding:'8px 16px', borderRadius:10,
+          background:'transparent', color:'#c0392b',
+          border:'1.5px solid #c0392b', cursor:'pointer',
+          fontSize:13, fontWeight:600, fontFamily:'inherit',
+        }}>+ New Template</button>}
+        {activeTab === 3 && <button style={{
+          display:'inline-flex', alignItems:'center', gap:6,
+          padding:'8px 16px', borderRadius:10,
+          background:'transparent', color:'#c0392b',
+          border:'1.5px solid #c0392b', cursor:'pointer',
+          fontSize:13, fontWeight:600, fontFamily:'inherit',
+        }}>Mark All Read</button>}
       </div>
-
-      <div className="flex border-b-2 border-gray-200 mb-5 overflow-x-auto">
-        {tabs.map((t, i) => (
-          <button key={i} onClick={() => setActiveTab(i)}
-            className={`px-5 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 -mb-0.5 cursor-pointer flex-shrink-0 bg-transparent font-[inherit] ${activeTab === i ? 'text-red-700 border-red-600' : 'text-gray-400 border-transparent hover:text-red-600'}`}>
-            {t}
-          </button>
-        ))}
-      </div>
-
       {activeTab === 0 && (
         <div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
@@ -175,16 +189,19 @@ export default function TasksPage({ initialTab = 0 }) {
               </div>
             </div>
             {todos.map((t, i) => (
-              <div key={t.id} className={`flex items-center gap-3 py-3 ${i < todos.length - 1 ? 'border-b border-gray-100' : ''}`}>
+              <div key={t.id} className={`flex items-center gap-3 py-3 ${i < todos.length - 1 ? 'border-b border-gray-100' : ''} ${t.overdue && !t.done ? 'bg-red-50/40 -mx-2 px-2 rounded-lg' : ''}`}>
                 <button
                   onClick={() => toggleTodo(t.id)}
-                  className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center border-0 cursor-pointer ${t.done ? 'bg-green-500' : 'border-gray-300 bg-white'}`}
-                  style={{ border: t.done ? 'none' : '2px solid #d1d5db' }}
+                  className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center border-0 cursor-pointer ${t.done ? 'bg-green-500' : t.overdue ? 'border-red-400 bg-white' : 'border-gray-300 bg-white'}`}
+                  style={{ border: t.done ? 'none' : t.overdue ? '2px solid #f87171' : '2px solid #d1d5db' }}
                 >
                   {t.done && <span className="text-white text-[10px] font-bold">✓</span>}
                 </button>
                 <div className="flex-1 min-w-0">
-                  <div className={`text-sm font-semibold ${t.done ? 'line-through text-gray-400' : 'text-gray-800'}`}>{t.task}</div>
+                  <div className={`text-sm font-semibold ${t.done ? 'line-through text-gray-400' : t.overdue ? 'text-red-700' : 'text-gray-800'}`}>
+                    {t.task}
+                    {t.overdue && !t.done && <span className="ml-2 text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">OVERDUE</span>}
+                  </div>
                   <div className="text-[11px] text-gray-400">{t.module} · {t.time}</div>
                 </div>
               </div>
@@ -203,6 +220,65 @@ export default function TasksPage({ initialTab = 0 }) {
       )}
 
       {activeTab === 2 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="text-sm font-bold text-gray-800">Recurring Task Templates</div>
+                <div className="text-xs text-gray-400 mt-0.5">Auto-generated daily/weekly tasks</div>
+              </div>
+              <button className="px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">+ New Template</button>
+            </div>
+            {recurringTemplates.map((t, i) => (
+              <div key={i} className={`flex items-center justify-between py-3 ${i < recurringTemplates.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-sm text-gray-800">{t.title}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">{t.module} · {t.frequency} · {t.time} · {t.assignee}</div>
+                </div>
+                <div className="flex items-center gap-2 ml-3">
+                  <div className={`w-9 h-5 rounded-full relative cursor-pointer transition-colors ${t.active ? 'bg-green-500' : 'bg-gray-200'}`}>
+                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${t.active ? 'left-4' : 'left-0.5'}`} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-4">Add Recurring Template</div>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Task Title *</label>
+                <input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="What needs to be done?" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Module</label>
+                <select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]">
+                  <option>Procurement</option><option>Inventory</option><option>Production</option><option>Logistics</option><option>Finance</option>
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Frequency</label>
+                <select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]">
+                  <option>Daily</option><option>Weekly (Mon)</option><option>Weekly (Fri)</option><option>Monthly (1st)</option><option>Monthly (Last)</option>
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Time</label>
+                <input type="time" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Assignee</label>
+                <input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Role or name" />
+              </div>
+              <button className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">
+                Save Template
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 3 && (
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div>

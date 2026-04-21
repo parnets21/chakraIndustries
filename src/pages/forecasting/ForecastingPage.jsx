@@ -3,7 +3,7 @@ import StatusBadge from '../../components/common/StatusBadge';
 import LineChart from '../../components/charts/LineChart';
 import BarChart from '../../components/charts/BarChart';
 
-const tabs = ['Demand Forecast', 'Purchase Planning', 'Inventory Optimization'];
+const tabs = ['Demand Forecast', 'Purchase Planning', 'Inventory Optimization', 'Seasonal Trends'];
 
 const demandData = [
   { label: 'Jan', value: 4200 }, { label: 'Feb', value: 4800 }, { label: 'Mar', value: 5100 },
@@ -32,31 +32,23 @@ const trCls = "border-b border-gray-50 last:border-0 hover:bg-red-50/40 transiti
 export default function ForecastingPage({ initialTab = 0 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
 
+  const primaryBtn = {
+    display:'inline-flex', alignItems:'center', gap:6,
+    padding:'8px 16px', borderRadius:10,
+    background:'linear-gradient(135deg,#ef4444,#b91c1c)',
+    color:'#fff', border:'none', cursor:'pointer',
+    fontSize:13, fontWeight:600, fontFamily:'inherit',
+    boxShadow:'0 3px 10px rgba(185,28,28,0.3)',
+  };
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <div>
-          <div className="text-xl font-black text-gray-900 tracking-tight">Demand Forecasting</div>
-          <div className="flex items-center gap-1 mt-0.5">
-            <span className="text-xs text-gray-400">Home</span>
-            <span className="text-xs text-gray-400">›</span>
-            <span className="text-xs text-red-600 font-semibold">Forecasting</span>
-          </div>
-        </div>
-        <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">
-          Generate Forecast
-        </button>
+      {/* Action Bar */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, marginBottom:20, flexWrap:'wrap' }}>
+        {activeTab === 0 && <button style={primaryBtn}>Generate Forecast</button>}
+        {activeTab === 1 && <button style={primaryBtn}>Auto-Generate POs</button>}
+        {activeTab === 3 && <button style={primaryBtn}>Save Config</button>}
       </div>
-
-      <div className="flex border-b-2 border-gray-200 mb-5 overflow-x-auto">
-        {tabs.map((t, i) => (
-          <button key={i} onClick={() => setActiveTab(i)}
-            className={`px-5 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 -mb-0.5 cursor-pointer flex-shrink-0 bg-transparent font-[inherit] ${activeTab === i ? 'text-red-700 border-red-600' : 'text-gray-400 border-transparent hover:text-red-600'}`}>
-            {t}
-          </button>
-        ))}
-      </div>
-
       {activeTab === 0 && (
         <div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
@@ -167,6 +159,55 @@ export default function ForecastingPage({ initialTab = 0 }) {
               { label: 'SKU-4412', value: 38, color: '#27ae60' },
               { label: 'SKU-5523', value: 30, color: '#f39c12' },
             ]} height={200} />
+          </div>
+        </div>
+      )}
+      {activeTab === 3 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-4">Seasonal Trend Configuration</div>
+            <div className="text-xs text-gray-400 mb-4">Set demand multipliers per month to adjust forecasts for seasonal patterns</div>
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => {
+                const defaults = [0.8, 0.85, 1.0, 1.0, 1.1, 1.2, 1.1, 1.3, 1.4, 1.5, 1.6, 1.8];
+                const color = defaults[i] >= 1.4 ? '#ef4444' : defaults[i] >= 1.1 ? '#f59e0b' : '#10b981';
+                return (
+                  <div key={m} className="flex flex-col gap-1">
+                    <label className="text-[10px] font-semibold text-gray-500">{m}</label>
+                    <input type="number" step="0.1" min="0.1" max="3"
+                      className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit] text-center font-bold"
+                      defaultValue={defaults[i]}
+                      style={{ color }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <button className="inline-flex items-center justify-center gap-1.5 w-full px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">
+              Save Seasonal Config
+            </button>
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-4">Seasonal Demand Pattern</div>
+            <BarChart data={[
+              { label: 'Jan', value: 3360, color: '#10b981' },
+              { label: 'Feb', value: 3570, color: '#10b981' },
+              { label: 'Mar', value: 4200, color: '#10b981' },
+              { label: 'Apr', value: 4200, color: '#10b981' },
+              { label: 'May', value: 4620, color: '#f59e0b' },
+              { label: 'Jun', value: 5040, color: '#f59e0b' },
+              { label: 'Jul', value: 4620, color: '#f59e0b' },
+              { label: 'Aug', value: 5460, color: '#ef4444' },
+              { label: 'Sep', value: 5880, color: '#ef4444' },
+              { label: 'Oct', value: 6300, color: '#ef4444' },
+              { label: 'Nov', value: 6720, color: '#ef4444' },
+              { label: 'Dec', value: 7560, color: '#ef4444' },
+            ]} height={200} />
+            <div className="flex gap-4 mt-3 text-xs">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />Normal</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />High</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />Peak</span>
+            </div>
           </div>
         </div>
       )}

@@ -1,10 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import StatusBadge from '../../../components/common/StatusBadge';
 import Modal from '../../../components/common/Modal';
-import DataTable from '../../../components/tables/DataTable';
 import { vendorApi } from '../../../api/vendorApi';
-import { MdVisibility } from 'react-icons/md';
-import { FaRegEdit } from 'react-icons/fa';
+import { MdVisibility, MdEdit, MdAdd, MdSearch, MdFilterList, MdBusiness, MdPhone, MdEmail, MdLocationOn, MdStar } from 'react-icons/md';
 
 const EMPTY_FORM = {
   companyName: '', category: '', contactPerson: '', phone: '',
@@ -12,111 +10,181 @@ const EMPTY_FORM = {
   gstNumber: '', paymentTerms: 'Net 30', leadTimeDays: '', rating: 3, status: 'Active', remarks: '',
 };
 
+const inp = {
+  width: '100%', padding: '9px 12px', border: '1.5px solid #e2e8f0',
+  borderRadius: 9, fontSize: 13, outline: 'none', background: '#fff',
+  color: '#1e293b', fontFamily: 'inherit', boxSizing: 'border-box',
+  transition: 'border-color .15s',
+};
+
+const lbl = { fontSize: 11.5, fontWeight: 600, color: '#475569', marginBottom: 5, display: 'block' };
+
 export default function VendorsTab({
   categories, showVendorModal, setShowVendorModal,
 }) {
-  const [vendors, setVendors] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
+  const [vendors, setVendors]       = useState([]);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState('');
+  const [search, setSearch]         = useState('');
   const [filterStatus, setFilterStatus] = useState('');
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [editId, setEditId] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const [form, setForm]             = useState(EMPTY_FORM);
+  const [editId, setEditId]         = useState(null);
+  const [saving, setSaving]         = useState(false);
   const [viewVendor, setViewVendor] = useState(null);
 
   const fetchVendors = useCallback(async () => {
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('');
     try {
       const params = {};
       if (search) params.search = search;
       if (filterStatus) params.status = filterStatus;
       const res = await vendorApi.getAll(params);
       setVendors(res.data);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
   }, [search, filterStatus]);
 
   useEffect(() => { fetchVendors(); }, [fetchVendors]);
+  useEffect(() => { const t = setTimeout(fetchVendors, 400); return () => clearTimeout(t); }, [search]);
 
-  // Debounce search
-  useEffect(() => {
-    const t = setTimeout(fetchVendors, 400);
-    return () => clearTimeout(t);
-  }, [search]);
-
-  const openAdd = () => { setForm(EMPTY_FORM); setEditId(null); setShowVendorModal(true); };
-  const openEdit = (vendor) => {
+  const openAdd  = () => { setForm(EMPTY_FORM); setEditId(null); setShowVendorModal(true); };
+  const openEdit = (v) => {
     setForm({
-      companyName: vendor.companyName || '',
-      category: vendor.category || '',
-      contactPerson: vendor.contactPerson || '',
-      phone: vendor.phone || '',
-      email: vendor.email || '',
-      city: vendor.city || '',
-      state: vendor.state || '',
-      address: vendor.address || '',
-      pincode: vendor.pincode || '',
-      gstNumber: vendor.gstNumber || '',
-      paymentTerms: vendor.paymentTerms || 'Net 30',
-      leadTimeDays: vendor.leadTimeDays || '',
-      rating: vendor.rating || 3,
-      status: vendor.status || 'Active',
-      remarks: vendor.remarks || '',
+      companyName: v.companyName || '', category: v.category || '',
+      contactPerson: v.contactPerson || '', phone: v.phone || '',
+      email: v.email || '', city: v.city || '', state: v.state || '',
+      address: v.address || '', pincode: v.pincode || '',
+      gstNumber: v.gstNumber || '', paymentTerms: v.paymentTerms || 'Net 30',
+      leadTimeDays: v.leadTimeDays || '', rating: v.rating || 3,
+      status: v.status || 'Active', remarks: v.remarks || '',
     });
-    setEditId(vendor._id);
+    setEditId(v._id);
     setShowVendorModal(true);
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      if (editId) {
-        await vendorApi.update(editId, form);
-      } else {
-        await vendorApi.create(form);
-      }
+      editId ? await vendorApi.update(editId, form) : await vendorApi.create(form);
       setShowVendorModal(false);
       setForm('');
       fetchVendors();
-    } catch (e) {
-      alert(e.message);
-    } finally {
-      setSaving(false);
-    }
+    } catch (e) { alert(e.message); }
+    finally { setSaving(false); }
   };
 
   const f = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
 
-  const columns = [
-    { key: 'vendorId', label: 'Vendor ID' },
-    { key: 'companyName', label: 'Vendor Name', render: v => <span style={{ fontWeight: 600 }}>{v}</span> },
-    { key: 'category', label: 'Category' },
-    { key: 'contactPerson', label: 'Contact' },
-    { key: 'city', label: 'City' },
-    { key: 'rating', label: 'Rating', render: v => <span style={{ color: 'var(--accent)', fontWeight: 700 }}>★ {v}</span> },
-    { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
-    {
-      key: '_id', label: 'Actions', render: (_, row) => (
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button className="btn btn-outline btn-sm" title="Edit" style={{ padding: '4px 8px' }} onClick={() => openEdit(row)}><FaRegEdit size={16} /></button>
-          <button className="btn btn-sm" style={{ background: '#f1f5f9', color: 'var(--text)', padding: '4px 8px' }} title="View" onClick={() => setViewVendor(row)}><MdVisibility size={16} /></button>
-        </div>
-      )
-    },
-  ];
+  const statusColor = (s) => s === 'Active' ? '#22c55e' : s === 'Inactive' ? '#94a3b8' : '#ef4444';
 
   return (
     <>
-      {/* Toolbar */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-        <input className="form-input" placeholder="Search vendors..." value={search}
-          onChange={e => setSearch(e.target.value)} style={{ maxWidth: 240 }} />
-        <select className="form-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ maxWidth: 160 }}>
+      <style>{`
+        /* ── Toolbar ── */
+        .vt-toolbar {
+          display: flex; align-items: center; gap: 10px;
+          margin-bottom: 16px; flex-wrap: wrap;
+        }
+        .vt-search-wrap {
+          position: relative; flex: 1; min-width: 160px;
+        }
+        .vt-search {
+          width: 100%; padding: 9px 12px 9px 34px;
+          border: 1.5px solid #e2e8f0; border-radius: 10px;
+          background: #f8fafc; font-size: 13px; color: #1e293b;
+          outline: none; font-family: inherit; transition: all .2s;
+          box-sizing: border-box;
+        }
+        .vt-search:focus { border-color: #ef4444; background: #fff; box-shadow: 0 0 0 3px rgba(239,68,68,0.08); }
+        .vt-search::placeholder { color: #94a3b8; }
+        .vt-search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; display: flex; }
+        .vt-select {
+          padding: 9px 12px; border: 1.5px solid #e2e8f0; border-radius: 10px;
+          background: #f8fafc; font-size: 13px; color: #1e293b;
+          outline: none; font-family: inherit; cursor: pointer; min-width: 130px;
+        }
+        .vt-add-btn {
+          display: inline-flex; align-items: center; gap: 6px;
+          padding: 9px 16px; border-radius: 10px;
+          background: linear-gradient(135deg,#ef4444,#b91c1c);
+          color: #fff; border: none; cursor: pointer;
+          font-size: 13px; font-weight: 600; font-family: inherit;
+          box-shadow: 0 3px 10px rgba(185,28,28,0.3);
+          white-space: nowrap; flex-shrink: 0;
+          transition: all .15s;
+        }
+        .vt-add-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(185,28,28,0.4); }
+
+        /* ── Desktop table ── */
+        .vt-table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid #f1f5f9; }
+        .vt-table { width: 100%; border-collapse: collapse; min-width: 600px; }
+        .vt-table thead tr { background: #f8fafc; }
+        .vt-table th {
+          padding: 10px 14px; text-align: left; font-size: 10.5px;
+          font-weight: 700; color: #94a3b8; text-transform: uppercase;
+          letter-spacing: .7px; border-bottom: 1px solid #f1f5f9; white-space: nowrap;
+        }
+        .vt-table td { padding: 11px 14px; font-size: 12.5px; color: #1e293b; border-bottom: 1px solid #f8fafc; vertical-align: middle; }
+        .vt-table tbody tr { transition: background .1s; cursor: default; }
+        .vt-table tbody tr:hover { background: #fef2f2; }
+        .vt-table tbody tr:last-child td { border-bottom: none; }
+
+        /* ── Mobile cards (hidden on desktop) ── */
+        .vt-cards { display: none; flex-direction: column; gap: 10px; }
+
+        /* ── Responsive breakpoint ── */
+        @media (max-width: 640px) {
+          .vt-table-wrap { display: none; }
+          .vt-cards { display: flex; }
+          .vt-toolbar { gap: 8px; }
+          .vt-select { min-width: 0; flex: 1; }
+          .vt-add-btn span.vt-add-label { display: none; }
+          .vt-add-btn { padding: 9px 12px; }
+        }
+
+        /* ── Vendor card (mobile) ── */
+        .vt-card {
+          background: #fff; border-radius: 14px;
+          border: 1px solid #e8edf2;
+          box-shadow: 0 2px 8px rgba(15,23,42,0.05);
+          padding: 14px 16px;
+        }
+        .vt-card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
+        .vt-card-name { font-size: 14px; font-weight: 700; color: #0f172a; }
+        .vt-card-id { font-size: 11px; color: #94a3b8; margin-top: 2px; font-family: monospace; }
+        .vt-card-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin-bottom: 12px; }
+        .vt-card-meta-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #475569; }
+        .vt-card-actions { display: flex; gap: 8px; }
+        .vt-card-btn {
+          flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px;
+          padding: 8px 0; border-radius: 8px; font-size: 12px; font-weight: 600;
+          cursor: pointer; font-family: inherit; transition: all .15s;
+        }
+        .vt-card-btn-edit { background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; }
+        .vt-card-btn-view { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+        .vt-card-btn-edit:hover { background: #ef4444; color: #fff; }
+        .vt-card-btn-view:hover { background: #475569; color: #fff; }
+
+        /* ── Form grid ── */
+        .vt-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        @media (max-width: 540px) { .vt-form-grid { grid-template-columns: 1fr; } }
+        .vt-span2 { grid-column: span 2; }
+        @media (max-width: 540px) { .vt-span2 { grid-column: span 1; } }
+
+        /* ── View detail grid ── */
+        .vt-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; }
+        @media (max-width: 480px) { .vt-detail-grid { grid-template-columns: 1fr; } }
+        .vt-detail-span2 { grid-column: span 2; }
+        @media (max-width: 480px) { .vt-detail-span2 { grid-column: span 1; } }
+      `}</style>
+
+      {/* ── Toolbar ── */}
+      <div className="vt-toolbar">
+        <div className="vt-search-wrap">
+          <span className="vt-search-icon"><MdSearch size={15} /></span>
+          <input className="vt-search" placeholder="Search vendors..." value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <select className="vt-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
           <option value="">All Status</option>
           <option>Active</option>
           <option>Inactive</option>
@@ -124,55 +192,56 @@ export default function VendorsTab({
         </select>
       </div>
 
-      <div className="card">
-        {error && <div style={{ color: 'red', padding: 12 }}>{error}</div>}
-        {loading ? (
-          <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
-        ) : (
-          <DataTable columns={columns} data={vendors} />
-        )}
-      </div>
+      {/* ── Error / Loading ── */}
+      {error && (
+        <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, color: '#ef4444', fontSize: 13, marginBottom: 12 }}>
+          {error}
+        </div>
+      )}
+      {loading && (
+        <div style={{ padding: '32px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Loading vendors…</div>
+      )}
 
       {/* Add / Edit Vendor Modal */}
       <Modal open={showVendorModal} onClose={() => setShowVendorModal(false)} title={editId ? 'Edit Vendor' : 'Add New Vendor'}
         footer={
           <>
-            <button className="btn btn-outline" onClick={() => setShowVendorModal(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save Vendor'}</button>
+            <button onClick={() => setShowVendorModal(false)} style={{ padding: '8px 16px', borderRadius: 9, border: '1.5px solid #c0392b', color: '#c0392b', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: 13 }}>Cancel</button>
+            <button onClick={handleSave} disabled={saving} style={{ padding: '8px 18px', borderRadius: 9, background: 'linear-gradient(135deg,#ef4444,#b91c1c)', color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: 13, opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving…' : 'Save Vendor'}</button>
           </>
         }>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div className="form-group"><label className="form-label">Vendor Name *</label><input className="form-input" placeholder="Company name" value={form.companyName} onChange={f('companyName')} /></div>
-          <div className="form-group"><label className="form-label">Category *</label>
-            <select className="form-select" value={form.category} onChange={f('category')}>
+        <div className="vt-form-grid">
+          <div><label style={lbl}>Vendor Name *</label><input style={inp} placeholder="Company name" value={form.companyName} onChange={f('companyName')} /></div>
+          <div><label style={lbl}>Category *</label>
+            <select style={inp} value={form.category} onChange={f('category')}>
               <option value="">Select category</option>
               {categories.map(c => <option key={c}>{c}</option>)}
             </select>
           </div>
-          <div className="form-group"><label className="form-label">Contact Person *</label><input className="form-input" placeholder="Name" value={form.contactPerson} onChange={f('contactPerson')} /></div>
-          <div className="form-group"><label className="form-label">Phone *</label><input className="form-input" placeholder="10-digit number" value={form.phone} onChange={f('phone')} /></div>
-          <div className="form-group"><label className="form-label">Email *</label><input className="form-input" type="email" placeholder="email@company.com" value={form.email} onChange={f('email')} /></div>
-          <div className="form-group"><label className="form-label">City *</label><input className="form-input" placeholder="City" value={form.city} onChange={f('city')} /></div>
-          <div className="form-group"><label className="form-label">State *</label><input className="form-input" placeholder="State" value={form.state} onChange={f('state')} /></div>
-          <div className="form-group"><label className="form-label">Pincode *</label><input className="form-input" placeholder="6-digit pincode" value={form.pincode} onChange={f('pincode')} /></div>
-          <div className="form-group" style={{ gridColumn: 'span 2' }}><label className="form-label">Address *</label><input className="form-input" placeholder="Full address" value={form.address} onChange={f('address')} /></div>
-          <div className="form-group"><label className="form-label">GST Number *</label><input className="form-input" placeholder="GSTIN" value={form.gstNumber} onChange={f('gstNumber')} /></div>
-          <div className="form-group"><label className="form-label">Payment Terms</label>
-            <select className="form-select" value={form.paymentTerms} onChange={f('paymentTerms')}>
-              {['Net 30', 'Net 45', 'Net 60', 'Net 90', 'Advance Payment', 'COD'].map(t => <option key={t}>{t}</option>)}
+          <div><label style={lbl}>Contact Person *</label><input style={inp} placeholder="Name" value={form.contactPerson} onChange={f('contactPerson')} /></div>
+          <div><label style={lbl}>Phone *</label><input style={inp} placeholder="10-digit number" value={form.phone} onChange={f('phone')} /></div>
+          <div><label style={lbl}>Email *</label><input style={inp} type="email" placeholder="email@company.com" value={form.email} onChange={f('email')} /></div>
+          <div><label style={lbl}>City *</label><input style={inp} placeholder="City" value={form.city} onChange={f('city')} /></div>
+          <div><label style={lbl}>State *</label><input style={inp} placeholder="State" value={form.state} onChange={f('state')} /></div>
+          <div><label style={lbl}>Pincode *</label><input style={inp} placeholder="6-digit pincode" value={form.pincode} onChange={f('pincode')} /></div>
+          <div className="vt-span2"><label style={lbl}>Address *</label><input style={inp} placeholder="Full address" value={form.address} onChange={f('address')} /></div>
+          <div><label style={lbl}>GST Number *</label><input style={inp} placeholder="GSTIN" value={form.gstNumber} onChange={f('gstNumber')} /></div>
+          <div><label style={lbl}>Payment Terms</label>
+            <select style={inp} value={form.paymentTerms} onChange={f('paymentTerms')}>
+              {['Net 30','Net 45','Net 60','Net 90','Advance Payment','COD'].map(t => <option key={t}>{t}</option>)}
             </select>
           </div>
-          <div className="form-group"><label className="form-label">Lead Time (days)</label><input className="form-input" type="number" placeholder="0" value={form.leadTimeDays} onChange={f('leadTimeDays')} /></div>
-          <div className="form-group"><label className="form-label">Status</label>
-            <select className="form-select" value={form.status} onChange={f('status')}>
+          <div><label style={lbl}>Lead Time (days)</label><input style={inp} type="number" placeholder="0" value={form.leadTimeDays} onChange={f('leadTimeDays')} /></div>
+          <div><label style={lbl}>Status</label>
+            <select style={inp} value={form.status} onChange={f('status')}>
               <option>Active</option><option>Inactive</option><option>Blacklisted</option>
             </select>
           </div>
-          <div className="form-group" style={{ gridColumn: 'span 2' }}><label className="form-label">Remarks</label><input className="form-input" placeholder="Optional notes" value={form.remarks} onChange={f('remarks')} /></div>
+          <div className="vt-span2"><label style={lbl}>Remarks</label><input style={inp} placeholder="Optional notes" value={form.remarks} onChange={f('remarks')} /></div>
         </div>
       </Modal>
 
-      {/* View Vendor Modal */}
+      {/* ── View Vendor Modal ── */}
       {viewVendor && (
         <Modal open={!!viewVendor} onClose={() => setViewVendor(null)} title={viewVendor.companyName} size="lg"
           footer={

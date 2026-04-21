@@ -38,17 +38,6 @@ export default function SettingsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <div>
-          <div className="text-xl font-black text-gray-900 tracking-tight">Settings</div>
-          <div className="flex items-center gap-1 mt-0.5">
-            <span className="text-xs text-gray-400">Home</span>
-            <span className="text-xs text-gray-400">›</span>
-            <span className="text-xs text-red-600 font-semibold">Settings</span>
-          </div>
-        </div>
-      </div>
-
       {/* Role Permissions — full inline panel for Super Admin */}
       {openSection === 'roles' ? (
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">

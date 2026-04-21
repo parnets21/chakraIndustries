@@ -22,15 +22,14 @@ export default function MainLayout({ activePage, children }) {
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  const sidebarW = isMobile ? 0 : collapsed ? 68 : 252;
+  const sidebarW = isMobile ? 0 : collapsed ? 68 : 256;
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#f4f6f9' }}>
-      {/* Mobile overlay */}
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#f0f4f8' }}>
       {sidebarOpen && (
         <div onClick={() => setSidebarOpen(false)} style={{
           position: 'fixed', inset: 0, zIndex: 150,
-          background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)',
+          background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)',
         }} />
       )}
 
@@ -51,9 +50,14 @@ export default function MainLayout({ activePage, children }) {
         transition: 'margin-left 0.28s cubic-bezier(0.4,0,0.2,1)',
         minWidth: 0,
         overflow: 'hidden',
+        background: '#f0f4f8',
       }}>
         <Navbar activePage={activePage} onMenuClick={() => setSidebarOpen(true)} isMobile={isMobile} />
-        <main className="fade-in" style={{ flex: 1, padding: isMobile ? '14px 12px' : '22px 24px' }}>
+        <main className="fade-in" style={{
+          flex: 1,
+          padding: isMobile ? '16px 12px' : '24px 28px',
+          background: '#f0f4f8',
+        }}>
           {children}
         </main>
       </div>

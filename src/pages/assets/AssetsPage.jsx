@@ -42,38 +42,38 @@ export default function AssetsPage({ initialTab = 0 }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <div>
-          <div className="text-xl font-black text-gray-900 tracking-tight">Asset Management</div>
-          <div className="flex items-center gap-1 mt-0.5">
-            <span className="text-xs text-gray-400">Home</span>
-            <span className="text-xs text-gray-400">›</span>
-            <span className="text-xs text-red-600 font-semibold">Assets</span>
-          </div>
-        </div>
-        <button
-          className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]"
-          onClick={() => setShowModal(true)}
-        >
-          + Add Asset
-        </button>
+      {/* Action Bar */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, marginBottom:20, flexWrap:'wrap' }}>
+        {activeTab === 0 && <button onClick={() => setShowModal(true)} style={{
+          display:'inline-flex', alignItems:'center', gap:6,
+          padding:'8px 16px', borderRadius:10,
+          background:'linear-gradient(135deg,#ef4444,#b91c1c)',
+          color:'#fff', border:'none', cursor:'pointer',
+          fontSize:13, fontWeight:600, fontFamily:'inherit',
+          boxShadow:'0 3px 10px rgba(185,28,28,0.3)',
+        }}>+ Add Asset</button>}
+        {activeTab === 1 && <button onClick={() => setShowModal(true)} style={{
+          display:'inline-flex', alignItems:'center', gap:6,
+          padding:'8px 16px', borderRadius:10,
+          background:'linear-gradient(135deg,#ef4444,#b91c1c)',
+          color:'#fff', border:'none', cursor:'pointer',
+          fontSize:13, fontWeight:600, fontFamily:'inherit',
+          boxShadow:'0 3px 10px rgba(185,28,28,0.3)',
+        }}>+ Schedule Maintenance</button>}
+        {activeTab === 2 && <button style={{
+          display:'inline-flex', alignItems:'center', gap:6,
+          padding:'8px 16px', borderRadius:10,
+          background:'transparent', color:'#c0392b',
+          border:'1.5px solid #c0392b', cursor:'pointer',
+          fontSize:13, fontWeight:600, fontFamily:'inherit',
+        }}>⬇ Export</button>}
       </div>
-
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         {kpis.map((k, i) => (
           <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
             <div className="text-2xl font-black tracking-tight" style={{ color: k.color }}>{k.value}</div>
             <div className="text-xs text-gray-500 font-medium mt-1">{k.label}</div>
           </div>
-        ))}
-      </div>
-
-      <div className="flex border-b-2 border-gray-200 mb-5 overflow-x-auto">
-        {['Asset Register', 'Maintenance Calendar', 'Asset Lifecycle'].map((t, i) => (
-          <button key={i} onClick={() => setActiveTab(i)}
-            className={`px-5 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 -mb-0.5 cursor-pointer flex-shrink-0 bg-transparent font-[inherit] ${activeTab === i ? 'text-red-700 border-red-600' : 'text-gray-400 border-transparent hover:text-red-600'}`}>
-            {t}
-          </button>
         ))}
       </div>
 

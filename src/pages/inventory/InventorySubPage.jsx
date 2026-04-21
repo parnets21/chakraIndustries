@@ -11,8 +11,12 @@ const TAB_MAP = {
   batch:      6,
   ageing:     7,
   defective:  8,
+  storage:    9,
+  pincode:    10,
 };
 
 export default function InventorySubPage({ tab }) {
-  return <InventoryPage initialTab={TAB_MAP[tab] ?? 0} />;
+  const tabIndex = TAB_MAP[tab] ?? 0;
+  // key forces a remount when the tab changes so useState(initialTab) re-initialises
+  return <InventoryPage key={tabIndex} initialTab={tabIndex} />;
 }

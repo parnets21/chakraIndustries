@@ -1,27 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-<<<<<<< HEAD
-import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShell';
-import { vendorApi } from '../../api/vendorApi';
-import { categoryApi } from '../../api/categoryApi';
-=======
 import { categoryApi } from '../../api/categoryApi';
 import { vendorApi } from '../../api/vendorApi';
 import Modal from '../../components/common/Modal';
 import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShell';
->>>>>>> 89bc8f5e1bbee013908cd9e5d8c1b539f487bb93
 import VendorsTab from './components/VendorsTab';
 import { MdBusiness, MdCheckCircle, MdWarning, MdBlock, MdAdd, MdCategory } from 'react-icons/md';
 
 export default function VendorsPage() {
-<<<<<<< HEAD
-  const [categories, setCategories]               = useState(defaultCategories);
-  const [newCategory, setNewCategory]             = useState('');
-  const [showVendorModal, setShowVendorModal]     = useState(false);
-=======
   const [categories, setCategories] = useState([]);
   const [newCategory, setNewCategory] = useState('');
   const [showVendorModal, setShowVendorModal] = useState(false);
->>>>>>> 89bc8f5e1bbee013908cd9e5d8c1b539f487bb93
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0, blacklisted: 0 });
 
@@ -106,25 +94,6 @@ export default function VendorsPage() {
 
       <KpiStrip kpis={kpis} />
 
-<<<<<<< HEAD
-      <PageCard noPad>
-        <div style={{ padding: '20px 20px 0' }}>
-          <VendorsTab
-            categories={categoryNames}
-            categoriesRaw={categories}
-            setCategories={setCategories}
-            newCategory={newCategory}
-            setNewCategory={setNewCategory}
-            showVendorModal={showVendorModal}
-            setShowVendorModal={setShowVendorModal}
-            showCategoryModal={showCategoryModal}
-            setShowCategoryModal={setShowCategoryModal}
-            onAddCategory={handleAddCategory}
-            onDeleteCategory={handleDeleteCategory}
-          />
-        </div>
-      </PageCard>
-=======
       <PageCard>
         <VendorsTab
           categories={categoryNames}
@@ -152,7 +121,6 @@ export default function VendorsPage() {
           ))}
         </div>
       </Modal>
->>>>>>> 89bc8f5e1bbee013908cd9e5d8c1b539f487bb93
     </div>
   );
 }

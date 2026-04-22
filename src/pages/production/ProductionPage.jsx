@@ -3,6 +3,7 @@ import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import BarChart from '../../components/charts/BarChart';
 import Modal from '../../components/common/Modal';
+import { toast } from '../../components/common/Toast';
 
 const tabList = ['BOM', 'Work Orders', 'Production Planning', 'Production Scheduling', 'Production Tracking', 'Efficiency', 'Wastage'];
 const bom = [
@@ -46,6 +47,38 @@ export default function ProductionPage({ initialTab = 0 }) {
   const [selectedBOM, setSelectedBOM] = useState('BOM-001');
   const [showWOModal, setShowWOModal] = useState(false);
   const [showBOMModal, setShowBOMModal] = useState(false);
+  const [bomList, setBomList] = useState(bom);
+  const [woList, setWoList] = useState(workOrders);
+  const [woForm, setWoForm] = useState({ product: 'Engine Assembly A', qty: '', shift: 'Morning', startDate: '', endDate: '', bom: 'BOM-001', priority: 'Normal', remarks: '' });
+  const [bomForm, setBomForm] = useState({ product: '', version: 'v1.0', type: 'Finished Good', uom: 'Set', description: '' });
+
+  const handleCreateWO = () => {
+    if (!woForm.qty || !woForm.startDate) { toast('Please fill required fields', 'error'); return; }
+    const newWO = { id: `WO-${String(woList.length + 892).padStart(4, '0')}`, product: woForm.product, qty: parseInt(woForm.qty), produced: 0, status: 'Pending', startDate: new Date(woForm.startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }), endDate: woForm.endDate ? new Date(woForm.endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—', shift: woForm.shift };
+    setWoList(prev => [...prev, newWO]);
+    setWoForm({ product: 'Engine Assembly A', qty: '', shift: 'Morning', startDate: '', endDate: '', bom: 'BOM-001', priority: 'Normal', remarks: '' });
+    setShowWOModal(false);
+    toast(`Work Order ${newWO.id} created`);
+  };
+
+  const handleCreateBOM = () => {
+    if (!bomForm.product) { toast('Product name is required', 'error'); return; }
+    const newBOM = { id: `BOM-${String(bomList.length + 4).padStart(3, '0')}`, product: bomForm.product, components: 0, version: bomForm.version, status: 'Active' };
+    setBomList(prev => [...prev, newBOM]);
+    setBomForm({ product: '', version: 'v1.0', type: 'Finished Good', uom: 'Set', description: '' });
+    setShowBOMModal(false);
+    toast(`BOM ${newBOM.id} created`);
+  };
+
+  const handleUpdateWOProgress = (id) => {
+    setWoList(prev => prev.map(w => {
+      if (w.id !== id) return w;
+      const increment = Math.min(w.qty - w.produced, Math.ceil(w.qty * 0.1));
+      const newProduced = w.produced + increment;
+      return { ...w, produced: newProduced, status: newProduced >= w.qty ? 'Completed' : 'In-Progress' };
+    }));
+    toast(`Progress updated for ${id}`);
+  };
 
   const primaryBtn = {
     display:'inline-flex', alignItems:'center', gap:6,
@@ -78,7 +111,7 @@ export default function ProductionPage({ initialTab = 0 }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
             <div className="text-sm font-bold text-gray-800 mb-3">BOM List</div>
-            {bom.map(b => (
+            {bomList.map(b => (
               <div key={b.id} onClick={() => setSelectedBOM(b.id)}
                 className="p-3 rounded-lg mb-2 cursor-pointer transition-all"
                 style={{ border: `2px solid ${selectedBOM === b.id ? '#c0392b' : '#e2e8f0'}`, background: selectedBOM === b.id ? '#fdf5f5' : '#fff' }}>
@@ -122,7 +155,7 @@ export default function ProductionPage({ initialTab = 0 }) {
               { key: 'endDate', label: 'End' },
               { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
             ]}
-            data={workOrders}
+            data={woList}
           />
         </div>
       )}
@@ -205,7 +238,7 @@ export default function ProductionPage({ initialTab = 0 }) {
 
       {activeTab === 4 && (
         <div className="flex flex-col gap-4">
-          {workOrders.filter(w => w.status === 'In-Progress').map(wo => (
+          {woList.filter(w => w.status === 'In-Progress').map(wo => (
             <div key={wo.id} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
               <div className="flex justify-between items-center mb-3">
                 <div>
@@ -221,6 +254,7 @@ export default function ProductionPage({ initialTab = 0 }) {
               <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                 <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(wo.produced / wo.qty) * 100}%`, background: '#c0392b' }} />
               </div>
+              <button onClick={() => handleUpdateWOProgress(wo.id)} className="mt-3 w-full py-2 rounded-xl text-sm font-semibold bg-red-600 text-white border-0 cursor-pointer font-[inherit] hover:bg-red-700 transition-all">+ Update Progress</button>
             </div>
           ))}
         </div>
@@ -273,29 +307,29 @@ export default function ProductionPage({ initialTab = 0 }) {
       )}
 
       <Modal open={showWOModal} onClose={() => setShowWOModal(false)} title="Create Work Order"
-        footer={<><button className={btnO} onClick={() => setShowWOModal(false)}>Cancel</button><button className={btnP} onClick={() => setShowWOModal(false)}>Create Work Order</button></>}>
+        footer={<><button className={btnO} onClick={() => setShowWOModal(false)}>Cancel</button><button className={btnP} onClick={handleCreateWO}>Create Work Order</button></>}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Work Order ID</label><input className={inp} placeholder="Auto-generated" disabled /></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Product *</label><select className={inp}><option>Engine Assembly A</option><option>Gearbox Unit B</option><option>Clutch Assembly C</option></select></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Target Quantity *</label><input type="number" className={inp} placeholder="0" /></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Shift</label><select className={inp}><option>Morning</option><option>General</option><option>Night</option></select></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Start Date *</label><input type="date" className={inp} /></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">End Date *</label><input type="date" className={inp} /></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">BOM Reference</label><select className={inp}><option>BOM-001 — Engine Assembly A</option><option>BOM-002 — Gearbox Unit B</option></select></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Priority</label><select className={inp}><option>Normal</option><option>High</option><option>Urgent</option></select></div>
+          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Product *</label><select className={inp} value={woForm.product} onChange={e => setWoForm(p=>({...p,product:e.target.value}))}><option>Engine Assembly A</option><option>Gearbox Unit B</option><option>Clutch Assembly C</option></select></div>
+          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Target Quantity *</label><input type="number" className={inp} placeholder="0" value={woForm.qty} onChange={e => setWoForm(p=>({...p,qty:e.target.value}))} /></div>
+          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Shift</label><select className={inp} value={woForm.shift} onChange={e => setWoForm(p=>({...p,shift:e.target.value}))}><option>Morning</option><option>General</option><option>Night</option></select></div>
+          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Start Date *</label><input type="date" className={inp} value={woForm.startDate} onChange={e => setWoForm(p=>({...p,startDate:e.target.value}))} /></div>
+          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">End Date *</label><input type="date" className={inp} value={woForm.endDate} onChange={e => setWoForm(p=>({...p,endDate:e.target.value}))} /></div>
+          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">BOM Reference</label><select className={inp} value={woForm.bom} onChange={e => setWoForm(p=>({...p,bom:e.target.value}))}><option>BOM-001 — Engine Assembly A</option><option>BOM-002 — Gearbox Unit B</option></select></div>
+          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Priority</label><select className={inp} value={woForm.priority} onChange={e => setWoForm(p=>({...p,priority:e.target.value}))}><option>Normal</option><option>High</option><option>Urgent</option></select></div>
         </div>
-        <div className="flex flex-col gap-1.5 mt-1"><label className="text-xs font-semibold text-gray-600">Remarks</label><textarea className={`${inp} resize-y min-h-[80px]`} placeholder="Additional instructions..." /></div>
+        <div className="flex flex-col gap-1.5 mt-1"><label className="text-xs font-semibold text-gray-600">Remarks</label><textarea className={`${inp} resize-y min-h-[80px]`} placeholder="Additional instructions..." value={woForm.remarks} onChange={e => setWoForm(p=>({...p,remarks:e.target.value}))} /></div>
       </Modal>
 
       <Modal open={showBOMModal} onClose={() => setShowBOMModal(false)} title="Create New BOM"
-        footer={<><button className={btnO} onClick={() => setShowBOMModal(false)}>Cancel</button><button className={btnP} onClick={() => setShowBOMModal(false)}>Save BOM</button></>}>
+        footer={<><button className={btnO} onClick={() => setShowBOMModal(false)}>Cancel</button><button className={btnP} onClick={handleCreateBOM}>Save BOM</button></>}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Product Name *</label><input className={inp} placeholder="e.g. Engine Assembly D" /></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Version</label><input className={inp} placeholder="v1.0" /></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Product Type</label><select className={inp}><option>Finished Good</option><option>Sub-Assembly</option><option>Semi-Finished</option></select></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Unit of Measure</label><input className={inp} placeholder="e.g. Set" /></div>
+          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Product Name *</label><input className={inp} placeholder="e.g. Engine Assembly D" value={bomForm.product} onChange={e => setBomForm(p=>({...p,product:e.target.value}))} /></div>
+          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Version</label><input className={inp} placeholder="v1.0" value={bomForm.version} onChange={e => setBomForm(p=>({...p,version:e.target.value}))} /></div>
+          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Product Type</label><select className={inp} value={bomForm.type} onChange={e => setBomForm(p=>({...p,type:e.target.value}))}><option>Finished Good</option><option>Sub-Assembly</option><option>Semi-Finished</option></select></div>
+          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Unit of Measure</label><input className={inp} placeholder="e.g. Set" value={bomForm.uom} onChange={e => setBomForm(p=>({...p,uom:e.target.value}))} /></div>
         </div>
-        <div className="flex flex-col gap-1.5 mt-1"><label className="text-xs font-semibold text-gray-600">Description</label><textarea className={`${inp} resize-y min-h-[80px]`} placeholder="BOM description..." /></div>
+        <div className="flex flex-col gap-1.5 mt-1"><label className="text-xs font-semibold text-gray-600">Description</label><textarea className={`${inp} resize-y min-h-[80px]`} placeholder="BOM description..." value={bomForm.description} onChange={e => setBomForm(p=>({...p,description:e.target.value}))} /></div>
       </Modal>
     </div>
   );

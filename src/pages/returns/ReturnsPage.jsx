@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import Modal from '../../components/common/Modal';
+import { toast } from '../../components/common/Toast';
 
 const returns = [
   { id: 'RET-001', docket: 'DKT-2024-041', order: 'ORD-2024-080', customer: 'Bajaj Auto', items: 4, value: '₹48,000', type: 'Defective', status: 'Pending', date: '13 Apr', debitNote: '', creditNote: '' },
@@ -42,12 +43,30 @@ export default function ReturnsPage({ initialTab = 0 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [selected, setSelected] = useState(returns[0]);
   const [showModal, setShowModal] = useState(false);
+  const [returnList, setReturnList] = useState(returns);
+
+  const handleSubmitReturn = () => {
+    const newReturn = { id: `RET-${String(returnList.length + 5).padStart(3,'0')}`, docket: `DKT-${Date.now()}`, order: 'ORD-NEW', customer: 'New Customer', items: 1, value: '₹0', type: 'Defective', status: 'Pending', date: new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short'}), debitNote: '', creditNote: '' };
+    setReturnList(prev => [...prev, newReturn]);
+    setShowModal(false);
+    toast(`Return ${newReturn.id} submitted`);
+  };
+
+  const handleApproveReturn = (id) => {
+    setReturnList(prev => prev.map(r => r.id === id ? { ...r, status: 'Approved' } : r));
+    toast(`Return ${id} approved`);
+  };
+
+  const handleRejectReturn = (id) => {
+    setReturnList(prev => prev.map(r => r.id === id ? { ...r, status: 'Rejected' } : r));
+    toast(`Return ${id} rejected`, 'warning');
+  };
 
   const kpis = [
-    { label: 'Total Returns', value: returns.length, color: '#1c2833' },
-    { label: 'Pending', value: returns.filter(r => r.status === 'Pending').length, color: '#f59e0b' },
-    { label: 'Approved', value: returns.filter(r => r.status === 'Approved').length, color: '#3b82f6' },
-    { label: 'Completed', value: returns.filter(r => r.status === 'Completed').length, color: '#10b981' },
+    { label: 'Total Returns', value: returnList.length, color: '#1c2833' },
+    { label: 'Pending', value: returnList.filter(r => r.status === 'Pending').length, color: '#f59e0b' },
+    { label: 'Approved', value: returnList.filter(r => r.status === 'Approved').length, color: '#3b82f6' },
+    { label: 'Completed', value: returnList.filter(r => r.status === 'Completed').length, color: '#10b981' },
   ];
 
   const tabLabels = ['Return Requests', 'Docket Tracking', 'Debit / Credit Matching', 'Loss Tracking'];
@@ -287,7 +306,7 @@ export default function ReturnsPage({ initialTab = 0 }) {
         footer={
           <>
             <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Cancel</button>
-            <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Submit Return</button>
+            <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={handleSubmitReturn}>Submit Return</button>
           </>
         }
       >

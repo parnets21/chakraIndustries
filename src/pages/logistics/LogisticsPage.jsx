@@ -2,6 +2,7 @@ import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
+import { toast } from '../../components/common/Toast';
 
 const tabs = ['Dispatch Dashboard', 'Vehicle Allocation', 'Delivery Tracking', 'DC Regularization', 'Pendency', 'Courier & POD'];
 
@@ -53,6 +54,27 @@ const courierShipments = [
 export default function LogisticsPage({ initialTab = 0 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [showModal, setShowModal] = useState(false);
+  const [dispatchList, setDispatchList] = useState(readyOrders);
+  const [vehicleList, setVehicleList] = useState(vehicles);
+  const [shipmentList, setShipmentList] = useState(courierShipments);
+  const [allocationList, setAllocationList] = useState(allocations);
+
+  const handleSaveModal = () => {
+    if (activeTab === 0) toast('Dispatch created successfully');
+    else if (activeTab === 1) toast('Vehicle added successfully');
+    else if (activeTab === 5) toast('Shipment created successfully');
+    setShowModal(false);
+  };
+
+  const handleDispatchOrder = (orderId) => {
+    setDispatchList(prev => prev.filter(o => o.id !== orderId));
+    toast(`Order ${orderId} dispatched`);
+  };
+
+  const handleUpdateVehicleStatus = (id, status) => {
+    setVehicleList(prev => prev.map(v => v.id === id ? { ...v, status } : v));
+    toast(`Vehicle ${id} → ${status}`);
+  };
 
   const primaryBtn = {
     display:'inline-flex', alignItems:'center', gap:6,
@@ -340,7 +362,7 @@ export default function LogisticsPage({ initialTab = 0 }) {
         footer={
           <>
             <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Cancel</button>
-            <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Create Dispatch</button>
+            <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={handleSaveModal}>Create Dispatch</button>
           </>
         }
       >

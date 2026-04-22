@@ -3,6 +3,7 @@ import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
 import { MdDeleteOutline } from 'react-icons/md';
+import { toast } from '../../components/common/Toast';
 
 const initialAssets = [
   { id: 'AST-001', name: 'CNC Machine M-200', category: 'Machinery', location: 'Plant A', purchaseDate: '15 Jan 2022', value: '₹24,00,000', status: 'Active', nextMaint: '20 Apr 2024' },
@@ -27,10 +28,32 @@ export default function AssetsPage({ initialTab = 0 }) {
   const [showModal, setShowModal]       = useState(false);
   const [assets, setAssets]             = useState(initialAssets);
   const [deleteAsset, setDeleteAsset]   = useState(null);
+  const [assetForm, setAssetForm]       = useState({ name:'', category:'Machinery', location:'Plant A', purchaseDate:'', value:'', status:'Active', nextMaint:'' });
 
   const confirmDelete = () => {
-    setAssets(prev => prev.filter(a => a.id !== deleteAsset.id));
+    const id = deleteAsset.id;
+    setAssets(prev => prev.filter(a => a.id !== id));
     setDeleteAsset(null);
+    toast(`Asset ${id} deleted`, 'warning');
+  };
+
+  const handleSaveAsset = () => {
+    if (!assetForm.name) { toast('Asset name is required', 'error'); return; }
+    if (activeTab === 0) {
+      const newAsset = { id: `AST-${String(assets.length + 1).padStart(3,'0')}`, name: assetForm.name, category: assetForm.category, location: assetForm.location, purchaseDate: assetForm.purchaseDate || '—', value: assetForm.value || '₹0', status: assetForm.status, nextMaint: assetForm.nextMaint || '—' };
+      setAssets(prev => [...prev, newAsset]);
+      toast(`Asset ${newAsset.id} added`);
+    } else {
+      toast('Maintenance scheduled');
+    }
+    setAssetForm({ name:'', category:'Machinery', location:'Plant A', purchaseDate:'', value:'', status:'Active', nextMaint:'' });
+    setShowModal(false);
+  };
+
+  const handleExport = () => {
+    const csv = ['ID,Name,Category,Location,Value,Status', ...assets.map(a => `${a.id},${a.name},${a.category},${a.location},${a.value},${a.status}`)].join('\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download='assets.csv'; a.click();
+    toast('Assets exported');
   };
 
   const kpis = [
@@ -60,7 +83,7 @@ export default function AssetsPage({ initialTab = 0 }) {
           fontSize:13, fontWeight:600, fontFamily:'inherit',
           boxShadow:'0 3px 10px rgba(185,28,28,0.3)',
         }}>+ Schedule Maintenance</button>}
-        {activeTab === 2 && <button style={{
+        {activeTab === 2 && <button onClick={handleExport} style={{
           display:'inline-flex', alignItems:'center', gap:6,
           padding:'8px 16px', borderRadius:10,
           background:'transparent', color:'#c0392b',
@@ -195,24 +218,20 @@ export default function AssetsPage({ initialTab = 0 }) {
         <p className="text-sm text-gray-700">Are you sure you want to delete <strong>{deleteAsset?.name}</strong>? This action cannot be undone.</p>
       </Modal>
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Add New Asset"
+      <Modal open={showModal} onClose={() => setShowModal(false)} title={activeTab === 0 ? "Add New Asset" : "Schedule Maintenance"}
         footer={<>
           <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Cancel</button>
-          <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Save Asset</button>
+          <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={handleSaveAsset}>{activeTab === 0 ? 'Save Asset' : 'Schedule'}</button>
         </>}>
         <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Asset Name *</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="e.g. CNC Machine M-300" /></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Category *</label><select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]"><option>Machinery</option><option>Material Handling</option><option>Utilities</option><option>IT Equipment</option><option>Vehicles</option></select></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Location *</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="e.g. Plant A" /></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Purchase Date</label><input type="date" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" /></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Purchase Value (₹) *</label><input type="number" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="0.00" /></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Condition</label><select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]"><option>New</option><option>Good</option><option>Fair</option><option>Poor</option></select></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Vendor / Supplier</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Supplier name" /></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Warranty Expiry</label><input type="date" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" /></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Next Maintenance</label><input type="date" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" /></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Assigned To</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Department / Person" /></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Asset Name *</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="e.g. CNC Machine M-300" value={assetForm.name} onChange={e => setAssetForm(p=>({...p,name:e.target.value}))} /></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Category *</label><select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" value={assetForm.category} onChange={e => setAssetForm(p=>({...p,category:e.target.value}))}><option>Machinery</option><option>Material Handling</option><option>Utilities</option><option>IT Equipment</option><option>Vehicles</option></select></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Location *</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="e.g. Plant A" value={assetForm.location} onChange={e => setAssetForm(p=>({...p,location:e.target.value}))} /></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Purchase Date</label><input type="date" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" value={assetForm.purchaseDate} onChange={e => setAssetForm(p=>({...p,purchaseDate:e.target.value}))} /></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Purchase Value</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="e.g. ₹24,00,000" value={assetForm.value} onChange={e => setAssetForm(p=>({...p,value:e.target.value}))} /></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Status</label><select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" value={assetForm.status} onChange={e => setAssetForm(p=>({...p,status:e.target.value}))}><option>Active</option><option>Maintenance</option><option>Inactive</option></select></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Next Maintenance</label><input type="date" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" value={assetForm.nextMaint} onChange={e => setAssetForm(p=>({...p,nextMaint:e.target.value}))} /></div>
         </div>
-        <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Description / Notes</label><textarea className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Asset details..." /></div>
       </Modal>
     </div>
   );

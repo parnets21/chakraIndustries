@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
+import { toast } from '../../components/common/Toast';
 
 const tabs = ['Kanban Board', 'Daily To-Do', 'Recurring Templates', 'Notifications'];
 
@@ -67,6 +68,8 @@ export default function TasksPage({ initialTab = 0 }) {
   const [dragging, setDragging] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [todos, setTodos] = useState(dailyTodos);
+  const [notifList, setNotifList] = useState(notifications);
+  const [taskForm, setTaskForm] = useState({ title: '', priority: 'Normal', assignee: '', due: '', tag: 'Procurement' });
 
   const moveTask = (taskId, fromCol, toCol) => {
     if (fromCol === toCol) return;
@@ -76,9 +79,32 @@ export default function TasksPage({ initialTab = 0 }) {
       [fromCol]: prev[fromCol].filter(t => t.id !== taskId),
       [toCol]: [...prev[toCol], task],
     }));
+    toast(`Task moved to ${toCol === 'todo' ? 'To Do' : toCol === 'inProgress' ? 'In Progress' : 'Done'}`);
   };
 
-  const toggleTodo = (id) => setTodos(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
+  const handleCreateTask = () => {
+    if (!taskForm.title) { toast('Task title is required', 'error'); return; }
+    const newTask = { id: `T-${String(Object.values(tasks).flat().length + 1).padStart(3,'0')}`, title: taskForm.title, priority: taskForm.priority, assignee: taskForm.assignee || 'Unassigned', due: taskForm.due || '—', tag: taskForm.tag };
+    setTasks(prev => ({ ...prev, todo: [...prev.todo, newTask] }));
+    setTaskForm({ title: '', priority: 'Normal', assignee: '', due: '', tag: 'Procurement' });
+    setShowModal(false);
+    toast(`Task ${newTask.id} created`);
+  };
+
+  const toggleTodo = (id) => {
+    setTodos(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
+    const item = todos.find(t => t.id === id);
+    toast(item?.done ? `"${item.task}" marked incomplete` : `"${item?.task}" completed ✓`);
+  };
+
+  const markAllRead = () => {
+    setNotifList(prev => prev.map(n => ({ ...n, read: true })));
+    toast('All notifications marked as read');
+  };
+
+  const markRead = (id) => {
+    setNotifList(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  };
 
   return (
     <div>
@@ -106,7 +132,7 @@ export default function TasksPage({ initialTab = 0 }) {
           border:'1.5px solid #c0392b', cursor:'pointer',
           fontSize:13, fontWeight:600, fontFamily:'inherit',
         }}>+ New Template</button>}
-        {activeTab === 3 && <button style={{
+        {activeTab === 3 && <button onClick={markAllRead} style={{
           display:'inline-flex', alignItems:'center', gap:6,
           padding:'8px 16px', borderRadius:10,
           background:'transparent', color:'#c0392b',
@@ -288,10 +314,10 @@ export default function TasksPage({ initialTab = 0 }) {
             <button className="px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold cursor-pointer font-[inherit]">Mark All Read</button>
           </div>
           <div className="flex flex-col gap-2">
-            {notifications.map((n, i) => {
+            {notifList.map((n, i) => {
               const m = notifColors[n.type];
               return (
-                <div key={n.id} className={`flex items-start gap-3 p-3.5 rounded-xl border transition-all ${n.read ? 'bg-white border-gray-100' : 'border'}`}
+                <div key={n.id} onClick={() => markRead(n.id)} className={`flex items-start gap-3 p-3.5 rounded-xl border transition-all cursor-pointer ${n.read ? 'bg-white border-gray-100' : 'border'}`}
                   style={!n.read ? { background: m.bg, borderColor: m.border } : {}}>
                   <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ background: n.read ? '#d1d5db' : m.dot }} />
                   <div className="flex-1 min-w-0">
@@ -319,17 +345,16 @@ export default function TasksPage({ initialTab = 0 }) {
             </div>
             <div className="px-6 py-5">
               <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1.5 mb-4 col-span-2"><label className="text-xs font-semibold text-gray-600">Task Title *</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Enter task title" /></div>
-                <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Assignee</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Name" /></div>
-                <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Priority</label><select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]"><option>Normal</option><option>High</option><option>Urgent</option></select></div>
-                <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Due Date</label><input type="date" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" /></div>
-                <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Tag</label><select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]"><option>Procurement</option><option>Inventory</option><option>Production</option><option>Finance</option></select></div>
-                <div className="flex flex-col gap-1.5 mb-4 col-span-2"><label className="text-xs font-semibold text-gray-600">Description</label><textarea className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Task details..." /></div>
+                <div className="flex flex-col gap-1.5 mb-4 col-span-2"><label className="text-xs font-semibold text-gray-600">Task Title *</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Enter task title" value={taskForm.title} onChange={e => setTaskForm(p=>({...p,title:e.target.value}))} /></div>
+                <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Assignee</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Name" value={taskForm.assignee} onChange={e => setTaskForm(p=>({...p,assignee:e.target.value}))} /></div>
+                <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Priority</label><select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" value={taskForm.priority} onChange={e => setTaskForm(p=>({...p,priority:e.target.value}))}><option>Normal</option><option>High</option><option>Urgent</option></select></div>
+                <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Due Date</label><input type="date" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" value={taskForm.due} onChange={e => setTaskForm(p=>({...p,due:e.target.value}))} /></div>
+                <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Tag</label><select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" value={taskForm.tag} onChange={e => setTaskForm(p=>({...p,tag:e.target.value}))}><option>Procurement</option><option>Inventory</option><option>Production</option><option>Finance</option></select></div>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-2.5 justify-end">
               <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Cancel</button>
-              <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Create Task</button>
+              <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={handleCreateTask}>Create Task</button>
             </div>
           </div>
         </div>

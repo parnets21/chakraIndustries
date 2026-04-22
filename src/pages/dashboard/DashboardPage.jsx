@@ -3,6 +3,8 @@ import LineChart from '../../components/charts/LineChart';
 import BarChart from '../../components/charts/BarChart';
 import DonutChart from '../../components/charts/DonutChart';
 import StatusBadge from '../../components/common/StatusBadge';
+import { MdProductionQuantityLimits } from 'react-icons/md';
+import { GiReturnArrow } from 'react-icons/gi';
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 const kpis = [
@@ -14,10 +16,10 @@ const kpis = [
 ];
 
 const operationalAlerts = [
-  { label: 'Pending GRNs',        value: 8,     color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  icon: '📋' },
-  { label: 'Return Requests',      value: 3,     color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   icon: '↩️' },
-  { label: "Today's Dispatches",   value: 12,    color: '#22c55e', bg: 'rgba(34,197,94,0.1)',   icon: '🚛' },
-  { label: 'Production vs Target', value: '94%', color: '#a855f7', bg: 'rgba(168,85,247,0.1)', icon: '🏭' },
+  { label: 'Pending GRNs',        value: 8,     color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  icon: <ClipboardIcon /> },
+  { label: 'Return Requests',      value: 3,     color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   icon: <GiReturnArrow size={24} /> },
+  { label: "Today's Dispatches",   value: 12,    color: '#22c55e', bg: 'rgba(34,197,94,0.1)',   icon: <TruckDispatchIcon /> },
+  { label: 'Production vs Target', value: '94%', color: '#a855f7', bg: 'rgba(168,85,247,0.1)', icon: <MdProductionQuantityLimits size={24} /> },
 ];
 
 const productionTarget = [
@@ -455,3 +457,9 @@ function OrderIcon()   { return <svg width="17" height="17" viewBox="0 0 24 24" 
 function BoxIcon()     { return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>; }
 function FactoryIcon() { return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 20V8l6-4v4l6-4v4l6-4v16H2z"/></svg>; }
 function TruckIcon()   { return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>; }
+
+// Operational Alert Icons
+function ClipboardIcon() { return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="16" x2="15" y2="16"/></svg>; }
+function ReturnIcon() { return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"/></svg>; }
+function TruckDispatchIcon() { return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>; }
+function FactoryProductionIcon() { return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 20V8l6-4v4l6-4v4l6-4v16H2z"/><line x1="6" y1="12" x2="6" y2="16"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="18" y1="12" x2="18" y2="16"/></svg>; }

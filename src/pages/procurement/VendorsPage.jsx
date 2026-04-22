@@ -1,15 +1,27 @@
 import { useState, useEffect, useCallback } from 'react';
+<<<<<<< HEAD
 import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShell';
 import { vendorApi } from '../../api/vendorApi';
 import { categoryApi } from '../../api/categoryApi';
+=======
+import { categoryApi } from '../../api/categoryApi';
+import { vendorApi } from '../../api/vendorApi';
+import Modal from '../../components/common/Modal';
+import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShell';
+>>>>>>> 89bc8f5e1bbee013908cd9e5d8c1b539f487bb93
 import VendorsTab from './components/VendorsTab';
-import { defaultCategories } from './components/data';
 import { MdBusiness, MdCheckCircle, MdWarning, MdBlock, MdAdd, MdCategory } from 'react-icons/md';
 
 export default function VendorsPage() {
+<<<<<<< HEAD
   const [categories, setCategories]               = useState(defaultCategories);
   const [newCategory, setNewCategory]             = useState('');
   const [showVendorModal, setShowVendorModal]     = useState(false);
+=======
+  const [categories, setCategories] = useState([]);
+  const [newCategory, setNewCategory] = useState('');
+  const [showVendorModal, setShowVendorModal] = useState(false);
+>>>>>>> 89bc8f5e1bbee013908cd9e5d8c1b539f487bb93
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0, blacklisted: 0 });
 
@@ -69,31 +81,32 @@ export default function VendorsPage() {
         title="Vendor Management"
         breadcrumb="Procurement › Vendors"
         action={
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={() => setShowCategoryModal(true)} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '8px 14px', borderRadius: 10, border: '1.5px solid #c0392b',
-              background: 'transparent', color: '#c0392b', cursor: 'pointer',
-              fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-            }}>
-              <MdCategory size={15} /> Categories
-            </button>
-            <button onClick={() => setShowVendorModal(true)} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '8px 16px', borderRadius: 10,
+          <button
+            onClick={() => setShowVendorModal(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 18px',
               background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
-              color: '#fff', border: 'none', cursor: 'pointer',
-              fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 10,
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 600,
               boxShadow: '0 3px 10px rgba(185,28,28,0.3)',
-            }}>
-              <MdAdd size={16} /> Add Vendor
-            </button>
-          </div>
+            }}
+          >
+            <MdAdd size={18} />
+            <span>Add Vendor</span>
+          </button>
         }
       />
 
       <KpiStrip kpis={kpis} />
 
+<<<<<<< HEAD
       <PageCard noPad>
         <div style={{ padding: '20px 20px 0' }}>
           <VendorsTab
@@ -111,6 +124,35 @@ export default function VendorsPage() {
           />
         </div>
       </PageCard>
+=======
+      <PageCard>
+        <VendorsTab
+          categories={categoryNames}
+          showVendorModal={showVendorModal}
+          setShowVendorModal={setShowVendorModal}
+        />
+      </PageCard>
+
+      {/* Manage Categories Modal */}
+      <Modal open={showCategoryModal} onClose={() => setShowCategoryModal(false)} title="Manage Vendor Categories"
+        footer={<button className="btn btn-primary" onClick={() => setShowCategoryModal(false)}>Done</button>}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <input className="form-input" placeholder="New category name..." value={newCategory}
+            onChange={e => setNewCategory(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleAddCategory(newCategory); }} />
+          <button className="btn btn-primary btn-sm" onClick={() => handleAddCategory(newCategory)}>+</button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {categories.map((cat) => (
+            <div key={cat._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+              <span style={{ fontSize: 13, fontWeight: 500 }}>{cat.name}</span>
+              <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b', padding: '2px 10px' }}
+                onClick={() => handleDeleteCategory(cat)}>✕</button>
+            </div>
+          ))}
+        </div>
+      </Modal>
+>>>>>>> 89bc8f5e1bbee013908cd9e5d8c1b539f487bb93
     </div>
   );
 }

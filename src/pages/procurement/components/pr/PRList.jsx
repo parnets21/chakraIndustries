@@ -4,7 +4,7 @@ import PRApprovalBadge from './PRApprovalBadge';
 import Modal from '../../../../components/common/Modal';
 import { prApi } from '../../../../api/prApi';
 import { FaRegEdit, FaRegTrashAlt } from 'react-icons/fa';
-import { MdVisibility } from 'react-icons/md';
+import { MdVisibility, MdEdit } from 'react-icons/md';
 
 export default function PRList({ onEdit, onView, refresh }) {
   const [prs, setPrs] = useState([]);
@@ -99,10 +99,13 @@ export default function PRList({ onEdit, onView, refresh }) {
                   <td style={{ whiteSpace: 'nowrap', padding: '12px' }}><StatusBadge status={p.status} /></td>
                   <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <button className="btn btn-sm" title="View" style={{ background: '#f1f5f9', color: 'var(--text)', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setViewPR(p)}>
+                      <button className="btn btn-sm" title="View" style={{ background: '#f1f5f9', color: 'var(--text)', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontFamily: 'inherit', border: '1px solid #e2e8f0', borderRadius: 6, transition: 'all .15s' }} onClick={() => setViewPR(p)} onMouseEnter={(e) => { e.target.style.background = '#e2e8f0'; }} onMouseLeave={(e) => { e.target.style.background = '#f1f5f9'; }}>
                         <MdVisibility size={16} />
                       </button>
-                      <button className="btn btn-sm" title="Delete" style={{ background: '#fee2e2', color: '#991b1b', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setDeleteConfirm(p)}>
+                      <button className="btn btn-sm" title="Edit" style={{ background: '#fef2f2', color: '#ef4444', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontFamily: 'inherit', border: '1px solid #fecaca', borderRadius: 6, transition: 'all .15s' }} onClick={() => { onEdit?.(p); }} onMouseEnter={(e) => { e.target.style.background = '#fee2e2'; }} onMouseLeave={(e) => { e.target.style.background = '#fef2f2'; }}>
+                        <MdEdit size={16} />
+                      </button>
+                      <button className="btn btn-sm" title="Delete" style={{ background: '#fee2e2', color: '#991b1b', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontFamily: 'inherit', border: '1px solid #fecaca', borderRadius: 6, transition: 'all .15s' }} onClick={() => setDeleteConfirm(p)} onMouseEnter={(e) => { e.target.style.background = '#fecaca'; }} onMouseLeave={(e) => { e.target.style.background = '#fee2e2'; }}>
                         <FaRegTrashAlt size={14} />
                       </button>
                     </div>
@@ -119,13 +122,13 @@ export default function PRList({ onEdit, onView, refresh }) {
     {viewPR && (
       <Modal open={!!viewPR} onClose={() => setViewPR(null)} title={`Purchase Requisition: ${viewPR.prId}`} size="lg"
         footer={
-          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', gap: 12 }}>
             <div style={{ fontSize: 12, color: '#64748B' }}>
               Status: <span style={{ fontWeight: 600, color: viewPR.status === 'Approved' ? '#047857' : viewPR.status === 'Rejected' ? '#DC2626' : '#F59E0B' }}>{viewPR.status}</span>
             </div>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button className="btn" style={{ background: 'transparent', border: '1px solid #CBD5E1', color: '#475569', padding: '8px 16px', borderRadius: 6, fontWeight: 500 }} onClick={() => setViewPR(null)}>Close</button>
-              <button className="btn btn-primary" style={{ background: '#0F172A', color: 'white', padding: '8px 16px', borderRadius: 6, fontWeight: 500 }} onClick={() => { onEdit?.(viewPR); setViewPR(null); }}>Edit PR</button>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <button style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fef2f2', border: '1.5px solid #fecaca', color: '#ef4444', padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }} onClick={() => { onEdit?.(viewPR); setViewPR(null); }} onMouseEnter={(e) => { e.target.style.background = '#fee2e2'; e.target.style.borderColor = '#fca5a5'; }} onMouseLeave={(e) => { e.target.style.background = '#fef2f2'; e.target.style.borderColor = '#fecaca'; }}><MdEdit size={16} /> Edit PR</button>
+              <button style={{ background: 'transparent', border: '1.5px solid #cbd5e1', color: '#475569', padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }} onClick={() => setViewPR(null)} onMouseEnter={(e) => { e.target.style.background = '#f1f5f9'; }} onMouseLeave={(e) => { e.target.style.background = 'transparent'; }}>Close</button>
             </div>
           </div>
         }>

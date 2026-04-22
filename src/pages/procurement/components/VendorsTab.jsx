@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import StatusBadge from '../../../components/common/StatusBadge';
 import Modal from '../../../components/common/Modal';
 import { vendorApi } from '../../../api/vendorApi';
-import { MdVisibility, MdEdit, MdAdd, MdSearch, MdFilterList, MdBusiness, MdPhone, MdEmail, MdLocationOn, MdStar } from 'react-icons/md';
+import { MdVisibility, MdEdit, MdAdd, MdSearch, MdFilterList, MdBusiness, MdPhone, MdEmail, MdLocationOn, MdStar, MdDelete, MdPrint } from 'react-icons/md';
 
 const EMPTY_FORM = {
   companyName: '', category: '', contactPerson: '', phone: '',
@@ -35,6 +35,8 @@ export default function VendorsTab({
   const [editId, setEditId]         = useState(null);
   const [saving, setSaving]         = useState(false);
   const [viewVendor, setViewVendor] = useState(null);
+  const [formErrors, setFormErrors] = useState({});
+  const [successMsg, setSuccessMsg] = useState('');
 
   const fetchVendors = useCallback(async () => {
     setLoading(true); setError('');
@@ -67,19 +69,211 @@ export default function VendorsTab({
   };
 
   const handleSave = async () => {
+    const errors = validateForm();
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      alert('❌ Please fix the validation errors before saving');
+      return;
+    }
     setSaving(true);
+    setFormErrors({});
+    setSuccessMsg('');
     try {
-      editId ? await vendorApi.update(editId, form) : await vendorApi.create(form);
+      // Clean data before sending
+      const cleanData = {
+        ...form,
+        phone: form.phone.replace(/\D/g, ''),
+        pincode: form.pincode.replace(/\D/g, ''),
+        gstNumber: form.gstNumber.toUpperCase().trim(),
+      };
+      editId ? await vendorApi.update(editId, cleanData) : await vendorApi.create(cleanData);
       setShowVendorModal(false);
-      setForm('');
+      setForm(EMPTY_FORM);
+      setSuccessMsg(editId ? '✓ Vendor updated successfully!' : '✓ Vendor created successfully!');
+      setTimeout(() => setSuccessMsg(''), 3000);
       fetchVendors();
-    } catch (e) { alert(e.message); }
+    } catch (e) {
+      const msg = e.message || 'Failed to save vendor';
+      alert(`❌ Error: ${msg}`);
+    }
     finally { setSaving(false); }
   };
 
   const f = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
 
+  const validateForm = () => {
+    const errors = {};
+    if (!form.companyName.trim()) errors.companyName = 'Company name is required';
+    if (!form.category) errors.category = 'Category is required';
+    if (!form.contactPerson.trim()) errors.contactPerson = 'Contact person is required';
+    if (!form.phone) errors.phone = 'Phone is required';
+    else if (!/^\d{10}$/.test(form.phone.replace(/\D/g, ''))) errors.phone = 'Phone must be 10 digits';
+    if (!form.email) errors.email = 'Email is required';
+    else if (!/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(form.email)) errors.email = 'Invalid email format';
+    if (!form.city.trim()) errors.city = 'City is required';
+    if (!form.state.trim()) errors.state = 'State is required';
+    if (!form.pincode) errors.pincode = 'Pincode is required';
+    else if (!/^\d{6}$/.test(form.pincode.replace(/\D/g, ''))) errors.pincode = 'Pincode must be 6 digits';
+    if (!form.address.trim()) errors.address = 'Address is required';
+    if (!form.gstNumber) errors.gstNumber = 'GST number is required';
+    else {
+      const gstClean = form.gstNumber.toUpperCase().replace(/\s/g, '');
+      if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(gstClean)) 
+        errors.gstNumber = 'Invalid GST format (15 chars: 2 digits, 5 letters, 4 digits, 1 letter, 1 alphanumeric, Z, 1 alphanumeric)';
+    }
+    return errors;
+  };
+
   const statusColor = (s) => s === 'Active' ? '#22c55e' : s === 'Inactive' ? '#94a3b8' : '#ef4444';
+
+  const handleDelete = async (id, name) => {
+    if (!window.confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) return;
+    try {
+      await vendorApi.delete(id);
+      setSuccessMsg('✓ Vendor deleted successfully!');
+      setTimeout(() => setSuccessMsg(''), 3000);
+      fetchVendors();
+    } catch (e) {
+      alert(`❌ Error: ${e.message}`);
+    }
+  };
+
+  const handlePrint = (vendor) => {
+    const printWindow = window.open('', '', 'height=600,width=800');
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Vendor Details - ${vendor.companyName}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #c0392b; padding-bottom: 15px; }
+          .header h1 { margin: 0; color: #c0392b; }
+          .header p { margin: 5px 0; color: #666; }
+          .section { margin-bottom: 25px; }
+          .section-title { font-size: 14px; font-weight: bold; color: #fff; background: #c0392b; padding: 8px 12px; margin-bottom: 12px; border-radius: 4px; }
+          .row { display: flex; margin-bottom: 10px; }
+          .col { flex: 1; }
+          .label { font-weight: bold; color: #475569; font-size: 12px; }
+          .value { color: #1e293b; margin-top: 3px; }
+          .status-badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+          .status-active { background: #ecfdf5; color: #047857; }
+          .status-inactive { background: #f3f4f6; color: #6b7280; }
+          .status-blacklisted { background: #fef2f2; color: #dc2626; }
+          .footer { margin-top: 40px; padding-top: 15px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #94a3b8; }
+          @media print { body { margin: 0; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>${vendor.companyName}</h1>
+          <p>Vendor ID: <strong>${vendor.vendorId}</strong></p>
+          <p><span class="status-badge status-${vendor.status.toLowerCase()}">${vendor.status}</span></p>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Contact Information</div>
+          <div class="row">
+            <div class="col">
+              <div class="label">Contact Person</div>
+              <div class="value">${vendor.contactPerson}</div>
+            </div>
+            <div class="col">
+              <div class="label">Designation</div>
+              <div class="value">${vendor.designation || 'N/A'}</div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col">
+              <div class="label">Phone</div>
+              <div class="value">${vendor.phone}</div>
+            </div>
+            <div class="col">
+              <div class="label">Alternate Phone</div>
+              <div class="value">${vendor.alternatePhone || 'N/A'}</div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col">
+              <div class="label">Email</div>
+              <div class="value">${vendor.email}</div>
+            </div>
+            <div class="col">
+              <div class="label">Alternate Email</div>
+              <div class="value">${vendor.alternateEmail || 'N/A'}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Address Information</div>
+          <div class="row">
+            <div class="col">
+              <div class="label">Address</div>
+              <div class="value">${vendor.address}</div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col">
+              <div class="label">City</div>
+              <div class="value">${vendor.city}</div>
+            </div>
+            <div class="col">
+              <div class="label">State</div>
+              <div class="value">${vendor.state}</div>
+            </div>
+            <div class="col">
+              <div class="label">Pincode</div>
+              <div class="value">${vendor.pincode}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Financial & Business Terms</div>
+          <div class="row">
+            <div class="col">
+              <div class="label">GST Number</div>
+              <div class="value">${vendor.gstNumber}</div>
+            </div>
+            <div class="col">
+              <div class="label">PAN Number</div>
+              <div class="value">${vendor.panNumber || 'N/A'}</div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col">
+              <div class="label">Payment Terms</div>
+              <div class="value">${vendor.paymentTerms}</div>
+            </div>
+            <div class="col">
+              <div class="label">Lead Time (Days)</div>
+              <div class="value">${vendor.leadTimeDays}</div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col">
+              <div class="label">Category</div>
+              <div class="value">${vendor.category}</div>
+            </div>
+            <div class="col">
+              <div class="label">Rating</div>
+              <div class="value">${vendor.rating}/5.0</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <p>Generated on ${new Date().toLocaleString()}</p>
+          <p>This is a system-generated document</p>
+        </div>
+      </body>
+      </html>
+    `;
+    printWindow.document.write(html);
+    printWindow.document.close();
+    setTimeout(() => printWindow.print(), 250);
+  };
 
   return (
     <>
@@ -199,11 +393,89 @@ export default function VendorsTab({
       {/* ── Error / Loading ── */}
       {error && (
         <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, color: '#ef4444', fontSize: 13, marginBottom: 12 }}>
-          {error}
+          ❌ {error}
+        </div>
+      )}
+      {successMsg && (
+        <div style={{ padding: '10px 14px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 10, color: '#047857', fontSize: 13, marginBottom: 12 }}>
+          ✓ {successMsg}
         </div>
       )}
       {loading && (
         <div style={{ padding: '32px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Loading vendors…</div>
+      )}
+
+      {/* ── Desktop Table View ── */}
+      {!loading && vendors.length > 0 && (
+        <div className="vt-table-wrap">
+          <table className="vt-table">
+            <thead>
+              <tr>
+                <th>Vendor ID</th>
+                <th>Company Name</th>
+                <th>Contact</th>
+                <th>Phone</th>
+                <th>City</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {vendors.map(v => (
+                <tr key={v._id}>
+                  <td style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 600, color: '#64748b' }}>{v.vendorId}</td>
+                  <td style={{ fontWeight: 500 }}>{v.companyName}</td>
+                  <td>{v.contactPerson}</td>
+                  <td>{v.phone}</td>
+                  <td>{v.city}</td>
+                  <td><span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: v.status === 'Active' ? '#ecfdf5' : v.status === 'Inactive' ? '#f3f4f6' : '#fef2f2', color: v.status === 'Active' ? '#047857' : v.status === 'Inactive' ? '#6b7280' : '#dc2626' }}>{v.status}</span></td>
+                  <td style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => setViewVendor(v)} style={{ padding: '4px 10px', borderRadius: 6, background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'inherit' }}>View</button>
+                    <button onClick={() => openEdit(v)} style={{ padding: '4px 10px', borderRadius: 6, background: '#fef2f2', border: '1px solid #fecaca', color: '#ef4444', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'inherit' }}>Edit</button>
+                    <button onClick={() => handleDelete(v._id, v.companyName)} style={{ padding: '4px 10px', borderRadius: 6, background: '#fee2e2', border: '1px solid #fecaca', color: '#dc2626', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'inherit' }}>Delete</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── Mobile Card View ── */}
+      {!loading && vendors.length > 0 && (
+        <div className="vt-cards">
+          {vendors.map(v => (
+            <div key={v._id} className="vt-card">
+              <div className="vt-card-top">
+                <div>
+                  <div className="vt-card-name">{v.companyName}</div>
+                  <div className="vt-card-id">{v.vendorId}</div>
+                </div>
+                <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: v.status === 'Active' ? '#ecfdf5' : v.status === 'Inactive' ? '#f3f4f6' : '#fef2f2', color: v.status === 'Active' ? '#047857' : v.status === 'Inactive' ? '#6b7280' : '#dc2626' }}>{v.status}</span>
+              </div>
+              <div className="vt-card-meta">
+                <div className="vt-card-meta-item"><MdPhone size={14} /> {v.phone}</div>
+                <div className="vt-card-meta-item"><MdLocationOn size={14} /> {v.city}</div>
+                <div className="vt-card-meta-item"><MdBusiness size={14} /> {v.category}</div>
+                <div className="vt-card-meta-item"><MdEmail size={14} /> {v.email}</div>
+              </div>
+              <div className="vt-card-actions">
+                <button onClick={() => setViewVendor(v)} className="vt-card-btn vt-card-btn-view"><MdVisibility size={14} /> View</button>
+                <button onClick={() => openEdit(v)} className="vt-card-btn vt-card-btn-edit"><MdEdit size={14} /> Edit</button>
+                <button onClick={() => handleDelete(v._id, v.companyName)} className="vt-card-btn" style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca' }}><MdDelete size={14} /> Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Empty State ── */}
+      {!loading && vendors.length === 0 && (
+        <div style={{ padding: '48px 24px', textAlign: 'center', background: '#f8fafc', borderRadius: 12, border: '1px dashed #e2e8f0' }}>
+          <MdBusiness size={40} style={{ color: '#cbd5e1', marginBottom: 12 }} />
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#475569', marginBottom: 4 }}>No vendors found</div>
+          <div style={{ fontSize: 12, color: '#94a3b8' }}>Add your first vendor to get started</div>
+        </div>
       )}
 
       {/* Add / Edit Vendor Modal */}
@@ -215,21 +487,22 @@ export default function VendorsTab({
           </>
         }>
         <div className="vt-form-grid">
-          <div><label style={lbl}>Vendor Name *</label><input style={inp} placeholder="Company name" value={form.companyName} onChange={f('companyName')} /></div>
+          <div><label style={lbl}>Vendor Name *</label><input style={{...inp, borderColor: formErrors.companyName ? '#ef4444' : '#e2e8f0'}} placeholder="Company name" value={form.companyName} onChange={f('companyName')} />{formErrors.companyName && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.companyName}</div>}</div>
           <div><label style={lbl}>Category *</label>
-            <select style={inp} value={form.category} onChange={f('category')}>
+            <select style={{...inp, borderColor: formErrors.category ? '#ef4444' : '#e2e8f0'}} value={form.category} onChange={f('category')}>
               <option value="">Select category</option>
               {categories.map(c => <option key={c}>{c}</option>)}
             </select>
+            {formErrors.category && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.category}</div>}
           </div>
-          <div><label style={lbl}>Contact Person *</label><input style={inp} placeholder="Name" value={form.contactPerson} onChange={f('contactPerson')} /></div>
-          <div><label style={lbl}>Phone *</label><input style={inp} placeholder="10-digit number" value={form.phone} onChange={f('phone')} /></div>
-          <div><label style={lbl}>Email *</label><input style={inp} type="email" placeholder="email@company.com" value={form.email} onChange={f('email')} /></div>
-          <div><label style={lbl}>City *</label><input style={inp} placeholder="City" value={form.city} onChange={f('city')} /></div>
-          <div><label style={lbl}>State *</label><input style={inp} placeholder="State" value={form.state} onChange={f('state')} /></div>
-          <div><label style={lbl}>Pincode *</label><input style={inp} placeholder="6-digit pincode" value={form.pincode} onChange={f('pincode')} /></div>
-          <div className="vt-span2"><label style={lbl}>Address *</label><input style={inp} placeholder="Full address" value={form.address} onChange={f('address')} /></div>
-          <div><label style={lbl}>GST Number *</label><input style={inp} placeholder="GSTIN" value={form.gstNumber} onChange={f('gstNumber')} /></div>
+          <div><label style={lbl}>Contact Person *</label><input style={{...inp, borderColor: formErrors.contactPerson ? '#ef4444' : '#e2e8f0'}} placeholder="Name" value={form.contactPerson} onChange={f('contactPerson')} />{formErrors.contactPerson && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.contactPerson}</div>}</div>
+          <div><label style={lbl}>Phone *</label><input style={{...inp, borderColor: formErrors.phone ? '#ef4444' : '#e2e8f0'}} placeholder="10-digit number" value={form.phone} onChange={f('phone')} />{formErrors.phone && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.phone}</div>}</div>
+          <div><label style={lbl}>Email *</label><input style={{...inp, borderColor: formErrors.email ? '#ef4444' : '#e2e8f0'}} type="email" placeholder="email@company.com" value={form.email} onChange={f('email')} />{formErrors.email && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.email}</div>}</div>
+          <div><label style={lbl}>City *</label><input style={{...inp, borderColor: formErrors.city ? '#ef4444' : '#e2e8f0'}} placeholder="City" value={form.city} onChange={f('city')} />{formErrors.city && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.city}</div>}</div>
+          <div><label style={lbl}>State *</label><input style={{...inp, borderColor: formErrors.state ? '#ef4444' : '#e2e8f0'}} placeholder="State" value={form.state} onChange={f('state')} />{formErrors.state && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.state}</div>}</div>
+          <div><label style={lbl}>Pincode *</label><input style={{...inp, borderColor: formErrors.pincode ? '#ef4444' : '#e2e8f0'}} placeholder="6-digit pincode" value={form.pincode} onChange={f('pincode')} />{formErrors.pincode && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.pincode}</div>}</div>
+          <div className="vt-span2"><label style={lbl}>Address *</label><input style={{...inp, borderColor: formErrors.address ? '#ef4444' : '#e2e8f0'}} placeholder="Full address" value={form.address} onChange={f('address')} />{formErrors.address && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.address}</div>}</div>
+          <div><label style={lbl}>GST Number *</label><input style={{...inp, borderColor: formErrors.gstNumber ? '#ef4444' : '#e2e8f0'}} placeholder="GSTIN" value={form.gstNumber} onChange={f('gstNumber')} />{formErrors.gstNumber && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.gstNumber}</div>}</div>
           <div><label style={lbl}>Payment Terms</label>
             <select style={inp} value={form.paymentTerms} onChange={f('paymentTerms')}>
               {['Net 30','Net 45','Net 60','Net 90','Advance Payment','COD'].map(t => <option key={t}>{t}</option>)}
@@ -249,11 +522,12 @@ export default function VendorsTab({
       {viewVendor && (
         <Modal open={!!viewVendor} onClose={() => setViewVendor(null)} title={viewVendor.companyName} size="lg"
           footer={
-            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', gap: 12 }}>
               <div style={{ fontSize: 12, color: '#64748B' }}>Vendor ID: <span style={{ fontWeight: 600, color: '#1E293B' }}>{viewVendor.vendorId}</span></div>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <button className="btn" style={{ background: 'transparent', border: '1px solid #CBD5E1', color: '#475569', padding: '8px 16px', borderRadius: 6, fontWeight: 500 }} onClick={() => setViewVendor(null)}>Close</button>
-                <button className="btn btn-primary" style={{ background: '#0F172A', color: 'white', padding: '8px 16px', borderRadius: 6, fontWeight: 500 }} onClick={() => openEdit(viewVendor)}>Edit Vendor</button>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <button onClick={() => handlePrint(viewVendor)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f0f9ff', border: '1.5px solid #bfdbfe', color: '#1e40af', padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }} onMouseEnter={(e) => { e.target.style.background = '#e0f2fe'; e.target.style.borderColor = '#7dd3fc'; }} onMouseLeave={(e) => { e.target.style.background = '#f0f9ff'; e.target.style.borderColor = '#bfdbfe'; }}><MdPrint size={16} /> Print</button>
+                <button onClick={() => openEdit(viewVendor)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fef2f2', border: '1.5px solid #fecaca', color: '#ef4444', padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }} onMouseEnter={(e) => { e.target.style.background = '#fee2e2'; e.target.style.borderColor = '#fca5a5'; }} onMouseLeave={(e) => { e.target.style.background = '#fef2f2'; e.target.style.borderColor = '#fecaca'; }}><MdEdit size={16} /> Edit</button>
+                <button onClick={() => setViewVendor(null)} style={{ background: 'transparent', border: '1.5px solid #cbd5e1', color: '#475569', padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }} onMouseEnter={(e) => { e.target.style.background = '#f1f5f9'; }} onMouseLeave={(e) => { e.target.style.background = 'transparent'; }}>Close</button>
               </div>
             </div>
           }>

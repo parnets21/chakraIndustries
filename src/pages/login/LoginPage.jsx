@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { MdEmail, MdLock, MdVisibility, MdVisibilityOff, MdLogin, MdArrowForward } from 'react-icons/md';
+import { FiZap, FiTarget, FiAlertTriangle } from 'react-icons/fi';
+import { TbFileAnalyticsFilled } from 'react-icons/tb';
+import { RiShieldKeyholeLine } from 'react-icons/ri';
 import { useAuth } from '../../auth/AuthContext';
 
 export default function LoginPage() {
@@ -517,15 +520,15 @@ export default function LoginPage() {
             
             <div className="stats-grid">
               <div className="stat-card">
-                <span className="stat-number">📊</span>
+                <div style={{ fontSize: '32px', marginBottom: '4px' }}><TbFileAnalyticsFilled size={32} color="#c0392b" /></div>
                 <span className="stat-label">Smart Analytics</span>
               </div>
               <div className="stat-card">
-                <span className="stat-number">🚀</span>
+                <div style={{ fontSize: '32px', marginBottom: '4px' }}><FiZap size={32} color="#c0392b" /></div>
                 <span className="stat-label">Fast Performance</span>
               </div>
               <div className="stat-card">
-                <span className="stat-number">🎯</span>
+                <div style={{ fontSize: '32px', marginBottom: '4px' }}><FiTarget size={32} color="#c0392b" /></div>
                 <span className="stat-label">Goal Driven</span>
               </div>
             </div>
@@ -550,7 +553,7 @@ export default function LoginPage() {
 
             {error && (
               <div className="error-alert">
-                <span style={{ fontSize: '20px' }}>⚠️</span>
+                <FiAlertTriangle size={20} style={{ flexShrink: 0 }} />
                 <span>{error}</span>
               </div>
             )}
@@ -639,8 +642,9 @@ export default function LoginPage() {
                 fontSize: '11px',
                 textAlign: 'left'
               }}>
-                <div style={{ fontWeight: '700', marginBottom: '6px', color: '#92400e' }}>
-                  🔑 Test Credentials:
+                <div style={{ fontWeight: '700', marginBottom: '8px', color: '#92400e', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <RiShieldKeyholeLine size={18} />
+                  Test Credentials:
                 </div>
                 <div style={{ color: '#78350f', lineHeight: '1.6' }}>
                   <div><strong>Admin:</strong> admin@chakra.in / admin123</div>

@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
-import DataTable from '../../components/tables/DataTable';
 import BarChart from '../../components/charts/BarChart';
 import Modal from '../../components/common/Modal';
 import StorageLocationPage from './StorageLocationPage';
 import PincodeStockPage from './PincodeStockPage';
+import { MdWarehouse, MdLocationOn, MdAdd } from 'react-icons/md';
 
 // ─── Design tokens ───────────────────────────────────────────────────────────
-const BG_PAGE   = '#f0f4f8';
 const BG_CARD   = '#ffffff';
 const BORDER    = '1px solid #e8edf2';
 const RADIUS_LG = 18;
@@ -24,13 +23,6 @@ const TEXT_DARK = '#0f172a';
 const TEXT_MID  = '#475569';
 const TEXT_LIGHT= '#94a3b8';
 
-const tabList = [
-  'Stock Dashboard','Stock Table','Warehouses','Stock Movement',
-  'Picking','Sorting & Packing','Batch Tracking','Ageing Stock',
-  'Defective Stock','Storage Locations','Pincode Stock',
-];
-
-// ─── Data ─────────────────────────────────────────────────────────────────────
 const stockData = [
   { sku:'SKU-1042', name:'Bearing 6205',      warehouse:'WH-01', qty:12,  batch:'B-2024-04', minQty:50, status:'Critical' },
   { sku:'SKU-2187', name:'Oil Seal 35x52',    warehouse:'WH-02', qty:8,   batch:'B-2024-03', minQty:30, status:'Critical' },
@@ -122,27 +114,6 @@ const inputStyle = {
 };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-function KpiCard({ label, value, color, icon, sparkBars }) {
-  return (
-    <div style={{ ...card(), padding:20, borderTop:`3px solid ${color}`, position:'relative', overflow:'hidden' }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-        <div>
-          <div style={{ fontSize:28, fontWeight:900, color, letterSpacing:'-1px', lineHeight:1 }}>{value}</div>
-          <div style={{ fontSize:12, color: TEXT_MID, fontWeight:600, marginTop:6 }}>{label}</div>
-        </div>
-        <div style={{ fontSize:22, opacity:0.18, position:'absolute', right:16, top:14 }}>{icon}</div>
-      </div>
-      {sparkBars && (
-        <div style={{ display:'flex', gap:3, alignItems:'flex-end', marginTop:14, height:24 }}>
-          {sparkBars.map((h,i) => (
-            <div key={i} style={{ flex:1, height:`${h}%`, background:color, borderRadius:3, opacity:0.6+(i*0.08) }} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function SectionHeader({ title, subtitle, action }) {
   return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
@@ -165,71 +136,54 @@ function Pill({ label, color, bg }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function InventoryPage({ initialTab = 0 }) {
-  const [activeTab, setActiveTab] = useState(initialTab);
-  const [movTab, setMovTab]       = useState('Inward');
-  const [showModal, setShowModal] = useState(false);
+export default function InventoryPage({ initialTab = 0, externalShowModal = false, onExternalModalClose }) {
+  const [activeTab, setActiveTab]     = useState(initialTab);
+  const [movTab, setMovTab]           = useState('Inward');
+  const [internalModal, setInternalModal] = useState(false);
   const [stockFilter, setStockFilter] = useState('All');
+  const [whFilter, setWhFilter]       = useState('All');
+  const [selectedWH, setSelectedWH]   = useState(warehouses[0]);
 
-  const primaryBtn = {
-    display:'inline-flex', alignItems:'center', gap:6,
-    padding:'8px 16px', borderRadius:10,
-    background:'linear-gradient(135deg,#ef4444,#b91c1c)',
-    color:'#fff', border:'none', cursor:'pointer',
-    fontSize:13, fontWeight:600, fontFamily:'inherit',
-    boxShadow:'0 3px 10px rgba(185,28,28,0.3)',
-  };
-  const outlineBtn = {
-    display:'inline-flex', alignItems:'center', gap:6,
-    padding:'8px 16px', borderRadius:10,
-    background:'transparent', color:'#c0392b',
-    border:'1.5px solid #c0392b', cursor:'pointer',
-    fontSize:13, fontWeight:600, fontFamily:'inherit',
-  };
+  // merge external trigger (from PageHeader button) with any internal triggers
+  const showModal = externalShowModal || internalModal;
+  const closeModal = () => { setInternalModal(false); onExternalModalClose?.(); };
 
-  const total = stockData.reduce((s,i) => s + i.qty, 0);
-  const low   = stockData.filter(i => i.qty < i.minQty && i.qty > 0).length;
-  const dead  = stockData.filter(i => i.qty === 0).length;
-  const active= stockData.filter(i => i.status === 'Active').length;
-
-  const kpis = [
-    { label:'Total Stock Units', value: total.toLocaleString(), color: RED,   icon:'📦', sparkBars:[40,55,45,70,60,80,65] },
-    { label:'Low Stock Items',   value: low,                    color: AMBER,  icon:'⚠️', sparkBars:[20,35,30,50,40,60,45] },
-    { label:'Dead Stock Items',  value: dead,                   color:'#64748b',icon:'💀', sparkBars:[10,15,10,20,15,25,20] },
-    { label:'Active SKUs',       value: active,                 color: GREEN,  icon:'✅', sparkBars:[60,70,65,80,75,90,85] },
-  ];
-
-  const filteredStock = stockFilter === 'All' ? stockData
-    : stockData.filter(r => r.status === stockFilter);
+  const filteredStock = stockData
+    .filter(r => stockFilter === 'All' || r.status === stockFilter)
+    .filter(r => whFilter === 'All' || r.warehouse === whFilter);
 
   return (
     <div>
-
-      {/* Action Bar */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, marginBottom:20, flexWrap:'wrap' }}>
-        {activeTab === 0 && <button onClick={() => setShowModal(true)} style={primaryBtn}>+ Add Stock</button>}
-        {activeTab === 1 && <>
-          <button onClick={() => setShowModal(true)} style={primaryBtn}>+ Add Stock</button>
-          <button style={outlineBtn}>⬇ Export</button>
-        </>}
-        {activeTab === 2 && <button onClick={() => setShowModal(true)} style={primaryBtn}>+ Add Warehouse</button>}
-        {activeTab === 3 && <button onClick={() => setShowModal(true)} style={primaryBtn}>+ Record Movement</button>}
-        {activeTab === 4 && <button onClick={() => setShowModal(true)} style={primaryBtn}>+ New Pick List</button>}
-        {activeTab === 5 && <button onClick={() => setShowModal(true)} style={primaryBtn}>+ New Sort Job</button>}
-        {activeTab === 6 && <button onClick={() => setShowModal(true)} style={primaryBtn}>+ Add Batch</button>}
-        {activeTab === 7 && <button style={outlineBtn}>⬇ Export Report</button>}
-        {activeTab === 8 && <button onClick={() => setShowModal(true)} style={primaryBtn}>+ Log Defect</button>}
-      </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
           TAB 0 — Stock Dashboard  (Analytics-first layout)
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === 0 && (
         <div>
-          {/* KPI row */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:20 }}>
-            {kpis.map((k,i) => <KpiCard key={i} {...k} />)}
-          </div>
+          {/* Low stock alert banner */}
+          {stockData.filter(s => s.qty < s.minQty && s.qty > 0).length > 0 && (
+            <div style={{
+              display:'flex', alignItems:'center', gap:12,
+              padding:'12px 18px', marginBottom:16,
+              background:'#fffbeb', border:'1px solid #fde68a',
+              borderRadius:12, borderLeft:'4px solid #f59e0b',
+            }}>
+              <span style={{ fontSize:18 }}>⚠️</span>
+              <div>
+                <div style={{ fontSize:13, fontWeight:700, color:'#92400e' }}>
+                  {stockData.filter(s => s.qty < s.minQty && s.qty > 0).length} items below minimum stock level
+                </div>
+                <div style={{ fontSize:11.5, color:'#b45309', marginTop:2 }}>
+                  {stockData.filter(s => s.qty < s.minQty && s.qty > 0).map(s => s.name).join(' · ')}
+                </div>
+              </div>
+              <button style={{
+                marginLeft:'auto', padding:'5px 14px', borderRadius:8,
+                background:'#f59e0b', color:'#fff', border:'none',
+                fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit',
+              }}>Create PR →</button>
+            </div>
+          )}
 
           {/* 2-col grid */}
           <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:16 }}>
@@ -247,27 +201,55 @@ export default function InventoryPage({ initialTab = 0 }) {
               </div>
             </div>
 
-            {/* Quick Alerts */}
-            <div style={{ ...card(), padding:0, overflow:'hidden' }}>
-              <div style={{ padding:'14px 20px', borderBottom: BORDER }}>
-                <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>Quick Alerts</div>
+            {/* Right column: alerts + warehouse summary */}
+            <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+              {/* Quick Alerts */}
+              <div style={{ ...card(), padding:0, overflow:'hidden' }}>
+                <div style={{ padding:'14px 20px', borderBottom: BORDER }}>
+                  <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>Quick Alerts</div>
+                </div>
+                <div style={{ padding:'8px 0' }}>
+                  {[
+                    { msg:'Bearing 6205 — critically low (12 units)', color: RED_LIGHT,  bg:'#fef2f2' },
+                    { msg:'Oil Seal 35x52 — below minimum threshold', color: AMBER,      bg:'#fffbeb' },
+                    { msg:'Piston Ring 80mm — stock replenished',     color: GREEN,      bg:'#f0fdf4' },
+                  ].map((a,i) => (
+                    <div key={i} style={{
+                      display:'flex', alignItems:'center', gap:12,
+                      padding:'12px 20px', background: a.bg,
+                      borderLeft:`4px solid ${a.color}`,
+                      marginBottom: i < 2 ? 1 : 0,
+                    }}>
+                      <div style={{ width:8, height:8, borderRadius:'50%', background: a.color, flexShrink:0 }} />
+                      <div style={{ fontSize:12, color: TEXT_DARK, fontWeight:500 }}>{a.msg}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div style={{ padding:'8px 0' }}>
-                {[
-                  { msg:'Bearing 6205 — critically low (12 units)', color: RED_LIGHT,  bg:'#fef2f2' },
-                  { msg:'Oil Seal 35x52 — below minimum threshold', color: AMBER,      bg:'#fffbeb' },
-                  { msg:'Piston Ring 80mm — stock replenished',     color: GREEN,      bg:'#f0fdf4' },
-                ].map((a,i) => (
-                  <div key={i} style={{
-                    display:'flex', alignItems:'center', gap:12,
-                    padding:'12px 20px', background: a.bg,
-                    borderLeft:`4px solid ${a.color}`,
-                    marginBottom: i < 2 ? 1 : 0,
-                  }}>
-                    <div style={{ width:8, height:8, borderRadius:'50%', background: a.color, flexShrink:0 }} />
-                    <div style={{ fontSize:12, color: TEXT_DARK, fontWeight:500 }}>{a.msg}</div>
-                  </div>
-                ))}
+
+              {/* Warehouse summary */}
+              <div style={{ ...card(), padding:0, overflow:'hidden' }}>
+                <div style={{ padding:'14px 20px', borderBottom: BORDER }}>
+                  <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>Warehouse Summary</div>
+                </div>
+                <div style={{ padding:'8px 0' }}>
+                  {warehouses.map((wh, i) => {
+                    const pct = Math.round((wh.used / wh.capacity) * 100);
+                    const barColor = pct > 85 ? RED_LIGHT : pct > 70 ? AMBER : GREEN;
+                    return (
+                      <div key={i} style={{ padding:'10px 20px', borderBottom: i < warehouses.length-1 ? BORDER : 'none' }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                          <span style={{ fontSize:12, fontWeight:700, color: TEXT_DARK }}>{wh.id}</span>
+                          <span style={{ fontSize:11.5, fontWeight:700, color: barColor }}>{pct}%</span>
+                        </div>
+                        <div style={{ height:5, background:'#f1f5f9', borderRadius:3, overflow:'hidden' }}>
+                          <div style={{ height:'100%', width:`${pct}%`, background: barColor, borderRadius:3 }} />
+                        </div>
+                        <div style={{ fontSize:11, color: TEXT_LIGHT, marginTop:3 }}>{wh.name} · {wh.skus} SKUs</div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
@@ -288,6 +270,14 @@ export default function InventoryPage({ initialTab = 0 }) {
               <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', fontSize:14, color: TEXT_LIGHT }}>🔍</span>
               <input placeholder="Search SKU or item…" style={{ ...inputStyle, paddingLeft:32, width:'100%' }} />
             </div>
+            {/* Warehouse filter */}
+            <select value={whFilter} onChange={e => setWhFilter(e.target.value)} style={{
+              ...inputStyle, width:'auto', minWidth:160, cursor:'pointer',
+              border:'1px solid #e2e8f0', background:'#fff',
+            }}>
+              <option value="All">All Warehouses</option>
+              {warehouses.map(w => <option key={w.id} value={w.id}>{w.id} — {w.name}</option>)}
+            </select>
             <div style={{ display:'flex', gap:6 }}>
               {['All','Active','Critical','Dead'].map(f => (
                 <button key={f} onClick={() => setStockFilter(f)} style={{
@@ -368,78 +358,193 @@ export default function InventoryPage({ initialTab = 0 }) {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          TAB 2 — Warehouses  (Card grid with visual capacity meters)
+          TAB 2 — Warehouses
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === 2 && (
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:20 }}>
-          {warehouses.map((wh,i) => {
-            const pct = Math.round((wh.used / wh.capacity) * 100);
-            const barColor = pct > 85 ? RED_LIGHT : pct > 70 ? AMBER : GREEN;
-            const gradients = [
-              'linear-gradient(135deg,#c0392b,#e74c3c)',
-              'linear-gradient(135deg,#7c3aed,#a855f7)',
-              'linear-gradient(135deg,#0369a1,#3b82f6)',
-            ];
-            return (
-              <div key={i} style={{
-                ...card(), overflow:'hidden', cursor:'default',
-                transition:'transform 0.18s, box-shadow 0.18s',
+        <div>
+          {/* Warehouse dropdown selector */}
+          <div style={{
+            display:'flex', alignItems:'center', gap:12, marginBottom:20, flexWrap:'wrap',
+            background:'#fff', borderRadius:14, border: BORDER,
+            padding:'14px 20px', boxShadow: SHADOW_CARD,
+          }}>
+            <MdWarehouse size={18} style={{ color: RED, flexShrink:0 }} />
+            <span style={{ fontSize:13, fontWeight:700, color: TEXT_DARK, flexShrink:0 }}>Warehouse:</span>
+            <select
+              value={selectedWH?.id || ''}
+              onChange={e => setSelectedWH(warehouses.find(w => w.id === e.target.value))}
+              style={{
+                flex:1, minWidth:200, maxWidth:320,
+                padding:'8px 12px', border:'1.5px solid #e2e8f0',
+                borderRadius:10, fontSize:13, fontWeight:600,
+                color: TEXT_DARK, background:'#f8fafc',
+                outline:'none', cursor:'pointer', fontFamily:'inherit',
               }}
-                onMouseEnter={e => { e.currentTarget.style.transform='translateY(-4px)'; e.currentTarget.style.boxShadow='0 12px 32px rgba(15,23,42,0.12)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow=SHADOW_CARD; }}
-              >
-                {/* Banner */}
-                <div style={{ background: gradients[i], padding:'18px 20px' }}>
-                  <div style={{ fontSize:16, fontWeight:800, color:'#fff' }}>{wh.name}</div>
-                  <div style={{ fontSize:11.5, color:'rgba(255,255,255,0.75)', marginTop:3 }}>{wh.id} · {wh.location}</div>
-                </div>
+            >
+              {warehouses.map(w => (
+                <option key={w.id} value={w.id}>{w.id} — {w.name} ({w.location})</option>
+              ))}
+            </select>
+            {/* utilization badge */}
+            {selectedWH && (() => {
+              const pct = Math.round((selectedWH.used / selectedWH.capacity) * 100);
+              const c = pct > 85 ? RED_LIGHT : pct > 70 ? AMBER : GREEN;
+              return (
+                <span style={{
+                  padding:'5px 14px', borderRadius:20, fontSize:12, fontWeight:700,
+                  background: c+'18', color: c, border:`1px solid ${c}30`,
+                }}>{pct}% used</span>
+              );
+            })()}
+            <span style={{
+              marginLeft:'auto', fontSize:12, color: TEXT_LIGHT, fontWeight:500,
+            }}>
+              {warehouses.length} warehouses total
+            </span>
+          </div>
 
-                {/* Stats 2x2 */}
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:1, background:'#f1f5f9', margin:'0 0 0 0' }}>
-                  {[
-                    { label:'Active SKUs', value: wh.skus },
-                    { label:'Manager',     value: wh.manager.split(' ')[0] },
-                    { label:'Capacity',    value: `${wh.capacity.toLocaleString()} u` },
-                    { label:'Status',      value: '● Active' },
-                  ].map((s,j) => (
-                    <div key={j} style={{ background:'#fff', padding:'12px 16px' }}>
-                      <div style={{ fontSize:11, color: TEXT_LIGHT, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em' }}>{s.label}</div>
-                      <div style={{ fontSize:14, fontWeight:700, color: TEXT_DARK, marginTop:3 }}>{s.value}</div>
+          {/* Selected warehouse detail */}
+          {selectedWH && (() => {
+            const pct = Math.round((selectedWH.used / selectedWH.capacity) * 100);
+            const barColor = pct > 85 ? RED_LIGHT : pct > 70 ? AMBER : GREEN;
+            const whStock = stockData.filter(s => s.warehouse === selectedWH.id);
+            return (
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:20 }}>
+                {/* Info card */}
+                <div style={{ ...card(), overflow:'hidden' }}>
+                  <div style={{ background:'linear-gradient(135deg,#c0392b,#e74c3c)', padding:'18px 20px' }}>
+                    <div style={{ fontSize:16, fontWeight:800, color:'#fff' }}>{selectedWH.name}</div>
+                    <div style={{ fontSize:11.5, color:'rgba(255,255,255,0.75)', marginTop:3 }}>
+                      {selectedWH.id} · {selectedWH.location}
                     </div>
-                  ))}
-                </div>
-
-                {/* Capacity bar */}
-                <div style={{ padding:'16px 20px' }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
-                    <span style={{ fontSize:12, color: TEXT_MID, fontWeight:600 }}>Capacity Used</span>
-                    <span style={{ fontSize:12, fontWeight:700, color: barColor }}>{pct}%</span>
                   </div>
-                  <div style={{ height:12, background:'#f1f5f9', borderRadius:6, overflow:'hidden' }}>
-                    <div style={{
-                      height:'100%', width:`${pct}%`, borderRadius:6,
-                      background: barColor, transition:'width 0.5s',
-                      display:'flex', alignItems:'center', justifyContent:'flex-end', paddingRight:4,
-                    }}>
-                      {pct > 20 && <span style={{ fontSize:9, color:'#fff', fontWeight:700 }}>{pct}%</span>}
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:1, background:'#f1f5f9' }}>
+                    {[
+                      ['Active SKUs',  selectedWH.skus],
+                      ['Manager',      selectedWH.manager],
+                      ['Capacity',     `${selectedWH.capacity.toLocaleString()} units`],
+                      ['Status',       '● Active'],
+                    ].map(([label, val], j) => (
+                      <div key={j} style={{ background:'#fff', padding:'12px 16px' }}>
+                        <div style={{ fontSize:11, color: TEXT_LIGHT, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em' }}>{label}</div>
+                        <div style={{ fontSize:14, fontWeight:700, color: TEXT_DARK, marginTop:3 }}>{val}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ padding:'16px 20px' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
+                      <span style={{ fontSize:12, color: TEXT_MID, fontWeight:600 }}>Capacity Used</span>
+                      <span style={{ fontSize:12, fontWeight:700, color: barColor }}>{pct}%</span>
+                    </div>
+                    <div style={{ height:12, background:'#f1f5f9', borderRadius:6, overflow:'hidden' }}>
+                      <div style={{ height:'100%', width:`${pct}%`, borderRadius:6, background: barColor, transition:'width 0.5s' }} />
+                    </div>
+                    <div style={{ fontSize:11, color: TEXT_LIGHT, marginTop:4 }}>
+                      {selectedWH.used.toLocaleString()} / {selectedWH.capacity.toLocaleString()} units
                     </div>
                   </div>
-                  <div style={{ fontSize:11, color: TEXT_LIGHT, marginTop:4 }}>{wh.used.toLocaleString()} / {wh.capacity.toLocaleString()} units</div>
                 </div>
 
-                {/* View Map button */}
-                <div style={{ padding:'0 20px 18px' }}>
-                  <button style={{
-                    width:'100%', padding:'9px 0', borderRadius: RADIUS_SM,
-                    border:`1.5px solid ${gradients[i].includes('c0392b') ? RED : gradients[i].includes('7c3aed') ? PURPLE : BLUE}`,
-                    background:'transparent', fontSize:12.5, fontWeight:700,
-                    color: gradients[i].includes('c0392b') ? RED : gradients[i].includes('7c3aed') ? PURPLE : BLUE,
-                    cursor:'pointer', fontFamily:'inherit',
-                  }}>View Map →</button>
+                {/* Stock in this warehouse */}
+                <div style={{ ...card(), overflow:'hidden' }}>
+                  <div style={{ padding:'14px 20px', borderBottom: BORDER, display:'flex', alignItems:'center', gap:8 }}>
+                    <MdLocationOn size={16} style={{ color: RED }} />
+                    <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>
+                      Stock in {selectedWH.id}
+                    </div>
+                    <span style={{
+                      marginLeft:'auto', padding:'2px 10px', borderRadius:20,
+                      fontSize:11, fontWeight:700, background:'#fef2f2', color: RED,
+                    }}>{whStock.length} SKUs</span>
+                  </div>
+                  <div style={{ overflowX:'auto' }}>
+                    <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                      <thead>
+                        <tr style={{ background:'#f8fafc' }}>
+                          {['SKU','Item','Qty','Status'].map(h => (
+                            <th key={h} style={{ padding:'9px 14px', textAlign:'left', fontSize:10.5, fontWeight:700, color: TEXT_LIGHT, textTransform:'uppercase', letterSpacing:'0.06em', borderBottom: BORDER }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {whStock.length === 0 ? (
+                          <tr><td colSpan={4} style={{ padding:'24px', textAlign:'center', color: TEXT_LIGHT, fontSize:13 }}>No stock in this warehouse</td></tr>
+                        ) : whStock.map((r, i) => (
+                          <tr key={i} style={{ borderBottom:'1px solid #f8fafc' }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <td style={{ padding:'10px 14px', fontFamily:'monospace', fontSize:12, fontWeight:700, color: RED }}>{r.sku}</td>
+                            <td style={{ padding:'10px 14px', fontSize:12.5, fontWeight:600, color: TEXT_DARK }}>{r.name}</td>
+                            <td style={{ padding:'10px 14px' }}>
+                              <span style={{
+                                padding:'2px 9px', borderRadius:20, fontSize:12, fontWeight:700,
+                                background: r.qty < r.minQty ? '#fef2f2' : '#f0fdf4',
+                                color: r.qty < r.minQty ? RED_LIGHT : GREEN,
+                              }}>{r.qty}</span>
+                            </td>
+                            <td style={{ padding:'10px 14px' }}><StatusBadge status={r.status} /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             );
-          })}
+          })()}
+
+          {/* All warehouses overview grid */}
+          <div style={{ ...card(), overflow:'hidden' }}>
+            <div style={{ padding:'14px 20px', borderBottom: BORDER }}>
+              <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>All Warehouses Overview</div>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:1, background:'#f1f5f9' }}>
+              {warehouses.map((wh, i) => {
+                const pct = Math.round((wh.used / wh.capacity) * 100);
+                const barColor = pct > 85 ? RED_LIGHT : pct > 70 ? AMBER : GREEN;
+                const gradients = [
+                  'linear-gradient(135deg,#c0392b,#e74c3c)',
+                  'linear-gradient(135deg,#7c3aed,#a855f7)',
+                  'linear-gradient(135deg,#0369a1,#3b82f6)',
+                ];
+                const accentColor = i === 0 ? RED : i === 1 ? PURPLE : BLUE;
+                return (
+                  <div key={i} style={{
+                    background:'#fff', padding:'20px',
+                    cursor:'pointer', transition:'background 0.1s',
+                  }}
+                    onClick={() => setSelectedWH(wh)}
+                    onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                  >
+                    <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
+                      <div style={{
+                        width:36, height:36, borderRadius:10, flexShrink:0,
+                        background: gradients[i],
+                        display:'flex', alignItems:'center', justifyContent:'center',
+                        color:'#fff', fontSize:16,
+                      }}>🏭</div>
+                      <div>
+                        <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>{wh.name}</div>
+                        <div style={{ fontSize:11, color: TEXT_LIGHT }}>{wh.id} · {wh.location}</div>
+                      </div>
+                    </div>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
+                      <span style={{ fontSize:11.5, color: TEXT_MID }}>{wh.skus} SKUs</span>
+                      <span style={{ fontSize:11.5, fontWeight:700, color: barColor }}>{pct}%</span>
+                    </div>
+                    <div style={{ height:6, background:'#f1f5f9', borderRadius:3, overflow:'hidden' }}>
+                      <div style={{ height:'100%', width:`${pct}%`, background: barColor, borderRadius:3 }} />
+                    </div>
+                    <div style={{ fontSize:11, color: TEXT_LIGHT, marginTop:4 }}>
+                      {wh.used.toLocaleString()} / {wh.capacity.toLocaleString()} units
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
@@ -682,13 +787,27 @@ export default function InventoryPage({ initialTab = 0 }) {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          TAB 6 — Batch Tracking  (Timeline-style batch cards)
+          TAB 6 — Batch Tracking  (Timeline-style batch cards with expiry alerts)
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === 6 && (
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           <SectionHeader
             title="Batch Tracking"
             subtitle="Shelf life, expiry & status per batch"
+            action={
+              <div style={{ display:'flex', gap:8 }}>
+                {batchData.filter(b => b.shelfPct < 50).length > 0 && (
+                  <div style={{
+                    display:'flex', alignItems:'center', gap:6,
+                    padding:'6px 12px', borderRadius:8,
+                    background:'#fef2f2', border:'1px solid #fecaca',
+                    fontSize:12, fontWeight:700, color: RED_LIGHT,
+                  }}>
+                    ⚠ {batchData.filter(b => b.shelfPct < 50).length} batches nearing expiry
+                  </div>
+                )}
+              </div>
+            }
           />
           {batchData.map((b,i) => {
             const statusColor = b.status==='Active' ? GREEN : b.status==='Critical' ? AMBER : '#94a3b8';
@@ -754,25 +873,6 @@ export default function InventoryPage({ initialTab = 0 }) {
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === 7 && (
         <div>
-          {/* Age-bucket cards */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:20 }}>
-            {[
-              { label:'0–30 days',  count:2, color: GREEN,      icon:'🟢', bg:'#f0fdf4' },
-              { label:'31–60 days', count:1, color: AMBER,      icon:'🟡', bg:'#fffbeb' },
-              { label:'61–90 days', count:1, color:'#f97316',   icon:'🟠', bg:'#fff7ed' },
-              { label:'90+ days',   count:2, color: RED_LIGHT,  icon:'🔴', bg:'#fef2f2' },
-            ].map((b,i) => (
-              <div key={i} style={{
-                ...card(), padding:'18px 20px', background: b.bg,
-                borderTop:`3px solid ${b.color}`,
-              }}>
-                <div style={{ fontSize:22 }}>{b.icon}</div>
-                <div style={{ fontSize:26, fontWeight:900, color: b.color, marginTop:8, lineHeight:1 }}>{b.count}</div>
-                <div style={{ fontSize:12, color: TEXT_MID, fontWeight:600, marginTop:4 }}>{b.label}</div>
-              </div>
-            ))}
-          </div>
-
           {/* Main table */}
           <div style={{ ...card(), overflow:'hidden' }}>
             <div style={{
@@ -844,25 +944,6 @@ export default function InventoryPage({ initialTab = 0 }) {
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === 8 && (
         <div>
-          {/* KPI cards */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:20 }}>
-            {[
-              { label:'Total Defective', value:10, color: RED_LIGHT,  icon:'🔴' },
-              { label:'QC Hold',         value:3,  color: AMBER,      icon:'🟡' },
-              { label:'Repair',          value:2,  color: BLUE,       icon:'🔵' },
-              { label:'Disposed',        value:5,  color:'#6b7280',   icon:'⚫' },
-            ].map((k,i) => (
-              <div key={i} style={{
-                ...card(), padding:'18px 20px',
-                borderTop:`3px solid ${k.color}`,
-              }}>
-                <div style={{ fontSize:22 }}>{k.icon}</div>
-                <div style={{ fontSize:26, fontWeight:900, color: k.color, marginTop:8, lineHeight:1 }}>{k.value}</div>
-                <div style={{ fontSize:12, color: TEXT_MID, fontWeight:600, marginTop:4 }}>{k.label}</div>
-              </div>
-            ))}
-          </div>
-
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
             {/* Defective register */}
             <div style={{ ...card(), overflow:'hidden' }}>
@@ -963,74 +1044,326 @@ export default function InventoryPage({ initialTab = 0 }) {
       {activeTab === 9  && <StorageLocationPage />}
       {activeTab === 10 && <PincodeStockPage />}
 
-      {/* ── Add Stock Modal ── */}
-      <Modal
-        open={showModal}
-        onClose={() => setShowModal(false)}
-        title="Add Stock Entry"
-        footer={
-          <>
-            <button style={{
-              padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`,
-              color: RED, background:'transparent', fontSize:13, fontWeight:600,
-              cursor:'pointer', fontFamily:'inherit',
-            }} onClick={() => setShowModal(false)}>Cancel</button>
-            <button style={{
-              padding:'8px 18px', borderRadius:10, border:'none',
-              background:'linear-gradient(135deg,#ef4444,#b91c1c)',
-              color:'#fff', fontSize:13, fontWeight:600,
-              cursor:'pointer', fontFamily:'inherit',
-              boxShadow:'0 3px 10px rgba(185,28,28,0.3)',
-            }} onClick={() => setShowModal(false)}>Add Stock</button>
-          </>
-        }
-      >
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-          {[
-            { label:'SKU *',           placeholder:'e.g. SKU-1042',           type:'text'   },
-            { label:'Item Name *',     placeholder:'Item description',         type:'text'   },
-            { label:'Quantity *',      placeholder:'0',                        type:'number' },
-            { label:'Batch Number',    placeholder:'e.g. B-2024-04',           type:'text'   },
-            { label:'Min Stock Level', placeholder:'0',                        type:'number' },
-          ].map((f,i) => (
-            <div key={i} style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:12, fontWeight:600, color: TEXT_MID }}>{f.label}</label>
-              <input type={f.type} placeholder={f.placeholder} style={inputStyle} />
+      {/* ── Tab-specific Modals ── */}
+
+      {/* Add Stock (tabs 0 & 1) */}
+      {(activeTab === 0 || activeTab === 1) && (
+        <Modal open={showModal} onClose={closeModal} title="Add Stock Entry"
+          footer={<>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`, color:RED, background:'transparent', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={closeModal}>Cancel</button>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={closeModal}>Add Stock</button>
+          </>}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+            {[
+              { label:'SKU *',           placeholder:'e.g. SKU-1042',  type:'text'   },
+              { label:'Item Name *',     placeholder:'Item description',type:'text'   },
+              { label:'Quantity *',      placeholder:'0',               type:'number' },
+              { label:'Min Stock Level', placeholder:'0',               type:'number' },
+              { label:'Batch Number',    placeholder:'e.g. B-2024-04', type:'text'   },
+            ].map((f,i) => (
+              <div key={i} style={{ display:'flex', flexDirection:'column', gap:5 }}>
+                <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>{f.label}</label>
+                <input type={f.type} placeholder={f.placeholder} style={inputStyle} />
+              </div>
+            ))}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Warehouse *</label>
+              <select style={inputStyle}>
+                {warehouses.map(w => <option key={w.id}>{w.id} — {w.name}</option>)}
+              </select>
             </div>
-          ))}
-          <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-            <label style={{ fontSize:12, fontWeight:600, color: TEXT_MID }}>Warehouse *</label>
-            <select style={inputStyle}>
-              <option>WH-01 — Main Warehouse</option>
-              <option>WH-02 — Secondary Store</option>
-              <option>WH-03 — Finished Goods</option>
-            </select>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Category</label>
+              <select style={inputStyle}>
+                {['Raw Material','WIP','Finished Good','Spare Parts'].map(c => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Unit of Measure</label>
+              <select style={inputStyle}>
+                {['Nos','Set','Kg','Litre','Metre'].map(u => <option key={u}>{u}</option>)}
+              </select>
+            </div>
           </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-            <label style={{ fontSize:12, fontWeight:600, color: TEXT_MID }}>Category</label>
-            <select style={inputStyle}>
-              <option>Raw Material</option>
-              <option>WIP</option>
-              <option>Finished Good</option>
-              <option>Spare Parts</option>
-            </select>
+          <div style={{ display:'flex', flexDirection:'column', gap:5, marginTop:10 }}>
+            <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Remarks</label>
+            <textarea placeholder="Optional notes…" style={{ ...inputStyle, minHeight:64, resize:'vertical' }} />
           </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-            <label style={{ fontSize:12, fontWeight:600, color: TEXT_MID }}>Unit of Measure</label>
-            <select style={inputStyle}>
-              <option>Nos</option>
-              <option>Set</option>
-              <option>Kg</option>
-              <option>Litre</option>
-              <option>Metre</option>
-            </select>
+        </Modal>
+      )}
+
+      {/* Add Warehouse (tab 2) */}
+      {activeTab === 2 && (
+        <Modal open={showModal} onClose={closeModal} title="Add New Warehouse"
+          footer={<>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`, color:RED, background:'transparent', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={closeModal}>Cancel</button>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={closeModal}>Save Warehouse</button>
+          </>}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+            {[
+              { label:'Warehouse ID *',  placeholder:'e.g. WH-04',         type:'text'   },
+              { label:'Warehouse Name *',placeholder:'e.g. North Godown',  type:'text'   },
+              { label:'Location *',      placeholder:'City / Area',         type:'text'   },
+              { label:'Manager Name *',  placeholder:'Full name',           type:'text'   },
+              { label:'Capacity (units)',placeholder:'0',                   type:'number' },
+              { label:'Contact Phone',   placeholder:'10-digit number',     type:'text'   },
+            ].map((f,i) => (
+              <div key={i} style={{ display:'flex', flexDirection:'column', gap:5 }}>
+                <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>{f.label}</label>
+                <input type={f.type} placeholder={f.placeholder} style={inputStyle} />
+              </div>
+            ))}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Warehouse Type</label>
+              <select style={inputStyle}>
+                {['Raw Material','Finished Goods','Transit','Cold Storage'].map(t => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Status</label>
+              <select style={inputStyle}>
+                <option>Active</option><option>Inactive</option>
+              </select>
+            </div>
           </div>
-        </div>
-        <div style={{ display:'flex', flexDirection:'column', gap:5, marginTop:10 }}>
-          <label style={{ fontSize:12, fontWeight:600, color: TEXT_MID }}>Remarks</label>
-          <textarea placeholder="Optional notes…" style={{ ...inputStyle, minHeight:72, resize:'vertical' }} />
-        </div>
-      </Modal>
+          <div style={{ display:'flex', flexDirection:'column', gap:5, marginTop:10 }}>
+            <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Address</label>
+            <textarea placeholder="Full address…" style={{ ...inputStyle, minHeight:56, resize:'vertical' }} />
+          </div>
+        </Modal>
+      )}
+
+      {/* Record Movement (tab 3) */}
+      {activeTab === 3 && (
+        <Modal open={showModal} onClose={closeModal} title="Record Stock Movement"
+          footer={<>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`, color:RED, background:'transparent', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={closeModal}>Cancel</button>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={closeModal}>Record Movement</button>
+          </>}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Movement Type *</label>
+              <select style={inputStyle}>
+                <option>Inward</option><option>Outward</option><option>Transfer</option>
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>SKU *</label>
+              <select style={inputStyle}>
+                {stockData.map(s => <option key={s.sku}>{s.sku} — {s.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>From *</label>
+              <select style={inputStyle}>
+                <option>Supplier</option>
+                {warehouses.map(w => <option key={w.id}>{w.id} — {w.name}</option>)}
+                <option>Production</option>
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>To *</label>
+              <select style={inputStyle}>
+                {warehouses.map(w => <option key={w.id}>{w.id} — {w.name}</option>)}
+                <option>Production</option><option>Dispatch</option>
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Quantity *</label>
+              <input type="number" placeholder="0" style={inputStyle} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Reference No.</label>
+              <input type="text" placeholder="e.g. GRN-0234 / WO-0891" style={inputStyle} />
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* New Pick List (tab 4) */}
+      {activeTab === 4 && (
+        <Modal open={showModal} onClose={closeModal} title="Create Pick List"
+          footer={<>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`, color:RED, background:'transparent', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={closeModal}>Cancel</button>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={closeModal}>Create Pick List</button>
+          </>}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Order Reference *</label>
+              <input type="text" placeholder="e.g. ORD-2024-090" style={inputStyle} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Warehouse *</label>
+              <select style={inputStyle}>
+                {warehouses.map(w => <option key={w.id}>{w.id} — {w.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>SKU to Pick *</label>
+              <select style={inputStyle}>
+                {stockData.map(s => <option key={s.sku}>{s.sku} — {s.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Storage Location</label>
+              <input type="text" placeholder="e.g. Zone A / Rack R2 / Shelf S3 / Bin B5" style={inputStyle} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Qty to Pick *</label>
+              <input type="number" placeholder="0" style={inputStyle} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Assign Picker</label>
+              <input type="text" placeholder="Picker name" style={inputStyle} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Priority</label>
+              <select style={inputStyle}>
+                <option>Normal</option><option>High</option><option>Urgent</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:5, marginTop:10 }}>
+            <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Notes</label>
+            <textarea placeholder="Special instructions…" style={{ ...inputStyle, minHeight:56, resize:'vertical' }} />
+          </div>
+        </Modal>
+      )}
+
+      {/* New Sort Job (tab 5) */}
+      {activeTab === 5 && (
+        <Modal open={showModal} onClose={closeModal} title="Create Sort / Pack Job"
+          footer={<>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`, color:RED, background:'transparent', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={closeModal}>Cancel</button>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={closeModal}>Create Job</button>
+          </>}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Order Reference *</label>
+              <input type="text" placeholder="e.g. ORD-2024-089" style={inputStyle} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>SKU *</label>
+              <select style={inputStyle}>
+                {stockData.map(s => <option key={s.sku}>{s.sku} — {s.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Quantity *</label>
+              <input type="number" placeholder="0" style={inputStyle} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Grade</label>
+              <select style={inputStyle}>
+                <option>Grade A</option><option>Grade B</option><option>Grade C</option>
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Box / Package Type</label>
+              <select style={inputStyle}>
+                <option>Standard Box</option><option>Custom Branded</option><option>Bulk Loose</option>
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Weight (kg)</label>
+              <input type="number" placeholder="0" style={inputStyle} />
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Add Batch (tab 6) */}
+      {activeTab === 6 && (
+        <Modal open={showModal} onClose={closeModal} title="Add New Batch"
+          footer={<>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`, color:RED, background:'transparent', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={closeModal}>Cancel</button>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={closeModal}>Add Batch</button>
+          </>}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Batch Number *</label>
+              <input type="text" placeholder="e.g. B-2024-05" style={inputStyle} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>SKU *</label>
+              <select style={inputStyle}>
+                {stockData.map(s => <option key={s.sku}>{s.sku} — {s.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Quantity *</label>
+              <input type="number" placeholder="0" style={inputStyle} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Warehouse *</label>
+              <select style={inputStyle}>
+                {warehouses.map(w => <option key={w.id}>{w.id} — {w.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Mfg Date *</label>
+              <input type="month" style={inputStyle} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Expiry Date *</label>
+              <input type="month" style={inputStyle} />
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Log Defect (tab 8) */}
+      {activeTab === 8 && (
+        <Modal open={showModal} onClose={closeModal} title="Log Defective Stock"
+          footer={<>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`, color:RED, background:'transparent', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={closeModal}>Cancel</button>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={closeModal}>Log Defect</button>
+          </>}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>SKU *</label>
+              <select style={inputStyle}>
+                {stockData.map(s => <option key={s.sku}>{s.sku} — {s.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Defective Qty *</label>
+              <input type="number" placeholder="0" style={inputStyle} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Defect Type *</label>
+              <select style={inputStyle}>
+                <option>Dimensional</option><option>Surface Defect</option>
+                <option>Packaging Damage</option><option>Functional Failure</option>
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Source *</label>
+              <select style={inputStyle}>
+                <option>GRN Inspection</option><option>Production</option>
+                <option>Customer Return</option><option>Internal Audit</option>
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Stage</label>
+              <select style={inputStyle}>
+                <option>QC Hold</option><option>Defective Bin</option>
+                <option>Repair</option><option>Scrap</option>
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Warehouse</label>
+              <select style={inputStyle}>
+                {warehouses.map(w => <option key={w.id}>{w.id} — {w.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:5, marginTop:10 }}>
+            <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Remarks</label>
+            <textarea placeholder="Describe the defect…" style={{ ...inputStyle, minHeight:56, resize:'vertical' }} />
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

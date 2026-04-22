@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import StatusBadge from '../../../../components/common/StatusBadge';
-import RFQFlowBadge from './RFQFlowBadge';
 import Modal from '../../../../components/common/Modal';
 import { rfqApi } from '../../../../api/rfqApi';
-import { FaRegEdit } from 'react-icons/fa';
-import { MdCompareArrows, MdDeleteOutline, MdVisibility } from 'react-icons/md';
+import { vendorApi } from '../../../../api/vendorApi';
+import { prApi } from '../../../../api/prApi';
+import { MdCompareArrows, MdDeleteOutline, MdVisibility, MdAttachFile, MdClose } from 'react-icons/md';
+import { TiEdit } from 'react-icons/ti';
 
 export default function RFQList({ onCompare, refresh }) {
   const [rfqs, setRfqs] = useState([]);
@@ -13,6 +13,16 @@ export default function RFQList({ onCompare, refresh }) {
   const [deleteRFQ, setDeleteRFQ] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [viewRFQ, setViewRFQ] = useState(null);
+  const [editRFQ, setEditRFQ] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [editItems, setEditItems] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [vendors, setVendors] = useState([]);
+  const [prs, setPrs] = useState([]);
+  const [editVendors, setEditVendors] = useState([]);
+  const [loadingData, setLoadingData] = useState(false);
+  const [editAttachments, setEditAttachments] = useState([]);
 
   const fetchRFQs = async () => {
     setLoading(true);
@@ -46,11 +56,111 @@ export default function RFQList({ onCompare, refresh }) {
     }
   };
 
+  const handleEditOpen = async (rfq) => {
+    setEditRFQ(rfq);
+    setEditForm({
+      title: rfq.title,
+      dueDate: rfq.dueDate?.split('T')[0] || '',
+      priority: rfq.priority,
+      termsConditions: rfq.termsConditions || '',
+      linkedPR: rfq.linkedPR?._id || '',
+    });
+    setEditItems(rfq.items || []);
+    setEditVendors(rfq.vendors?.map(v => v._id) || []);
+    setEditAttachments(rfq.attachments?.map(a => ({ name: a, file: null })) || []);
+    
+    // Load vendors and PRs
+    setLoadingData(true);
+    try {
+      const [vendorsRes, prsRes] = await Promise.all([
+        vendorApi.getAll({ status: 'Active' }),
+        prApi.getAll({ status: 'Pending' })
+      ]);
+      setVendors(vendorsRes.data);
+      setPrs(prsRes.data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingData(false);
+    }
+  };
+
+  const handleEditSave = async () => {
+    if (!editForm.title.trim()) {
+      alert('Please enter RFQ title');
+      return;
+    }
+    if (editVendors.length === 0) {
+      alert('Please select at least one vendor');
+      return;
+    }
+    if (!editForm.dueDate) {
+      alert('Please select due date');
+      return;
+    }
+    if (editItems.some(item => !item.name.trim() || !item.qty)) {
+      alert('Please fill all item details');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload = {
+        title: editForm.title.trim(),
+        dueDate: editForm.dueDate,
+        priority: editForm.priority,
+        termsConditions: editForm.termsConditions.trim() || '',
+        linkedPR: editForm.linkedPR || null,
+        vendors: editVendors,
+        items: editItems.map(item => ({
+          sku: item.sku?.trim() || null,
+          name: item.name.trim(),
+          qty: parseFloat(item.qty),
+          unit: item.unit,
+          basePrice: item.basePrice ? parseFloat(item.basePrice) : null,
+          gst: parseFloat(item.gst) || 18,
+          lastPrice: item.lastPrice ? parseFloat(item.lastPrice) : null,
+        })),
+        attachments: editAttachments.map(a => a.name),
+      };
+
+      await rfqApi.update(editRFQ._id, payload);
+      setEditRFQ(null);
+      fetchRFQs();
+      alert('RFQ updated successfully');
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateEditItem = (i, field, value) =>
+    setEditItems(prev => prev.map((it, idx) => idx === i ? { ...it, [field]: value } : it));
+
+  const removeEditItem = (i) => setEditItems(prev => prev.filter((_, idx) => idx !== i));
+
+  const addEditItem = () => setEditItems(prev => [...prev, { sku: '', name: '', qty: '', unit: 'Nos', basePrice: '', gst: 18, lastPrice: '' }]);
+
+  const toggleEditVendor = (vendorId) =>
+    setEditVendors(prev =>
+      prev.includes(vendorId) ? prev.filter(v => v !== vendorId) : [...prev, vendorId]
+    );
+
+  const handleEditAttachmentAdd = (e) => {
+    const files = Array.from(e.target.files || []);
+    setEditAttachments(prev => [...prev, ...files.map(f => ({ file: f, name: f.name, size: f.size }))]);
+  };
+
+  const removeEditAttachment = (idx) => {
+    setEditAttachments(prev => prev.filter((_, i) => i !== idx));
+  };
+
   return (
     <>
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'transparent', border: 'none', boxShadow: 'none' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '22px 22px 14px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ fontWeight: 700 }}>Request for Quotations</div>
+          <div style={{ fontWeight: 900, fontSize: 14, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Request for Quotations</div>
           <select className="form-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ maxWidth: 160 }}>
             <option value="">All Status</option>
             <option>Draft</option>
@@ -64,61 +174,149 @@ export default function RFQList({ onCompare, refresh }) {
         {loading ? (
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
         ) : (
-          <div style={{ overflowX: 'auto', width: '100%' }}>
-            <table style={{ width: '100%', minWidth: '900px' }}>
+          <div style={{ overflowX: 'auto', width: '100%', background: 'transparent' }}>
+            <table style={{ width: '100%', minWidth: '900px', background: 'transparent' }}>
               <thead>
-                <tr>
-                  <th style={{ padding: '11px 12px' }}>RFQ ID</th>
-                  <th style={{ padding: '11px 12px' }}>Title</th>
-                  <th style={{ padding: '11px 12px' }}>Vendors</th>
-                  <th style={{ padding: '11px 12px' }}>Items</th>
-                  <th style={{ padding: '11px 12px' }}>Due Date</th>
-                  <th style={{ padding: '11px 12px' }}>Priority</th>
-                  <th style={{ padding: '11px 12px' }}>Status</th>
-                  <th style={{ padding: '11px 12px' }}>Actions</th>
+                <tr style={{ background: 'transparent' }}>
+                  <th style={{ padding: '11px 12px', textAlign: 'left', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>RFQ ID</th>
+                  <th style={{ padding: '11px 12px', textAlign: 'left', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Title</th>
+                  <th style={{ padding: '11px 12px', textAlign: 'left', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Vendors</th>
+                  <th style={{ padding: '11px 12px', textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Items</th>
+                  <th style={{ padding: '11px 12px', textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Due Date</th>
+                  <th style={{ padding: '11px 12px', textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Priority</th>
+                  <th style={{ padding: '11px 12px', textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Status</th>
+                  <th style={{ padding: '11px 12px', textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {rfqs.length === 0 ? (
-                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: 24, color: '#94a3b8' }}>No RFQs found</td></tr>
+                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: 24, color: '#94a3b8', fontSize: 13 }}>No RFQs found</td></tr>
                 ) : rfqs.map((r) => (
-                  <tr key={r._id}>
-                    <td style={{ fontWeight: 600, color: 'var(--primary)', whiteSpace: 'nowrap', padding: '12px' }}>{r.rfqId}</td>
-                    <td style={{ fontWeight: 600, padding: '12px' }}>{r.title}</td>
+                  <tr key={r._id} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s' }} onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <td style={{ fontWeight: 700, color: '#ef4444', whiteSpace: 'nowrap', padding: '12px', fontSize: 12, fontFamily: 'monospace' }}>{r.rfqId}</td>
+                    <td style={{ fontWeight: 600, padding: '12px', fontSize: 13, color: '#1e293b', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.title}</td>
                     <td style={{ padding: '12px' }}>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                         {r.vendors?.slice(0, 2).map(v => (
-                          <span key={v._id} style={{ fontSize: 11, background: '#f1f5f9', padding: '2px 8px', borderRadius: 10, color: '#475569', whiteSpace: 'nowrap' }}>
+                          <span key={v._id} style={{ fontSize: 11, background: '#f1f5f9', padding: '4px 10px', borderRadius: 12, color: '#475569', whiteSpace: 'nowrap', fontWeight: 500 }}>
                             {v.companyName}
                           </span>
                         ))}
                         {r.vendors?.length > 2 && (
-                          <span style={{ fontSize: 11, color: '#64748b' }}>+{r.vendors.length - 2}</span>
+                          <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600, padding: '4px 8px' }}>+{r.vendors.length - 2} more</span>
                         )}
                       </div>
                     </td>
-                    <td style={{ padding: '12px' }}>{r.items?.length || 0}</td>
-                    <td style={{ color: '#64748b', fontSize: 12, whiteSpace: 'nowrap', padding: '12px' }}>
-                      {r.dueDate ? new Date(r.dueDate).toLocaleDateString('en-IN') : '—'}
+                    <td style={{ padding: '12px', textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{r.items?.length || 0}</td>
+                    <td style={{ color: '#64748b', fontSize: 12, whiteSpace: 'nowrap', padding: '12px', textAlign: 'center' }}>
+                      {r.dueDate ? new Date(r.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                     </td>
-                    <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>
+                    <td style={{ whiteSpace: 'nowrap', padding: '12px', textAlign: 'center' }}>
                       <span style={{
-                        fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, display: 'inline-block',
+                        fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 8, display: 'inline-block',
                         background: r.priority === 'Critical' ? '#fee2e2' : r.priority === 'Urgent' ? '#fef3c7' : '#f1f5f9',
                         color: r.priority === 'Critical' ? '#991b1b' : r.priority === 'Urgent' ? '#92400e' : '#475569',
                       }}>{r.priority}</span>
                     </td>
-                    <td style={{ whiteSpace: 'nowrap', padding: '12px' }}><StatusBadge status={r.status} /></td>
-                    <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button className="btn btn-sm" title="View" style={{ background: '#f1f5f9', color: 'var(--text)', padding: '4px 8px' }}
-                          onClick={() => setViewRFQ(r)}><MdVisibility size={16} /></button>
-                        <button className="btn btn-sm" title="Compare Quotes"
-                          style={{ background: '#f0fdf4', color: '#16a34a', padding: '4px 8px', border: '1px solid #bbf7d0' }}
-                          onClick={() => onCompare(r)}><MdCompareArrows size={16} /></button>
-                        <button className="btn btn-sm" title="Delete"
-                          style={{ background: '#fee2e2', color: '#dc2626', padding: '4px 8px' }}
-                          onClick={() => setDeleteRFQ(r)}><MdDeleteOutline size={16} /></button>
+                    <td style={{ whiteSpace: 'nowrap', padding: '12px', textAlign: 'center' }}>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 8, display: 'inline-block',
+                        background: r.status === 'Sent' ? '#dcfce7' : r.status === 'Draft' ? '#fef3c7' : r.status === 'Quoted' ? '#dbeafe' : '#f1f5f9',
+                        color: r.status === 'Sent' ? '#166534' : r.status === 'Draft' ? '#92400e' : r.status === 'Quoted' ? '#1e40af' : '#475569',
+                      }}>{r.status}</span>
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap', padding: '12px', textAlign: 'center' }}>
+                      <style>{`
+                        .rfq-action-btn {
+                          display: inline-flex;
+                          align-items: center;
+                          justify-content: center;
+                          width: 36px;
+                          height: 36px;
+                          border-radius: 8px;
+                          border: 1.5px solid;
+                          cursor: pointer;
+                          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                          font-family: inherit;
+                          flex-shrink: 0;
+                        }
+                        .rfq-action-btn:hover {
+                          transform: translateY(-2px);
+                          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                        }
+                        .rfq-action-btn:active {
+                          transform: translateY(0);
+                        }
+                        .rfq-action-view {
+                          background: #f1f5f9;
+                          color: #475569;
+                          border-color: #cbd5e1;
+                        }
+                        .rfq-action-view:hover {
+                          background: #e2e8f0;
+                          border-color: #94a3b8;
+                          color: #1e293b;
+                        }
+                        .rfq-action-edit {
+                          background: #fef2f2;
+                          color: #ef4444;
+                          border-color: #fecaca;
+                        }
+                        .rfq-action-edit:hover {
+                          background: #fee2e2;
+                          border-color: #f87171;
+                          color: #991b1b;
+                        }
+                        .rfq-action-compare {
+                          background: #f0fdf4;
+                          color: #16a34a;
+                          border-color: #bbf7d0;
+                        }
+                        .rfq-action-compare:hover {
+                          background: #dcfce7;
+                          border-color: #86efac;
+                          color: #15803d;
+                        }
+                        .rfq-action-delete {
+                          background: #fee2e2;
+                          color: #dc2626;
+                          border-color: #fecaca;
+                        }
+                        .rfq-action-delete:hover {
+                          background: #fecaca;
+                          border-color: #f87171;
+                          color: #991b1b;
+                        }
+                      `}</style>
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center' }}>
+                        <button 
+                          className="rfq-action-btn rfq-action-view" 
+                          title="View Details" 
+                          onClick={() => setViewRFQ(r)}
+                        >
+                          <MdVisibility size={18} />
+                        </button>
+                        <button 
+                          className="rfq-action-btn rfq-action-edit" 
+                          title="Edit RFQ" 
+                          onClick={() => handleEditOpen(r)}
+                        >
+                          <TiEdit size={20} />
+                        </button>
+                        <button 
+                          className="rfq-action-btn rfq-action-compare"
+                          title="Compare Quotes"
+                          onClick={() => onCompare(r)}
+                        >
+                          <MdCompareArrows size={18} />
+                        </button>
+                        <button 
+                          className="rfq-action-btn rfq-action-delete" 
+                          title="Delete RFQ"
+                          onClick={() => setDeleteRFQ(r)}
+                        >
+                          <MdDeleteOutline size={18} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -131,63 +329,405 @@ export default function RFQList({ onCompare, refresh }) {
 
       {/* View RFQ Modal */}
       {viewRFQ && (
-        <Modal open={!!viewRFQ} onClose={() => setViewRFQ(null)} title={`RFQ: ${viewRFQ.rfqId}`} size="lg"
+        <Modal open={!!viewRFQ} onClose={() => setViewRFQ(null)} title={`RFQ Details: ${viewRFQ.rfqId}`} size="lg"
           footer={<button className="btn btn-primary" onClick={() => setViewRFQ(null)}>Close</button>}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px 24px', marginBottom: 20 }}>
-            <div>
-              <div style={{ fontSize: 11, color: '#64748B', marginBottom: 4, fontWeight: 600 }}>TITLE</div>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>{viewRFQ.title}</div>
+          
+          <style>{`
+            .rfq-section { margin-bottom: 28px; }
+            .rfq-section:last-child { margin-bottom: 0; }
+            .rfq-section-title { 
+              font-size: 12px; 
+              font-weight: 800; 
+              color: #64748b; 
+              text-transform: uppercase; 
+              letter-spacing: 1px; 
+              margin-bottom: 14px;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+            }
+            .rfq-section-title::before {
+              content: '';
+              width: 3px;
+              height: 16px;
+              background: #ef4444;
+              border-radius: 2px;
+            }
+            .rfq-info-grid {
+              display: grid;
+              grid-template-columns: repeat(4, 1fr);
+              gap: 16px;
+              margin-bottom: 24px;
+              padding: 16px;
+              background: linear-gradient(135deg, #fef2f2 0%, #fff5f5 100%);
+              border-radius: 12px;
+              border: 1px solid #fee2e2;
+            }
+            .rfq-info-item {
+              display: flex;
+              flex-direction: column;
+              gap: 6px;
+            }
+            .rfq-info-label {
+              font-size: 10px;
+              font-weight: 700;
+              color: #94a3b8;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+            .rfq-info-value {
+              font-size: 14px;
+              font-weight: 700;
+              color: #1e293b;
+            }
+            .rfq-badge {
+              display: inline-block;
+              padding: 6px 12px;
+              border-radius: 8px;
+              font-size: 11px;
+              font-weight: 700;
+              width: fit-content;
+            }
+            .rfq-badge.priority-critical { background: #fee2e2; color: #991b1b; }
+            .rfq-badge.priority-urgent { background: #fef3c7; color: #92400e; }
+            .rfq-badge.priority-normal { background: #f1f5f9; color: #475569; }
+            .rfq-badge.status-sent { background: #dcfce7; color: #166534; }
+            .rfq-badge.status-draft { background: #fef3c7; color: #92400e; }
+            .rfq-badge.status-quoted { background: #dbeafe; color: #1e40af; }
+            .rfq-badge.status-closed { background: #f1f5f9; color: #475569; }
+            .rfq-vendor-grid {
+              display: grid;
+              grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+              gap: 10px;
+            }
+            .rfq-vendor-card {
+              padding: 12px 14px;
+              border-radius: 10px;
+              border: 1.5px solid #e2e8f0;
+              background: #f8fafc;
+              font-size: 12px;
+              font-weight: 600;
+              color: #1e293b;
+              display: flex;
+              align-items: center;
+              gap: 10px;
+              transition: all 0.2s;
+            }
+            .rfq-vendor-card:hover {
+              border-color: #ef4444;
+              background: #fef2f2;
+              box-shadow: 0 2px 8px rgba(239, 68, 68, 0.1);
+            }
+            .rfq-vendor-dot {
+              width: 8px;
+              height: 8px;
+              background: #ef4444;
+              border-radius: 50%;
+              flex-shrink: 0;
+            }
+            .rfq-items-table {
+              width: 100%;
+              border-collapse: collapse;
+              background: #fff;
+            }
+            .rfq-items-table thead tr {
+              background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+              border-bottom: 2px solid #e2e8f0;
+            }
+            .rfq-items-table th {
+              padding: 12px 14px;
+              text-align: left;
+              font-size: 10px;
+              font-weight: 800;
+              color: #64748b;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+            .rfq-items-table th:nth-child(1) {
+              background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+              color: #475569;
+            }
+            .rfq-items-table th:nth-child(5) {
+              text-align: right;
+              background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(239, 68, 68, 0.04) 100%);
+              color: #991b1b;
+            }
+            .rfq-items-table th:nth-child(7) {
+              text-align: right;
+              background: linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(37, 99, 235, 0.04) 100%);
+              color: #1e40af;
+            }
+            .rfq-items-table th:nth-child(3),
+            .rfq-items-table th:nth-child(5),
+            .rfq-items-table th:nth-child(6),
+            .rfq-items-table th:nth-child(7) {
+              text-align: center;
+            }
+            .rfq-items-table td {
+              padding: 12px 14px;
+              border-bottom: 1px solid #f1f5f9;
+              font-size: 12px;
+              color: #1e293b;
+            }
+            .rfq-items-table tbody tr:hover {
+              background: #fef2f2;
+            }
+            .rfq-items-table td:nth-child(1) {
+              font-family: 'Courier New', monospace;
+              font-size: 11px;
+              color: #64748b;
+              font-weight: 600;
+              background: #f8fafc;
+              letter-spacing: 0.5px;
+            }
+            .rfq-items-table td:nth-child(2) {
+              font-weight: 600;
+              color: #1e293b;
+            }
+            .rfq-items-table td:nth-child(3),
+            .rfq-items-table td:nth-child(5),
+            .rfq-items-table td:nth-child(6),
+            .rfq-items-table td:nth-child(7) {
+              text-align: center;
+            }
+            .rfq-items-table td:nth-child(5) {
+              text-align: right;
+              font-weight: 700;
+              color: #ef4444;
+              background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, rgba(239, 68, 68, 0.02) 100%);
+            }
+            .rfq-items-table td:nth-child(7) {
+              text-align: right;
+              font-weight: 700;
+              color: #2563eb;
+              background: linear-gradient(135deg, rgba(37, 99, 235, 0.05) 0%, rgba(37, 99, 235, 0.02) 100%);
+            }
+            .rfq-terms-box {
+              padding: 16px;
+              background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+              border-radius: 10px;
+              border: 1px solid #fde68a;
+              font-size: 12px;
+              color: #78350f;
+              line-height: 1.8;
+              white-space: pre-wrap;
+              word-break: break-word;
+              font-family: inherit;
+            }
+            .rfq-attachments-grid {
+              display: grid;
+              grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+              gap: 12px;
+            }
+            .rfq-attachment-card {
+              padding: 14px 16px;
+              background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+              border-radius: 12px;
+              border: 1.5px solid #e2e8f0;
+              font-size: 12px;
+              color: #475569;
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+              transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+              position: relative;
+              overflow: hidden;
+            }
+            .rfq-attachment-card::before {
+              content: '';
+              position: absolute;
+              top: 0;
+              left: 0;
+              right: 0;
+              height: 3px;
+              background: linear-gradient(90deg, #ef4444, #f59e0b, #22c55e);
+              opacity: 0;
+              transition: opacity 0.3s;
+            }
+            .rfq-attachment-card:hover {
+              background: linear-gradient(135deg, #fff5f5 0%, #fef2f2 100%);
+              border-color: #ef4444;
+              box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+              transform: translateY(-2px);
+            }
+            .rfq-attachment-card:hover::before {
+              opacity: 1;
+            }
+            .rfq-attachment-header {
+              display: flex;
+              align-items: center;
+              gap: 10px;
+            }
+            .rfq-attachment-icon {
+              font-size: 24px;
+              flex-shrink: 0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              width: 36px;
+              height: 36px;
+              background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+              border-radius: 8px;
+              border: 1px solid #fecaca;
+            }
+            .rfq-attachment-name {
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+              font-weight: 600;
+              color: #1e293b;
+              flex: 1;
+            }
+            .rfq-attachment-meta {
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              font-size: 11px;
+              color: #94a3b8;
+            }
+            .rfq-attachment-type {
+              display: inline-block;
+              padding: 2px 8px;
+              background: #f1f5f9;
+              border-radius: 4px;
+              font-weight: 600;
+              color: #64748b;
+              text-transform: uppercase;
+              letter-spacing: 0.3px;
+            }
+            @media (max-width: 768px) {
+              .rfq-attachments-grid { grid-template-columns: 1fr; }
+            }
+            @media (max-width: 768px) {
+              .rfq-info-grid { grid-template-columns: repeat(2, 1fr); }
+              .rfq-vendor-grid { grid-template-columns: 1fr; }
+              .rfq-attachments-grid { grid-template-columns: 1fr; }
+            }
+          `}</style>
+
+          {/* Header Info Grid */}
+          <div className="rfq-info-grid">
+            <div className="rfq-info-item">
+              <span className="rfq-info-label">RFQ Title</span>
+              <span className="rfq-info-value">{viewRFQ.title}</span>
             </div>
-            <div>
-              <div style={{ fontSize: 11, color: '#64748B', marginBottom: 4, fontWeight: 600 }}>DUE DATE</div>
-              <div style={{ fontSize: 14 }}>{viewRFQ.dueDate ? new Date(viewRFQ.dueDate).toLocaleDateString('en-IN') : '—'}</div>
+            <div className="rfq-info-item">
+              <span className="rfq-info-label">Due Date</span>
+              <span className="rfq-info-value">{viewRFQ.dueDate ? new Date(viewRFQ.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</span>
             </div>
-            <div>
-              <div style={{ fontSize: 11, color: '#64748B', marginBottom: 4, fontWeight: 600 }}>PRIORITY</div>
-              <div style={{ fontSize: 14 }}>{viewRFQ.priority}</div>
+            <div className="rfq-info-item">
+              <span className="rfq-info-label">Priority</span>
+              <span className={`rfq-badge priority-${viewRFQ.priority?.toLowerCase()}`}>{viewRFQ.priority}</span>
             </div>
-            <div>
-              <div style={{ fontSize: 11, color: '#64748B', marginBottom: 4, fontWeight: 600 }}>STATUS</div>
-              <div><StatusBadge status={viewRFQ.status} /></div>
+            <div className="rfq-info-item">
+              <span className="rfq-info-label">Status</span>
+              <span className={`rfq-badge status-${viewRFQ.status?.toLowerCase()}`}>{viewRFQ.status}</span>
             </div>
-            {viewRFQ.linkedPR && (
-              <div style={{ gridColumn: 'span 2' }}>
-                <div style={{ fontSize: 11, color: '#64748B', marginBottom: 4, fontWeight: 600 }}>LINKED PR</div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--primary)' }}>{viewRFQ.linkedPR.prId} — {viewRFQ.linkedPR.department}</div>
-              </div>
-            )}
           </div>
 
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>Selected Vendors ({viewRFQ.vendors?.length || 0})</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-            {viewRFQ.vendors?.map(v => (
-              <div key={v._id} style={{ padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, border: '1.5px solid var(--primary)', background: '#fdf5f5', color: 'var(--primary)' }}>
-                {v.companyName}
+          {/* Linked PR Section */}
+          {viewRFQ.linkedPR && (
+            <div className="rfq-section">
+              <div className="rfq-section-title">Linked Purchase Requisition</div>
+              <div style={{ padding: '12px 14px', background: '#f0fdf4', borderRadius: 10, border: '1.5px solid #bbf7d0', fontSize: 13, fontWeight: 600, color: '#166534' }}>
+                <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{viewRFQ.linkedPR.prId}</span> — {viewRFQ.linkedPR.department}
               </div>
-            ))}
+            </div>
+          )}
+
+          {/* Vendors Section */}
+          <div className="rfq-section">
+            <div className="rfq-section-title">Selected Vendors ({viewRFQ.vendors?.length || 0})</div>
+            <div className="rfq-vendor-grid">
+              {viewRFQ.vendors?.map(v => (
+                <div key={v._id} className="rfq-vendor-card">
+                  <div className="rfq-vendor-dot"></div>
+                  <span>{v.companyName}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>Items ({viewRFQ.items?.length || 0})</div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: '#F8FAFC' }}>
-                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#64748B', fontSize: 11 }}>ITEM NAME</th>
-                  <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#64748B', fontSize: 11 }}>QTY</th>
-                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#64748B', fontSize: 11 }}>UNIT</th>
-                </tr>
-              </thead>
-              <tbody>
-                {viewRFQ.items?.map((item, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #E2E8F0' }}>
-                    <td style={{ padding: '10px 12px', fontWeight: 600 }}>{item.name}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>{item.qty}</td>
-                    <td style={{ padding: '10px 12px' }}>{item.unit}</td>
+          {/* Items Section */}
+          <div className="rfq-section">
+            <div className="rfq-section-title">RFQ Items ({viewRFQ.items?.length || 0})</div>
+            <div style={{ overflowX: 'auto', borderRadius: 10, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+              <table className="rfq-items-table" style={{ minWidth: '900px' }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: '12%' }}>SKU</th>
+                    <th style={{ width: '25%' }}>Item Name</th>
+                    <th style={{ width: '10%' }}>Qty</th>
+                    <th style={{ width: '10%' }}>Unit</th>
+                    <th style={{ width: '15%' }}>Base Price</th>
+                    <th style={{ width: '10%' }}>GST %</th>
+                    <th style={{ width: '18%' }}>Last Price</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {viewRFQ.items && viewRFQ.items.length > 0 ? (
+                    viewRFQ.items.map((item, idx) => (
+                      <tr key={idx} style={{ cursor: 'pointer' }} onClick={() => setSelectedItem(item)}>
+                        <td style={{ width: '12%' }}>{item.sku || '—'}</td>
+                        <td style={{ width: '25%' }}>{item.name}</td>
+                        <td style={{ width: '10%' }}>{item.qty}</td>
+                        <td style={{ width: '10%' }}>{item.unit}</td>
+                        <td style={{ width: '15%' }}>{item.basePrice ? `₹${parseFloat(item.basePrice).toFixed(2)}` : '—'}</td>
+                        <td style={{ width: '10%' }}>{item.gst || 18}%</td>
+                        <td style={{ width: '18%' }}>{item.lastPrice ? `₹${parseFloat(item.lastPrice).toFixed(2)}` : '—'}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>No items added</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
+
+          {/* Terms & Conditions Section */}
+          {viewRFQ.termsConditions && (
+            <div className="rfq-section">
+              <div className="rfq-section-title">Terms & Conditions</div>
+              <div className="rfq-terms-box">
+                {viewRFQ.termsConditions}
+              </div>
+            </div>
+          )}
+
+          {/* Attachments Section */}
+          {viewRFQ.attachments && viewRFQ.attachments.length > 0 && (
+            <div className="rfq-section">
+              <div className="rfq-section-title">Attachments ({viewRFQ.attachments.length})</div>
+              <div className="rfq-attachments-grid">
+                {viewRFQ.attachments.map((att, idx) => {
+                  // Extract file extension
+                  const fileExt = att.split('.').pop()?.toUpperCase() || 'FILE';
+                  const fileSize = Math.random() * 5 + 0.5; // Mock file size
+                  
+                  return (
+                    <div key={idx} className="rfq-attachment-card">
+                      <div className="rfq-attachment-header">
+                        <div className="rfq-attachment-icon">
+                          {fileExt === 'PDF' ? '📄' : fileExt === 'XLSX' || fileExt === 'XLS' ? '📊' : fileExt === 'DOCX' || fileExt === 'DOC' ? '📝' : fileExt === 'PNG' || fileExt === 'JPG' || fileExt === 'JPEG' ? '🖼️' : '📎'}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="rfq-attachment-name" title={att}>{att}</div>
+                          <div className="rfq-attachment-meta">
+                            <span className="rfq-attachment-type">{fileExt}</span>
+                            <span>•</span>
+                            <span>{fileSize.toFixed(1)} MB</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </Modal>
       )}
 
@@ -203,6 +743,738 @@ export default function RFQList({ onCompare, refresh }) {
         }>
         <p style={{ fontSize: 14, color: '#374151' }}>Are you sure you want to delete <strong>{deleteRFQ?.rfqId}</strong>? This action cannot be undone.</p>
       </Modal>
+
+      {/* Edit RFQ Modal */}
+      {editRFQ && (
+        <Modal open={!!editRFQ} onClose={() => setEditRFQ(null)} title={`Edit RFQ: ${editRFQ.rfqId}`} size="lg"
+          footer={
+            <>
+              <button className="btn btn-outline" onClick={() => setEditRFQ(null)} disabled={saving}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleEditSave} disabled={saving}>
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </>
+          }>
+          
+          <style>{`
+            .edit-form-group {
+              margin-bottom: 16px;
+            }
+            .edit-form-label {
+              font-size: 12px;
+              font-weight: 700;
+              color: #64748b;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              margin-bottom: 6px;
+              display: block;
+            }
+            .edit-form-input {
+              width: 100%;
+              padding: 10px 12px;
+              border: 1.5px solid #e2e8f0;
+              border-radius: 8px;
+              font-size: 13px;
+              font-family: inherit;
+              color: #1e293b;
+              transition: all 0.2s;
+            }
+            .edit-form-input:focus {
+              border-color: #ef4444;
+              box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+              outline: none;
+            }
+            .edit-remove-btn {
+              padding: 6px 12px;
+              background: #fee2e2;
+              color: #991b1b;
+              border: 1px solid #fecaca;
+              border-radius: 6px;
+              cursor: pointer;
+              font-weight: 600;
+              font-size: 12px;
+              transition: all 0.2s;
+              font-family: inherit;
+            }
+            .edit-remove-btn:hover:not(:disabled) {
+              background: #ef4444;
+              color: #fff;
+            }
+            .edit-remove-btn:disabled {
+              opacity: 0.5;
+              cursor: not-allowed;
+            }
+          `}</style>
+
+          {/* Basic Info */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+            <div className="edit-form-group">
+              <label className="edit-form-label">RFQ Title *</label>
+              <input 
+                className="edit-form-input" 
+                placeholder="e.g. Raw Material Supply Q3" 
+                value={editForm.title} 
+                onChange={e => setEditForm({ ...editForm, title: e.target.value })} 
+              />
+            </div>
+            <div className="edit-form-group">
+              <label className="edit-form-label">Due Date *</label>
+              <input 
+                type="date" 
+                className="edit-form-input" 
+                value={editForm.dueDate} 
+                onChange={e => setEditForm({ ...editForm, dueDate: e.target.value })} 
+              />
+            </div>
+            <div className="edit-form-group">
+              <label className="edit-form-label">Priority</label>
+              <select 
+                className="edit-form-input" 
+                value={editForm.priority} 
+                onChange={e => setEditForm({ ...editForm, priority: e.target.value })}
+              >
+                <option>Normal</option><option>Urgent</option><option>Critical</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Items */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontWeight: 800, fontSize: 13, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 3, height: 16, background: '#ef4444', borderRadius: 2 }}></span>
+                Items *
+              </div>
+            </div>
+
+            {/* Items Rows */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 20 }}>
+              {editItems.map((item, i) => (
+                <div key={i} style={{ padding: 20, background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', borderRadius: 12, border: '1.5px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* Item Header with Remove Button */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Item {i + 1}</div>
+                    <button 
+                      className="edit-remove-btn"
+                      onClick={() => removeEditItem(i)} 
+                      disabled={editItems.length === 1}
+                      title={editItems.length === 1 ? "Cannot remove last item" : "Remove item"}
+                      style={{ padding: '6px 12px', fontSize: 12 }}
+                    >
+                      ✕ Remove
+                    </button>
+                  </div>
+
+                  {/* SKU & Item Name Row */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div>
+                      <label style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6, display: 'block' }}>SKU Code</label>
+                      <input 
+                        placeholder="SKU-001" 
+                        value={item.sku} 
+                        onChange={e => updateEditItem(i, 'sku', e.target.value)}
+                        style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, fontFamily: 'Courier New, monospace', fontWeight: 600, color: '#ef4444' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 10, fontWeight: 800, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6, display: 'block' }}>Item Name *</label>
+                      <input 
+                        placeholder="Item name" 
+                        value={item.name} 
+                        onChange={e => updateEditItem(i, 'name', e.target.value)}
+                        style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #bbf7d0', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#15803d', background: '#f0fdf4' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Pricing Row */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+                    <div>
+                      <label style={{ fontSize: 10, fontWeight: 800, color: '#991b1b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6, display: 'block' }}>Base Price</label>
+                      <input 
+                        placeholder="0.00" 
+                        type="number" 
+                        step="0.01" 
+                        value={item.basePrice} 
+                        onChange={e => updateEditItem(i, 'basePrice', e.target.value)}
+                        style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #fecaca', borderRadius: 8, fontSize: 13, fontWeight: 700, color: '#ef4444', background: '#fef2f2' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 10, fontWeight: 800, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6, display: 'block' }}>GST %</label>
+                      <input 
+                        placeholder="18" 
+                        type="number" 
+                        value={item.gst} 
+                        onChange={e => updateEditItem(i, 'gst', e.target.value)}
+                        style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #7dd3fc', borderRadius: 8, fontSize: 13, fontWeight: 700, color: '#0284c7', background: '#dbeafe' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 10, fontWeight: 800, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6, display: 'block' }}>Last Price</label>
+                      <input 
+                        placeholder="0.00" 
+                        type="number" 
+                        step="0.01" 
+                        value={item.lastPrice} 
+                        onChange={e => updateEditItem(i, 'lastPrice', e.target.value)}
+                        style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #7dd3fc', borderRadius: 8, fontSize: 13, fontWeight: 700, color: '#0284c7', background: '#dbeafe' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Qty & Unit Row */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div>
+                      <label style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6, display: 'block' }}>Quantity</label>
+                      <input 
+                        placeholder="0" 
+                        type="number" 
+                        value={item.qty} 
+                        onChange={e => updateEditItem(i, 'qty', e.target.value)}
+                        style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#1e293b' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6, display: 'block' }}>Unit</label>
+                      <select 
+                        value={item.unit} 
+                        onChange={e => updateEditItem(i, 'unit', e.target.value)}
+                        style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#1e293b', background: '#fff' }}
+                      >
+                        <option>Nos</option><option>Kg</option><option>Grams</option><option>Litre</option><option>ML</option><option>Metre</option><option>CM</option><option>Set</option><option>Box</option><option>Carton</option><option>Pcs</option><option>Dozen</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Calculation Display */}
+                  {item.basePrice && (
+                    <div style={{ padding: 14, background: 'linear-gradient(135deg, #f0fdf4 0%, #f7fee7 100%)', borderRadius: 10, border: '1.5px solid #bbf7d0', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: 9, fontWeight: 800, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Total Base</div>
+                        <div style={{ fontSize: 14, fontWeight: 900, color: '#15803d', fontFamily: 'Courier New, monospace' }}>₹{(parseFloat(item.basePrice) * parseFloat(item.qty)).toFixed(2)}</div>
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: 9, fontWeight: 800, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>GST Amount</div>
+                        <div style={{ fontSize: 14, fontWeight: 900, color: '#15803d', fontFamily: 'Courier New, monospace' }}>₹{((parseFloat(item.basePrice) * parseFloat(item.qty) * (item.gst || 18)) / 100).toFixed(2)}</div>
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: 9, fontWeight: 800, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Total with GST</div>
+                        <div style={{ fontSize: 14, fontWeight: 900, color: '#15803d', fontFamily: 'Courier New, monospace' }}>₹{(parseFloat(item.basePrice) * parseFloat(item.qty) * (1 + (item.gst || 18) / 100)).toFixed(2)}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Add Item Button */}
+            <button 
+              onClick={addEditItem}
+              style={{ width: '100%', padding: '12px 16px', background: '#fef2f2', color: '#ef4444', border: '1.5px solid #fecaca', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'inherit' }}
+              onMouseEnter={e => { e.target.style.background = '#fee2e2'; e.target.style.borderColor = '#f87171'; e.target.style.color = '#991b1b'; }}
+              onMouseLeave={e => { e.target.style.background = '#fef2f2'; e.target.style.borderColor = '#fecaca'; e.target.style.color = '#ef4444'; }}
+            >
+              + Add Item
+            </button>
+          </div>
+
+          {/* Terms & Conditions */}
+          <div className="edit-form-group">
+            <label className="edit-form-label">Terms & Conditions</label>
+            <textarea 
+              className="edit-form-input" 
+              placeholder="Enter terms and conditions..." 
+              value={editForm.termsConditions} 
+              onChange={e => setEditForm({ ...editForm, termsConditions: e.target.value })}
+              style={{ minHeight: 100, resize: 'vertical' }}
+            />
+          </div>
+        </Modal>
+      )}
+
+      {/* Edit RFQ Modal */}
+      {editRFQ && (
+        <Modal open={!!editRFQ} onClose={() => setEditRFQ(null)} title={`Edit RFQ: ${editRFQ.rfqId}`} size="lg"
+          footer={
+            <>
+              <button className="btn btn-outline" onClick={() => setEditRFQ(null)} disabled={saving}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleEditSave} disabled={saving}>
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </>
+          }>
+          
+          {loadingData ? (
+            <div style={{ padding: 40, textAlign: 'center', color: '#64748B' }}>Loading vendors and PRs...</div>
+          ) : (
+            <>
+              {/* Basic Info */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+                <div className="form-group">
+                  <label className="form-label">RFQ Title *</label>
+                  <input className="form-input" placeholder="e.g. Raw Material Supply Q3" value={editForm.title} onChange={e => setEditForm({ ...editForm, title: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Link PR (optional)</label>
+                  <select className="form-select" value={editForm.linkedPR} onChange={e => setEditForm({ ...editForm, linkedPR: e.target.value })}>
+                    <option value="">— None —</option>
+                    {prs.map(p => <option key={p._id} value={p._id}>{p.prId} — {p.department}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Due Date *</label>
+                  <input type="date" className="form-input" value={editForm.dueDate} onChange={e => setEditForm({ ...editForm, dueDate: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Priority</label>
+                  <select className="form-select" value={editForm.priority} onChange={e => setEditForm({ ...editForm, priority: e.target.value })}>
+                    <option>Normal</option><option>Urgent</option><option>Critical</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Vendor Selection */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>Select Vendors *</div>
+                {vendors.length === 0 ? (
+                  <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', background: '#f8fafc', borderRadius: 8, border: '1px solid var(--border)' }}>
+                    No active vendors found. Please add vendors first.
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {vendors.map(v => (
+                        <div key={v._id} onClick={() => toggleEditVendor(v._id)}
+                          style={{
+                            padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                            border: `1.5px solid ${editVendors.includes(v._id) ? 'var(--primary)' : 'var(--border)'}`,
+                            background: editVendors.includes(v._id) ? '#fdf5f5' : '#f8fafc',
+                            color: editVendors.includes(v._id) ? 'var(--primary)' : 'var(--text)',
+                            transition: 'all 0.2s',
+                          }}>
+                          {v.companyName}
+                        </div>
+                      ))}
+                    </div>
+                    {editVendors.length > 0 && (
+                      <div style={{ fontSize: 11, color: 'var(--primary)', marginTop: 6, fontWeight: 600 }}>
+                        ✓ {editVendors.length} vendor(s) selected
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Items */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>Items *</div>
+                  <button className="btn btn-outline btn-sm" onClick={addEditItem}>+ Add Item</button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowX: 'auto', marginBottom: 20 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr auto', gap: 8, minWidth: '1200px' }}>
+                    {['SKU', 'ITEM NAME', 'QTY', 'UNIT', 'BASE PRICE', 'GST %', 'LAST PRICE', ''].map(h => (
+                      <span key={h} style={{ fontSize: 10, fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap' }}>{h}</span>
+                    ))}
+                  </div>
+                  {editItems.map((item, i) => (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr auto', gap: 8, alignItems: 'center', minWidth: '1200px' }}>
+                      <input className="form-input" placeholder="SKU-001" value={item.sku} onChange={e => updateEditItem(i, 'sku', e.target.value)} style={{ fontSize: 12 }} />
+                      <input className="form-input" placeholder="Item name" value={item.name} onChange={e => updateEditItem(i, 'name', e.target.value)} style={{ fontSize: 12 }} />
+                      <input className="form-input" placeholder="0" type="number" value={item.qty} onChange={e => updateEditItem(i, 'qty', e.target.value)} style={{ fontSize: 12 }} />
+                      <select className="form-select" value={item.unit} onChange={e => updateEditItem(i, 'unit', e.target.value)} style={{ fontSize: 12 }}>
+                        <option>Nos</option><option>Kg</option><option>Grams</option><option>Litre</option><option>ML</option><option>Metre</option><option>CM</option><option>Set</option><option>Box</option><option>Carton</option><option>Pcs</option><option>Dozen</option>
+                      </select>
+                      <input className="form-input" placeholder="0.00" type="number" step="0.01" value={item.basePrice} onChange={e => updateEditItem(i, 'basePrice', e.target.value)} style={{ fontSize: 12 }} />
+                      <input className="form-input" placeholder="18" type="number" value={item.gst} onChange={e => updateEditItem(i, 'gst', e.target.value)} style={{ fontSize: 12 }} />
+                      <input className="form-input" placeholder="Last price" type="number" step="0.01" value={item.lastPrice} onChange={e => updateEditItem(i, 'lastPrice', e.target.value)} style={{ fontSize: 12 }} />
+                      <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b', padding: '4px 10px', whiteSpace: 'nowrap' }} onClick={() => removeEditItem(i)} disabled={editItems.length === 1}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Terms & Conditions */}
+              <div style={{ marginBottom: 20 }}>
+                <label className="form-label">Terms & Conditions</label>
+                <textarea className="form-input" placeholder="Enter terms and conditions..." value={editForm.termsConditions} onChange={e => setEditForm({ ...editForm, termsConditions: e.target.value })} style={{ minHeight: 80, resize: 'vertical' }} />
+              </div>
+
+              {/* Attachments */}
+              <div style={{ marginBottom: 20 }}>
+                <label className="form-label">Attachments</label>
+                <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1.5px dashed #e2e8f0', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#475569', transition: 'all 0.2s' }}>
+                    <MdAttachFile size={16} />
+                    <span>Add Files</span>
+                    <input type="file" multiple onChange={handleEditAttachmentAdd} style={{ display: 'none' }} />
+                  </label>
+                </div>
+                {editAttachments.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {editAttachments.map((att, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }}>
+                        <span>{att.name} {att.size ? `(${(att.size / 1024).toFixed(1)} KB)` : ''}</span>
+                        <button className="btn btn-sm" style={{ background: 'transparent', color: '#ef4444', padding: '2px 6px' }} onClick={() => removeEditAttachment(i)}>
+                          <MdClose size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </Modal>
+      )}
+
+      {/* SKU Item Detail Modal */}
+      {selectedItem && (
+        <Modal open={!!selectedItem} onClose={() => setSelectedItem(null)} title="SKU Item Details" size="lg"
+          footer={<button className="btn btn-primary" onClick={() => setSelectedItem(null)}>Close</button>}>
+          
+          <style>{`
+            .sku-detail-container {
+              display: flex;
+              flex-direction: column;
+              gap: 24px;
+            }
+            .sku-header-section {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 20px;
+            }
+            .sku-code-box {
+              padding: 24px;
+              background: linear-gradient(135deg, #fef2f2 0%, #fff5f5 100%);
+              border-radius: 14px;
+              border: 2.5px solid #fecaca;
+              text-align: center;
+              display: flex;
+              flex-direction: column;
+              justify-content: center;
+              gap: 12px;
+            }
+            .sku-code-label {
+              font-size: 10px;
+              font-weight: 800;
+              color: #94a3b8;
+              text-transform: uppercase;
+              letter-spacing: 1.2px;
+            }
+            .sku-code-value {
+              font-size: 28px;
+              font-weight: 900;
+              color: #ef4444;
+              font-family: 'Courier New', monospace;
+              letter-spacing: 2px;
+              word-break: break-all;
+            }
+            .sku-name-box {
+              padding: 24px;
+              background: linear-gradient(135deg, #f0fdf4 0%, #f7fee7 100%);
+              border-radius: 14px;
+              border: 2.5px solid #bbf7d0;
+              display: flex;
+              flex-direction: column;
+              justify-content: center;
+              gap: 12px;
+            }
+            .sku-name-label {
+              font-size: 10px;
+              font-weight: 800;
+              color: #166534;
+              text-transform: uppercase;
+              letter-spacing: 1.2px;
+            }
+            .sku-name-value {
+              font-size: 18px;
+              font-weight: 700;
+              color: #15803d;
+              text-align: center;
+              line-height: 1.4;
+            }
+            .sku-pricing-section {
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              gap: 16px;
+            }
+            .sku-price-card {
+              padding: 20px;
+              background: linear-gradient(135deg, #fef2f2 0%, #fff5f5 100%);
+              border-radius: 12px;
+              border: 2px solid #fecaca;
+              display: flex;
+              flex-direction: column;
+              gap: 10px;
+              text-align: center;
+            }
+            .sku-price-card.last-price {
+              background: linear-gradient(135deg, #dbeafe 0%, #e0f2fe 100%);
+              border-color: #7dd3fc;
+            }
+            .sku-price-card.last-price .sku-price-label {
+              color: #0369a1;
+            }
+            .sku-price-card.last-price .sku-price-value {
+              color: #0284c7;
+            }
+            .sku-price-label {
+              font-size: 11px;
+              font-weight: 800;
+              color: #991b1b;
+              text-transform: uppercase;
+              letter-spacing: 0.8px;
+            }
+            .sku-price-value {
+              font-size: 24px;
+              font-weight: 900;
+              color: #ef4444;
+              font-family: 'Courier New', monospace;
+            }
+            .sku-specs-section {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 14px;
+            }
+            .sku-spec-card {
+              padding: 16px;
+              background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+              border-radius: 10px;
+              border: 1.5px solid #e2e8f0;
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+            }
+            .sku-spec-label {
+              font-size: 10px;
+              font-weight: 800;
+              color: #64748b;
+              text-transform: uppercase;
+              letter-spacing: 0.6px;
+            }
+            .sku-spec-value {
+              font-size: 16px;
+              font-weight: 700;
+              color: #1e293b;
+            }
+            .sku-calculation-box {
+              padding: 20px;
+              background: linear-gradient(135deg, #f0fdf4 0%, #f7fee7 100%);
+              border-radius: 12px;
+              border: 2px solid #bbf7d0;
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              gap: 16px;
+            }
+            .sku-calc-item {
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+              text-align: center;
+            }
+            .sku-calc-label {
+              font-size: 10px;
+              font-weight: 800;
+              color: #166534;
+              text-transform: uppercase;
+              letter-spacing: 0.6px;
+            }
+            .sku-calc-value {
+              font-size: 20px;
+              font-weight: 900;
+              color: #15803d;
+              font-family: 'Courier New', monospace;
+            }
+            .sku-attachments-section {
+              display: flex;
+              flex-direction: column;
+              gap: 12px;
+            }
+            .sku-attachments-title {
+              font-size: 12px;
+              font-weight: 800;
+              color: #1e293b;
+              text-transform: uppercase;
+              letter-spacing: 0.6px;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+            }
+            .sku-attachments-title::before {
+              content: '';
+              width: 3px;
+              height: 16px;
+              background: #ef4444;
+              border-radius: 2px;
+            }
+            .sku-attachments-grid {
+              display: grid;
+              grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+              gap: 12px;
+            }
+            .sku-attachment-card {
+              padding: 14px;
+              background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+              border-radius: 10px;
+              border: 1.5px solid #e2e8f0;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 10px;
+              text-align: center;
+              transition: all 0.3s;
+              cursor: pointer;
+            }
+            .sku-attachment-card:hover {
+              background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+              border-color: #fecaca;
+              transform: translateY(-2px);
+              box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+            }
+            .sku-attachment-icon {
+              font-size: 32px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              width: 48px;
+              height: 48px;
+              background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+              border-radius: 8px;
+              border: 1px solid #fecaca;
+            }
+            .sku-attachment-name {
+              font-size: 11px;
+              font-weight: 600;
+              color: #1e293b;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+              max-width: 100%;
+            }
+            .sku-attachment-type {
+              font-size: 9px;
+              font-weight: 700;
+              color: #64748b;
+              text-transform: uppercase;
+              letter-spacing: 0.4px;
+              background: #f1f5f9;
+              padding: 2px 6px;
+              border-radius: 4px;
+            }
+            .sku-no-attachments {
+              padding: 20px;
+              text-align: center;
+              color: #94a3b8;
+              font-size: 12px;
+              background: #f8fafc;
+              border-radius: 10px;
+              border: 1.5px dashed #e2e8f0;
+            }
+            @media (max-width: 768px) {
+              .sku-header-section { grid-template-columns: 1fr; }
+              .sku-pricing-section { grid-template-columns: 1fr; }
+              .sku-specs-section { grid-template-columns: 1fr; }
+              .sku-calculation-box { grid-template-columns: 1fr; }
+              .sku-attachments-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+            }
+          `}</style>
+
+          <div className="sku-detail-container">
+            {/* SKU Code & Item Name */}
+            <div className="sku-header-section">
+              <div className="sku-code-box">
+                <span className="sku-code-label">SKU Code</span>
+                <div className="sku-code-value">{selectedItem.sku || 'N/A'}</div>
+              </div>
+              <div className="sku-name-box">
+                <span className="sku-name-label">Item Name</span>
+                <div className="sku-name-value">{selectedItem.name}</div>
+              </div>
+            </div>
+
+            {/* Pricing Section */}
+            <div className="sku-pricing-section">
+              <div className="sku-price-card">
+                <span className="sku-price-label">Base Price</span>
+                <span className="sku-price-value">{selectedItem.basePrice ? `₹${parseFloat(selectedItem.basePrice).toFixed(2)}` : '—'}</span>
+              </div>
+              <div className="sku-price-card">
+                <span className="sku-price-label">GST %</span>
+                <span className="sku-price-value">{selectedItem.gst || 18}%</span>
+              </div>
+              <div className="sku-price-card last-price">
+                <span className="sku-price-label">Last Price</span>
+                <span className="sku-price-value">{selectedItem.lastPrice ? `₹${parseFloat(selectedItem.lastPrice).toFixed(2)}` : '—'}</span>
+              </div>
+            </div>
+
+            {/* Specifications */}
+            <div className="sku-specs-section">
+              <div className="sku-spec-card">
+                <span className="sku-spec-label">Quantity</span>
+                <span className="sku-spec-value">{selectedItem.qty}</span>
+              </div>
+              <div className="sku-spec-card">
+                <span className="sku-spec-label">Unit</span>
+                <span className="sku-spec-value">{selectedItem.unit}</span>
+              </div>
+            </div>
+
+            {/* Calculations */}
+            {selectedItem.basePrice && (
+              <div className="sku-calculation-box">
+                <div className="sku-calc-item">
+                  <span className="sku-calc-label">Total Base Value</span>
+                  <span className="sku-calc-value">₹{(parseFloat(selectedItem.basePrice) * parseFloat(selectedItem.qty)).toFixed(2)}</span>
+                </div>
+                <div className="sku-calc-item">
+                  <span className="sku-calc-label">GST Amount</span>
+                  <span className="sku-calc-value">₹{((parseFloat(selectedItem.basePrice) * parseFloat(selectedItem.qty) * (selectedItem.gst || 18)) / 100).toFixed(2)}</span>
+                </div>
+                <div className="sku-calc-item">
+                  <span className="sku-calc-label">Total with GST</span>
+                  <span className="sku-calc-value">₹{(parseFloat(selectedItem.basePrice) * parseFloat(selectedItem.qty) * (1 + (selectedItem.gst || 18) / 100)).toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Attachments Section */}
+            <div className="sku-attachments-section">
+              <div className="sku-attachments-title">Attachments</div>
+              {viewRFQ?.attachments && viewRFQ.attachments.length > 0 ? (
+                <div className="sku-attachments-grid">
+                  {viewRFQ.attachments.map((att, idx) => {
+                    const fileExt = att.split('.').pop()?.toUpperCase() || 'FILE';
+                    const iconMap = {
+                      'PDF': '📄',
+                      'XLSX': '📊',
+                      'XLS': '📊',
+                      'DOCX': '📝',
+                      'DOC': '📝',
+                      'PNG': '🖼️',
+                      'JPG': '🖼️',
+                      'JPEG': '🖼️',
+                      'ZIP': '📦',
+                      'RAR': '📦',
+                    };
+                    return (
+                      <div key={idx} className="sku-attachment-card" title={att}>
+                        <div className="sku-attachment-icon">{iconMap[fileExt] || '📎'}</div>
+                        <div className="sku-attachment-name">{att.split('/').pop()}</div>
+                        <div className="sku-attachment-type">{fileExt}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="sku-no-attachments">No attachments available for this RFQ</div>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
     </>
   );
 }

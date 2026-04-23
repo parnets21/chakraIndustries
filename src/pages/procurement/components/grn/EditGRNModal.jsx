@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Modal from '../../../../components/common/Modal';
-import { pos, grnDetails } from '../data';
+import { pos } from '../data';
 
-export default function CreateGRNModal({ open, onClose }) {
+export default function EditGRNModal({ open, onClose, grn, onSave }) {
   const [selectedPO, setSelectedPO] = useState('');
   const [receiptDate, setReceiptDate] = useState('');
   const [warehouse, setWarehouse] = useState('WH-01');
@@ -10,10 +10,25 @@ export default function CreateGRNModal({ open, onClose }) {
   const [vehicleNo, setVehicleNo] = useState('');
   const [challanDate, setChallanDate] = useState('');
   const [gst, setGst] = useState('');
-  const [items, setItems] = useState([
-    { name: 'Bearing 6205', ordered: 100, received: '', condition: 'Good' },
-    { name: 'Oil Seal 35x52', ordered: 200, received: '', condition: 'Good' },
-  ]);
+  const [items, setItems] = useState([]);
+
+  useEffect(() => {
+    if (grn) {
+      setSelectedPO(grn.poRef);
+      setReceiptDate(grn.receivedDate);
+      setWarehouse(grn.warehouse);
+      setReceivedBy(grn.receivedBy);
+      setVehicleNo(grn.vehicleNo || '');
+      setChallanDate(grn.challanDate || '');
+      setGst(grn.gst);
+      setItems(grn.items.map(item => ({
+        name: item.name,
+        ordered: item.ordered,
+        received: item.received,
+        condition: 'Good',
+      })));
+    }
+  }, [grn, open]);
 
   const updateItem = (i, k, v) =>
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, [k]: v } : it));
@@ -24,50 +39,37 @@ export default function CreateGRNModal({ open, onClose }) {
       return;
     }
 
-    const newGRN = {
-      id: `GRN-${String(grnDetails.length + 1).padStart(4, '0')}`,
+    const updatedGRN = {
+      ...grn,
       poRef: selectedPO,
-      vendor: pos.find(p => p.id === selectedPO)?.vendor || 'Unknown',
+      vendor: pos.find(p => p.id === selectedPO)?.vendor || grn.vendor,
       receivedBy,
-      receivedDate: new Date(receiptDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+      receivedDate: receiptDate,
       warehouse,
       vehicleNo,
       challanDate,
       gst,
-      status: 'Pending',
-      qcStatus: 'Pending',
       items: items.map(item => ({
         name: item.name,
         ordered: item.ordered,
         received: parseInt(item.received) || 0,
-        accepted: 0,
-        rejected: 0,
+        accepted: grn.items.find(i => i.name === item.name)?.accepted || 0,
+        rejected: grn.items.find(i => i.name === item.name)?.rejected || 0,
       })),
     };
 
-    grnDetails.push(newGRN);
-    
-    setSelectedPO('');
-    setReceiptDate('');
-    setWarehouse('WH-01');
-    setReceivedBy('');
-    setVehicleNo('');
-    setChallanDate('');
-    setGst('');
-    setItems([
-      { name: 'Bearing 6205', ordered: 100, received: '', condition: 'Good' },
-      { name: 'Oil Seal 35x52', ordered: 200, received: '', condition: 'Good' },
-    ]);
-    
+    onSave(updatedGRN);
     onClose();
   };
 
+  if (!grn) return null;
+
   return (
-    <Modal open={open} onClose={onClose} title="Create Goods Receipt Note (GRN)" size="lg"
+    <Modal open={open} onClose={onClose} title={`Edit GRN — ${grn?.id}`} size="lg"
       footer={
         <>
           <button className="btn btn-outline" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave}>Save GRN</button>
+          <button className="btn btn-primary" onClick={handleSave}>Save Changes</button>
         </>
       }>
 
@@ -122,7 +124,6 @@ export default function CreateGRNModal({ open, onClose }) {
               <th>Ordered Qty</th>
               <th>Received Qty</th>
               <th>Condition</th>
-              <th>Remarks</th>
             </tr>
           </thead>
           <tbody>
@@ -142,9 +143,6 @@ export default function CreateGRNModal({ open, onClose }) {
                     <option>Damaged</option>
                     <option>Partial</option>
                   </select>
-                </td>
-                <td>
-                  <input className="form-input" placeholder="Optional..." />
                 </td>
               </tr>
             ))}

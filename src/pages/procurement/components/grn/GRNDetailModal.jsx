@@ -16,14 +16,11 @@ export default function GRNDetailModal({ open, onClose, grn }) {
           ['Warehouse', grn.warehouse],
           ['Received By', grn.receivedBy],
           ['Receipt Date', grn.receivedDate],
-          ['QC Status', null],
+          ['GST %', grn.gst],
         ].map(([label, value], i) => (
           <div key={i} style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{label}</div>
-            {label === 'QC Status'
-              ? <StatusBadge status={grn.qcStatus} />
-              : <div style={{ fontWeight: 600, fontSize: 13 }}>{value}</div>
-            }
+            <div style={{ fontWeight: 600, fontSize: 13 }}>{value}</div>
           </div>
         ))}
       </div>

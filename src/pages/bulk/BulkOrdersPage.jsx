@@ -116,8 +116,8 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
               { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
               { key: 'id', label: 'Actions', render: () => (
                 <div className="flex gap-1.5">
-                  <button className={`${btnSm} border border-red-600 text-red-700 bg-transparent font-semibold cursor-pointer font-[inherit]`}>View</button>
-                  <button className={`${btnSm} bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]`}>Quote</button>
+                  <button onClick={() => alert('👁 Viewing client details...')} className={`${btnSm} border border-red-600 text-red-700 bg-transparent font-semibold cursor-pointer font-[inherit]`}>View</button>
+                  <button onClick={() => alert('📋 Creating quotation...')} className={`${btnSm} bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]`}>Quote</button>
                 </div>
               )},
             ]}
@@ -140,8 +140,8 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
               { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
               { key: 'id', label: 'Actions', render: () => (
                 <div className="flex gap-1.5">
-                  <button className={`${btnSm} border border-red-600 text-red-700 bg-transparent font-semibold cursor-pointer font-[inherit]`}>View</button>
-                  <button className={`${btnSm} bg-gray-100 text-gray-800 font-semibold border-0 cursor-pointer font-[inherit]`}>Convert to PO</button>
+                  <button onClick={() => alert('👁 Viewing quotation...')} className={`${btnSm} border border-red-600 text-red-700 bg-transparent font-semibold cursor-pointer font-[inherit]`}>View</button>
+                  <button onClick={() => alert('📦 Converting to PO...')} className={`${btnSm} bg-gray-100 text-gray-800 font-semibold border-0 cursor-pointer font-[inherit]`}>Convert to PO</button>
                 </div>
               )},
             ]}
@@ -188,7 +188,7 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
                 </div>
               ))}
             </div>
-            <button className={`${btnPrimary} mt-4 w-full justify-center`}>Apply to Quotation</button>
+            <button onClick={() => alert('📦 Applying packaging to quotation...')} className={`${btnPrimary} mt-4 w-full justify-center`}>Apply to Quotation</button>
           </div>
         </div>
       )}
@@ -233,7 +233,7 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
       <Modal open={showClientModal} onClose={() => setShowClientModal(false)} title="Add Corporate Client"
         footer={<>
           <button className={btnOutline} onClick={() => setShowClientModal(false)}>Cancel</button>
-          <button className={btnPrimary} onClick={() => setShowClientModal(false)}>Save Client</button>
+          <button className={btnPrimary} onClick={() => { alert('✓ Client added successfully'); setShowClientModal(false); }}>Save Client</button>
         </>}>
         <div className="grid grid-cols-2 gap-4">
           <div className={fieldCls}><label className={labelCls}>Company Name *</label><input className={inputCls} placeholder="e.g. Maruti Suzuki" /></div>
@@ -251,8 +251,8 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
       {/* Bulk Quotation Modal */}
       <Modal open={showQuoteModal} onClose={() => setShowQuoteModal(false)} title="Generate Bulk Quotation" size="lg"
         footer={<>
-          <button className={btnOutline} onClick={() => setShowQuoteModal(false)}>Save Draft</button>
-          <button className={btnPrimary} onClick={() => setShowQuoteModal(false)}>Send Quotation</button>
+          <button className={btnOutline} onClick={() => { alert('💾 Quotation saved as draft'); setShowQuoteModal(false); }}>Save Draft</button>
+          <button className={btnPrimary} onClick={() => { alert('📧 Quotation sent to client'); setShowQuoteModal(false); }}>Send Quotation</button>
         </>}>
         <div className="grid grid-cols-2 gap-4 mb-5">
           <div className={fieldCls}><label className={labelCls}>Corporate Client *</label>

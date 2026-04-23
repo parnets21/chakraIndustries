@@ -4,7 +4,7 @@ import BarChart from '../../components/charts/BarChart';
 import Modal from '../../components/common/Modal';
 import StorageLocationPage from './StorageLocationPage';
 import PincodeStockPage from './PincodeStockPage';
-import { MdWarehouse, MdLocationOn, MdAdd } from 'react-icons/md';
+import { MdWarehouse, MdLocationOn, MdAdd, MdEdit, MdSwapHoriz, MdDownload, MdCheckCircle, MdCancel, MdLocalShipping, MdScale, MdDescription, MdArrowDownward, MdArrowUpward } from 'react-icons/md';
 
 // ─── Design tokens ───────────────────────────────────────────────────────────
 const BG_CARD   = '#ffffff';
@@ -143,10 +143,151 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const [stockFilter, setStockFilter] = useState('All');
   const [whFilter, setWhFilter]       = useState('All');
   const [selectedWH, setSelectedWH]   = useState(warehouses[0]);
+  const [adjustModal, setAdjustModal] = useState(false);
+  const [moveModal, setMoveModal]     = useState(false);
+  const [selectedStock, setSelectedStock] = useState(null);
+  const [moveToWarehouse, setMoveToWarehouse] = useState('');
+  const [moveQty, setMoveQty] = useState('');
+  const [adjustType, setAdjustType] = useState('Add Stock');
+  const [adjustQty, setAdjustQty] = useState('');
+  
+  // Movement form state
+  const [movementList, setMovementList] = useState(movements);
+  const [movementForm, setMovementForm] = useState({
+    type: 'Inward',
+    sku: '',
+    from: 'Supplier',
+    to: '',
+    qty: '',
+    ref: '',
+  });
+  const [successMsg, setSuccessMsg] = useState('');
+
+  // Picking form state
+  const [pickingList, setPickingList] = useState(pickData);
+  const [pickingForm, setPickingForm] = useState({
+    order: '',
+    warehouse: '',
+    sku: '',
+    location: '',
+    qty: '',
+    picker: '',
+    priority: 'Normal',
+    notes: '',
+  });
 
   // merge external trigger (from PageHeader button) with any internal triggers
   const showModal = externalShowModal || internalModal;
   const closeModal = () => { setInternalModal(false); onExternalModalClose?.(); };
+
+  // Handle recording movement
+  const handleRecordMovement = () => {
+    // Validation
+    if (!movementForm.sku || !movementForm.qty || !movementForm.to) {
+      alert('⚠️ Please fill all required fields');
+      return;
+    }
+
+    if (parseInt(movementForm.qty) <= 0) {
+      alert('⚠️ Quantity must be greater than 0');
+      return;
+    }
+
+    // Get SKU details
+    const skuData = stockData.find(s => s.sku === movementForm.sku);
+    if (!skuData) {
+      alert('⚠️ SKU not found');
+      return;
+    }
+
+    // Create new movement
+    const newMovement = {
+      id: `MV-${String(movementList.length + 1).padStart(3, '0')}`,
+      type: movementForm.type,
+      sku: movementForm.sku,
+      name: skuData.name,
+      qty: parseInt(movementForm.qty),
+      from: movementForm.from,
+      to: movementForm.to,
+      date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+      ref: movementForm.ref || `AUTO-${Date.now()}`,
+    };
+
+    // Add to list
+    setMovementList([newMovement, ...movementList]);
+
+    // Show success message
+    setSuccessMsg(`✓ Movement recorded: ${newMovement.id}`);
+    setTimeout(() => setSuccessMsg(''), 3000);
+
+    // Reset form
+    setMovementForm({
+      type: 'Inward',
+      sku: '',
+      from: 'Supplier',
+      to: '',
+      qty: '',
+      ref: '',
+    });
+
+    // Close modal
+    closeModal();
+  };
+
+  // Handle creating pick list
+  const handleCreatePickList = () => {
+    // Validation
+    if (!pickingForm.order || !pickingForm.warehouse || !pickingForm.sku || !pickingForm.qty) {
+      alert('⚠️ Please fill all required fields');
+      return;
+    }
+
+    if (parseInt(pickingForm.qty) <= 0) {
+      alert('⚠️ Quantity must be greater than 0');
+      return;
+    }
+
+    // Get SKU details
+    const skuData = stockData.find(s => s.sku === pickingForm.sku);
+    if (!skuData) {
+      alert('⚠️ SKU not found');
+      return;
+    }
+
+    // Create new pick list
+    const newPick = {
+      id: `PCK-${String(pickingList.length + 1).padStart(3, '0')}`,
+      order: pickingForm.order,
+      sku: pickingForm.sku,
+      item: skuData.name,
+      qty: parseInt(pickingForm.qty),
+      loc: pickingForm.location || `${pickingForm.warehouse} / A1`,
+      picker: pickingForm.picker || 'Unassigned',
+      status: 'Pending',
+    };
+
+    // Add to list
+    setPickingList([newPick, ...pickingList]);
+
+    // Show success message
+    setSuccessMsg(`✓ Pick list created: ${newPick.id}`);
+    setTimeout(() => setSuccessMsg(''), 3000);
+
+    // Reset form
+    setPickingForm({
+      order: '',
+      warehouse: '',
+      sku: '',
+      location: '',
+      qty: '',
+      picker: '',
+      priority: 'Normal',
+      notes: '',
+    });
+
+    // Close modal
+    closeModal();
+  };
 
   const filteredStock = stockData
     .filter(r => stockFilter === 'All' || r.status === stockFilter)
@@ -177,7 +318,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                   {stockData.filter(s => s.qty < s.minQty && s.qty > 0).map(s => s.name).join(' · ')}
                 </div>
               </div>
-              <button style={{
+              <button onClick={() => setInternalModal(true)} style={{
                 marginLeft:'auto', padding:'5px 14px', borderRadius:8,
                 background:'#f59e0b', color:'#fff', border:'none',
                 fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit',
@@ -289,11 +430,22 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 }}>{f}</button>
               ))}
             </div>
-            <button style={{
+            <button onClick={() => {
+              const csvContent = filteredStock.map(r => `${r.sku},${r.name},${r.warehouse},${r.qty},${r.minQty},${r.batch},${r.status}`).join('\n');
+              const header = 'SKU,Item Name,Warehouse,Qty,Min Qty,Batch,Status\n';
+              const element = document.createElement('a');
+              element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(header + csvContent));
+              element.setAttribute('download', `stock-inventory-${new Date().toISOString().split('T')[0]}.csv`);
+              element.style.display = 'none';
+              document.body.appendChild(element);
+              element.click();
+              document.body.removeChild(element);
+              alert('✓ Stock inventory exported successfully');
+            }} style={{
               padding:'6px 16px', borderRadius: RADIUS_SM, fontSize:12, fontWeight:600,
               background:'#f1f5f9', border: BORDER, color: TEXT_MID,
-              cursor:'pointer', fontFamily:'inherit',
-            }}>⬇ Export</button>
+              cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:6,
+            }}><MdDownload size={14} /> Export</button>
           </div>
 
           {/* Table */}
@@ -337,16 +489,16 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     <td style={{ padding:'11px 16px' }}><StatusBadge status={r.status} /></td>
                     <td style={{ padding:'11px 16px' }}>
                       <div style={{ display:'flex', gap:6 }}>
-                        <button style={{
+                        <button onClick={() => { setSelectedStock(r); setAdjustModal(true); }} style={{
                           padding:'4px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600,
                           border:`1px solid ${RED}`, color: RED, background:'transparent',
-                          cursor:'pointer', fontFamily:'inherit',
-                        }}>✏ Adjust</button>
-                        <button style={{
+                          cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:4,
+                        }}><MdEdit size={14} /> Adjust</button>
+                        <button onClick={() => { setSelectedStock(r); setMoveModal(true); }} style={{
                           padding:'4px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600,
                           border:'1px solid #e2e8f0', color: TEXT_MID, background:'#f8fafc',
-                          cursor:'pointer', fontFamily:'inherit',
-                        }}>⇄ Move</button>
+                          cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:4,
+                        }}><MdSwapHoriz size={14} /> Move</button>
                       </div>
                     </td>
                   </tr>
@@ -524,7 +676,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                         background: gradients[i],
                         display:'flex', alignItems:'center', justifyContent:'center',
                         color:'#fff', fontSize:16,
-                      }}>🏭</div>
+                      }}><MdWarehouse size={20} /></div>
                       <div>
                         <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>{wh.name}</div>
                         <div style={{ fontSize:11, color: TEXT_LIGHT }}>{wh.id} · {wh.location}</div>
@@ -553,6 +705,19 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === 3 && (
         <div>
+          {/* Success message */}
+          {successMsg && (
+            <div style={{
+              display:'flex', alignItems:'center', gap:12,
+              padding:'12px 18px', marginBottom:16,
+              background:'#f0fdf4', border:'1px solid #86efac',
+              borderRadius:12, borderLeft:'4px solid #22c55e',
+            }}>
+              <span style={{ fontSize:18 }}>✓</span>
+              <div style={{ fontSize:13, fontWeight:700, color:'#22c55e' }}>{successMsg}</div>
+            </div>
+          )}
+
           {/* Pill toggles */}
           <div style={{ display:'flex', gap:10, marginBottom:20 }}>
             {[
@@ -574,48 +739,64 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
 
           {/* Movement cards */}
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-            {movements.filter(m => m.type === movTab).map((mv,i) => {
-              const typeColor = mv.type==='Inward' ? GREEN : mv.type==='Outward' ? RED_LIGHT : BLUE;
-              const typeIcon  = mv.type==='Inward' ? '↓' : mv.type==='Outward' ? '↑' : '⇄';
-              return (
-                <div key={i} style={{
-                  ...card(), padding:'16px 20px',
-                  borderLeft:`4px solid ${typeColor}`,
-                  display:'flex', alignItems:'center', gap:20,
-                }}>
-                  {/* Icon circle */}
-                  <div style={{
-                    width:44, height:44, borderRadius:'50%', flexShrink:0,
-                    background: typeColor+'18', display:'flex', alignItems:'center',
-                    justifyContent:'center', fontSize:20, color: typeColor, fontWeight:900,
-                  }}>{typeIcon}</div>
-
-                  {/* Center info */}
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontSize:14, fontWeight:700, color: TEXT_DARK }}>{mv.name}</div>
-                    <div style={{ display:'flex', gap:10, marginTop:4, flexWrap:'wrap' }}>
-                      <span style={{ fontSize:11.5, fontFamily:'monospace', color: RED, fontWeight:600 }}>{mv.sku}</span>
-                      <span style={{ fontSize:11.5, color: TEXT_LIGHT }}>Ref: {mv.ref}</span>
-                      <span style={{ fontSize:11.5, color: TEXT_LIGHT }}>{mv.id}</span>
-                    </div>
-                    <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:6 }}>
-                      <span style={{ fontSize:12, color: TEXT_MID, fontWeight:600 }}>{mv.from}</span>
-                      <span style={{ fontSize:14, color: typeColor }}>→</span>
-                      <span style={{ fontSize:12, color: TEXT_MID, fontWeight:600 }}>{mv.to}</span>
-                    </div>
-                  </div>
-
-                  {/* Right: qty + date */}
-                  <div style={{ textAlign:'right', flexShrink:0 }}>
-                    <div style={{
-                      fontSize:20, fontWeight:900, color: typeColor,
-                    }}>{mv.qty}</div>
-                    <div style={{ fontSize:11, color: TEXT_LIGHT, marginTop:2 }}>units</div>
-                    <div style={{ fontSize:11.5, color: TEXT_MID, marginTop:6, fontWeight:600 }}>{mv.date}</div>
-                  </div>
+            {movementList.filter(m => m.type === movTab).length === 0 ? (
+              <div style={{
+                textAlign:'center', padding:'40px 20px',
+                background:'#f8fafc', borderRadius:12, border:'1px solid #e2e8f0',
+              }}>
+                <div style={{ fontSize:14, color: TEXT_LIGHT, fontWeight:600 }}>
+                  No {movTab.toLowerCase()} movements yet
                 </div>
-              );
-            })}
+                <button onClick={() => setInternalModal(true)} style={{
+                  marginTop:12, padding:'8px 16px', borderRadius:8,
+                  background: BLUE, color:'#fff', border:'none',
+                  fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit',
+                }}>+ Record Movement</button>
+              </div>
+            ) : (
+              movementList.filter(m => m.type === movTab).map((mv,i) => {
+                const typeColor = mv.type==='Inward' ? GREEN : mv.type==='Outward' ? RED_LIGHT : BLUE;
+                const typeIcon  = mv.type==='Inward' ? '↓' : mv.type==='Outward' ? '↑' : '⇄';
+                return (
+                  <div key={i} style={{
+                    ...card(), padding:'16px 20px',
+                    borderLeft:`4px solid ${typeColor}`,
+                    display:'flex', alignItems:'center', gap:20,
+                  }}>
+                    {/* Icon circle */}
+                    <div style={{
+                      width:44, height:44, borderRadius:'50%', flexShrink:0,
+                      background: typeColor+'18', display:'flex', alignItems:'center',
+                      justifyContent:'center', fontSize:20, color: typeColor, fontWeight:900,
+                    }}>{typeIcon}</div>
+
+                    {/* Center info */}
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:14, fontWeight:700, color: TEXT_DARK }}>{mv.name}</div>
+                      <div style={{ display:'flex', gap:10, marginTop:4, flexWrap:'wrap' }}>
+                        <span style={{ fontSize:11.5, fontFamily:'monospace', color: RED, fontWeight:600 }}>{mv.sku}</span>
+                        <span style={{ fontSize:11.5, color: TEXT_LIGHT }}>Ref: {mv.ref}</span>
+                        <span style={{ fontSize:11.5, color: TEXT_LIGHT }}>{mv.id}</span>
+                      </div>
+                      <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:6 }}>
+                        <span style={{ fontSize:12, color: TEXT_MID, fontWeight:600 }}>{mv.from}</span>
+                        <span style={{ fontSize:14, color: typeColor }}>→</span>
+                        <span style={{ fontSize:12, color: TEXT_MID, fontWeight:600 }}>{mv.to}</span>
+                      </div>
+                    </div>
+
+                    {/* Right: qty + date */}
+                    <div style={{ textAlign:'right', flexShrink:0 }}>
+                      <div style={{
+                        fontSize:20, fontWeight:900, color: typeColor,
+                      }}>{mv.qty}</div>
+                      <div style={{ fontSize:11, color: TEXT_LIGHT, marginTop:2 }}>units</div>
+                      <div style={{ fontSize:11.5, color: TEXT_MID, marginTop:6, fontWeight:600 }}>{mv.date}</div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       )}
@@ -625,68 +806,83 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === 4 && (() => {
         const cols = [
-          { label:'Pending',     color: AMBER,  bg:'#fffbeb', items: pickData.filter(p => p.status==='Pending') },
-          { label:'In Progress', color: BLUE,   bg:'#eff6ff', items: pickData.filter(p => p.status==='In Progress') },
-          { label:'Completed',   color: GREEN,  bg:'#f0fdf4', items: pickData.filter(p => p.status==='Completed') },
+          { label:'Pending',     color: AMBER,  bg:'#fffbeb', items: pickingList.filter(p => p.status==='Pending') },
+          { label:'In Progress', color: BLUE,   bg:'#eff6ff', items: pickingList.filter(p => p.status==='In Progress') },
+          { label:'Completed',   color: GREEN,  bg:'#f0fdf4', items: pickingList.filter(p => p.status==='Completed') },
         ];
         return (
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16 }}>
-            {cols.map((col,ci) => (
-              <div key={ci} style={{ ...card(), overflow:'hidden' }}>
-                {/* Column header */}
-                <div style={{
-                  background: col.color, padding:'12px 16px',
-                  display:'flex', alignItems:'center', justifyContent:'space-between',
-                }}>
-                  <span style={{ fontSize:13, fontWeight:800, color:'#fff' }}>{col.label}</span>
-                  <span style={{
-                    background:'rgba(255,255,255,0.3)', color:'#fff',
-                    borderRadius:12, padding:'1px 9px', fontSize:12, fontWeight:700,
-                  }}>{col.items.length}</span>
-                </div>
-
-                {/* Cards */}
-                <div style={{ padding:12, display:'flex', flexDirection:'column', gap:10 }}>
-                  {col.items.length === 0 && (
-                    <div style={{ textAlign:'center', padding:'24px 0', color: TEXT_LIGHT, fontSize:12 }}>No items</div>
-                  )}
-                  {col.items.map((p,pi) => (
-                    <div key={pi} style={{
-                      background:'#fff', border: BORDER, borderRadius: RADIUS_MD,
-                      padding:'14px 14px', boxShadow:'0 1px 4px rgba(15,23,42,0.05)',
-                    }}>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
-                        <span style={{ fontSize:12, fontWeight:800, color: col.color }}>{p.id}</span>
-                        {/* Picker avatar */}
-                        <div style={{
-                          width:28, height:28, borderRadius:'50%', background: col.color+'22',
-                          display:'flex', alignItems:'center', justifyContent:'center',
-                          fontSize:11, fontWeight:800, color: col.color,
-                        }}>{p.picker.slice(0,2).toUpperCase()}</div>
-                      </div>
-                      <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK, marginBottom:4 }}>{p.item}</div>
-                      <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginBottom:2 }}>Order: {p.order}</div>
-                      <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginBottom:2 }}>SKU: <span style={{ fontFamily:'monospace', color: RED }}>{p.sku}</span></div>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:8 }}>
-                        <span style={{ fontSize:11.5, color: TEXT_MID }}>📍 {p.loc}</span>
-                        <span style={{
-                          background: col.color+'18', color: col.color,
-                          borderRadius:12, padding:'2px 9px', fontSize:11, fontWeight:700,
-                        }}>Qty: {p.qty}</span>
-                      </div>
-                      {p.status === 'In Progress' && (
-                        <button style={{
-                          marginTop:10, width:'100%', padding:'7px 0',
-                          borderRadius: RADIUS_SM, border:'none',
-                          background: BLUE, color:'#fff',
-                          fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit',
-                        }}>✓ Confirm Pick</button>
-                      )}
-                    </div>
-                  ))}
-                </div>
+          <div>
+            {/* Success message */}
+            {successMsg && (
+              <div style={{
+                display:'flex', alignItems:'center', gap:12,
+                padding:'12px 18px', marginBottom:16,
+                background:'#f0fdf4', border:'1px solid #86efac',
+                borderRadius:12, borderLeft:'4px solid #22c55e',
+              }}>
+                <span style={{ fontSize:18 }}>✓</span>
+                <div style={{ fontSize:13, fontWeight:700, color:'#22c55e' }}>{successMsg}</div>
               </div>
-            ))}
+            )}
+
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16 }}>
+              {cols.map((col,ci) => (
+                <div key={ci} style={{ ...card(), overflow:'hidden' }}>
+                  {/* Column header */}
+                  <div style={{
+                    background: col.color, padding:'12px 16px',
+                    display:'flex', alignItems:'center', justifyContent:'space-between',
+                  }}>
+                    <span style={{ fontSize:13, fontWeight:800, color:'#fff' }}>{col.label}</span>
+                    <span style={{
+                      background:'rgba(255,255,255,0.3)', color:'#fff',
+                      borderRadius:12, padding:'1px 9px', fontSize:12, fontWeight:700,
+                    }}>{col.items.length}</span>
+                  </div>
+
+                  {/* Cards */}
+                  <div style={{ padding:12, display:'flex', flexDirection:'column', gap:10 }}>
+                    {col.items.length === 0 && (
+                      <div style={{ textAlign:'center', padding:'24px 0', color: TEXT_LIGHT, fontSize:12 }}>No items</div>
+                    )}
+                    {col.items.map((p,pi) => (
+                      <div key={pi} style={{
+                        background:'#fff', border: BORDER, borderRadius: RADIUS_MD,
+                        padding:'14px 14px', boxShadow:'0 1px 4px rgba(15,23,42,0.05)',
+                      }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+                          <span style={{ fontSize:12, fontWeight:800, color: col.color }}>{p.id}</span>
+                          {/* Picker avatar */}
+                          <div style={{
+                            width:28, height:28, borderRadius:'50%', background: col.color+'22',
+                            display:'flex', alignItems:'center', justifyContent:'center',
+                            fontSize:11, fontWeight:800, color: col.color,
+                          }}>{p.picker.slice(0,2).toUpperCase()}</div>
+                        </div>
+                        <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK, marginBottom:4 }}>{p.item}</div>
+                        <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginBottom:2 }}>Order: {p.order}</div>
+                        <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginBottom:2 }}>SKU: <span style={{ fontFamily:'monospace', color: RED }}>{p.sku}</span></div>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:8 }}>
+                          <span style={{ fontSize:11.5, color: TEXT_MID, display:'flex', alignItems:'center', gap:4 }}><MdLocationOn size={14} /> {p.loc}</span>
+                          <span style={{
+                            background: col.color+'18', color: col.color,
+                            borderRadius:12, padding:'2px 9px', fontSize:11, fontWeight:700,
+                          }}>Qty: {p.qty}</span>
+                        </div>
+                        {p.status === 'In Progress' && (
+                          <button style={{
+                            marginTop:10, width:'100%', padding:'7px 0',
+                            borderRadius: RADIUS_SM, border:'none',
+                            background: BLUE, color:'#fff',
+                            fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+                          }}><MdCheckCircle size={16} /> Confirm Pick</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         );
       })()}
@@ -751,7 +947,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             </div>
             <div style={{ padding:'8px 0' }}>
               {packData.map((r,i) => {
-                const statusIcon  = r.status==='Packed' ? '📦' : r.status==='Packing' ? '⏳' : '🕐';
+                const statusIcon  = r.status==='Packed' ? <MdLocalShipping size={16} /> : r.status==='Packing' ? <MdDescription size={16} /> : <MdDescription size={16} />;
                 const statusColor = r.status==='Packed' ? GREEN : r.status==='Packing' ? BLUE : TEXT_LIGHT;
                 return (
                   <div key={i} style={{
@@ -765,18 +961,18 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                       </div>
                       <span style={{
                         padding:'4px 10px', borderRadius:20, fontSize:11.5, fontWeight:700,
-                        background: statusColor+'18', color: statusColor,
+                        background: statusColor+'18', color: statusColor, display:'flex', alignItems:'center', gap:6,
                       }}>{statusIcon} {r.status}</span>
                     </div>
                     <div style={{ display:'flex', gap:8, marginTop:10, flexWrap:'wrap' }}>
                       <span style={{
                         padding:'3px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600,
-                        background:'#f1f5f9', color: TEXT_MID,
-                      }}>⚖ {r.weight}</span>
+                        background:'#f1f5f9', color: TEXT_MID, display:'flex', alignItems:'center', gap:4,
+                      }}><MdScale size={14} /> {r.weight}</span>
                       <span style={{
                         padding:'3px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600,
-                        background:'#f1f5f9', color: TEXT_MID,
-                      }}>📋 {r.type}</span>
+                        background:'#f1f5f9', color: TEXT_MID, display:'flex', alignItems:'center', gap:4,
+                      }}><MdDescription size={14} /> {r.type}</span>
                     </div>
                   </div>
                 );
@@ -830,7 +1026,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     <div style={{ fontSize:14, fontWeight:700, color: TEXT_DARK }}>{b.item}</div>
                     <div style={{ display:'flex', gap:12, marginTop:4, flexWrap:'wrap' }}>
                       <span style={{ fontSize:11.5, fontFamily:'monospace', color: RED }}>{b.sku}</span>
-                      <span style={{ fontSize:11.5, color: TEXT_LIGHT }}>📍 {b.wh}</span>
+                      <span style={{ fontSize:11.5, color: TEXT_LIGHT, display:'flex', alignItems:'center', gap:4 }}><MdLocationOn size={14} /> {b.wh}</span>
                       <span style={{ fontSize:11.5, color: TEXT_LIGHT }}>Mfg: {b.mfg}</span>
                     </div>
                     {/* Shelf life bar */}
@@ -883,11 +1079,22 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 <div style={{ fontSize:14, fontWeight:700, color: TEXT_DARK }}>Ageing Stock Analysis</div>
                 <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginTop:2 }}>Items not moved — with action suggestions</div>
               </div>
-              <button style={{
+              <button onClick={() => {
+                const csvContent = ageingData.map(r => `${r.sku},${r.item},${r.wh},${r.qty},${r.lastMov},${r.days},${r.bucket},${r.value},${r.action}`).join('\n');
+                const header = 'SKU,Item,Warehouse,Qty,Last Movement,Days Idle,Bucket,Value,Suggested Action\n';
+                const element = document.createElement('a');
+                element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(header + csvContent));
+                element.setAttribute('download', `ageing-stock-${new Date().toISOString().split('T')[0]}.csv`);
+                element.style.display = 'none';
+                document.body.appendChild(element);
+                element.click();
+                document.body.removeChild(element);
+                alert('✓ Ageing stock report exported successfully');
+              }} style={{
                 padding:'7px 16px', borderRadius: RADIUS_SM, fontSize:12, fontWeight:700,
                 background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff',
-                border:'none', cursor:'pointer', fontFamily:'inherit',
-              }}>⬇ Export Report</button>
+                border:'none', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:6,
+              }}><MdDownload size={14} /> Export Report</button>
             </div>
             <div style={{ overflowX:'auto' }}>
               <table style={{ width:'100%', borderCollapse:'collapse' }}>
@@ -953,7 +1160,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 background:'linear-gradient(90deg,#fef2f2,#fff)',
               }}>
                 <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>Defective Stock Register</div>
-                <button style={{
+                <button onClick={() => setInternalModal(true)} style={{
                   padding:'6px 14px', borderRadius: RADIUS_SM, fontSize:12, fontWeight:700,
                   background: RED_LIGHT, color:'#fff', border:'none', cursor:'pointer', fontFamily:'inherit',
                 }}>+ Log Defect</button>
@@ -986,17 +1193,11 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                         </span>
                       </div>
                       <div style={{ display:'flex', gap:8, marginTop:10 }}>
-                        {[
-                          { label:'Repair', color: BLUE },
-                          { label:'Rework', color: AMBER },
-                          { label:'Scrap',  color: RED_LIGHT },
-                        ].map(btn => (
-                          <button key={btn.label} style={{
-                            padding:'4px 12px', borderRadius:20, fontSize:11, fontWeight:700,
-                            background: btn.color+'18', color: btn.color,
-                            border:`1px solid ${btn.color}40`, cursor:'pointer', fontFamily:'inherit',
-                          }}>{btn.label}</button>
-                        ))}
+                        <button style={{
+                          padding:'4px 12px', borderRadius:20, fontSize:11, fontWeight:700,
+                          background: BLUE+'18', color: BLUE,
+                          border:`1px solid ${BLUE}40`, cursor:'pointer', fontFamily:'inherit',
+                        }}>Repair</button>
                       </div>
                     </div>
                   );
@@ -1138,24 +1339,25 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         <Modal open={showModal} onClose={closeModal} title="Record Stock Movement"
           footer={<>
             <button style={{ padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`, color:RED, background:'transparent', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={closeModal}>Cancel</button>
-            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={closeModal}>Record Movement</button>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={handleRecordMovement}>Record Movement</button>
           </>}>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Movement Type *</label>
-              <select style={inputStyle}>
+              <select value={movementForm.type} onChange={e => setMovementForm({...movementForm, type: e.target.value})} style={inputStyle}>
                 <option>Inward</option><option>Outward</option><option>Transfer</option>
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>SKU *</label>
-              <select style={inputStyle}>
-                {stockData.map(s => <option key={s.sku}>{s.sku} — {s.name}</option>)}
+              <select value={movementForm.sku} onChange={e => setMovementForm({...movementForm, sku: e.target.value})} style={inputStyle}>
+                <option value="">Select SKU</option>
+                {stockData.map(s => <option key={s.sku} value={s.sku}>{s.sku} — {s.name}</option>)}
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>From *</label>
-              <select style={inputStyle}>
+              <select value={movementForm.from} onChange={e => setMovementForm({...movementForm, from: e.target.value})} style={inputStyle}>
                 <option>Supplier</option>
                 {warehouses.map(w => <option key={w.id}>{w.id} — {w.name}</option>)}
                 <option>Production</option>
@@ -1163,18 +1365,19 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>To *</label>
-              <select style={inputStyle}>
+              <select value={movementForm.to} onChange={e => setMovementForm({...movementForm, to: e.target.value})} style={inputStyle}>
+                <option value="">Select Destination</option>
                 {warehouses.map(w => <option key={w.id}>{w.id} — {w.name}</option>)}
                 <option>Production</option><option>Dispatch</option>
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Quantity *</label>
-              <input type="number" placeholder="0" style={inputStyle} />
+              <input type="number" value={movementForm.qty} onChange={e => setMovementForm({...movementForm, qty: e.target.value})} placeholder="0" style={inputStyle} />
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Reference No.</label>
-              <input type="text" placeholder="e.g. GRN-0234 / WO-0891" style={inputStyle} />
+              <input type="text" value={movementForm.ref} onChange={e => setMovementForm({...movementForm, ref: e.target.value})} placeholder="e.g. GRN-0234 / WO-0891" style={inputStyle} />
             </div>
           </div>
         </Modal>
@@ -1185,47 +1388,49 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         <Modal open={showModal} onClose={closeModal} title="Create Pick List"
           footer={<>
             <button style={{ padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`, color:RED, background:'transparent', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={closeModal}>Cancel</button>
-            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={closeModal}>Create Pick List</button>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={handleCreatePickList}>Create Pick List</button>
           </>}>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Order Reference *</label>
-              <input type="text" placeholder="e.g. ORD-2024-090" style={inputStyle} />
+              <input type="text" value={pickingForm.order} onChange={e => setPickingForm({...pickingForm, order: e.target.value})} placeholder="e.g. ORD-2024-090" style={inputStyle} />
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Warehouse *</label>
-              <select style={inputStyle}>
-                {warehouses.map(w => <option key={w.id}>{w.id} — {w.name}</option>)}
+              <select value={pickingForm.warehouse} onChange={e => setPickingForm({...pickingForm, warehouse: e.target.value})} style={inputStyle}>
+                <option value="">Select Warehouse</option>
+                {warehouses.map(w => <option key={w.id} value={w.id}>{w.id} — {w.name}</option>)}
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>SKU to Pick *</label>
-              <select style={inputStyle}>
-                {stockData.map(s => <option key={s.sku}>{s.sku} — {s.name}</option>)}
+              <select value={pickingForm.sku} onChange={e => setPickingForm({...pickingForm, sku: e.target.value})} style={inputStyle}>
+                <option value="">Select SKU</option>
+                {stockData.map(s => <option key={s.sku} value={s.sku}>{s.sku} — {s.name}</option>)}
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Storage Location</label>
-              <input type="text" placeholder="e.g. Zone A / Rack R2 / Shelf S3 / Bin B5" style={inputStyle} />
+              <input type="text" value={pickingForm.location} onChange={e => setPickingForm({...pickingForm, location: e.target.value})} placeholder="e.g. Zone A / Rack R2 / Shelf S3 / Bin B5" style={inputStyle} />
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Qty to Pick *</label>
-              <input type="number" placeholder="0" style={inputStyle} />
+              <input type="number" value={pickingForm.qty} onChange={e => setPickingForm({...pickingForm, qty: e.target.value})} placeholder="0" style={inputStyle} />
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Assign Picker</label>
-              <input type="text" placeholder="Picker name" style={inputStyle} />
+              <input type="text" value={pickingForm.picker} onChange={e => setPickingForm({...pickingForm, picker: e.target.value})} placeholder="Picker name" style={inputStyle} />
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Priority</label>
-              <select style={inputStyle}>
+              <select value={pickingForm.priority} onChange={e => setPickingForm({...pickingForm, priority: e.target.value})} style={inputStyle}>
                 <option>Normal</option><option>High</option><option>Urgent</option>
               </select>
             </div>
           </div>
           <div style={{ display:'flex', flexDirection:'column', gap:5, marginTop:10 }}>
             <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Notes</label>
-            <textarea placeholder="Special instructions…" style={{ ...inputStyle, minHeight:56, resize:'vertical' }} />
+            <textarea value={pickingForm.notes} onChange={e => setPickingForm({...pickingForm, notes: e.target.value})} placeholder="Special instructions…" style={{ ...inputStyle, minHeight:56, resize:'vertical' }} />
           </div>
         </Modal>
       )}
@@ -1361,6 +1566,128 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
           <div style={{ display:'flex', flexDirection:'column', gap:5, marginTop:10 }}>
             <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Remarks</label>
             <textarea placeholder="Describe the defect…" style={{ ...inputStyle, minHeight:56, resize:'vertical' }} />
+          </div>
+        </Modal>
+      )}
+
+      {/* Adjust Stock Modal */}
+      {adjustModal && selectedStock && (
+        <Modal open={adjustModal} onClose={() => { setAdjustModal(false); setSelectedStock(null); setAdjustType('Add Stock'); setAdjustQty(''); }} title="Adjust Stock"
+          footer={<>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`, color:RED, background:'transparent', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={() => { setAdjustModal(false); setSelectedStock(null); setAdjustType('Add Stock'); setAdjustQty(''); }}>Cancel</button>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={() => { 
+              if (!adjustQty || parseInt(adjustQty) <= 0) { alert('⚠️ Please enter valid adjustment quantity'); return; }
+              const newQty = adjustType === 'Add Stock' ? selectedStock.qty + parseInt(adjustQty) : selectedStock.qty - parseInt(adjustQty);
+              if (newQty < 0) { alert('⚠️ Adjustment cannot result in negative stock'); return; }
+              alert(`✓ Stock adjusted successfully!\n\n${selectedStock.sku}\n${adjustType}: ${adjustQty} units\nPrevious: ${selectedStock.qty}\nNew: ${newQty}`); 
+              setAdjustModal(false); 
+              setSelectedStock(null); 
+              setAdjustType('Add Stock'); 
+              setAdjustQty(''); 
+            }}>Save Adjustment</button>
+          </>}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>SKU</label>
+              <input type="text" value={selectedStock.sku} disabled style={{ ...inputStyle, background:'#f1f5f9', color: TEXT_LIGHT }} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Item Name</label>
+              <input type="text" value={selectedStock.name} disabled style={{ ...inputStyle, background:'#f1f5f9', color: TEXT_LIGHT }} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Current Qty</label>
+              <input type="number" value={selectedStock.qty} disabled style={{ ...inputStyle, background:'#f1f5f9', color: TEXT_LIGHT }} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Adjustment Type *</label>
+              <select value={adjustType} onChange={(e) => setAdjustType(e.target.value)} style={inputStyle}>
+                <option>Add Stock</option>
+                <option>Reduce Stock</option>
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Adjustment Qty *</label>
+              <input type="number" placeholder="0" value={adjustQty} onChange={(e) => setAdjustQty(e.target.value)} style={inputStyle} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Reason *</label>
+              <select style={inputStyle}>
+                <option>Physical Count Variance</option>
+                <option>Damage/Loss</option>
+                <option>Correction</option>
+                <option>Inventory Write-off</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:5, marginTop:10 }}>
+            <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Remarks</label>
+            <textarea placeholder="Reason for adjustment…" style={{ ...inputStyle, minHeight:56, resize:'vertical' }} />
+          </div>
+        </Modal>
+      )}
+
+      {/* Move Stock Modal */}
+      {moveModal && selectedStock && (
+        <Modal open={moveModal} onClose={() => { setMoveModal(false); setSelectedStock(null); setMoveToWarehouse(''); setMoveQty(''); }} title="Move Stock"
+          footer={<>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`, color:RED, background:'transparent', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={() => { setMoveModal(false); setSelectedStock(null); setMoveToWarehouse(''); setMoveQty(''); }}>Cancel</button>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={() => { 
+              if (!moveToWarehouse) { alert('⚠️ Please select destination warehouse'); return; }
+              if (!moveQty || parseInt(moveQty) <= 0) { alert('⚠️ Please enter valid transfer quantity'); return; }
+              if (parseInt(moveQty) > selectedStock.qty) { alert('⚠️ Transfer quantity cannot exceed available stock'); return; }
+              const destWh = warehouses.find(w => w.id === moveToWarehouse);
+              alert(`✓ Stock transferred successfully!\n\n${selectedStock.sku}\nFrom: ${selectedStock.warehouse}\nTo: ${destWh.id}\nQty: ${moveQty} units`); 
+              setMoveModal(false); 
+              setSelectedStock(null); 
+              setMoveToWarehouse(''); 
+              setMoveQty(''); 
+            }}>Complete Transfer</button>
+          </>}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>SKU</label>
+              <input type="text" value={selectedStock.sku} disabled style={{ ...inputStyle, background:'#f1f5f9', color: TEXT_LIGHT }} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Item Name</label>
+              <input type="text" value={selectedStock.name} disabled style={{ ...inputStyle, background:'#f1f5f9', color: TEXT_LIGHT }} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>From Warehouse</label>
+              <input type="text" value={selectedStock.warehouse} disabled style={{ ...inputStyle, background:'#f1f5f9', color: TEXT_LIGHT }} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>To Warehouse *</label>
+              <select value={moveToWarehouse} onChange={(e) => setMoveToWarehouse(e.target.value)} style={inputStyle}>
+                <option value="">Select warehouse...</option>
+                {warehouses.filter(w => w.id !== selectedStock.warehouse).map(w => <option key={w.id} value={w.id}>{w.id} — {w.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Available Qty</label>
+              <input type="number" value={selectedStock.qty} disabled style={{ ...inputStyle, background:'#f1f5f9', color: TEXT_LIGHT }} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Transfer Qty *</label>
+              <input type="number" placeholder="0" value={moveQty} onChange={(e) => setMoveQty(e.target.value)} max={selectedStock.qty} style={inputStyle} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Batch Number</label>
+              <input type="text" value={selectedStock.batch} disabled style={{ ...inputStyle, background:'#f1f5f9', color: TEXT_LIGHT }} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Transfer Type *</label>
+              <select style={inputStyle}>
+                <option>Internal Transfer</option>
+                <option>To Production</option>
+                <option>To Dispatch</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:5, marginTop:10 }}>
+            <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Remarks</label>
+            <textarea placeholder="Reason for transfer…" style={{ ...inputStyle, minHeight:56, resize:'vertical' }} />
           </div>
         </Modal>
       )}

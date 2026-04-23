@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import StatusBadge from '../../../../components/common/StatusBadge';
 import Modal from '../../../../components/common/Modal';
+import EditGRNModal from './EditGRNModal';
 import { grnDetails } from '../data';
 import { FaRegEdit } from 'react-icons/fa';
 import { MdVisibility, MdDeleteOutline } from 'react-icons/md';
@@ -8,10 +9,15 @@ import { MdVisibility, MdDeleteOutline } from 'react-icons/md';
 export default function GRNList({ onView }) {
   const [items, setItems]         = useState(grnDetails);
   const [deleteGRN, setDeleteGRN] = useState(null);
+  const [editGRN, setEditGRN]     = useState(null);
 
   const confirmDelete = () => {
     setItems(prev => prev.filter(g => g.id !== deleteGRN.id));
     setDeleteGRN(null);
+  };
+
+  const handleEditSave = (updatedGRN) => {
+    setItems(prev => prev.map(g => g.id === updatedGRN.id ? updatedGRN : g));
   };
 
   return (
@@ -23,7 +29,7 @@ export default function GRNList({ onView }) {
             <thead>
               <tr>
                 <th>GRN ID</th><th>PO Ref</th><th>Vendor</th><th>Warehouse</th>
-                <th>Received By</th><th>Date</th><th>QC Status</th><th>Status</th><th>Actions</th>
+                <th>Received By</th><th>Date</th><th>GST %</th><th>QC Status</th><th>Status</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -35,11 +41,13 @@ export default function GRNList({ onView }) {
                   <td>{g.warehouse}</td>
                   <td>{g.receivedBy}</td>
                   <td style={{ color: '#64748b', fontSize: 12 }}>{g.receivedDate}</td>
+                  <td style={{ fontWeight: 600 }}>{g.gst}%</td>
                   <td><StatusBadge status={g.qcStatus} /></td>
                   <td><StatusBadge status={g.status} /></td>
                   <td>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-outline btn-sm" title="Edit" style={{ padding: '4px 8px' }}>
+                      <button className="btn btn-outline btn-sm" title="Edit" style={{ padding: '4px 8px' }}
+                        onClick={() => setEditGRN(g)}>
                         <FaRegEdit size={15} />
                       </button>
                       <button className="btn btn-sm" title="View Details"
@@ -71,6 +79,9 @@ export default function GRNList({ onView }) {
         }>
         <p style={{ fontSize: 14, color: '#374151' }}>Are you sure you want to delete <strong>{deleteGRN?.id}</strong>? This action cannot be undone.</p>
       </Modal>
+
+      {/* Edit GRN Modal */}
+      <EditGRNModal open={!!editGRN} onClose={() => setEditGRN(null)} grn={editGRN} onSave={handleEditSave} />
     </>
   );
 }

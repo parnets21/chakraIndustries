@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import StatusBadge from '../../../components/common/StatusBadge';
 import Modal from '../../../components/common/Modal';
 import { vendorApi } from '../../../api/vendorApi';
+import VendorPriceMapping from './VendorPriceMapping';
 import { MdVisibility, MdEdit, MdAdd, MdSearch, MdFilterList, MdBusiness, MdPhone, MdEmail, MdLocationOn, MdStar, MdDelete, MdPrint } from 'react-icons/md';
 
 const EMPTY_FORM = {
@@ -33,6 +34,7 @@ export default function VendorsTab({
   const [viewVendor, setViewVendor] = useState(null);
   const [formErrors, setFormErrors] = useState({});
   const [successMsg, setSuccessMsg] = useState('');
+  const [showPriceMapping, setShowPriceMapping] = useState(false);
 
   const fetchVendors = useCallback(async () => {
     setLoading(true); setError('');
@@ -521,6 +523,7 @@ export default function VendorsTab({
             <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', gap: 12 }}>
               <div style={{ fontSize: 12, color: '#64748B' }}>Vendor ID: <span style={{ fontWeight: 600, color: '#1E293B' }}>{viewVendor.vendorId}</span></div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <button onClick={() => setShowPriceMapping(!showPriceMapping)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f0fdf4', border: '1.5px solid #bbf7d0', color: '#16a34a', padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }} onMouseEnter={(e) => { e.target.style.background = '#dcfce7'; e.target.style.borderColor = '#86efac'; }} onMouseLeave={(e) => { e.target.style.background = '#f0fdf4'; e.target.style.borderColor = '#bbf7d0'; }}>💰 {showPriceMapping ? 'Hide' : 'Show'} Prices</button>
                 <button onClick={() => handlePrint(viewVendor)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f0f9ff', border: '1.5px solid #bfdbfe', color: '#1e40af', padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }} onMouseEnter={(e) => { e.target.style.background = '#e0f2fe'; e.target.style.borderColor = '#7dd3fc'; }} onMouseLeave={(e) => { e.target.style.background = '#f0f9ff'; e.target.style.borderColor = '#bfdbfe'; }}><MdPrint size={16} /> Print</button>
                 <button onClick={() => openEdit(viewVendor)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fef2f2', border: '1.5px solid #fecaca', color: '#ef4444', padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }} onMouseEnter={(e) => { e.target.style.background = '#fee2e2'; e.target.style.borderColor = '#fca5a5'; }} onMouseLeave={(e) => { e.target.style.background = '#fef2f2'; e.target.style.borderColor = '#fecaca'; }}><MdEdit size={16} /> Edit</button>
                 <button onClick={() => setViewVendor(null)} style={{ background: 'transparent', border: '1.5px solid #cbd5e1', color: '#475569', padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }} onMouseEnter={(e) => { e.target.style.background = '#f1f5f9'; }} onMouseLeave={(e) => { e.target.style.background = 'transparent'; }}>Close</button>
@@ -665,6 +668,17 @@ export default function VendorsTab({
             }}>
               <div className="field-label" style={{ color: '#92400E', marginBottom: 4 }}>Additional Remarks</div>
               <div className="field-value" style={{ color: '#78350F', fontSize: 13 }}>{viewVendor.remarks}</div>
+            </div>
+          )}
+
+          {/* Price Mapping Section */}
+          {showPriceMapping && (
+            <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #e2e8f0' }}>
+              <VendorPriceMapping 
+                vendorId={viewVendor._id} 
+                vendorName={viewVendor.companyName}
+                onClose={() => setShowPriceMapping(false)}
+              />
             </div>
           )}
         </Modal>

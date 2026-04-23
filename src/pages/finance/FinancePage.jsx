@@ -2,6 +2,7 @@ import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
+import CreditNoteTrackerEnhanced from './components/CreditNoteTrackerEnhanced';
 
 const tabs = ['Ledger', 'BRS', 'Payments', 'Credit / Debit Notes', 'Ledger Matching'];
 
@@ -75,13 +76,13 @@ export default function FinancePage({ initialTab = 0 }) {
       {/* Action Bar */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, marginBottom:20, flexWrap:'wrap' }}>
         {activeTab === 0 && <button onClick={() => setShowPayModal(true)} style={primaryBtn}>+ Add Entry</button>}
-        {activeTab === 1 && <button style={outlineBtn}>⬆ Upload Statement</button>}
+        {activeTab === 1 && <button onClick={() => alert('📄 Bank statement upload feature')} style={outlineBtn}>⬆ Upload Statement</button>}
         {activeTab === 2 && <button onClick={() => setShowPayModal(true)} style={primaryBtn}>+ Add Payment</button>}
         {activeTab === 3 && <>
           <button onClick={() => setShowPayModal(true)} style={outlineBtn}>+ Debit Note</button>
           <button onClick={() => setShowPayModal(true)} style={primaryBtn}>+ Credit Note</button>
         </>}
-        {activeTab === 4 && <button style={outlineBtn}>Run Auto-Match</button>}
+        {activeTab === 4 && <button onClick={() => alert('⚡ Running auto-match algorithm...')} style={outlineBtn}>Run Auto-Match</button>}
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         {kpis.map((k, i) => (
@@ -133,10 +134,10 @@ export default function FinancePage({ initialTab = 0 }) {
                 <div className="text-xs text-gray-400 mt-1">CSV, XLS, PDF — Max 10MB</div>
               </div>
               <div className="flex gap-2">
-                <button className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">
+                <button onClick={() => alert('⚡ Running auto-match algorithm...')} className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">
                   ⚡ Auto-Match with Ledger
                 </button>
-                <button className="px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]">
+                <button onClick={() => alert('📊 Exporting BRS report...')} className="px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]">
                   Export BRS
                 </button>
               </div>
@@ -164,7 +165,7 @@ export default function FinancePage({ initialTab = 0 }) {
                 <div className="text-sm font-bold text-red-700">⚠ Unmatched Transactions</div>
                 <div className="text-xs text-gray-400 mt-0.5">Transactions in bank statement not found in ledger</div>
               </div>
-              <button className="px-3 py-1.5 text-xs rounded-lg bg-red-600 text-white font-semibold border-0 cursor-pointer font-[inherit]">Resolve All</button>
+              <button onClick={() => alert('✓ Resolving all unmatched transactions...')} className="px-3 py-1.5 text-xs rounded-lg bg-red-600 text-white font-semibold border-0 cursor-pointer font-[inherit]">Resolve All</button>
             </div>
             <div className="overflow-x-auto rounded-xl border border-gray-200">
               <table className="w-full">
@@ -187,8 +188,8 @@ export default function FinancePage({ initialTab = 0 }) {
                       <td className="px-4 py-3 align-middle">
                         {row.status === 'Unmatched' ? (
                           <div className="flex gap-1">
-                            <button className="px-2 py-1 text-[11px] rounded bg-green-100 text-green-800 font-semibold border-0 cursor-pointer font-[inherit]">Match</button>
-                            <button className="px-2 py-1 text-[11px] rounded bg-gray-100 text-gray-700 font-semibold border-0 cursor-pointer font-[inherit]">Ignore</button>
+                            <button onClick={() => alert(`✓ Matched ${row.id}`)} className="px-2 py-1 text-[11px] rounded bg-green-100 text-green-800 font-semibold border-0 cursor-pointer font-[inherit]">Match</button>
+                            <button onClick={() => alert(`⊘ Ignored ${row.id}`)} className="px-2 py-1 text-[11px] rounded bg-gray-100 text-gray-700 font-semibold border-0 cursor-pointer font-[inherit]">Ignore</button>
                           </div>
                         ) : <span className="text-green-600 text-xs font-bold">✓ Confirmed</span>}
                       </td>
@@ -256,46 +257,7 @@ export default function FinancePage({ initialTab = 0 }) {
       )}
 
       {activeTab === 3 && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <div className="text-sm font-bold text-gray-800">Credit / Debit Note Register</div>
-              <div className="text-xs text-gray-400 mt-0.5">All credit and debit notes issued</div>
-            </div>
-            <div className="flex gap-2">
-              <button className="px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold cursor-pointer font-[inherit]">+ Debit Note</button>
-              <button className="px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">+ Credit Note</button>
-            </div>
-          </div>
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
-            <table className="w-full">
-              <thead><tr>{['Note No.','Type','Party','Against','Amount','Date','Reason','Status'].map(h => (
-                <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
-              ))}</tr></thead>
-              <tbody>
-                {[
-                  { no: 'CN-2024-012', type: 'Credit Note', party: 'Hero MotoCorp', against: 'INV-2024-075', amount: '₹22,000', date: '14 Apr', reason: 'Return — Wrong Item', status: 'Issued' },
-                  { no: 'CN-2024-009', type: 'Credit Note', party: 'TVS Motor', against: 'INV-2024-070', amount: '₹80,000', date: '13 Apr', reason: 'Return — Defective', status: 'Issued' },
-                  { no: 'DN-2024-012', type: 'Debit Note', party: 'Shree Metals', against: 'PO-2024-080', amount: '₹15,000', date: '12 Apr', reason: 'Short Supply', status: 'Issued' },
-                  { no: 'DN-2024-009', type: 'Debit Note', party: 'Global Bearings', against: 'PO-2024-075', amount: '₹8,400', date: '11 Apr', reason: 'Quality Rejection', status: 'Pending' },
-                ].map((r, i) => (
-                  <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
-                    <td className="px-4 py-3 align-middle font-semibold text-red-700">{r.no}</td>
-                    <td className="px-4 py-3 align-middle">
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${r.type === 'Credit Note' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{r.type}</span>
-                    </td>
-                    <td className="px-4 py-3 align-middle font-semibold">{r.party}</td>
-                    <td className="px-4 py-3 align-middle font-mono text-xs">{r.against}</td>
-                    <td className={`px-4 py-3 align-middle font-bold ${r.type === 'Credit Note' ? 'text-green-600' : 'text-red-500'}`}>{r.amount}</td>
-                    <td className="px-4 py-3 align-middle text-gray-500">{r.date}</td>
-                    <td className="px-4 py-3 align-middle text-xs text-gray-500">{r.reason}</td>
-                    <td className="px-4 py-3 align-middle"><StatusBadge status={r.status} type={r.status === 'Issued' ? 'success' : 'warning'} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <CreditNoteTrackerEnhanced />
       )}
 
       {activeTab === 4 && (
@@ -305,7 +267,7 @@ export default function FinancePage({ initialTab = 0 }) {
               <div className="text-sm font-bold text-gray-800">Ledger Matching Engine</div>
               <div className="text-xs text-gray-400 mt-0.5">Auto-match invoices, payments and credit notes</div>
             </div>
-            <button className="px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">Run Auto-Match</button>
+            <button onClick={() => alert('⚡ Running auto-match algorithm...')} className="px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">Run Auto-Match</button>
           </div>
           <div className="overflow-x-auto rounded-xl border border-gray-200">
             <table className="w-full">

@@ -71,8 +71,8 @@ export default function ProductionPage({ initialTab = 0 }) {
         {activeTab === 1 && <button onClick={() => setShowWOModal(true)} style={primaryBtn}>+ New Work Order</button>}
         {activeTab === 2 && <button onClick={() => setShowWOModal(true)} style={primaryBtn}>+ New Plan</button>}
         {activeTab === 3 && <button onClick={() => setShowWOModal(true)} style={primaryBtn}>+ Schedule WO</button>}
-        {activeTab === 5 && <button style={outlineBtn}>⬇ Export</button>}
-        {activeTab === 6 && <button style={outlineBtn}>⬇ Export</button>}
+        {activeTab === 5 && <button onClick={() => alert('📊 Exporting efficiency report...')} style={outlineBtn}>⬇ Export</button>}
+        {activeTab === 6 && <button onClick={() => alert('📊 Exporting wastage report...')} style={outlineBtn}>⬇ Export</button>}
       </div>
       {activeTab === 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -273,7 +273,7 @@ export default function ProductionPage({ initialTab = 0 }) {
       )}
 
       <Modal open={showWOModal} onClose={() => setShowWOModal(false)} title="Create Work Order"
-        footer={<><button className={btnO} onClick={() => setShowWOModal(false)}>Cancel</button><button className={btnP} onClick={() => setShowWOModal(false)}>Create Work Order</button></>}>
+        footer={<><button className={btnO} onClick={() => setShowWOModal(false)}>Cancel</button><button className={btnP} onClick={() => { alert('✓ Work order created successfully'); setShowWOModal(false); }}>Create Work Order</button></>}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Work Order ID</label><input className={inp} placeholder="Auto-generated" disabled /></div>
           <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Product *</label><select className={inp}><option>Engine Assembly A</option><option>Gearbox Unit B</option><option>Clutch Assembly C</option></select></div>
@@ -288,7 +288,7 @@ export default function ProductionPage({ initialTab = 0 }) {
       </Modal>
 
       <Modal open={showBOMModal} onClose={() => setShowBOMModal(false)} title="Create New BOM"
-        footer={<><button className={btnO} onClick={() => setShowBOMModal(false)}>Cancel</button><button className={btnP} onClick={() => setShowBOMModal(false)}>Save BOM</button></>}>
+        footer={<><button className={btnO} onClick={() => setShowBOMModal(false)}>Cancel</button><button className={btnP} onClick={() => { alert('✓ BOM created successfully'); setShowBOMModal(false); }}>Save BOM</button></>}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Product Name *</label><input className={inp} placeholder="e.g. Engine Assembly D" /></div>
           <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Version</label><input className={inp} placeholder="v1.0" /></div>

@@ -12,12 +12,6 @@ export default function GRNTab({ externalShowCreate, onExternalClose }) {
 
   return (
     <div>
-      {!externalShowCreate && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
-          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ Create GRN</button>
-        </div>
-      )}
-
       <GRNList onView={(grn) => setViewGRN(grn)} />
 
       <CreateGRNModal open={isOpen} onClose={handleClose} />

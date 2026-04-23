@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { MdEmail, MdLock, MdVisibility, MdVisibilityOff, MdLogin, MdArrowForward } from 'react-icons/md';
-import { FiZap, FiTarget, FiAlertTriangle } from 'react-icons/fi';
+import { FiAlertTriangle } from 'react-icons/fi';
 import { TbFileAnalyticsFilled } from 'react-icons/tb';
+import { FcSalesPerformance } from 'react-icons/fc';
+import { GoGoal } from 'react-icons/go';
 import { RiShieldKeyholeLine } from 'react-icons/ri';
 import { useAuth } from '../../auth/AuthContext';
 
@@ -560,11 +562,11 @@ export default function LoginPage() {
                 <span className="stat-label">Smart Analytics</span>
               </div>
               <div className="stat-card">
-                <div style={{ fontSize: '32px', marginBottom: '4px' }}><FiZap size={32} color="#c0392b" /></div>
+                <div style={{ fontSize: '32px', marginBottom: '4px' }}><FcSalesPerformance size={32} /></div>
                 <span className="stat-label">Fast Performance</span>
               </div>
               <div className="stat-card">
-                <div style={{ fontSize: '32px', marginBottom: '4px' }}><FiTarget size={32} color="#c0392b" /></div>
+                <div style={{ fontSize: '32px', marginBottom: '4px' }}><GoGoal size={32} color="#c0392b" /></div>
                 <span className="stat-label">Goal Driven</span>
               </div>
             </div>

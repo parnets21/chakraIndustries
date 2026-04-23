@@ -13,10 +13,61 @@ const qcRecords = [
 export default function QualityCheckPage() {
   const [selectedGRN, setSelectedGRN] = useState('GRN-0234');
   const [search, setSearch] = useState('');
+  const [qcData, setQcData] = useState(qcRecords);
+  const [passQty, setPassQty] = useState({});
+  const [failQty, setFailQty] = useState({});
+  const [remarks, setRemarks] = useState({});
 
-  const passed  = qcRecords.filter(q => q.status === 'Passed').length;
-  const partial = qcRecords.filter(q => q.status === 'Partial').length;
-  const pending = qcRecords.filter(q => q.status === 'Pending').length;
+  const passed  = qcData.filter(q => q.status === 'Passed').length;
+  const partial = qcData.filter(q => q.status === 'Partial').length;
+  const pending = qcData.filter(q => q.status === 'Pending').length;
+
+  const selectedRecord = qcData.find(q => q.grn === selectedGRN);
+
+  const handleRejectBatch = () => {
+    // Calculate totals from collected data
+    const totalPass = Object.values(passQty).reduce((sum, val) => sum + (parseInt(val) || 0), 0);
+    const totalFail = Object.values(failQty).reduce((sum, val) => sum + (parseInt(val) || 0), 0);
+    
+    // Update QC record with actual data
+    setQcData(prev => prev.map(q => 
+      q.grn === selectedGRN 
+        ? { ...q, status: 'Rejected', passed: totalPass, failed: totalFail } 
+        : q
+    ));
+    
+    alert(`✗ Batch ${selectedGRN} has been REJECTED\n\nPassed: ${totalPass} | Failed: ${totalFail}`);
+    
+    // Reset form
+    setPassQty({});
+    setFailQty({});
+    setRemarks({});
+  };
+
+  const handleApproveBatch = () => {
+    // Calculate totals from collected data
+    const totalPass = Object.values(passQty).reduce((sum, val) => sum + (parseInt(val) || 0), 0);
+    const totalFail = Object.values(failQty).reduce((sum, val) => sum + (parseInt(val) || 0), 0);
+    
+    if (totalFail > 0) {
+      alert(`⚠️ Cannot approve batch with failed items!\n\nPassed: ${totalPass} | Failed: ${totalFail}\n\nPlease reject or fix the batch.`);
+      return;
+    }
+    
+    // Update QC record with actual data
+    setQcData(prev => prev.map(q => 
+      q.grn === selectedGRN 
+        ? { ...q, status: 'Passed', passed: totalPass, failed: totalFail } 
+        : q
+    ));
+    
+    alert(`✓ Batch ${selectedGRN} has been APPROVED and CLOSED\n\nPassed: ${totalPass} | Failed: ${totalFail}`);
+    
+    // Reset form
+    setPassQty({});
+    setFailQty({});
+    setRemarks({});
+  };
 
   const kpis = [
     { label: 'Total Inspections', value: qcRecords.length, icon: <MdVerifiedUser size={18} />,    color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.25)' },
@@ -56,10 +107,10 @@ export default function QualityCheckPage() {
               </tr>
             </thead>
             <tbody>
-              {qcRecords.filter(q => !search || q.grn.toLowerCase().includes(search.toLowerCase()) || q.vendor.toLowerCase().includes(search.toLowerCase())).map((q, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid #f8fafc', cursor: 'pointer', transition: 'background .1s' }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              {qcData.filter(q => !search || q.grn.toLowerCase().includes(search.toLowerCase()) || q.vendor.toLowerCase().includes(search.toLowerCase())).map((q, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid #f8fafc', cursor: 'pointer', transition: 'background .1s', background: selectedGRN === q.grn ? '#fef2f2' : 'transparent' }}
+                  onMouseEnter={e => e.currentTarget.style.background = selectedGRN === q.grn ? '#fef2f2' : '#fef2f2'}
+                  onMouseLeave={e => e.currentTarget.style.background = selectedGRN === q.grn ? '#fef2f2' : 'transparent'}
                   onClick={() => setSelectedGRN(q.grn)}
                 >
                   <td style={{ padding: '11px 14px', fontFamily: 'monospace', fontSize: 12, color: '#ef4444', fontWeight: 600 }}>{q.grn}</td>
@@ -90,7 +141,7 @@ export default function QualityCheckPage() {
           Quality Inspection — {selectedGRN}
         </div>
         <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16 }}>
-          Enter pass/fail quantities for each item below
+          {selectedRecord ? `Vendor: ${selectedRecord.vendor} | PO: ${selectedRecord.po} | Items: ${selectedRecord.items}` : 'Select a GRN to inspect'}
         </div>
         <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid #f1f5f9', marginBottom: 16 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
@@ -108,16 +159,21 @@ export default function QualityCheckPage() {
                   <td style={{ padding: '11px 14px', fontSize: 12.5, color: '#1e293b' }}>{item.qty}</td>
                   <td style={{ padding: '11px 14px', fontSize: 12.5, color: '#1e293b' }}>{item.qty}</td>
                   <td style={{ padding: '11px 14px' }}>
-                    <input type="number" style={{ ...inp, width: 70 }} defaultValue={item.qty - (i === 1 ? 2 : 0)} />
+                    <input type="number" style={{ ...inp, width: 70 }} 
+                      defaultValue={item.qty - (i === 1 ? 2 : 0)}
+                      onChange={e => setPassQty(prev => ({ ...prev, [item.item]: e.target.value }))} />
                   </td>
                   <td style={{ padding: '11px 14px' }}>
-                    <input type="number" style={{ ...inp, width: 70 }} defaultValue={i === 1 ? 2 : 0} />
+                    <input type="number" style={{ ...inp, width: 70 }} 
+                      defaultValue={i === 1 ? 2 : 0}
+                      onChange={e => setFailQty(prev => ({ ...prev, [item.item]: e.target.value }))} />
                   </td>
                   <td style={{ padding: '11px 14px' }}>
                     <StatusBadge status={i === 1 ? 'Partial' : 'Passed'} />
                   </td>
                   <td style={{ padding: '11px 14px' }}>
-                    <input style={{ ...inp, width: 140 }} placeholder="Remarks..." />
+                    <input style={{ ...inp, width: 140 }} placeholder="Remarks..."
+                      onChange={e => setRemarks(prev => ({ ...prev, [item.item]: e.target.value }))} />
                   </td>
                 </tr>
               ))}
@@ -125,11 +181,11 @@ export default function QualityCheckPage() {
           </table>
         </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <button style={{
+          <button onClick={handleRejectBatch} style={{
             padding: '8px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
             background: '#fee2e2', color: '#dc2626', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
           }}>✗ Reject Batch</button>
-          <button style={{
+          <button onClick={handleApproveBatch} style={{
             padding: '8px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
             background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff',
             fontSize: 13, fontWeight: 600, fontFamily: 'inherit',

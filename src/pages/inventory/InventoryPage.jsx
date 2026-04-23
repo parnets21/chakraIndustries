@@ -4,7 +4,8 @@ import BarChart from '../../components/charts/BarChart';
 import Modal from '../../components/common/Modal';
 import StorageLocationPage from './StorageLocationPage';
 import PincodeStockPage from './PincodeStockPage';
-import { MdWarehouse, MdLocationOn, MdAdd, MdEdit, MdSwapHoriz, MdDownload, MdCheckCircle, MdCancel, MdLocalShipping, MdScale, MdDescription, MdArrowDownward, MdArrowUpward } from 'react-icons/md';
+import { MdWarehouse, MdLocationOn, MdAdd } from 'react-icons/md';
+import { toast } from '../../components/common/Toast';
 
 // ─── Design tokens ───────────────────────────────────────────────────────────
 const BG_CARD   = '#ffffff';
@@ -142,6 +143,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const [internalModal, setInternalModal] = useState(false);
   const [stockFilter, setStockFilter] = useState('All');
   const [whFilter, setWhFilter]       = useState('All');
+  const [stockSearch, setStockSearch] = useState('');
   const [selectedWH, setSelectedWH]   = useState(warehouses[0]);
   const [adjustModal, setAdjustModal] = useState(false);
   const [moveModal, setMoveModal]     = useState(false);
@@ -176,122 +178,158 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
     notes: '',
   });
 
+  // Mutable data state
+  const [stockList, setStockList]       = useState(stockData);
+  const [warehouseList, setWarehouseList] = useState(warehouses);
+  const [movementList, setMovementList] = useState(movements);
+  const [pickList, setPickList]         = useState(pickData);
+  const [sortList, setSortList]         = useState(sortData);
+  const [packList, setPackList]         = useState(packData);
+  const [batchList, setBatchList]       = useState(batchData);
+  const [defectList, setDefectList]     = useState(defectData);
+  const [defectLogList, setDefectLogList] = useState(defectLog);
+
+  // Adjust/Move modal state
+  const [adjustItem, setAdjustItem]   = useState(null);
+  const [moveItem, setMoveItem]       = useState(null);
+  const [adjustQty, setAdjustQty]     = useState('');
+  const [moveToWH, setMoveToWH]       = useState('');
+
   // merge external trigger (from PageHeader button) with any internal triggers
   const showModal = externalShowModal || internalModal;
   const closeModal = () => { setInternalModal(false); onExternalModalClose?.(); };
 
-  // Handle recording movement
+  // Form refs for modals
+  const stockFormRef = useState({})[0];
+  const [stockForm, setStockForm] = useState({ sku:'', name:'', qty:'', minQty:'', batch:'', warehouse:'WH-01', category:'Raw Material', uom:'Nos', remarks:'' });
+  const [whForm, setWhForm]       = useState({ id:'', name:'', location:'', manager:'', capacity:'', phone:'', type:'Raw Material', status:'Active', address:'' });
+  const [movForm, setMovForm]     = useState({ type:'Inward', sku:'SKU-1042', from:'Supplier', to:'WH-01', qty:'', ref:'' });
+  const [pickForm, setPickForm]   = useState({ order:'', warehouse:'WH-01', sku:'SKU-1042', location:'', qty:'', picker:'', priority:'Normal', notes:'' });
+  const [sortForm, setSortForm]   = useState({ order:'', sku:'SKU-1042', qty:'', grade:'Grade A', boxType:'Standard Box', weight:'' });
+  const [batchForm, setBatchForm] = useState({ batch:'', sku:'SKU-1042', qty:'', warehouse:'WH-01', mfg:'', exp:'' });
+  const [defectForm, setDefectForm] = useState({ sku:'SKU-1042', qty:'', type:'Dimensional', source:'GRN Inspection', stage:'QC Hold', warehouse:'WH-01', remarks:'' });
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  const handleAddStock = () => {
+    if (!stockForm.sku || !stockForm.name || !stockForm.qty) { toast('Please fill required fields', 'error'); return; }
+    const newItem = { sku: stockForm.sku, name: stockForm.name, warehouse: stockForm.warehouse.split(' ')[0], qty: parseInt(stockForm.qty)||0, batch: stockForm.batch||'—', minQty: parseInt(stockForm.minQty)||0, status: parseInt(stockForm.qty) === 0 ? 'Dead' : parseInt(stockForm.qty) < parseInt(stockForm.minQty||0) ? 'Critical' : 'Active' };
+    setStockList(prev => [...prev, newItem]);
+    setStockForm({ sku:'', name:'', qty:'', minQty:'', batch:'', warehouse:'WH-01', category:'Raw Material', uom:'Nos', remarks:'' });
+    closeModal(); toast(`Stock entry added — ${newItem.sku}`);
+  };
+
+  const handleAddWarehouse = () => {
+    if (!whForm.id || !whForm.name || !whForm.location) { toast('Please fill required fields', 'error'); return; }
+    const newWH = { id: whForm.id, name: whForm.name, location: whForm.location, capacity: parseInt(whForm.capacity)||0, used: 0, skus: 0, manager: whForm.manager };
+    setWarehouseList(prev => [...prev, newWH]);
+    setWhForm({ id:'', name:'', location:'', manager:'', capacity:'', phone:'', type:'Raw Material', status:'Active', address:'' });
+    closeModal(); toast(`Warehouse ${newWH.id} added`);
+  };
+
   const handleRecordMovement = () => {
-    // Validation
-    if (!movementForm.sku || !movementForm.qty || !movementForm.to) {
-      alert('⚠️ Please fill all required fields');
-      return;
-    }
-
-    if (parseInt(movementForm.qty) <= 0) {
-      alert('⚠️ Quantity must be greater than 0');
-      return;
-    }
-
-    // Get SKU details
-    const skuData = stockData.find(s => s.sku === movementForm.sku);
-    if (!skuData) {
-      alert('⚠️ SKU not found');
-      return;
-    }
-
-    // Create new movement
-    const newMovement = {
-      id: `MV-${String(movementList.length + 1).padStart(3, '0')}`,
-      type: movementForm.type,
-      sku: movementForm.sku,
-      name: skuData.name,
-      qty: parseInt(movementForm.qty),
-      from: movementForm.from,
-      to: movementForm.to,
-      date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
-      ref: movementForm.ref || `AUTO-${Date.now()}`,
-    };
-
-    // Add to list
-    setMovementList([newMovement, ...movementList]);
-
-    // Show success message
-    setSuccessMsg(`✓ Movement recorded: ${newMovement.id}`);
-    setTimeout(() => setSuccessMsg(''), 3000);
-
-    // Reset form
-    setMovementForm({
-      type: 'Inward',
-      sku: '',
-      from: 'Supplier',
-      to: '',
-      qty: '',
-      ref: '',
-    });
-
-    // Close modal
-    closeModal();
+    if (!movForm.qty) { toast('Please enter quantity', 'error'); return; }
+    const skuItem = stockList.find(s => s.sku === movForm.sku.split(' ')[0]);
+    const newMov = { id:`MV-${String(movementList.length+1).padStart(3,'0')}`, type: movForm.type, sku: movForm.sku.split(' ')[0], name: skuItem?.name||movForm.sku, qty: parseInt(movForm.qty), from: movForm.from.split(' ')[0], to: movForm.to.split(' ')[0], date: new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short'}), ref: movForm.ref||'—' };
+    setMovementList(prev => [...prev, newMov]);
+    setMovForm({ type:'Inward', sku:'SKU-1042', from:'Supplier', to:'WH-01', qty:'', ref:'' });
+    closeModal(); toast(`Movement recorded — ${newMov.id}`);
   };
 
-  // Handle creating pick list
   const handleCreatePickList = () => {
-    // Validation
-    if (!pickingForm.order || !pickingForm.warehouse || !pickingForm.sku || !pickingForm.qty) {
-      alert('⚠️ Please fill all required fields');
-      return;
-    }
-
-    if (parseInt(pickingForm.qty) <= 0) {
-      alert('⚠️ Quantity must be greater than 0');
-      return;
-    }
-
-    // Get SKU details
-    const skuData = stockData.find(s => s.sku === pickingForm.sku);
-    if (!skuData) {
-      alert('⚠️ SKU not found');
-      return;
-    }
-
-    // Create new pick list
-    const newPick = {
-      id: `PCK-${String(pickingList.length + 1).padStart(3, '0')}`,
-      order: pickingForm.order,
-      sku: pickingForm.sku,
-      item: skuData.name,
-      qty: parseInt(pickingForm.qty),
-      loc: pickingForm.location || `${pickingForm.warehouse} / A1`,
-      picker: pickingForm.picker || 'Unassigned',
-      status: 'Pending',
-    };
-
-    // Add to list
-    setPickingList([newPick, ...pickingList]);
-
-    // Show success message
-    setSuccessMsg(`✓ Pick list created: ${newPick.id}`);
-    setTimeout(() => setSuccessMsg(''), 3000);
-
-    // Reset form
-    setPickingForm({
-      order: '',
-      warehouse: '',
-      sku: '',
-      location: '',
-      qty: '',
-      picker: '',
-      priority: 'Normal',
-      notes: '',
-    });
-
-    // Close modal
-    closeModal();
+    if (!pickForm.order || !pickForm.qty) { toast('Please fill required fields', 'error'); return; }
+    const skuItem = stockList.find(s => s.sku === pickForm.sku.split(' ')[0]);
+    const newPick = { id:`PCK-${String(pickList.length+1).padStart(3,'0')}`, order: pickForm.order, sku: pickForm.sku.split(' ')[0], item: skuItem?.name||pickForm.sku, qty: parseInt(pickForm.qty), loc: pickForm.location||'—', picker: pickForm.picker||'Unassigned', status:'Pending' };
+    setPickList(prev => [...prev, newPick]);
+    setPickForm({ order:'', warehouse:'WH-01', sku:'SKU-1042', location:'', qty:'', picker:'', priority:'Normal', notes:'' });
+    closeModal(); toast(`Pick list ${newPick.id} created`);
   };
 
-  const filteredStock = stockData
+  const handleConfirmPick = (pickId) => {
+    setPickList(prev => prev.map(p => p.id === pickId ? { ...p, status:'Completed' } : p));
+    toast(`Pick ${pickId} confirmed ✓`);
+  };
+
+  const handleCreateSortJob = () => {
+    if (!sortForm.order || !sortForm.qty) { toast('Please fill required fields', 'error'); return; }
+    const skuItem = stockList.find(s => s.sku === sortForm.sku.split(' ')[0]);
+    const newSort = { id:`SRT-${String(sortList.length+1).padStart(3,'0')}`, sku: sortForm.sku.split(' ')[0], item: skuItem?.name||sortForm.sku, qty: parseInt(sortForm.qty), grade: sortForm.grade, status:'Pending' };
+    const newPack = { id:`PKG-${String(packList.length+1).padStart(3,'0')}`, order: sortForm.order, items: 1, weight: sortForm.weight ? `${sortForm.weight} kg` : '—', type: sortForm.boxType, status:'Pending' };
+    setSortList(prev => [...prev, newSort]);
+    setPackList(prev => [...prev, newPack]);
+    setSortForm({ order:'', sku:'SKU-1042', qty:'', grade:'Grade A', boxType:'Standard Box', weight:'' });
+    closeModal(); toast(`Sort/Pack job created — ${newSort.id}`);
+  };
+
+  const handleUpdateSortStatus = (id, newStatus) => {
+    setSortList(prev => prev.map(s => s.id === id ? { ...s, status: newStatus } : s));
+    toast(`Sort job ${id} → ${newStatus}`);
+  };
+
+  const handleUpdatePackStatus = (id, newStatus) => {
+    setPackList(prev => prev.map(p => p.id === id ? { ...p, status: newStatus } : p));
+    toast(`Pack job ${id} → ${newStatus}`);
+  };
+
+  const handleAddBatch = () => {
+    if (!batchForm.batch || !batchForm.qty || !batchForm.mfg || !batchForm.exp) { toast('Please fill required fields', 'error'); return; }
+    const skuItem = stockList.find(s => s.sku === batchForm.sku.split(' ')[0]);
+    const mfgDate = new Date(batchForm.mfg + '-01');
+    const expDate = new Date(batchForm.exp + '-01');
+    const totalMs = expDate - mfgDate;
+    const remainMs = expDate - new Date();
+    const shelfPct = Math.max(0, Math.min(100, Math.round((remainMs / totalMs) * 100)));
+    const newBatch = { batch: batchForm.batch, sku: batchForm.sku.split(' ')[0], item: skuItem?.name||batchForm.sku, qty: parseInt(batchForm.qty), mfg: new Date(batchForm.mfg+'-01').toLocaleDateString('en-IN',{month:'short',year:'numeric'}), exp: new Date(batchForm.exp+'-01').toLocaleDateString('en-IN',{month:'short',year:'numeric'}), wh: batchForm.warehouse.split(' ')[0], status: shelfPct < 20 ? 'Critical' : 'Active', shelfPct };
+    setBatchList(prev => [...prev, newBatch]);
+    setBatchForm({ batch:'', sku:'SKU-1042', qty:'', warehouse:'WH-01', mfg:'', exp:'' });
+    closeModal(); toast(`Batch ${newBatch.batch} added`);
+  };
+
+  const handleLogDefect = () => {
+    if (!defectForm.qty) { toast('Please enter quantity', 'error'); return; }
+    const skuItem = stockList.find(s => s.sku === defectForm.sku.split(' ')[0]);
+    const newDefect = { id:`DEF-${String(defectList.length+1).padStart(3,'0')}`, sku: defectForm.sku.split(' ')[0], item: skuItem?.name||defectForm.sku, qty: parseInt(defectForm.qty), type: defectForm.type, source: defectForm.source, date: new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short'}), daysAged: 0, stage: defectForm.stage };
+    const newLog = { event:`${newDefect.id} — ${newDefect.item} (${newDefect.qty} units) flagged at ${newDefect.source}`, time: new Date().toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}), stage: newDefect.stage, color: newDefect.stage==='QC Hold' ? '#f59e0b' : '#ef4444' };
+    setDefectList(prev => [...prev, newDefect]);
+    setDefectLogList(prev => [newLog, ...prev]);
+    setDefectForm({ sku:'SKU-1042', qty:'', type:'Dimensional', source:'GRN Inspection', stage:'QC Hold', warehouse:'WH-01', remarks:'' });
+    closeModal(); toast(`Defect ${newDefect.id} logged`);
+  };
+
+  const handleDefectAction = (id, action) => {
+    const stageMap = { Repair:'Repair', Rework:'Defective Bin', Scrap:'Disposed' };
+    setDefectList(prev => prev.map(d => d.id === id ? { ...d, stage: stageMap[action]||action } : d));
+    toast(`${id} → ${action}`);
+  };
+
+  const handleAdjustQty = () => {
+    if (!adjustQty) { toast('Enter a quantity', 'error'); return; }
+    setStockList(prev => prev.map(s => s.sku === adjustItem.sku ? { ...s, qty: parseInt(adjustQty), status: parseInt(adjustQty)===0 ? 'Dead' : parseInt(adjustQty) < s.minQty ? 'Critical' : 'Active' } : s));
+    setAdjustItem(null); setAdjustQty('');
+    toast(`${adjustItem.sku} quantity updated to ${adjustQty}`);
+  };
+
+  const handleMoveStock = () => {
+    if (!moveToWH) { toast('Select destination warehouse', 'error'); return; }
+    setStockList(prev => prev.map(s => s.sku === moveItem.sku ? { ...s, warehouse: moveToWH } : s));
+    setMoveItem(null); setMoveToWH('');
+    toast(`${moveItem.sku} moved to ${moveToWH}`);
+  };
+
+  const handleExportCSV = (data, filename) => {
+    if (!data.length) { toast('No data to export', 'warning'); return; }
+    const keys = Object.keys(data[0]);
+    const csv = [keys.join(','), ...data.map(r => keys.map(k => `"${r[k]}"`).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+    toast(`${filename} downloaded`);
+  };
+
+  const filteredStock = stockList
     .filter(r => stockFilter === 'All' || r.status === stockFilter)
-    .filter(r => whFilter === 'All' || r.warehouse === whFilter);
+    .filter(r => whFilter === 'All' || r.warehouse === whFilter)
+    .filter(r => !stockSearch || r.sku.toLowerCase().includes(stockSearch.toLowerCase()) || r.name.toLowerCase().includes(stockSearch.toLowerCase()));
 
   return (
     <div>
@@ -318,7 +356,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                   {stockData.filter(s => s.qty < s.minQty && s.qty > 0).map(s => s.name).join(' · ')}
                 </div>
               </div>
-              <button onClick={() => setInternalModal(true)} style={{
+              <button onClick={() => toast('Redirecting to Purchase Requisition…', 'info')} style={{
                 marginLeft:'auto', padding:'5px 14px', borderRadius:8,
                 background:'#f59e0b', color:'#fff', border:'none',
                 fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit',
@@ -409,7 +447,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
           }}>
             <div style={{ position:'relative', flex:1, minWidth:180 }}>
               <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', fontSize:14, color: TEXT_LIGHT }}>🔍</span>
-              <input placeholder="Search SKU or item…" style={{ ...inputStyle, paddingLeft:32, width:'100%' }} />
+              <input placeholder="Search SKU or item…" value={stockSearch} onChange={e => setStockSearch(e.target.value)} style={{ ...inputStyle, paddingLeft:32, width:'100%' }} />
             </div>
             {/* Warehouse filter */}
             <select value={whFilter} onChange={e => setWhFilter(e.target.value)} style={{
@@ -430,18 +468,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 }}>{f}</button>
               ))}
             </div>
-            <button onClick={() => {
-              const csvContent = filteredStock.map(r => `${r.sku},${r.name},${r.warehouse},${r.qty},${r.minQty},${r.batch},${r.status}`).join('\n');
-              const header = 'SKU,Item Name,Warehouse,Qty,Min Qty,Batch,Status\n';
-              const element = document.createElement('a');
-              element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(header + csvContent));
-              element.setAttribute('download', `stock-inventory-${new Date().toISOString().split('T')[0]}.csv`);
-              element.style.display = 'none';
-              document.body.appendChild(element);
-              element.click();
-              document.body.removeChild(element);
-              alert('✓ Stock inventory exported successfully');
-            }} style={{
+            <button onClick={() => handleExportCSV(filteredStock, 'stock-table.csv')} style={{
               padding:'6px 16px', borderRadius: RADIUS_SM, fontSize:12, fontWeight:600,
               background:'#f1f5f9', border: BORDER, color: TEXT_MID,
               cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:6,
@@ -489,12 +516,12 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     <td style={{ padding:'11px 16px' }}><StatusBadge status={r.status} /></td>
                     <td style={{ padding:'11px 16px' }}>
                       <div style={{ display:'flex', gap:6 }}>
-                        <button onClick={() => { setSelectedStock(r); setAdjustModal(true); }} style={{
+                        <button onClick={() => { setAdjustItem(r); setAdjustQty(String(r.qty)); }} style={{
                           padding:'4px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600,
                           border:`1px solid ${RED}`, color: RED, background:'transparent',
-                          cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:4,
-                        }}><MdEdit size={14} /> Adjust</button>
-                        <button onClick={() => { setSelectedStock(r); setMoveModal(true); }} style={{
+                          cursor:'pointer', fontFamily:'inherit',
+                        }}>✏ Adjust</button>
+                        <button onClick={() => { setMoveItem(r); setMoveToWH(r.warehouse); }} style={{
                           padding:'4px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600,
                           border:'1px solid #e2e8f0', color: TEXT_MID, background:'#f8fafc',
                           cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:4,
@@ -806,22 +833,66 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === 4 && (() => {
         const cols = [
-          { label:'Pending',     color: AMBER,  bg:'#fffbeb', items: pickingList.filter(p => p.status==='Pending') },
-          { label:'In Progress', color: BLUE,   bg:'#eff6ff', items: pickingList.filter(p => p.status==='In Progress') },
-          { label:'Completed',   color: GREEN,  bg:'#f0fdf4', items: pickingList.filter(p => p.status==='Completed') },
+          { label:'Pending',     color: AMBER,  bg:'#fffbeb', items: pickList.filter(p => p.status==='Pending') },
+          { label:'In Progress', color: BLUE,   bg:'#eff6ff', items: pickList.filter(p => p.status==='In Progress') },
+          { label:'Completed',   color: GREEN,  bg:'#f0fdf4', items: pickList.filter(p => p.status==='Completed') },
         ];
         return (
-          <div>
-            {/* Success message */}
-            {successMsg && (
-              <div style={{
-                display:'flex', alignItems:'center', gap:12,
-                padding:'12px 18px', marginBottom:16,
-                background:'#f0fdf4', border:'1px solid #86efac',
-                borderRadius:12, borderLeft:'4px solid #22c55e',
-              }}>
-                <span style={{ fontSize:18 }}>✓</span>
-                <div style={{ fontSize:13, fontWeight:700, color:'#22c55e' }}>{successMsg}</div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16 }}>
+            {cols.map((col,ci) => (
+              <div key={ci} style={{ ...card(), overflow:'hidden' }}>
+                {/* Column header */}
+                <div style={{
+                  background: col.color, padding:'12px 16px',
+                  display:'flex', alignItems:'center', justifyContent:'space-between',
+                }}>
+                  <span style={{ fontSize:13, fontWeight:800, color:'#fff' }}>{col.label}</span>
+                  <span style={{
+                    background:'rgba(255,255,255,0.3)', color:'#fff',
+                    borderRadius:12, padding:'1px 9px', fontSize:12, fontWeight:700,
+                  }}>{col.items.length}</span>
+                </div>
+
+                {/* Cards */}
+                <div style={{ padding:12, display:'flex', flexDirection:'column', gap:10 }}>
+                  {col.items.length === 0 && (
+                    <div style={{ textAlign:'center', padding:'24px 0', color: TEXT_LIGHT, fontSize:12 }}>No items</div>
+                  )}
+                  {col.items.map((p,pi) => (
+                    <div key={pi} style={{
+                      background:'#fff', border: BORDER, borderRadius: RADIUS_MD,
+                      padding:'14px 14px', boxShadow:'0 1px 4px rgba(15,23,42,0.05)',
+                    }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+                        <span style={{ fontSize:12, fontWeight:800, color: col.color }}>{p.id}</span>
+                        {/* Picker avatar */}
+                        <div style={{
+                          width:28, height:28, borderRadius:'50%', background: col.color+'22',
+                          display:'flex', alignItems:'center', justifyContent:'center',
+                          fontSize:11, fontWeight:800, color: col.color,
+                        }}>{p.picker.slice(0,2).toUpperCase()}</div>
+                      </div>
+                      <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK, marginBottom:4 }}>{p.item}</div>
+                      <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginBottom:2 }}>Order: {p.order}</div>
+                      <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginBottom:2 }}>SKU: <span style={{ fontFamily:'monospace', color: RED }}>{p.sku}</span></div>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:8 }}>
+                        <span style={{ fontSize:11.5, color: TEXT_MID }}>📍 {p.loc}</span>
+                        <span style={{
+                          background: col.color+'18', color: col.color,
+                          borderRadius:12, padding:'2px 9px', fontSize:11, fontWeight:700,
+                        }}>Qty: {p.qty}</span>
+                      </div>
+                      {p.status === 'In Progress' && (
+                        <button onClick={() => handleConfirmPick(p.id)} style={{
+                          marginTop:10, width:'100%', padding:'7px 0',
+                          borderRadius: RADIUS_SM, border:'none',
+                          background: BLUE, color:'#fff',
+                          fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit',
+                        }}>✓ Confirm Pick</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -899,13 +970,13 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               <div style={{ fontSize:11, color:'rgba(255,255,255,0.7)', marginTop:2 }}>Grade & classify incoming stock</div>
             </div>
             <div style={{ padding:'8px 0' }}>
-              {sortData.map((r,i) => {
+              {sortList.map((r,i) => {
                 const gradeColor = r.grade==='Grade A' ? GREEN : AMBER;
                 const statusBorder = r.status==='Sorted' ? GREEN : r.status==='In Progress' ? BLUE : '#e2e8f0';
-                return (
+                  return (
                   <div key={i} style={{
                     padding:'14px 20px', borderLeft:`4px solid ${statusBorder}`,
-                    borderBottom: i < sortData.length-1 ? BORDER : 'none',
+                    borderBottom: i < sortList.length-1 ? BORDER : 'none',
                     background: r.status==='Sorted' ? '#f0fdf4' : r.status==='In Progress' ? '#eff6ff' : '#fff',
                   }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
@@ -946,13 +1017,13 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               <div style={{ fontSize:11, color:'rgba(255,255,255,0.7)', marginTop:2 }}>Package & dispatch ready orders</div>
             </div>
             <div style={{ padding:'8px 0' }}>
-              {packData.map((r,i) => {
-                const statusIcon  = r.status==='Packed' ? <MdLocalShipping size={16} /> : r.status==='Packing' ? <MdDescription size={16} /> : <MdDescription size={16} />;
+              {packList.map((r,i) => {
+                const statusIcon  = r.status==='Packed' ? '📦' : r.status==='Packing' ? '⏳' : '🕐';
                 const statusColor = r.status==='Packed' ? GREEN : r.status==='Packing' ? BLUE : TEXT_LIGHT;
                 return (
                   <div key={i} style={{
                     padding:'14px 20px',
-                    borderBottom: i < packData.length-1 ? BORDER : 'none',
+                    borderBottom: i < packList.length-1 ? BORDER : 'none',
                   }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                       <div>
@@ -992,20 +1063,20 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             subtitle="Shelf life, expiry & status per batch"
             action={
               <div style={{ display:'flex', gap:8 }}>
-                {batchData.filter(b => b.shelfPct < 50).length > 0 && (
+                {batchList.filter(b => b.shelfPct < 50).length > 0 && (
                   <div style={{
                     display:'flex', alignItems:'center', gap:6,
                     padding:'6px 12px', borderRadius:8,
                     background:'#fef2f2', border:'1px solid #fecaca',
                     fontSize:12, fontWeight:700, color: RED_LIGHT,
                   }}>
-                    ⚠ {batchData.filter(b => b.shelfPct < 50).length} batches nearing expiry
+                    ⚠ {batchList.filter(b => b.shelfPct < 50).length} batches nearing expiry
                   </div>
                 )}
               </div>
             }
           />
-          {batchData.map((b,i) => {
+          {batchList.map((b,i) => {
             const statusColor = b.status==='Active' ? GREEN : b.status==='Critical' ? AMBER : '#94a3b8';
             const barColor    = b.shelfPct > 60 ? GREEN : b.shelfPct > 30 ? AMBER : RED_LIGHT;
             return (
@@ -1079,18 +1150,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 <div style={{ fontSize:14, fontWeight:700, color: TEXT_DARK }}>Ageing Stock Analysis</div>
                 <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginTop:2 }}>Items not moved — with action suggestions</div>
               </div>
-              <button onClick={() => {
-                const csvContent = ageingData.map(r => `${r.sku},${r.item},${r.wh},${r.qty},${r.lastMov},${r.days},${r.bucket},${r.value},${r.action}`).join('\n');
-                const header = 'SKU,Item,Warehouse,Qty,Last Movement,Days Idle,Bucket,Value,Suggested Action\n';
-                const element = document.createElement('a');
-                element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(header + csvContent));
-                element.setAttribute('download', `ageing-stock-${new Date().toISOString().split('T')[0]}.csv`);
-                element.style.display = 'none';
-                document.body.appendChild(element);
-                element.click();
-                document.body.removeChild(element);
-                alert('✓ Ageing stock report exported successfully');
-              }} style={{
+              <button onClick={() => handleExportCSV(ageingData, 'ageing-stock-report.csv')} style={{
                 padding:'7px 16px', borderRadius: RADIUS_SM, fontSize:12, fontWeight:700,
                 background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff',
                 border:'none', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:6,
@@ -1166,14 +1226,14 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 }}>+ Log Defect</button>
               </div>
               <div style={{ padding:'4px 0' }}>
-                {defectData.map((r,i) => {
+                {defectList.map((r,i) => {
                   const stageBorder = r.stage==='QC Hold' ? AMBER : r.stage==='Repair' ? BLUE : RED_LIGHT;
                   const stageBg     = r.stage==='QC Hold' ? '#fffbeb' : r.stage==='Repair' ? '#eff6ff' : '#fef2f2';
                   return (
                     <div key={i} style={{
                       padding:'14px 20px', borderLeft:`4px solid ${stageBorder}`,
                       background: stageBg,
-                      borderBottom: i < defectData.length-1 ? BORDER : 'none',
+                      borderBottom: i < defectList.length-1 ? BORDER : 'none',
                     }}>
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:4 }}>
                         <div style={{ display:'flex', gap:8, alignItems:'center' }}>
@@ -1193,11 +1253,17 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                         </span>
                       </div>
                       <div style={{ display:'flex', gap:8, marginTop:10 }}>
-                        <button style={{
-                          padding:'4px 12px', borderRadius:20, fontSize:11, fontWeight:700,
-                          background: BLUE+'18', color: BLUE,
-                          border:`1px solid ${BLUE}40`, cursor:'pointer', fontFamily:'inherit',
-                        }}>Repair</button>
+                        {[
+                          { label:'Repair', color: BLUE },
+                          { label:'Rework', color: AMBER },
+                          { label:'Scrap',  color: RED_LIGHT },
+                        ].map(btn => (
+                          <button key={btn.label} onClick={() => handleDefectAction(r.id, btn.label)} style={{
+                            padding:'4px 12px', borderRadius:20, fontSize:11, fontWeight:700,
+                            background: btn.color+'18', color: btn.color,
+                            border:`1px solid ${btn.color}40`, cursor:'pointer', fontFamily:'inherit',
+                          }}>{btn.label}</button>
+                        ))}
                       </div>
                     </div>
                   );
@@ -1216,8 +1282,8 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                   position:'absolute', left:9, top:6, bottom:6,
                   width:2, background:'#e2e8f0', borderRadius:1,
                 }} />
-                {defectLog.map((item,i) => (
-                  <div key={i} style={{ position:'relative', marginBottom: i < defectLog.length-1 ? 22 : 0 }}>
+                {defectLogList.map((item,i) => (
+                  <div key={i} style={{ position:'relative', marginBottom: i < defectLogList.length-1 ? 22 : 0 }}>
                     {/* Dot */}
                     <div style={{
                       position:'absolute', left:-19, top:3,
@@ -1252,43 +1318,31 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         <Modal open={showModal} onClose={closeModal} title="Add Stock Entry"
           footer={<>
             <button style={{ padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`, color:RED, background:'transparent', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={closeModal}>Cancel</button>
-            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={closeModal}>Add Stock</button>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={handleAddStock}>Add Stock</button>
           </>}>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
             {[
-              { label:'SKU *',           placeholder:'e.g. SKU-1042',  type:'text'   },
-              { label:'Item Name *',     placeholder:'Item description',type:'text'   },
-              { label:'Quantity *',      placeholder:'0',               type:'number' },
-              { label:'Min Stock Level', placeholder:'0',               type:'number' },
-              { label:'Batch Number',    placeholder:'e.g. B-2024-04', type:'text'   },
+              { label:'SKU *', key:'sku', placeholder:'e.g. SKU-1042', type:'text' },
+              { label:'Item Name *', key:'name', placeholder:'Item description', type:'text' },
+              { label:'Quantity *', key:'qty', placeholder:'0', type:'number' },
+              { label:'Min Stock Level', key:'minQty', placeholder:'0', type:'number' },
+              { label:'Batch Number', key:'batch', placeholder:'e.g. B-2024-04', type:'text' },
             ].map((f,i) => (
               <div key={i} style={{ display:'flex', flexDirection:'column', gap:5 }}>
                 <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>{f.label}</label>
-                <input type={f.type} placeholder={f.placeholder} style={inputStyle} />
+                <input type={f.type} placeholder={f.placeholder} value={stockForm[f.key]} onChange={e => setStockForm(p=>({...p,[f.key]:e.target.value}))} style={inputStyle} />
               </div>
             ))}
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Warehouse *</label>
-              <select style={inputStyle}>
-                {warehouses.map(w => <option key={w.id}>{w.id} — {w.name}</option>)}
-              </select>
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Category</label>
-              <select style={inputStyle}>
-                {['Raw Material','WIP','Finished Good','Spare Parts'].map(c => <option key={c}>{c}</option>)}
-              </select>
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Unit of Measure</label>
-              <select style={inputStyle}>
-                {['Nos','Set','Kg','Litre','Metre'].map(u => <option key={u}>{u}</option>)}
+              <select value={stockForm.warehouse} onChange={e => setStockForm(p=>({...p,warehouse:e.target.value}))} style={inputStyle}>
+                {warehouseList.map(w => <option key={w.id}>{w.id} — {w.name}</option>)}
               </select>
             </div>
           </div>
           <div style={{ display:'flex', flexDirection:'column', gap:5, marginTop:10 }}>
             <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Remarks</label>
-            <textarea placeholder="Optional notes…" style={{ ...inputStyle, minHeight:64, resize:'vertical' }} />
+            <textarea placeholder="Optional notes…" value={stockForm.remarks} onChange={e => setStockForm(p=>({...p,remarks:e.target.value}))} style={{ ...inputStyle, minHeight:64, resize:'vertical' }} />
           </div>
         </Modal>
       )}
@@ -1298,38 +1352,26 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         <Modal open={showModal} onClose={closeModal} title="Add New Warehouse"
           footer={<>
             <button style={{ padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`, color:RED, background:'transparent', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={closeModal}>Cancel</button>
-            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={closeModal}>Save Warehouse</button>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={handleAddWarehouse}>Save Warehouse</button>
           </>}>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
             {[
-              { label:'Warehouse ID *',  placeholder:'e.g. WH-04',         type:'text'   },
-              { label:'Warehouse Name *',placeholder:'e.g. North Godown',  type:'text'   },
-              { label:'Location *',      placeholder:'City / Area',         type:'text'   },
-              { label:'Manager Name *',  placeholder:'Full name',           type:'text'   },
-              { label:'Capacity (units)',placeholder:'0',                   type:'number' },
-              { label:'Contact Phone',   placeholder:'10-digit number',     type:'text'   },
+              { label:'Warehouse ID *', key:'id', placeholder:'e.g. WH-04', type:'text' },
+              { label:'Warehouse Name *', key:'name', placeholder:'e.g. North Godown', type:'text' },
+              { label:'Location *', key:'location', placeholder:'City / Area', type:'text' },
+              { label:'Manager Name *', key:'manager', placeholder:'Full name', type:'text' },
+              { label:'Capacity (units)', key:'capacity', placeholder:'0', type:'number' },
+              { label:'Contact Phone', key:'phone', placeholder:'10-digit number', type:'text' },
             ].map((f,i) => (
               <div key={i} style={{ display:'flex', flexDirection:'column', gap:5 }}>
                 <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>{f.label}</label>
-                <input type={f.type} placeholder={f.placeholder} style={inputStyle} />
+                <input type={f.type} placeholder={f.placeholder} value={whForm[f.key]} onChange={e => setWhForm(p=>({...p,[f.key]:e.target.value}))} style={inputStyle} />
               </div>
             ))}
-            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Warehouse Type</label>
-              <select style={inputStyle}>
-                {['Raw Material','Finished Goods','Transit','Cold Storage'].map(t => <option key={t}>{t}</option>)}
-              </select>
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Status</label>
-              <select style={inputStyle}>
-                <option>Active</option><option>Inactive</option>
-              </select>
-            </div>
           </div>
           <div style={{ display:'flex', flexDirection:'column', gap:5, marginTop:10 }}>
             <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Address</label>
-            <textarea placeholder="Full address…" style={{ ...inputStyle, minHeight:56, resize:'vertical' }} />
+            <textarea placeholder="Full address…" value={whForm.address} onChange={e => setWhForm(p=>({...p,address:e.target.value}))} style={{ ...inputStyle, minHeight:56, resize:'vertical' }} />
           </div>
         </Modal>
       )}
@@ -1344,40 +1386,38 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Movement Type *</label>
-              <select value={movementForm.type} onChange={e => setMovementForm({...movementForm, type: e.target.value})} style={inputStyle}>
+              <select value={movForm.type} onChange={e => setMovForm(p=>({...p,type:e.target.value}))} style={inputStyle}>
                 <option>Inward</option><option>Outward</option><option>Transfer</option>
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>SKU *</label>
-              <select value={movementForm.sku} onChange={e => setMovementForm({...movementForm, sku: e.target.value})} style={inputStyle}>
-                <option value="">Select SKU</option>
-                {stockData.map(s => <option key={s.sku} value={s.sku}>{s.sku} — {s.name}</option>)}
+              <select value={movForm.sku} onChange={e => setMovForm(p=>({...p,sku:e.target.value}))} style={inputStyle}>
+                {stockList.map(s => <option key={s.sku}>{s.sku} — {s.name}</option>)}
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>From *</label>
-              <select value={movementForm.from} onChange={e => setMovementForm({...movementForm, from: e.target.value})} style={inputStyle}>
+              <select value={movForm.from} onChange={e => setMovForm(p=>({...p,from:e.target.value}))} style={inputStyle}>
                 <option>Supplier</option>
-                {warehouses.map(w => <option key={w.id}>{w.id} — {w.name}</option>)}
+                {warehouseList.map(w => <option key={w.id}>{w.id} — {w.name}</option>)}
                 <option>Production</option>
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>To *</label>
-              <select value={movementForm.to} onChange={e => setMovementForm({...movementForm, to: e.target.value})} style={inputStyle}>
-                <option value="">Select Destination</option>
-                {warehouses.map(w => <option key={w.id}>{w.id} — {w.name}</option>)}
+              <select value={movForm.to} onChange={e => setMovForm(p=>({...p,to:e.target.value}))} style={inputStyle}>
+                {warehouseList.map(w => <option key={w.id}>{w.id} — {w.name}</option>)}
                 <option>Production</option><option>Dispatch</option>
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Quantity *</label>
-              <input type="number" value={movementForm.qty} onChange={e => setMovementForm({...movementForm, qty: e.target.value})} placeholder="0" style={inputStyle} />
+              <input type="number" placeholder="0" value={movForm.qty} onChange={e => setMovForm(p=>({...p,qty:e.target.value}))} style={inputStyle} />
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Reference No.</label>
-              <input type="text" value={movementForm.ref} onChange={e => setMovementForm({...movementForm, ref: e.target.value})} placeholder="e.g. GRN-0234 / WO-0891" style={inputStyle} />
+              <input type="text" placeholder="e.g. GRN-0234 / WO-0891" value={movForm.ref} onChange={e => setMovForm(p=>({...p,ref:e.target.value}))} style={inputStyle} />
             </div>
           </div>
         </Modal>
@@ -1393,44 +1433,32 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Order Reference *</label>
-              <input type="text" value={pickingForm.order} onChange={e => setPickingForm({...pickingForm, order: e.target.value})} placeholder="e.g. ORD-2024-090" style={inputStyle} />
+              <input type="text" placeholder="e.g. ORD-2024-090" value={pickForm.order} onChange={e => setPickForm(p=>({...p,order:e.target.value}))} style={inputStyle} />
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Warehouse *</label>
-              <select value={pickingForm.warehouse} onChange={e => setPickingForm({...pickingForm, warehouse: e.target.value})} style={inputStyle}>
-                <option value="">Select Warehouse</option>
-                {warehouses.map(w => <option key={w.id} value={w.id}>{w.id} — {w.name}</option>)}
+              <select value={pickForm.warehouse} onChange={e => setPickForm(p=>({...p,warehouse:e.target.value}))} style={inputStyle}>
+                {warehouseList.map(w => <option key={w.id}>{w.id} — {w.name}</option>)}
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>SKU to Pick *</label>
-              <select value={pickingForm.sku} onChange={e => setPickingForm({...pickingForm, sku: e.target.value})} style={inputStyle}>
-                <option value="">Select SKU</option>
-                {stockData.map(s => <option key={s.sku} value={s.sku}>{s.sku} — {s.name}</option>)}
+              <select value={pickForm.sku} onChange={e => setPickForm(p=>({...p,sku:e.target.value}))} style={inputStyle}>
+                {stockList.map(s => <option key={s.sku}>{s.sku} — {s.name}</option>)}
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Storage Location</label>
-              <input type="text" value={pickingForm.location} onChange={e => setPickingForm({...pickingForm, location: e.target.value})} placeholder="e.g. Zone A / Rack R2 / Shelf S3 / Bin B5" style={inputStyle} />
+              <input type="text" placeholder="e.g. Zone A / Rack R2" value={pickForm.location} onChange={e => setPickForm(p=>({...p,location:e.target.value}))} style={inputStyle} />
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Qty to Pick *</label>
-              <input type="number" value={pickingForm.qty} onChange={e => setPickingForm({...pickingForm, qty: e.target.value})} placeholder="0" style={inputStyle} />
+              <input type="number" placeholder="0" value={pickForm.qty} onChange={e => setPickForm(p=>({...p,qty:e.target.value}))} style={inputStyle} />
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Assign Picker</label>
-              <input type="text" value={pickingForm.picker} onChange={e => setPickingForm({...pickingForm, picker: e.target.value})} placeholder="Picker name" style={inputStyle} />
+              <input type="text" placeholder="Picker name" value={pickForm.picker} onChange={e => setPickForm(p=>({...p,picker:e.target.value}))} style={inputStyle} />
             </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Priority</label>
-              <select value={pickingForm.priority} onChange={e => setPickingForm({...pickingForm, priority: e.target.value})} style={inputStyle}>
-                <option>Normal</option><option>High</option><option>Urgent</option>
-              </select>
-            </div>
-          </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:5, marginTop:10 }}>
-            <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Notes</label>
-            <textarea value={pickingForm.notes} onChange={e => setPickingForm({...pickingForm, notes: e.target.value})} placeholder="Special instructions…" style={{ ...inputStyle, minHeight:56, resize:'vertical' }} />
           </div>
         </Modal>
       )}
@@ -1440,38 +1468,38 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         <Modal open={showModal} onClose={closeModal} title="Create Sort / Pack Job"
           footer={<>
             <button style={{ padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`, color:RED, background:'transparent', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={closeModal}>Cancel</button>
-            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={closeModal}>Create Job</button>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={handleCreateSortJob}>Create Job</button>
           </>}>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Order Reference *</label>
-              <input type="text" placeholder="e.g. ORD-2024-089" style={inputStyle} />
+              <input type="text" placeholder="e.g. ORD-2024-089" value={sortForm.order} onChange={e => setSortForm(p=>({...p,order:e.target.value}))} style={inputStyle} />
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>SKU *</label>
-              <select style={inputStyle}>
-                {stockData.map(s => <option key={s.sku}>{s.sku} — {s.name}</option>)}
+              <select value={sortForm.sku} onChange={e => setSortForm(p=>({...p,sku:e.target.value}))} style={inputStyle}>
+                {stockList.map(s => <option key={s.sku}>{s.sku} — {s.name}</option>)}
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Quantity *</label>
-              <input type="number" placeholder="0" style={inputStyle} />
+              <input type="number" placeholder="0" value={sortForm.qty} onChange={e => setSortForm(p=>({...p,qty:e.target.value}))} style={inputStyle} />
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Grade</label>
-              <select style={inputStyle}>
+              <select value={sortForm.grade} onChange={e => setSortForm(p=>({...p,grade:e.target.value}))} style={inputStyle}>
                 <option>Grade A</option><option>Grade B</option><option>Grade C</option>
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Box / Package Type</label>
-              <select style={inputStyle}>
+              <select value={sortForm.boxType} onChange={e => setSortForm(p=>({...p,boxType:e.target.value}))} style={inputStyle}>
                 <option>Standard Box</option><option>Custom Branded</option><option>Bulk Loose</option>
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Weight (kg)</label>
-              <input type="number" placeholder="0" style={inputStyle} />
+              <input type="number" placeholder="0" value={sortForm.weight} onChange={e => setSortForm(p=>({...p,weight:e.target.value}))} style={inputStyle} />
             </div>
           </div>
         </Modal>
@@ -1482,36 +1510,36 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         <Modal open={showModal} onClose={closeModal} title="Add New Batch"
           footer={<>
             <button style={{ padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`, color:RED, background:'transparent', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={closeModal}>Cancel</button>
-            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={closeModal}>Add Batch</button>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={handleAddBatch}>Add Batch</button>
           </>}>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Batch Number *</label>
-              <input type="text" placeholder="e.g. B-2024-05" style={inputStyle} />
+              <input type="text" placeholder="e.g. B-2024-05" value={batchForm.batch} onChange={e => setBatchForm(p=>({...p,batch:e.target.value}))} style={inputStyle} />
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>SKU *</label>
-              <select style={inputStyle}>
-                {stockData.map(s => <option key={s.sku}>{s.sku} — {s.name}</option>)}
+              <select value={batchForm.sku} onChange={e => setBatchForm(p=>({...p,sku:e.target.value}))} style={inputStyle}>
+                {stockList.map(s => <option key={s.sku}>{s.sku} — {s.name}</option>)}
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Quantity *</label>
-              <input type="number" placeholder="0" style={inputStyle} />
+              <input type="number" placeholder="0" value={batchForm.qty} onChange={e => setBatchForm(p=>({...p,qty:e.target.value}))} style={inputStyle} />
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Warehouse *</label>
-              <select style={inputStyle}>
-                {warehouses.map(w => <option key={w.id}>{w.id} — {w.name}</option>)}
+              <select value={batchForm.warehouse} onChange={e => setBatchForm(p=>({...p,warehouse:e.target.value}))} style={inputStyle}>
+                {warehouseList.map(w => <option key={w.id}>{w.id} — {w.name}</option>)}
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Mfg Date *</label>
-              <input type="month" style={inputStyle} />
+              <input type="month" value={batchForm.mfg} onChange={e => setBatchForm(p=>({...p,mfg:e.target.value}))} style={inputStyle} />
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Expiry Date *</label>
-              <input type="month" style={inputStyle} />
+              <input type="month" value={batchForm.exp} onChange={e => setBatchForm(p=>({...p,exp:e.target.value}))} style={inputStyle} />
             </div>
           </div>
         </Modal>
@@ -1522,175 +1550,93 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         <Modal open={showModal} onClose={closeModal} title="Log Defective Stock"
           footer={<>
             <button style={{ padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`, color:RED, background:'transparent', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={closeModal}>Cancel</button>
-            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={closeModal}>Log Defect</button>
+            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={handleLogDefect}>Log Defect</button>
           </>}>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>SKU *</label>
-              <select style={inputStyle}>
-                {stockData.map(s => <option key={s.sku}>{s.sku} — {s.name}</option>)}
+              <select value={defectForm.sku} onChange={e => setDefectForm(p=>({...p,sku:e.target.value}))} style={inputStyle}>
+                {stockList.map(s => <option key={s.sku}>{s.sku} — {s.name}</option>)}
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Defective Qty *</label>
-              <input type="number" placeholder="0" style={inputStyle} />
+              <input type="number" placeholder="0" value={defectForm.qty} onChange={e => setDefectForm(p=>({...p,qty:e.target.value}))} style={inputStyle} />
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Defect Type *</label>
-              <select style={inputStyle}>
+              <select value={defectForm.type} onChange={e => setDefectForm(p=>({...p,type:e.target.value}))} style={inputStyle}>
                 <option>Dimensional</option><option>Surface Defect</option>
                 <option>Packaging Damage</option><option>Functional Failure</option>
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Source *</label>
-              <select style={inputStyle}>
+              <select value={defectForm.source} onChange={e => setDefectForm(p=>({...p,source:e.target.value}))} style={inputStyle}>
                 <option>GRN Inspection</option><option>Production</option>
                 <option>Customer Return</option><option>Internal Audit</option>
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Stage</label>
-              <select style={inputStyle}>
+              <select value={defectForm.stage} onChange={e => setDefectForm(p=>({...p,stage:e.target.value}))} style={inputStyle}>
                 <option>QC Hold</option><option>Defective Bin</option>
                 <option>Repair</option><option>Scrap</option>
               </select>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Warehouse</label>
-              <select style={inputStyle}>
-                {warehouses.map(w => <option key={w.id}>{w.id} — {w.name}</option>)}
+              <select value={defectForm.warehouse} onChange={e => setDefectForm(p=>({...p,warehouse:e.target.value}))} style={inputStyle}>
+                {warehouseList.map(w => <option key={w.id}>{w.id} — {w.name}</option>)}
               </select>
             </div>
           </div>
           <div style={{ display:'flex', flexDirection:'column', gap:5, marginTop:10 }}>
             <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Remarks</label>
-            <textarea placeholder="Describe the defect…" style={{ ...inputStyle, minHeight:56, resize:'vertical' }} />
+            <textarea placeholder="Describe the defect…" value={defectForm.remarks} onChange={e => setDefectForm(p=>({...p,remarks:e.target.value}))} style={{ ...inputStyle, minHeight:56, resize:'vertical' }} />
           </div>
         </Modal>
       )}
 
-      {/* Adjust Stock Modal */}
-      {adjustModal && selectedStock && (
-        <Modal open={adjustModal} onClose={() => { setAdjustModal(false); setSelectedStock(null); setAdjustType('Add Stock'); setAdjustQty(''); }} title="Adjust Stock"
-          footer={<>
-            <button style={{ padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`, color:RED, background:'transparent', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={() => { setAdjustModal(false); setSelectedStock(null); setAdjustType('Add Stock'); setAdjustQty(''); }}>Cancel</button>
-            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={() => { 
-              if (!adjustQty || parseInt(adjustQty) <= 0) { alert('⚠️ Please enter valid adjustment quantity'); return; }
-              const newQty = adjustType === 'Add Stock' ? selectedStock.qty + parseInt(adjustQty) : selectedStock.qty - parseInt(adjustQty);
-              if (newQty < 0) { alert('⚠️ Adjustment cannot result in negative stock'); return; }
-              alert(`✓ Stock adjusted successfully!\n\n${selectedStock.sku}\n${adjustType}: ${adjustQty} units\nPrevious: ${selectedStock.qty}\nNew: ${newQty}`); 
-              setAdjustModal(false); 
-              setSelectedStock(null); 
-              setAdjustType('Add Stock'); 
-              setAdjustQty(''); 
-            }}>Save Adjustment</button>
-          </>}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>SKU</label>
-              <input type="text" value={selectedStock.sku} disabled style={{ ...inputStyle, background:'#f1f5f9', color: TEXT_LIGHT }} />
+      {/* Adjust Quantity Modal */}
+      <Modal open={!!adjustItem} onClose={() => { setAdjustItem(null); setAdjustQty(''); }} title={`Adjust Quantity — ${adjustItem?.sku}`}
+        footer={<>
+          <button style={{ padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`, color:RED, background:'transparent', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={() => { setAdjustItem(null); setAdjustQty(''); }}>Cancel</button>
+          <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={handleAdjustQty}>Save</button>
+        </>}>
+        {adjustItem && (
+          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+            <div style={{ padding:'12px 16px', background:'#f8fafc', borderRadius:10, fontSize:13 }}>
+              <strong>{adjustItem.name}</strong> · Current qty: <strong style={{ color: RED }}>{adjustItem.qty}</strong> · Min: {adjustItem.minQty}
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Item Name</label>
-              <input type="text" value={selectedStock.name} disabled style={{ ...inputStyle, background:'#f1f5f9', color: TEXT_LIGHT }} />
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Current Qty</label>
-              <input type="number" value={selectedStock.qty} disabled style={{ ...inputStyle, background:'#f1f5f9', color: TEXT_LIGHT }} />
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Adjustment Type *</label>
-              <select value={adjustType} onChange={(e) => setAdjustType(e.target.value)} style={inputStyle}>
-                <option>Add Stock</option>
-                <option>Reduce Stock</option>
-              </select>
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Adjustment Qty *</label>
-              <input type="number" placeholder="0" value={adjustQty} onChange={(e) => setAdjustQty(e.target.value)} style={inputStyle} />
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Reason *</label>
-              <select style={inputStyle}>
-                <option>Physical Count Variance</option>
-                <option>Damage/Loss</option>
-                <option>Correction</option>
-                <option>Inventory Write-off</option>
-              </select>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>New Quantity *</label>
+              <input type="number" value={adjustQty} onChange={e => setAdjustQty(e.target.value)} style={inputStyle} autoFocus />
             </div>
           </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:5, marginTop:10 }}>
-            <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Remarks</label>
-            <textarea placeholder="Reason for adjustment…" style={{ ...inputStyle, minHeight:56, resize:'vertical' }} />
-          </div>
-        </Modal>
-      )}
+        )}
+      </Modal>
 
       {/* Move Stock Modal */}
-      {moveModal && selectedStock && (
-        <Modal open={moveModal} onClose={() => { setMoveModal(false); setSelectedStock(null); setMoveToWarehouse(''); setMoveQty(''); }} title="Move Stock"
-          footer={<>
-            <button style={{ padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`, color:RED, background:'transparent', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={() => { setMoveModal(false); setSelectedStock(null); setMoveToWarehouse(''); setMoveQty(''); }}>Cancel</button>
-            <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 3px 10px rgba(185,28,28,0.3)' }} onClick={() => { 
-              if (!moveToWarehouse) { alert('⚠️ Please select destination warehouse'); return; }
-              if (!moveQty || parseInt(moveQty) <= 0) { alert('⚠️ Please enter valid transfer quantity'); return; }
-              if (parseInt(moveQty) > selectedStock.qty) { alert('⚠️ Transfer quantity cannot exceed available stock'); return; }
-              const destWh = warehouses.find(w => w.id === moveToWarehouse);
-              alert(`✓ Stock transferred successfully!\n\n${selectedStock.sku}\nFrom: ${selectedStock.warehouse}\nTo: ${destWh.id}\nQty: ${moveQty} units`); 
-              setMoveModal(false); 
-              setSelectedStock(null); 
-              setMoveToWarehouse(''); 
-              setMoveQty(''); 
-            }}>Complete Transfer</button>
-          </>}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>SKU</label>
-              <input type="text" value={selectedStock.sku} disabled style={{ ...inputStyle, background:'#f1f5f9', color: TEXT_LIGHT }} />
+      <Modal open={!!moveItem} onClose={() => { setMoveItem(null); setMoveToWH(''); }} title={`Move Stock — ${moveItem?.sku}`}
+        footer={<>
+          <button style={{ padding:'8px 18px', borderRadius:10, border:`1.5px solid ${RED}`, color:RED, background:'transparent', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={() => { setMoveItem(null); setMoveToWH(''); }}>Cancel</button>
+          <button style={{ padding:'8px 18px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }} onClick={handleMoveStock}>Move</button>
+        </>}>
+        {moveItem && (
+          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+            <div style={{ padding:'12px 16px', background:'#f8fafc', borderRadius:10, fontSize:13 }}>
+              <strong>{moveItem.name}</strong> · Currently in: <strong style={{ color: RED }}>{moveItem.warehouse}</strong>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Item Name</label>
-              <input type="text" value={selectedStock.name} disabled style={{ ...inputStyle, background:'#f1f5f9', color: TEXT_LIGHT }} />
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>From Warehouse</label>
-              <input type="text" value={selectedStock.warehouse} disabled style={{ ...inputStyle, background:'#f1f5f9', color: TEXT_LIGHT }} />
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>To Warehouse *</label>
-              <select value={moveToWarehouse} onChange={(e) => setMoveToWarehouse(e.target.value)} style={inputStyle}>
-                <option value="">Select warehouse...</option>
-                {warehouses.filter(w => w.id !== selectedStock.warehouse).map(w => <option key={w.id} value={w.id}>{w.id} — {w.name}</option>)}
-              </select>
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Available Qty</label>
-              <input type="number" value={selectedStock.qty} disabled style={{ ...inputStyle, background:'#f1f5f9', color: TEXT_LIGHT }} />
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Transfer Qty *</label>
-              <input type="number" placeholder="0" value={moveQty} onChange={(e) => setMoveQty(e.target.value)} max={selectedStock.qty} style={inputStyle} />
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Batch Number</label>
-              <input type="text" value={selectedStock.batch} disabled style={{ ...inputStyle, background:'#f1f5f9', color: TEXT_LIGHT }} />
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Transfer Type *</label>
-              <select style={inputStyle}>
-                <option>Internal Transfer</option>
-                <option>To Production</option>
-                <option>To Dispatch</option>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Move to Warehouse *</label>
+              <select value={moveToWH} onChange={e => setMoveToWH(e.target.value)} style={inputStyle}>
+                {warehouseList.filter(w => w.id !== moveItem.warehouse).map(w => <option key={w.id} value={w.id}>{w.id} — {w.name}</option>)}
               </select>
             </div>
           </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:5, marginTop:10 }}>
-            <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Remarks</label>
-            <textarea placeholder="Reason for transfer…" style={{ ...inputStyle, minHeight:56, resize:'vertical' }} />
-          </div>
-        </Modal>
-      )}
+        )}
+      </Modal>
     </div>
   );
 }

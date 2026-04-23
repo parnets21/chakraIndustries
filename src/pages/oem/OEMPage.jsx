@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import BarChart from '../../components/charts/BarChart';
+import { toast } from '../../components/common/Toast';
 
 const brands = ['Tata Motors', 'Mahindra', 'Bajaj Auto'];
 
@@ -212,7 +213,7 @@ export default function OEMPage() {
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex gap-2.5 justify-end">
               <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Cancel</button>
-              <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Add Brand</button>
+              <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={() => { setShowModal(false); toast('OEM brand added'); }}>Add Brand</button>
             </div>
           </div>
         </div>

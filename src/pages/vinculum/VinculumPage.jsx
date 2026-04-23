@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
+import { toast } from '../../components/common/Toast';
 
 const syncLogs = [
   { id: 'SYN-001', type: 'Inventory Sync', direction: 'Push', records: 142, status: 'Success', time: '15 Apr, 10:30 AM', duration: '4.2s' },
@@ -29,7 +30,7 @@ export default function VinculumPage({ initialTab = 0 }) {
 
   const handleSync = () => {
     setSyncing(true);
-    setTimeout(() => setSyncing(false), 2500);
+    setTimeout(() => { setSyncing(false); toast('Vinculum sync completed — 572 records synced'); }, 2500);
   };
 
   const kpis = [
@@ -80,7 +81,7 @@ export default function VinculumPage({ initialTab = 0 }) {
                   <option>Manual only</option>
                 </select>
               </div>
-              <button className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">
+              <button onClick={() => toast('Vinculum configuration saved')} className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">
                 Save Configuration
               </button>
             </div>

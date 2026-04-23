@@ -28,42 +28,40 @@ export default function VendorsPage() {
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
 
-  const kpis = [
-    { label: 'Total Vendors',   value: stats.total,       icon: <MdBusiness size={18} />,     color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.25)' },
-    { label: 'Active',          value: stats.active,      icon: <MdCheckCircle size={18} />,  color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)' },
-    { label: 'Inactive',        value: stats.inactive,    icon: <MdWarning size={18} />,      color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.25)' },
-    { label: 'Blacklisted',     value: stats.blacklisted, icon: <MdBlock size={18} />,        color: '#64748b', color2: '#94a3b8', glow: 'rgba(100,116,139,0.2)' },
-  ];
-
   // Load categories from DB
   useEffect(() => {
-    categoryApi.getAll().then(res => setCategories(res.data)).catch(console.error);
+    categoryApi.getAll().then(res => setCategories(res.data)).catch(() => {});
   }, []);
 
-  // Add category to DB
   const handleAddCategory = async (name) => {
-    if (!name.trim()) return;
+    if (!name?.trim()) return;
     try {
       const res = await categoryApi.create(name.trim());
       setCategories(prev => [...prev, res.data]);
       setNewCategory('');
-    } catch (e) {
-      alert(e.message);
-    }
+    } catch (e) { alert(e.message); }
   };
 
-  // Delete category from DB
   const handleDeleteCategory = async (cat) => {
+    // If cat is a plain string (default category, not yet in DB), just remove from local state
+    if (!cat._id) {
+      setCategories(prev => prev.filter(c => (c.name || c) !== (cat.name || cat)));
+      return;
+    }
     try {
       await categoryApi.delete(cat._id);
       setCategories(prev => prev.filter(c => c._id !== cat._id));
-    } catch (e) {
-      alert(e.message);
-    }
+    } catch (e) { alert(e.message); }
   };
 
-  // Category names for dropdown
-  const categoryNames = categories.map(c => c.name);
+  const kpis = [
+    { label: 'Total Vendors',   value: stats.total,       icon: <MdBusiness size={18} />,    color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.25)' },
+    { label: 'Active',          value: stats.active,      icon: <MdCheckCircle size={18} />, color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)' },
+    { label: 'Inactive',        value: stats.inactive,    icon: <MdWarning size={18} />,     color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.25)' },
+    { label: 'Blacklisted',     value: stats.blacklisted, icon: <MdBlock size={18} />,       color: '#64748b', color2: '#94a3b8', glow: 'rgba(100,116,139,0.2)' },
+  ];
+
+  const categoryNames = categories.map(c => c.name || c);
 
   return (
     <div>

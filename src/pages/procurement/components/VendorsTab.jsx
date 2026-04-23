@@ -21,7 +21,11 @@ const inp = {
 const lbl = { fontSize: 11.5, fontWeight: 600, color: '#475569', marginBottom: 5, display: 'block' };
 
 export default function VendorsTab({
-  categories, showVendorModal, setShowVendorModal,
+  categories = [], categoriesRaw = [],
+  showVendorModal, setShowVendorModal,
+  showCategoryModal, setShowCategoryModal,
+  newCategory, setNewCategory,
+  onAddCategory, onDeleteCategory,
 }) {
   const [vendors, setVendors]       = useState([]);
   const [loading, setLoading]       = useState(false);
@@ -683,6 +687,73 @@ export default function VendorsTab({
           )}
         </Modal>
       )}
+
+      {/* ── Manage Categories Modal ── */}
+      <Modal
+        open={!!showCategoryModal}
+        onClose={() => setShowCategoryModal?.(false)}
+        title="Manage Vendor Categories"
+        footer={
+          <button onClick={() => setShowCategoryModal?.(false)} style={{
+            padding: '8px 18px', borderRadius: 9,
+            background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
+            color: '#fff', border: 'none', cursor: 'pointer',
+            fontFamily: 'inherit', fontWeight: 600, fontSize: 13,
+          }}>Done</button>
+        }
+      >
+        {/* Add new category */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <input
+            style={{
+              flex: 1, padding: '9px 12px', border: '1.5px solid #e2e8f0',
+              borderRadius: 9, fontSize: 13, outline: 'none',
+              background: '#fff', color: '#1e293b', fontFamily: 'inherit',
+            }}
+            placeholder="New category name..."
+            value={newCategory || ''}
+            onChange={e => setNewCategory?.(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') onAddCategory?.(newCategory); }}
+          />
+          <button
+            onClick={() => onAddCategory?.(newCategory)}
+            style={{
+              padding: '9px 16px', borderRadius: 9,
+              background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
+              color: '#fff', border: 'none', cursor: 'pointer',
+              fontFamily: 'inherit', fontWeight: 700, fontSize: 15,
+            }}
+          >+</button>
+        </div>
+
+        {/* Category list */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {categoriesRaw.length === 0 ? (
+            <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: '16px 0' }}>
+              No categories yet. Add one above.
+            </div>
+          ) : categoriesRaw.map((cat, i) => (
+            <div key={cat._id || i} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '9px 12px', background: '#f8fafc',
+              borderRadius: 9, border: '1px solid #e2e8f0',
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>
+                {cat.name || cat}
+              </span>
+              <button
+                onClick={() => onDeleteCategory?.(cat)}
+                style={{
+                  padding: '3px 10px', borderRadius: 7,
+                  background: '#fef2f2', color: '#ef4444',
+                  border: '1px solid #fecaca', cursor: 'pointer',
+                  fontFamily: 'inherit', fontSize: 12, fontWeight: 600,
+                }}
+              >✕ Remove</button>
+            </div>
+          ))}
+        </div>
+      </Modal>
     </>
   );
 }

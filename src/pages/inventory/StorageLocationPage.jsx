@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import Modal from '../../components/common/Modal';
+import { toast } from '../../components/common/Toast';
 
 const zones = [
   {
@@ -202,7 +203,7 @@ export default function StorageLocationPage({ initialTab = 0 }) {
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Add Storage Location"
         footer={<>
           <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Cancel</button>
-          <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Save</button>
+          <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={() => { setShowModal(false); toast('Storage location saved'); }}>Save</button>
         </>}>
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Zone</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Zone ID" /></div>

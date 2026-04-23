@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
+import { toast } from '../../components/common/Toast';
 
 const movementLogs = [
   { id: 'LOG-001', barcode: 'BC-SKU1042-001', item: 'Bearing 6205', action: 'Inward', location: 'WH-01 / Rack A3', operator: 'Ramesh', time: '14 Apr, 09:15 AM' },
@@ -34,6 +35,9 @@ export default function BarcodePage({ initialTab = 0 }) {
   const handleScan = () => {
     if (scanInput) {
       setScanned({ sku: scanInput, name: 'Bearing 6205', location: 'WH-01 / Rack A3', qty: 12, status: 'Active' });
+      toast(`Barcode ${scanInput} scanned`);
+    } else {
+      toast('Enter a barcode to scan', 'error');
     }
   };
 
@@ -76,8 +80,8 @@ export default function BarcodePage({ initialTab = 0 }) {
               <input type="number" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" defaultValue="100" />
             </div>
             <div className="flex gap-2.5">
-              <button className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">Generate</button>
-              <button className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]">Print Labels</button>
+              <button onClick={() => toast(`Barcode generated for ${genSKU}`)} className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">Generate</button>
+              <button onClick={() => toast('Labels sent to printer')} className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]">Print Labels</button>
             </div>
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm flex flex-col items-center justify-center gap-4">

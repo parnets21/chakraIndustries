@@ -2,6 +2,7 @@ import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
+import { toast } from '../../components/common/Toast';
 
 const corporateClients = [
   { id: 'CC-001', name: 'Tata Motors Ltd', contact: 'Rajesh Mehta', phone: '9876543210', city: 'Mumbai', tier: 'Platinum', creditLimit: '₹50,00,000', outstanding: '₹12,40,000', status: 'Active' },
@@ -233,7 +234,7 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
       <Modal open={showClientModal} onClose={() => setShowClientModal(false)} title="Add Corporate Client"
         footer={<>
           <button className={btnOutline} onClick={() => setShowClientModal(false)}>Cancel</button>
-          <button className={btnPrimary} onClick={() => { alert('✓ Client added successfully'); setShowClientModal(false); }}>Save Client</button>
+          <button className={btnPrimary} onClick={() => { setShowClientModal(false); toast('Corporate client added'); }}>Save Client</button>
         </>}>
         <div className="grid grid-cols-2 gap-4">
           <div className={fieldCls}><label className={labelCls}>Company Name *</label><input className={inputCls} placeholder="e.g. Maruti Suzuki" /></div>
@@ -251,8 +252,8 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
       {/* Bulk Quotation Modal */}
       <Modal open={showQuoteModal} onClose={() => setShowQuoteModal(false)} title="Generate Bulk Quotation" size="lg"
         footer={<>
-          <button className={btnOutline} onClick={() => { alert('💾 Quotation saved as draft'); setShowQuoteModal(false); }}>Save Draft</button>
-          <button className={btnPrimary} onClick={() => { alert('📧 Quotation sent to client'); setShowQuoteModal(false); }}>Send Quotation</button>
+          <button className={btnOutline} onClick={() => { setShowQuoteModal(false); toast('Quotation saved as draft'); }}>Save Draft</button>
+          <button className={btnPrimary} onClick={() => { setShowQuoteModal(false); toast('Quotation sent to client'); }}>Send Quotation</button>
         </>}>
         <div className="grid grid-cols-2 gap-4 mb-5">
           <div className={fieldCls}><label className={labelCls}>Corporate Client *</label>

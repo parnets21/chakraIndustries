@@ -2,6 +2,7 @@ import { useLocation } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import MainLayout from './layout/MainLayout';
 import AppRoutes from './routes/AppRoutes';
+import { ToastContainer } from './components/common/Toast';
 
 export default function App() {
   const location = useLocation();
@@ -17,6 +18,7 @@ export default function App() {
           <AppRoutes />
         </MainLayout>
       )}
+      <ToastContainer />
     </AuthProvider>
   );
 }

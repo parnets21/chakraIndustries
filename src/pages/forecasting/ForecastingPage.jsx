@@ -2,6 +2,7 @@ import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import LineChart from '../../components/charts/LineChart';
 import BarChart from '../../components/charts/BarChart';
+import { toast } from '../../components/common/Toast';
 
 const tabs = ['Demand Forecast', 'Purchase Planning', 'Inventory Optimization', 'Seasonal Trends'];
 
@@ -45,9 +46,9 @@ export default function ForecastingPage({ initialTab = 0 }) {
     <div>
       {/* Action Bar */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, marginBottom:20, flexWrap:'wrap' }}>
-        {activeTab === 0 && <button onClick={() => alert('📊 Generating demand forecast...')} style={primaryBtn}>Generate Forecast</button>}
-        {activeTab === 1 && <button onClick={() => alert('📦 Auto-generating purchase orders...')} style={primaryBtn}>Auto-Generate POs</button>}
-        {activeTab === 3 && <button onClick={() => alert('💾 Saving seasonal configuration...')} style={primaryBtn}>Save Config</button>}
+        {activeTab === 0 && <button onClick={() => toast('Forecast generated for next 6 months')} style={primaryBtn}>Generate Forecast</button>}
+        {activeTab === 1 && <button onClick={() => toast('Auto-generating POs from forecast…', 'info')} style={primaryBtn}>Auto-Generate POs</button>}
+        {activeTab === 3 && <button onClick={() => toast('Seasonal config saved')} style={primaryBtn}>Save Config</button>}
       </div>
       {activeTab === 0 && (
         <div>

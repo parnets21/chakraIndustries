@@ -2,7 +2,7 @@ import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
-import CreditNoteTrackerEnhanced from './components/CreditNoteTrackerEnhanced';
+import { toast } from '../../components/common/Toast';
 
 const tabs = ['Ledger', 'BRS', 'Payments', 'Credit / Debit Notes', 'Ledger Matching'];
 
@@ -47,6 +47,22 @@ const payments = [
 export default function FinancePage({ initialTab = 0 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [showPayModal, setShowPayModal] = useState(false);
+  const [ledgerList, setLedgerList] = useState(ledgerEntries);
+  const [paymentList, setPaymentList] = useState(payments);
+
+  const handleSaveEntry = () => {
+    const labels = ['Ledger entry', 'BRS statement', 'Payment', 'Credit/Debit note', 'Ledger match'];
+    toast(`${labels[activeTab] || 'Entry'} saved`);
+    setShowPayModal(false);
+  };
+
+  const handleAutoMatch = () => {
+    toast('Auto-match completed — 3 entries matched', 'success');
+  };
+
+  const handleUploadStatement = () => {
+    toast('Upload feature coming soon', 'info');
+  };
 
   const primaryBtn = {
     display:'inline-flex', alignItems:'center', gap:6,
@@ -76,13 +92,13 @@ export default function FinancePage({ initialTab = 0 }) {
       {/* Action Bar */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, marginBottom:20, flexWrap:'wrap' }}>
         {activeTab === 0 && <button onClick={() => setShowPayModal(true)} style={primaryBtn}>+ Add Entry</button>}
-        {activeTab === 1 && <button onClick={() => alert('📄 Bank statement upload feature')} style={outlineBtn}>⬆ Upload Statement</button>}
+        {activeTab === 1 && <button onClick={handleUploadStatement} style={outlineBtn}>⬆ Upload Statement</button>}
         {activeTab === 2 && <button onClick={() => setShowPayModal(true)} style={primaryBtn}>+ Add Payment</button>}
         {activeTab === 3 && <>
           <button onClick={() => setShowPayModal(true)} style={outlineBtn}>+ Debit Note</button>
           <button onClick={() => setShowPayModal(true)} style={primaryBtn}>+ Credit Note</button>
         </>}
-        {activeTab === 4 && <button onClick={() => alert('⚡ Running auto-match algorithm...')} style={outlineBtn}>Run Auto-Match</button>}
+        {activeTab === 4 && <button onClick={handleAutoMatch} style={outlineBtn}>Run Auto-Match</button>}
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         {kpis.map((k, i) => (
@@ -301,7 +317,7 @@ export default function FinancePage({ initialTab = 0 }) {
       <Modal open={showPayModal} onClose={() => setShowPayModal(false)} title="Add Payment"
         footer={<>
           <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]" onClick={() => setShowPayModal(false)}>Cancel</button>
-          <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={() => setShowPayModal(false)}>Save Payment</button>
+          <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={handleSaveEntry}>Save Payment</button>
         </>}>
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Party Name *</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Customer / Vendor" /></div>

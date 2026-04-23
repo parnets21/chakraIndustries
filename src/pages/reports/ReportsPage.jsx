@@ -3,6 +3,7 @@ import LineChart from '../../components/charts/LineChart';
 import BarChart from '../../components/charts/BarChart';
 import DonutChart from '../../components/charts/DonutChart';
 import StatusBadge from '../../components/common/StatusBadge';
+import { toast } from '../../components/common/Toast';
 
 const tabLabels = ['Sales Analytics', 'Profit & Loss', 'Inventory Turnover', 'Stock Summary', 'Purchase Register', 'Production Report', 'Return Reconciliation'];
 
@@ -76,8 +77,8 @@ export default function ReportsPage({ initialTab = 0 }) {
     <div>
       {/* Action Bar */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, marginBottom:20, flexWrap:'wrap' }}>
-        <button style={outlineBtn}>⬇ Export PDF</button>
-        <button style={primaryBtn}>⬇ Export Excel</button>
+        <button onClick={() => toast('PDF export coming soon', 'info')} style={outlineBtn}>⬇ Export PDF</button>
+        <button onClick={() => toast('Excel report downloaded')} style={primaryBtn}>⬇ Export Excel</button>
       </div>
       {activeTab === 0 && (
         <div>

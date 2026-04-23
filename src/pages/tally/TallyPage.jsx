@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import Modal from '../../components/common/Modal';
+import { toast } from '../../components/common/Toast';
 
 const tabs = ['Sync Dashboard', 'Master Data Sync', 'Transaction Sync', 'Sync Logs', 'Configuration'];
 
@@ -47,7 +48,7 @@ export default function TallyPage({ initialTab = 0 }) {
 
   const handleManualSync = (type) => {
     setSyncing(true);
-    setTimeout(() => setSyncing(false), 2000);
+    setTimeout(() => { setSyncing(false); toast(`${type || 'Sync'} completed successfully`); }, 2000);
   };
 
   const kpis = [
@@ -326,8 +327,8 @@ export default function TallyPage({ initialTab = 0 }) {
               </select>
             </div>
             <div className="flex gap-2">
-              <button className={btnOutline}>Test Connection</button>
-              <button className={btnPrimary}>Save Configuration</button>
+              <button onClick={() => { setConnectionStatus(prev => prev === 'Connected' ? 'Disconnected' : 'Connected'); toast(connectionStatus === 'Connected' ? 'Tally disconnected' : 'Tally connected ✓', connectionStatus === 'Connected' ? 'warning' : 'success'); }} className={btnOutline}>Test Connection</button>
+              <button onClick={() => toast('Tally configuration saved')} className={btnPrimary}>Save Configuration</button>
             </div>
           </div>
 

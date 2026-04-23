@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import LineChart from '../../components/charts/LineChart';
 import BarChart from '../../components/charts/BarChart';
 import DonutChart from '../../components/charts/DonutChart';
@@ -103,7 +104,9 @@ function CardHead({ title, sub, right }) {
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
+  const navigate = useNavigate();
   const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const go = (path) => navigate(path);
 
   return (
     <>
@@ -210,13 +213,19 @@ export default function DashboardPage() {
 
         {/* ── KPI Cards ── */}
         <div className="db-kpi-grid">
-          {kpis.map((k, i) => (
-            <div key={i} className="db-kpi-card" style={{
+          {kpis.map((k, i) => {
+            const kpiLinks = ['/finance/ledger', '/orders', '/inventory/dashboard', '/production/workorders', '/logistics/dispatch'];
+            return (
+            <div key={i} className="db-kpi-card" onClick={() => go(kpiLinks[i])} style={{
               background:'#fff', borderRadius:14,
               border:'1px solid #e8edf2', padding:'16px',
               boxShadow:'0 2px 8px rgba(15,23,42,0.05)',
-              position:'relative', overflow:'hidden', cursor:'default',
-            }}>
+              position:'relative', overflow:'hidden', cursor:'pointer',
+              transition:'transform 0.15s, box-shadow 0.15s',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow='0 6px 20px rgba(15,23,42,0.1)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='0 2px 8px rgba(15,23,42,0.05)'; }}
+            >
               <div style={{ position:'absolute', top:0, left:0, right:0, height:3, background:k.gradient, borderRadius:'14px 14px 0 0' }} />
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
                 <div style={{
@@ -239,7 +248,8 @@ export default function DashboardPage() {
               <div style={{ fontSize:11.5, color:'#64748b', fontWeight:500, marginTop:4 }}>{k.label}</div>
               <div style={{ fontSize:10.5, color:'#94a3b8', marginTop:2 }}>{k.sub}</div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* ── Charts Row 1: Revenue + Order Status ── */}
@@ -270,8 +280,12 @@ export default function DashboardPage() {
 
         {/* ── Operational Alerts ── */}
         <div className="db-alerts">
-          {operationalAlerts.map((a, i) => (
-            <Card key={i} style={{ padding:'14px 16px', display:'flex', alignItems:'center', gap:12 }}>
+          {operationalAlerts.map((a, i) => {
+            const alertLinks = ['/procurement/grn', '/returns/requests', '/logistics/dispatch', '/production/tracking'];
+            return (
+            <Card key={i} style={{ padding:'14px 16px', display:'flex', alignItems:'center', gap:12, cursor:'pointer' }}
+              onClick={() => go(alertLinks[i])}
+            >
               <div style={{
                 width:42, height:42, borderRadius:12, flexShrink:0,
                 background:a.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18,
@@ -281,7 +295,8 @@ export default function DashboardPage() {
                 <div style={{ fontSize:11, color:'#64748b', marginTop:3, fontWeight:500 }}>{a.label}</div>
               </div>
             </Card>
-          ))}
+            );
+          })}
         </div>
 
         {/* ── Charts Row 2: Inventory + Production Efficiency ── */}
@@ -364,6 +379,7 @@ export default function DashboardPage() {
                 <tbody>
                   {recentOrders.map((o, i) => (
                     <tr key={i} style={{ borderBottom:'1px solid #f8fafc', cursor:'pointer' }}
+                      onClick={() => go('/orders')}
                       onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
                       onMouseLeave={e => e.currentTarget.style.background='transparent'}
                     >
@@ -390,9 +406,9 @@ export default function DashboardPage() {
               />
               <div style={{ padding:'0 18px 14px' }}>
                 {lowStock.map((s, i) => (
-                  <div key={i} style={{
+                  <div key={i} onClick={() => go('/inventory/stock')} style={{
                     display:'flex', alignItems:'center', justifyContent:'space-between',
-                    padding:'9px 0',
+                    padding:'9px 0', cursor:'pointer',
                     borderBottom: i < lowStock.length-1 ? '1px solid #f1f5f9' : 'none',
                   }}>
                     <div>
@@ -412,8 +428,8 @@ export default function DashboardPage() {
               <CardHead title="Pending Approvals" sub="Awaiting your action" />
               <div style={{ padding:'0 18px 14px' }}>
                 {pendingApprovals.map((a, i) => (
-                  <div key={i} style={{
-                    padding:'9px 0',
+                  <div key={i} onClick={() => go('/procurement/approvals')} style={{
+                    padding:'9px 0', cursor:'pointer',
                     borderBottom: i < pendingApprovals.length-1 ? '1px solid #f1f5f9' : 'none',
                   }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:3 }}>

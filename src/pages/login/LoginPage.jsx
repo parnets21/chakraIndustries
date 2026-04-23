@@ -82,7 +82,7 @@ export default function LoginPage() {
           flex-direction: column;
           justify-content: center;
           align-items: center;
-          padding: 60px 50px;
+          padding: 40px 36px;
           position: relative;
           background: linear-gradient(135deg, #ffffff 0%, #fef2f2 50%, #fee2e2 100%);
           overflow: hidden;
@@ -92,10 +92,7 @@ export default function LoginPage() {
         .left-panel::before {
           content: '';
           position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
+          top: 0; left: 0; right: 0; bottom: 0;
           background: 
             radial-gradient(circle at 20% 30%, rgba(192, 57, 43, 0.05) 0%, transparent 50%),
             radial-gradient(circle at 80% 70%, rgba(231, 76, 60, 0.05) 0%, transparent 50%);
@@ -106,41 +103,39 @@ export default function LoginPage() {
           z-index: 1;
           text-align: center;
           animation: fadeInUp 0.8s ease;
-          max-width: 520px;
+          max-width: 400px;
         }
 
         .brand-logo {
-          width: 120px;
-          height: 120px;
+          width: 80px;
+          height: 80px;
           background: white;
-          border-radius: 24px;
+          border-radius: 18px;
           display: flex;
           align-items: center;
           justify-content: center;
-          margin: 0 auto 32px;
+          margin: 0 auto 20px;
           box-shadow: 
-            0 20px 40px rgba(192, 57, 43, 0.15),
+            0 12px 28px rgba(192, 57, 43, 0.15),
             0 0 0 1px rgba(192, 57, 43, 0.1);
           animation: float 6s ease-in-out infinite;
           position: relative;
           transition: transform 0.4s ease;
         }
 
-        .brand-logo:hover {
-          transform: scale(1.05);
-        }
+        .brand-logo:hover { transform: scale(1.05); }
 
         .brand-logo img {
-          width: 80px;
-          height: 80px;
+          width: 52px;
+          height: 52px;
           object-fit: contain;
         }
 
         .brand-title {
-          font-size: 36px;
+          font-size: 26px;
           font-weight: 900;
-          margin-bottom: 12px;
-          letter-spacing: -1px;
+          margin-bottom: 8px;
+          letter-spacing: -0.5px;
           line-height: 1.1;
           background: linear-gradient(135deg, #1a202c 0%, #4a5568 100%);
           -webkit-background-clip: text;
@@ -149,22 +144,22 @@ export default function LoginPage() {
         }
 
         .brand-subtitle {
-          font-size: 10px;
+          font-size: 9px;
           font-weight: 800;
-          letter-spacing: 4px;
-          margin-bottom: 24px;
+          letter-spacing: 3px;
+          margin-bottom: 16px;
           color: #c0392b;
           background: rgba(192, 57, 43, 0.08);
           display: inline-block;
-          padding: 8px 20px;
+          padding: 5px 14px;
           border-radius: 20px;
         }
 
         .brand-description {
-          font-size: 15px;
-          line-height: 1.7;
-          max-width: 420px;
-          margin: 0 auto 36px;
+          font-size: 13px;
+          line-height: 1.6;
+          max-width: 340px;
+          margin: 0 auto 24px;
           font-weight: 500;
           color: #4a5568;
         }
@@ -172,59 +167,59 @@ export default function LoginPage() {
         .stats-grid {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
-          gap: 14px;
-          max-width: 420px;
+          gap: 10px;
+          max-width: 340px;
           margin: 0 auto;
         }
 
         .stat-card {
           background: white;
-          border: 2px solid rgba(192, 57, 43, 0.15);
-          border-radius: 16px;
-          padding: 18px 12px;
+          border: 1.5px solid rgba(192, 57, 43, 0.15);
+          border-radius: 12px;
+          padding: 14px 8px;
           text-align: center;
           transition: all 0.3s ease;
-          box-shadow: 0 4px 12px rgba(192, 57, 43, 0.08);
+          box-shadow: 0 3px 8px rgba(192, 57, 43, 0.07);
         }
 
         .stat-card:hover {
           background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
-          transform: translateY(-4px);
+          transform: translateY(-3px);
           border-color: rgba(192, 57, 43, 0.3);
-          box-shadow: 0 8px 24px rgba(192, 57, 43, 0.15);
+          box-shadow: 0 6px 18px rgba(192, 57, 43, 0.13);
         }
 
         .stat-number {
-          font-size: 32px;
+          font-size: 22px;
           font-weight: 900;
           margin-bottom: 4px;
           display: block;
         }
 
         .stat-label {
-          font-size: 10px;
+          font-size: 9px;
           font-weight: 700;
           text-transform: uppercase;
-          letter-spacing: 1px;
+          letter-spacing: 0.8px;
           color: #64748b;
         }
 
         .decorative-dots {
           position: absolute;
-          bottom: 40px;
+          bottom: 28px;
           left: 50%;
           transform: translateX(-50%);
           display: flex;
-          gap: 10px;
+          gap: 8px;
         }
 
         .dot {
-          width: 10px;
-          height: 10px;
+          width: 7px;
+          height: 7px;
           background: #c0392b;
           border-radius: 50%;
           animation: pulse 2s ease-in-out infinite;
-          box-shadow: 0 0 10px rgba(192, 57, 43, 0.3);
+          box-shadow: 0 0 8px rgba(192, 57, 43, 0.3);
         }
 
         .dot:nth-child(2) { animation-delay: 0.3s; }
@@ -236,7 +231,7 @@ export default function LoginPage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 40px;
+          padding: 32px 28px;
           position: relative;
         }
 
@@ -247,32 +242,28 @@ export default function LoginPage() {
         }
 
         .shape-1 {
-          top: -100px;
-          right: -100px;
-          width: 300px;
-          height: 300px;
-          background: radial-gradient(circle, rgba(192,57,43,0.08) 0%, transparent 70%);
+          top: -80px; right: -80px;
+          width: 220px; height: 220px;
+          background: radial-gradient(circle, rgba(192,57,43,0.07) 0%, transparent 70%);
           animation: float 10s ease-in-out infinite;
         }
 
         .shape-2 {
-          bottom: -80px;
-          left: -80px;
-          width: 250px;
-          height: 250px;
-          background: radial-gradient(circle, rgba(243,156,18,0.08) 0%, transparent 70%);
+          bottom: -60px; left: -60px;
+          width: 180px; height: 180px;
+          background: radial-gradient(circle, rgba(243,156,18,0.07) 0%, transparent 70%);
           animation: float 12s ease-in-out infinite;
           animation-delay: 2s;
         }
 
         .login-card {
           width: 100%;
-          max-width: 440px;
-          background: rgba(255, 255, 255, 0.95);
+          max-width: 400px;
+          background: rgba(255, 255, 255, 0.97);
           backdrop-filter: blur(20px);
-          border-radius: 28px;
-          padding: 40px;
-          box-shadow: 0 24px 48px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+          border-radius: 22px;
+          padding: 32px 30px;
+          box-shadow: 0 16px 40px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255,255,255,0.5) inset;
           border: 1px solid rgba(226, 232, 240, 0.6);
           animation: fadeInUp 0.6s ease;
           position: relative;
@@ -281,19 +272,19 @@ export default function LoginPage() {
 
         .login-header {
           text-align: center;
-          margin-bottom: 32px;
+          margin-bottom: 24px;
         }
 
         .login-title {
-          font-size: 28px;
+          font-size: 22px;
           font-weight: 800;
           color: #1a202c;
-          margin-bottom: 8px;
-          letter-spacing: -0.5px;
+          margin-bottom: 6px;
+          letter-spacing: -0.3px;
         }
 
         .login-subtitle {
-          font-size: 14px;
+          font-size: 13px;
           color: #64748b;
           font-weight: 500;
         }
@@ -301,29 +292,29 @@ export default function LoginPage() {
         .error-alert {
           display: flex;
           align-items: center;
-          gap: 12px;
-          padding: 14px 18px;
+          gap: 10px;
+          padding: 11px 14px;
           background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-          border: 2px solid #f87171;
-          border-radius: 16px;
+          border: 1.5px solid #f87171;
+          border-radius: 12px;
           color: #dc2626;
-          font-size: 14px;
+          font-size: 13px;
           font-weight: 600;
-          margin-bottom: 24px;
+          margin-bottom: 18px;
           animation: slideInLeft 0.4s ease;
         }
 
         .form-group {
-          margin-bottom: 20px;
+          margin-bottom: 16px;
         }
 
         .form-label {
           display: block;
-          font-size: 13px;
+          font-size: 12px;
           font-weight: 600;
           color: #374151;
-          margin-bottom: 8px;
-          margin-left: 4px;
+          margin-bottom: 6px;
+          margin-left: 2px;
         }
 
         .input-wrapper {
@@ -332,7 +323,7 @@ export default function LoginPage() {
 
         .input-icon {
           position: absolute;
-          left: 16px;
+          left: 13px;
           top: 50%;
           transform: translateY(-50%);
           color: #9ca3af;
@@ -342,13 +333,13 @@ export default function LoginPage() {
 
         .form-input {
           width: 100%;
-          padding: 13px 16px 13px 48px;
-          font-size: 14px;
+          padding: 10px 14px 10px 40px;
+          font-size: 13px;
           font-weight: 500;
           color: #1a202c;
           background: #f8fafc;
-          border: 2px solid #e2e8f0;
-          border-radius: 14px;
+          border: 1.5px solid #e2e8f0;
+          border-radius: 11px;
           outline: none;
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           font-family: inherit;
@@ -357,27 +348,23 @@ export default function LoginPage() {
         .form-input:focus {
           background: #fff;
           border-color: #c0392b;
-          box-shadow: 0 0 0 4px rgba(192, 57, 43, 0.1);
-          transform: translateY(-2px);
-        }
-
-        .form-input:focus ~ .input-icon {
-          color: #c0392b;
+          box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.1);
+          transform: translateY(-1px);
         }
 
         .toggle-password {
           position: absolute;
-          right: 16px;
+          right: 12px;
           top: 50%;
           transform: translateY(-50%);
           background: none;
           border: none;
           color: #9ca3af;
           cursor: pointer;
-          padding: 8px;
+          padding: 6px;
           display: flex;
           align-items: center;
-          border-radius: 8px;
+          border-radius: 7px;
           transition: all 0.2s ease;
         }
 
@@ -390,38 +377,38 @@ export default function LoginPage() {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin-bottom: 28px;
+          margin-bottom: 22px;
         }
 
         .checkbox-wrapper {
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 7px;
           cursor: pointer;
           user-select: none;
         }
 
         .checkbox-input {
-          width: 18px;
-          height: 18px;
+          width: 15px;
+          height: 15px;
           cursor: pointer;
           accent-color: #c0392b;
         }
 
         .checkbox-label {
-          font-size: 13px;
+          font-size: 12px;
           color: #4b5563;
           font-weight: 500;
         }
 
         .forgot-link {
-          font-size: 13px;
+          font-size: 12px;
           color: #64748b;
           text-decoration: none;
           font-weight: 600;
           display: flex;
           align-items: center;
-          gap: 4px;
+          gap: 3px;
           transition: all 0.2s ease;
           position: relative;
         }
@@ -429,37 +416,30 @@ export default function LoginPage() {
         .forgot-link::after {
           content: '';
           position: absolute;
-          bottom: -2px;
-          left: 0;
-          width: 0;
-          height: 2px;
+          bottom: -2px; left: 0;
+          width: 0; height: 2px;
           background: #c0392b;
           transition: width 0.3s ease;
         }
 
-        .forgot-link:hover {
-          color: #c0392b;
-        }
-
-        .forgot-link:hover::after {
-          width: calc(100% - 20px);
-        }
+        .forgot-link:hover { color: #c0392b; }
+        .forgot-link:hover::after { width: calc(100% - 18px); }
 
         .submit-btn {
           width: 100%;
-          padding: 14px 20px;
-          font-size: 15px;
+          padding: 11px 18px;
+          font-size: 14px;
           font-weight: 700;
           color: #fff;
           background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%);
           border: none;
-          border-radius: 14px;
+          border-radius: 11px;
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 10px;
-          box-shadow: 0 8px 24px rgba(192, 57, 43, 0.35);
+          gap: 8px;
+          box-shadow: 0 6px 18px rgba(192, 57, 43, 0.32);
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           font-family: inherit;
           position: relative;
@@ -469,76 +449,60 @@ export default function LoginPage() {
         .submit-btn::before {
           content: '';
           position: absolute;
-          top: 0;
-          left: -100%;
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+          top: 0; left: -100%;
+          width: 100%; height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
           transition: left 0.5s;
         }
 
-        .submit-btn:hover:not(:disabled)::before {
-          left: 100%;
-        }
+        .submit-btn:hover:not(:disabled)::before { left: 100%; }
 
         .submit-btn:hover:not(:disabled) {
-          transform: translateY(-3px);
-          box-shadow: 0 12px 32px rgba(192, 57, 43, 0.45);
+          transform: translateY(-2px);
+          box-shadow: 0 10px 26px rgba(192, 57, 43, 0.42);
         }
 
-        .submit-btn:active:not(:disabled) {
-          transform: translateY(-1px);
-        }
-
-        .submit-btn:disabled {
-          opacity: 0.7;
-          cursor: not-allowed;
-        }
+        .submit-btn:active:not(:disabled) { transform: translateY(-1px); }
+        .submit-btn:disabled { opacity: 0.7; cursor: not-allowed; }
 
         .spinner {
-          width: 20px;
-          height: 20px;
-          border: 3px solid rgba(255, 255, 255, 0.3);
+          width: 17px;
+          height: 17px;
+          border: 2.5px solid rgba(255, 255, 255, 0.3);
           border-top-color: #fff;
           border-radius: 50%;
           animation: spin 0.6s linear infinite;
         }
 
         .login-footer {
-          margin-top: 32px;
-          padding-top: 24px;
+          margin-top: 22px;
+          padding-top: 18px;
           border-top: 1px solid #e2e8f0;
           text-align: center;
         }
 
         .footer-text {
-          font-size: 13px;
+          font-size: 11px;
           color: #94a3b8;
           font-weight: 500;
         }
 
         /* Responsive */
         @media (max-width: 1024px) {
-          .left-panel {
-            display: none;
-          }
-          .right-panel {
-            flex: 1;
-          }
+          .left-panel { display: none; }
+          .right-panel { flex: 1; }
         }
 
         @media (max-width: 640px) {
           .login-card {
-            padding: 32px 24px;
-            border-radius: 24px;
+            padding: 24px 20px;
+            border-radius: 18px;
           }
-          .login-title {
-            font-size: 26px;
-          }
+          .login-title { font-size: 20px; }
           .form-options {
             flex-direction: column;
             align-items: flex-start;
-            gap: 16px;
+            gap: 12px;
           }
         }
       `}</style>
@@ -673,11 +637,11 @@ export default function LoginPage() {
             <div className="login-footer">
               <div style={{ 
                 background: '#fef3c7', 
-                border: '2px solid #fbbf24', 
-                borderRadius: '12px', 
-                padding: '16px', 
-                marginBottom: '20px',
-                fontSize: '12px',
+                border: '1.5px solid #fbbf24', 
+                borderRadius: '10px', 
+                padding: '12px 14px', 
+                marginBottom: '14px',
+                fontSize: '11px',
                 textAlign: 'left'
               }}>
                 <div style={{ fontWeight: '700', marginBottom: '8px', color: '#92400e', display: 'flex', alignItems: 'center', gap: '8px' }}>

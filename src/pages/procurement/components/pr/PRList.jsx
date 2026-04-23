@@ -3,16 +3,33 @@ import StatusBadge from '../../../../components/common/StatusBadge';
 import PRApprovalBadge from './PRApprovalBadge';
 import Modal from '../../../../components/common/Modal';
 import { prApi } from '../../../../api/prApi';
-import { FaRegEdit, FaRegTrashAlt } from 'react-icons/fa';
+import { FaRegTrashAlt } from 'react-icons/fa';
 import { MdVisibility, MdEdit } from 'react-icons/md';
 
-export default function PRList({ onEdit, onView, refresh }) {
+function useIsMobile() {
+  const [mobile, setMobile] = useState(() => window.innerWidth < 640);
+  useEffect(() => {
+    const fn = () => setMobile(window.innerWidth < 640);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
+  return mobile;
+}
+
+const priorityStyle = (p) => ({
+  fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, display: 'inline-block',
+  background: p === 'Critical' ? '#fee2e2' : p === 'Urgent' ? '#fef3c7' : '#f1f5f9',
+  color: p === 'Critical' ? '#991b1b' : p === 'Urgent' ? '#92400e' : '#475569',
+});
+
+export default function PRList({ onEdit, refresh, viewOnly }) {
   const [prs, setPrs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState('');
   const [viewPR, setViewPR] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const isMobile = useIsMobile();
 
   const fetchPRs = async () => {
     setLoading(true);
@@ -21,11 +38,8 @@ export default function PRList({ onEdit, onView, refresh }) {
       if (filterStatus) params.status = filterStatus;
       const res = await prApi.getAll(params);
       setPrs(res.data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { fetchPRs(); }, [filterStatus, refresh]);
@@ -36,229 +50,288 @@ export default function PRList({ onEdit, onView, refresh }) {
       await prApi.delete(pr._id);
       setDeleteConfirm(null);
       fetchPRs();
-    } catch (e) {
-      alert(e.message);
-    } finally {
-      setDeleting(false);
-    }
+    } catch (e) { alert(e.message); }
+    finally { setDeleting(false); }
   };
+
+  const ActionButtons = ({ p }) => (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+      <button
+        title="View"
+        style={{ background: '#f1f5f9', color: '#334155', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '1px solid #e2e8f0', borderRadius: 6 }}
+        onClick={() => setViewPR(p)}
+      ><MdVisibility size={16} /></button>
+      {!viewOnly && <>
+        <button
+          title="Edit"
+          style={{ background: '#fef2f2', color: '#ef4444', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '1px solid #fecaca', borderRadius: 6 }}
+          onClick={() => onEdit?.(p)}
+        ><MdEdit size={16} /></button>
+        <button
+          title="Delete"
+          style={{ background: '#fee2e2', color: '#991b1b', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '1px solid #fecaca', borderRadius: 6 }}
+          onClick={() => setDeleteConfirm(p)}
+        ><FaRegTrashAlt size={14} /></button>
+      </>}
+    </div>
+  );
 
   return (
     <>
-    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '22px 22px 14px', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ fontWeight: 700 }}>Purchase Requisitions</div>
-        <select className="form-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ maxWidth: 160 }}>
-          <option value="">All Status</option>
-          <option>Pending</option>
-          <option>Approved</option>
-          <option>Rejected</option>
-        </select>
-      </div>
-
-      {loading ? (
-        <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
-      ) : (
-        <div style={{ overflowX: 'auto', width: '100%' }}>
-          <table style={{ width: '100%', minWidth: '900px' }}>
-            <thead>
-              <tr>
-                <th style={{ padding: '11px 12px' }}>PR ID</th>
-                <th style={{ padding: '11px 12px' }}>Department</th>
-                <th style={{ padding: '11px 12px' }}>Items</th>
-                <th style={{ padding: '11px 12px' }}>Value</th>
-                <th style={{ padding: '11px 12px' }}>Requested By</th>
-                <th style={{ padding: '11px 12px' }}>Required By</th>
-                <th style={{ padding: '11px 12px' }}>Priority</th>
-                <th style={{ padding: '11px 12px' }}>Approval</th>
-                <th style={{ padding: '11px 12px' }}>Status</th>
-                <th style={{ padding: '11px 12px' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {prs.length === 0 ? (
-                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 24, color: '#94a3b8' }}>No records found</td></tr>
-              ) : prs.map((p) => (
-                <tr key={p._id}>
-                  <td style={{ fontWeight: 600, color: 'var(--primary)', whiteSpace: 'nowrap', padding: '12px' }}>{p.prId}</td>
-                  <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>{p.department}</td>
-                  <td style={{ padding: '12px' }}>{p.items?.length ?? 0}</td>
-                  <td style={{ fontWeight: 700, whiteSpace: 'nowrap', padding: '12px' }}>₹{Math.round(p.totalValue).toLocaleString()}</td>
-                  <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>{p.requestedBy}</td>
-                  <td style={{ color: '#64748b', fontSize: 12, whiteSpace: 'nowrap', padding: '12px' }}>
-                    {p.requiredBy ? new Date(p.requiredBy).toLocaleDateString('en-IN') : '—'}
-                  </td>
-                  <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>
-                    <span style={{
-                      fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, display: 'inline-block',
-                      background: p.priority === 'Critical' ? '#fee2e2' : p.priority === 'Urgent' ? '#fef3c7' : '#f1f5f9',
-                      color: p.priority === 'Critical' ? '#991b1b' : p.priority === 'Urgent' ? '#92400e' : '#475569',
-                    }}>{p.priority}</span>
-                  </td>
-                  <td style={{ whiteSpace: 'nowrap', padding: '12px' }}><PRApprovalBadge status={p.status} /></td>
-                  <td style={{ whiteSpace: 'nowrap', padding: '12px' }}><StatusBadge status={p.status} /></td>
-                  <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <button className="btn btn-sm" title="View" style={{ background: '#f1f5f9', color: 'var(--text)', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontFamily: 'inherit', border: '1px solid #e2e8f0', borderRadius: 6, transition: 'all .15s' }} onClick={() => setViewPR(p)} onMouseEnter={(e) => { e.target.style.background = '#e2e8f0'; }} onMouseLeave={(e) => { e.target.style.background = '#f1f5f9'; }}>
-                        <MdVisibility size={16} />
-                      </button>
-                      <button className="btn btn-sm" title="Edit" style={{ background: '#fef2f2', color: '#ef4444', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontFamily: 'inherit', border: '1px solid #fecaca', borderRadius: 6, transition: 'all .15s' }} onClick={() => { onEdit?.(p); }} onMouseEnter={(e) => { e.target.style.background = '#fee2e2'; }} onMouseLeave={(e) => { e.target.style.background = '#fef2f2'; }}>
-                        <MdEdit size={16} />
-                      </button>
-                      <button className="btn btn-sm" title="Delete" style={{ background: '#fee2e2', color: '#991b1b', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontFamily: 'inherit', border: '1px solid #fecaca', borderRadius: 6, transition: 'all .15s' }} onClick={() => setDeleteConfirm(p)} onMouseEnter={(e) => { e.target.style.background = '#fecaca'; }} onMouseLeave={(e) => { e.target.style.background = '#fee2e2'; }}>
-                        <FaRegTrashAlt size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-
-    {/* View PR Modal */}
-    {viewPR && (
-      <Modal open={!!viewPR} onClose={() => setViewPR(null)} title={`Purchase Requisition: ${viewPR.prId}`} size="lg"
-        footer={
-          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', gap: 12 }}>
-            <div style={{ fontSize: 12, color: '#64748B' }}>
-              Status: <span style={{ fontWeight: 600, color: viewPR.status === 'Approved' ? '#047857' : viewPR.status === 'Rejected' ? '#DC2626' : '#F59E0B' }}>{viewPR.status}</span>
-            </div>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <button style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fef2f2', border: '1.5px solid #fecaca', color: '#ef4444', padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }} onClick={() => { onEdit?.(viewPR); setViewPR(null); }} onMouseEnter={(e) => { e.target.style.background = '#fee2e2'; e.target.style.borderColor = '#fca5a5'; }} onMouseLeave={(e) => { e.target.style.background = '#fef2f2'; e.target.style.borderColor = '#fecaca'; }}><MdEdit size={16} /> Edit PR</button>
-              <button style={{ background: 'transparent', border: '1.5px solid #cbd5e1', color: '#475569', padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }} onClick={() => setViewPR(null)} onMouseEnter={(e) => { e.target.style.background = '#f1f5f9'; }} onMouseLeave={(e) => { e.target.style.background = 'transparent'; }}>Close</button>
-            </div>
-          </div>
-        }>
-        
-        <style>{`
-          .pr-details { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 20px; }
-          .pr-full-width { grid-column: span 3; }
-          .pr-field { display: flex; flex-direction: column; gap: 3px; }
-          .pr-label { font-size: 11px; font-weight: 500; color: #64748B; text-transform: uppercase; letter-spacing: 0.3px; }
-          .pr-value { font-size: 14px; font-weight: 400; color: #1E293B; }
-          .pr-section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #E4E7EC; }
-          .pr-section-header h3 { font-size: 13px; font-weight: 700; color: #0F172A; text-transform: uppercase; letter-spacing: 0.3px; margin: 0; }
-        `}</style>
-
-        {/* PR Details */}
-        <div style={{ marginBottom: 20 }}>
-          <div className="pr-section-header">
-            <h3>Requisition Details</h3>
-          </div>
-          <div className="pr-details">
-            <div className="pr-field">
-              <div className="pr-label">Department</div>
-              <div className="pr-value">{viewPR.department}</div>
-            </div>
-            <div className="pr-field">
-              <div className="pr-label">Requested By</div>
-              <div className="pr-value">{viewPR.requestedBy}</div>
-            </div>
-            <div className="pr-field">
-              <div className="pr-label">Required By</div>
-              <div className="pr-value">{viewPR.requiredBy ? new Date(viewPR.requiredBy).toLocaleDateString('en-IN') : '—'}</div>
-            </div>
-            <div className="pr-field">
-              <div className="pr-label">Priority</div>
-              <div className="pr-value">
-                <span style={{
-                  fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 6, display: 'inline-block',
-                  background: viewPR.priority === 'Critical' ? '#FEE2E2' : viewPR.priority === 'Urgent' ? '#FEF3C7' : '#F1F5F9',
-                  color: viewPR.priority === 'Critical' ? '#991B1B' : viewPR.priority === 'Urgent' ? '#92400E' : '#475569',
-                }}>{viewPR.priority}</span>
-              </div>
-            </div>
-            <div className="pr-field">
-              <div className="pr-label">Cost Center</div>
-              <div className="pr-value">{viewPR.costCenter || '—'}</div>
-            </div>
-            <div className="pr-field">
-              <div className="pr-label">Total Value</div>
-              <div className="pr-value" style={{ fontWeight: 700, color: '#c0392b', fontSize: 16 }}>₹{Math.round(viewPR.totalValue).toLocaleString()}</div>
-            </div>
-            {viewPR.remarks && (
-              <div className="pr-field pr-full-width">
-                <div className="pr-label">Remarks</div>
-                <div className="pr-value">{viewPR.remarks}</div>
-              </div>
-            )}
-          </div>
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '16px 16px 12px', borderBottom: '1px solid var(--border)',
+          flexWrap: 'wrap', gap: 10,
+        }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>Purchase Requisitions</div>
+          <select
+            className="form-select"
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value)}
+            style={{ maxWidth: 150, fontSize: 13 }}
+          >
+            <option value="">All Status</option>
+            <option>Pending</option>
+            <option>Approved</option>
+            <option>Rejected</option>
+          </select>
         </div>
 
-        {/* Items List */}
-        <div>
-          <div className="pr-section-header">
-            <h3>Items ({viewPR.items?.length || 0})</h3>
+        {loading ? (
+          <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
+        ) : prs.length === 0 ? (
+          <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>No records found</div>
+        ) : isMobile ? (
+          /* ── Mobile card list ── */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {prs.map((p, idx) => (
+              <div key={p._id} style={{
+                padding: '14px 16px',
+                borderBottom: idx < prs.length - 1 ? '1px solid #f1f5f9' : 'none',
+              }}>
+                {/* Row 1: PR ID + status */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: 13 }}>{p.prId}</span>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <span style={priorityStyle(p.priority)}>{p.priority}</span>
+                    <StatusBadge status={p.status} />
+                  </div>
+                </div>
+                {/* Row 2: dept + value */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: 13, color: '#334155', fontWeight: 500 }}>{p.department}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#1a202c' }}>₹{Math.round(p.totalValue).toLocaleString()}</span>
+                </div>
+                {/* Row 3: meta */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>{p.items?.length ?? 0} items</span>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>By {p.requestedBy}</span>
+                  {p.requiredBy && (
+                    <span style={{ fontSize: 11, color: '#64748b' }}>
+                      Due {new Date(p.requiredBy).toLocaleDateString('en-IN')}
+                    </span>
+                  )}
+                </div>
+                {/* Row 4: approval + actions */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <PRApprovalBadge status={p.status} />
+                  <ActionButtons p={p} />
+                </div>
+              </div>
+            ))}
           </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', fontSize: 13 }}>
+        ) : (
+          /* ── Desktop table ── */
+          <div style={{ overflowX: 'auto', width: '100%' }}>
+            <table style={{ width: '100%', minWidth: 860 }}>
               <thead>
-                <tr style={{ background: '#F8FAFC' }}>
-                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#64748B', fontSize: 11 }}>ITEM NAME</th>
-                  <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#64748B', fontSize: 11 }}>QTY</th>
-                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#64748B', fontSize: 11 }}>UNIT</th>
-                  <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#64748B', fontSize: 11 }}>EST. PRICE</th>
-                  <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#64748B', fontSize: 11 }}>TOTAL</th>
+                <tr>
+                  {['PR ID','Department','Items','Value','Requested By','Required By','Priority','Approval','Status','Actions'].map(h => (
+                    <th key={h} style={{ padding: '11px 12px', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {(viewPR.items || []).map((item, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #E2E8F0' }}>
-                    <td style={{ padding: '10px 12px', fontWeight: 600 }}>{item.name}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>{item.qty}</td>
-                    <td style={{ padding: '10px 12px' }}>{item.unit}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>₹{parseFloat(item.estimatedPrice || 0).toLocaleString()}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>₹{((parseFloat(item.qty) || 0) * (parseFloat(item.estimatedPrice) || 0)).toLocaleString()}</td>
+                {prs.map((p) => (
+                  <tr key={p._id}>
+                    <td style={{ fontWeight: 600, color: 'var(--primary)', whiteSpace: 'nowrap', padding: '12px' }}>{p.prId}</td>
+                    <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>{p.department}</td>
+                    <td style={{ padding: '12px' }}>{p.items?.length ?? 0}</td>
+                    <td style={{ fontWeight: 700, whiteSpace: 'nowrap', padding: '12px' }}>₹{Math.round(p.totalValue).toLocaleString()}</td>
+                    <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>{p.requestedBy}</td>
+                    <td style={{ color: '#64748b', fontSize: 12, whiteSpace: 'nowrap', padding: '12px' }}>
+                      {p.requiredBy ? new Date(p.requiredBy).toLocaleDateString('en-IN') : '—'}
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>
+                      <span style={priorityStyle(p.priority)}>{p.priority}</span>
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap', padding: '12px' }}><PRApprovalBadge status={p.status} /></td>
+                    <td style={{ whiteSpace: 'nowrap', padding: '12px' }}><StatusBadge status={p.status} /></td>
+                    <td style={{ whiteSpace: 'nowrap', padding: '12px' }}><ActionButtons p={p} /></td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot>
-                <tr style={{ background: '#F8FAFC', fontWeight: 700 }}>
-                  <td colSpan={4} style={{ padding: '10px 12px', textAlign: 'right' }}>Grand Total:</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#c0392b', fontSize: 15 }}>₹{Math.round(viewPR.totalValue).toLocaleString()}</td>
-                </tr>
-              </tfoot>
             </table>
           </div>
-        </div>
-      </Modal>
-    )}
+        )}
+      </div>
 
-    {/* Delete Confirmation Modal */}
-    {deleteConfirm && (
-      <Modal open={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title="Delete Purchase Requisition" size="md"
-        footer={
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', width: '100%' }}>
-            <button className="btn" style={{ background: 'transparent', border: '1px solid #CBD5E1', color: '#475569', padding: '8px 16px', borderRadius: 6, fontWeight: 500 }} onClick={() => setDeleteConfirm(null)} disabled={deleting}>Cancel</button>
-            <button className="btn" style={{ background: '#DC2626', color: 'white', padding: '8px 16px', borderRadius: 6, fontWeight: 500 }} onClick={() => handleDelete(deleteConfirm)} disabled={deleting}>
-              {deleting ? 'Deleting...' : 'Delete PR'}
-            </button>
-          </div>
-        }>
-        <div style={{ textAlign: 'center', padding: '20px 0' }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
-          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: '#1E293B' }}>Are you sure you want to delete this PR?</div>
-          <div style={{ fontSize: 14, color: '#64748B', marginBottom: 20 }}>
-            This action cannot be undone. The following PR will be permanently deleted:
-          </div>
-          <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '16px', textAlign: 'left', maxWidth: 400, margin: '0 auto' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '8px', fontSize: 13 }}>
-              <div style={{ color: '#991B1B', fontWeight: 600 }}>PR ID:</div>
-              <div style={{ color: '#1E293B', fontWeight: 700 }}>{deleteConfirm.prId}</div>
-              <div style={{ color: '#991B1B', fontWeight: 600 }}>Department:</div>
-              <div style={{ color: '#1E293B' }}>{deleteConfirm.department}</div>
-              <div style={{ color: '#991B1B', fontWeight: 600 }}>Total Value:</div>
-              <div style={{ color: '#1E293B', fontWeight: 700 }}>₹{Math.round(deleteConfirm.totalValue).toLocaleString()}</div>
-              <div style={{ color: '#991B1B', fontWeight: 600 }}>Items:</div>
-              <div style={{ color: '#1E293B' }}>{deleteConfirm.items?.length || 0} item(s)</div>
+      {/* ── View PR Modal ── */}
+      {viewPR && (
+        <Modal
+          open={!!viewPR}
+          onClose={() => setViewPR(null)}
+          title={`PR: ${viewPR.prId}`}
+          size="lg"
+          footer={
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 12, color: '#64748B' }}>
+                Status: <span style={{ fontWeight: 600, color: viewPR.status === 'Approved' ? '#047857' : viewPR.status === 'Rejected' ? '#DC2626' : '#F59E0B' }}>{viewPR.status}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {!viewOnly && (
+                  <button
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fef2f2', border: '1.5px solid #fecaca', color: '#ef4444', padding: '8px 14px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
+                    onClick={() => { onEdit?.(viewPR); setViewPR(null); }}
+                  ><MdEdit size={15} /> Edit</button>
+                )}
+                <button
+                  style={{ background: 'transparent', border: '1.5px solid #cbd5e1', color: '#475569', padding: '8px 14px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
+                  onClick={() => setViewPR(null)}
+                >Close</button>
+              </div>
+            </div>
+          }
+        >
+          <style>{`
+            .pr-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px 16px; }
+            @media(max-width:520px){ .pr-grid { grid-template-columns: 1fr 1fr; } }
+            .pr-span { grid-column: span 3; }
+            @media(max-width:520px){ .pr-span { grid-column: span 2; } }
+            .pr-field { display:flex; flex-direction:column; gap:3px; }
+            .pr-label { font-size:10px; font-weight:600; color:#64748B; text-transform:uppercase; letter-spacing:0.4px; }
+            .pr-value { font-size:13px; font-weight:500; color:#1E293B; }
+            .pr-sec { font-size:12px; font-weight:700; color:#0F172A; text-transform:uppercase; letter-spacing:0.4px; margin:0; }
+            .pr-sec-row { display:flex; align-items:center; gap:8px; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid #E4E7EC; }
+          `}</style>
+
+          <div style={{ marginBottom: 20 }}>
+            <div className="pr-sec-row"><h3 className="pr-sec">Requisition Details</h3></div>
+            <div className="pr-grid">
+              {[
+                ['Department', viewPR.department],
+                ['Requested By', viewPR.requestedBy],
+                ['Required By', viewPR.requiredBy ? new Date(viewPR.requiredBy).toLocaleDateString('en-IN') : '—'],
+                ['Cost Center', viewPR.costCenter || '—'],
+              ].map(([k, v]) => (
+                <div key={k} className="pr-field">
+                  <div className="pr-label">{k}</div>
+                  <div className="pr-value">{v}</div>
+                </div>
+              ))}
+              <div className="pr-field">
+                <div className="pr-label">Priority</div>
+                <div className="pr-value">
+                  <span style={priorityStyle(viewPR.priority)}>{viewPR.priority}</span>
+                </div>
+              </div>
+              <div className="pr-field">
+                <div className="pr-label">Total Value</div>
+                <div className="pr-value" style={{ fontWeight: 700, color: '#c0392b', fontSize: 15 }}>
+                  ₹{Math.round(viewPR.totalValue).toLocaleString()}
+                </div>
+              </div>
+              {viewPR.remarks && (
+                <div className="pr-field pr-span">
+                  <div className="pr-label">Remarks</div>
+                  <div className="pr-value">{viewPR.remarks}</div>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      </Modal>
-    )}
+
+          <div>
+            <div className="pr-sec-row"><h3 className="pr-sec">Items ({viewPR.items?.length || 0})</h3></div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', fontSize: 13, minWidth: 380 }}>
+                <thead>
+                  <tr style={{ background: '#F8FAFC' }}>
+                    {['ITEM NAME','QTY','UNIT','EST. PRICE','TOTAL'].map((h, i) => (
+                      <th key={h} style={{ padding: '8px 10px', textAlign: i > 0 ? 'right' : 'left', fontWeight: 600, color: '#64748B', fontSize: 11 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(viewPR.items || []).map((item, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #E2E8F0' }}>
+                      <td style={{ padding: '9px 10px', fontWeight: 600 }}>{item.name}</td>
+                      <td style={{ padding: '9px 10px', textAlign: 'right' }}>{item.qty}</td>
+                      <td style={{ padding: '9px 10px', textAlign: 'right' }}>{item.unit}</td>
+                      <td style={{ padding: '9px 10px', textAlign: 'right' }}>₹{parseFloat(item.estimatedPrice || 0).toLocaleString()}</td>
+                      <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 700 }}>
+                        ₹{((parseFloat(item.qty) || 0) * (parseFloat(item.estimatedPrice) || 0)).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: '#F8FAFC', fontWeight: 700 }}>
+                    <td colSpan={4} style={{ padding: '9px 10px', textAlign: 'right' }}>Grand Total:</td>
+                    <td style={{ padding: '9px 10px', textAlign: 'right', color: '#c0392b', fontSize: 14 }}>
+                      ₹{Math.round(viewPR.totalValue).toLocaleString()}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Delete Confirm Modal ── */}
+      {deleteConfirm && (
+        <Modal
+          open={!!deleteConfirm}
+          onClose={() => setDeleteConfirm(null)}
+          title="Delete Purchase Requisition"
+          size="md"
+          footer={
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', width: '100%' }}>
+              <button
+                style={{ background: 'transparent', border: '1px solid #CBD5E1', color: '#475569', padding: '8px 16px', borderRadius: 6, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+                onClick={() => setDeleteConfirm(null)} disabled={deleting}
+              >Cancel</button>
+              <button
+                style={{ background: '#DC2626', color: 'white', padding: '8px 16px', borderRadius: 6, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', border: 'none' }}
+                onClick={() => handleDelete(deleteConfirm)} disabled={deleting}
+              >{deleting ? 'Deleting...' : 'Delete PR'}</button>
+            </div>
+          }
+        >
+          <div style={{ textAlign: 'center', padding: '16px 0' }}>
+            <div style={{ fontSize: 44, marginBottom: 12 }}>⚠️</div>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6, color: '#1E293B' }}>Delete this PR?</div>
+            <div style={{ fontSize: 13, color: '#64748B', marginBottom: 16 }}>This action cannot be undone.</div>
+            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: 14, textAlign: 'left', maxWidth: 360, margin: '0 auto' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px 12px', fontSize: 13 }}>
+                {[
+                  ['PR ID', deleteConfirm.prId],
+                  ['Department', deleteConfirm.department],
+                  ['Total Value', `₹${Math.round(deleteConfirm.totalValue).toLocaleString()}`],
+                  ['Items', `${deleteConfirm.items?.length || 0} item(s)`],
+                ].map(([k, v]) => (
+                  <>
+                    <div key={k} style={{ color: '#991B1B', fontWeight: 600 }}>{k}:</div>
+                    <div key={v} style={{ color: '#1E293B', fontWeight: k === 'PR ID' || k === 'Total Value' ? 700 : 400 }}>{v}</div>
+                  </>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
     </>
   );
 }

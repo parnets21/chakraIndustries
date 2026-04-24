@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import StatusBadge from '../../../components/common/StatusBadge';
 import Modal from '../../../components/common/Modal';
 import { vendorApi } from '../../../api/vendorApi';
-import { MdVisibility, MdEdit, MdAdd, MdSearch, MdFilterList, MdBusiness, MdPhone, MdEmail, MdLocationOn, MdStar, MdDelete, MdPrint } from 'react-icons/md';
+import { rfqApi } from '../../../api/rfqApi';
+import { poApi } from '../../../api/poApi';
+import { MdVisibility, MdEdit, MdAdd, MdSearch, MdBusiness, MdPhone, MdEmail, MdLocationOn, MdStar, MdDelete, MdPrint, MdAssignment, MdShoppingCart } from 'react-icons/md';
 
 const EMPTY_FORM = {
   companyName: '', category: '', contactPerson: '', phone: '',
@@ -25,18 +27,23 @@ export default function VendorsTab({
   showCategoryModal, setShowCategoryModal,
   newCategory, setNewCategory,
   onAddCategory, onDeleteCategory,
+  onStatsChange,
 }) {
   const [vendors, setVendors]       = useState([]);
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState('');
   const [search, setSearch]         = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
   const [form, setForm]             = useState(EMPTY_FORM);
   const [editId, setEditId]         = useState(null);
   const [saving, setSaving]         = useState(false);
   const [viewVendor, setViewVendor] = useState(null);
   const [formErrors, setFormErrors] = useState({});
   const [successMsg, setSuccessMsg] = useState('');
+  // Linked data for vendor detail view
+  const [vendorRFQs, setVendorRFQs] = useState([]);
+  const [vendorPOs,  setVendorPOs]  = useState([]);
 
   const fetchVendors = useCallback(async () => {
     setLoading(true); setError('');
@@ -44,11 +51,12 @@ export default function VendorsTab({
       const params = {};
       if (search) params.search = search;
       if (filterStatus) params.status = filterStatus;
+      if (filterCategory) params.category = filterCategory;
       const res = await vendorApi.getAll(params);
       setVendors(res.data);
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
-  }, [search, filterStatus]);
+  }, [search, filterStatus, filterCategory]);
 
   useEffect(() => { fetchVendors(); }, [fetchVendors]);
   useEffect(() => { const t = setTimeout(fetchVendors, 400); return () => clearTimeout(t); }, [search]);
@@ -65,14 +73,32 @@ export default function VendorsTab({
       status: v.status || 'Active', remarks: v.remarks || '',
     });
     setEditId(v._id);
+    setViewVendor(null);
     setShowVendorModal(true);
+  };
+
+  // Load linked RFQs and POs when viewing a vendor
+  const openView = async (v) => {
+    setViewVendor(v);
+    setVendorRFQs([]);
+    setVendorPOs([]);
+    try {
+      const [rfqRes, poRes] = await Promise.all([
+        rfqApi.getAll(),
+        poApi.getAll({ vendor: v._id }),
+      ]);
+      const rfqs = (rfqRes.data || []).filter(r =>
+        r.vendors?.some(vv => (vv._id || vv) === v._id)
+      );
+      setVendorRFQs(rfqs);
+      setVendorPOs(poRes.data || []);
+    } catch (_) {}
   };
 
   const handleSave = async () => {
     const errors = validateForm();
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
-      alert('❌ Please fix the validation errors before saving');
       return;
     }
     setSaving(true);
@@ -92,9 +118,9 @@ export default function VendorsTab({
       setSuccessMsg(editId ? '✓ Vendor updated successfully!' : '✓ Vendor created successfully!');
       setTimeout(() => setSuccessMsg(''), 3000);
       fetchVendors();
+      onStatsChange?.();
     } catch (e) {
-      const msg = e.message || 'Failed to save vendor';
-      alert(`❌ Error: ${msg}`);
+      setFormErrors({ _general: e.message || 'Failed to save vendor' });
     }
     finally { setSaving(false); }
   };
@@ -115,11 +141,10 @@ export default function VendorsTab({
     if (!form.pincode) errors.pincode = 'Pincode is required';
     else if (!/^\d{6}$/.test(form.pincode.replace(/\D/g, ''))) errors.pincode = 'Pincode must be 6 digits';
     if (!form.address.trim()) errors.address = 'Address is required';
-    if (!form.gstNumber) errors.gstNumber = 'GST number is required';
-    else {
+    if (form.gstNumber) {
       const gstClean = form.gstNumber.toUpperCase().replace(/\s/g, '');
-      if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(gstClean)) 
-        errors.gstNumber = 'Invalid GST format (15 chars: 2 digits, 5 letters, 4 digits, 1 letter, 1 alphanumeric, Z, 1 alphanumeric)';
+      if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(gstClean))
+        errors.gstNumber = 'Invalid GST format (e.g. 27AABCC1234D1Z5)';
     }
     return errors;
   };
@@ -133,6 +158,7 @@ export default function VendorsTab({
       setSuccessMsg('✓ Vendor deleted successfully!');
       setTimeout(() => setSuccessMsg(''), 3000);
       fetchVendors();
+      onStatsChange?.();
     } catch (e) {
       alert(`❌ Error: ${e.message}`);
     }
@@ -388,6 +414,10 @@ export default function VendorsTab({
           <option>Inactive</option>
           <option>Blacklisted</option>
         </select>
+        <select className="vt-select" value={filterCategory} onChange={e => setFilterCategory(e.target.value)}>
+          <option value="">All Categories</option>
+          {categories.map(c => <option key={c}>{c}</option>)}
+        </select>
       </div>
 
       {/* ── Error / Loading ── */}
@@ -430,7 +460,7 @@ export default function VendorsTab({
                   <td>{v.city}</td>
                   <td><span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: v.status === 'Active' ? '#ecfdf5' : v.status === 'Inactive' ? '#f3f4f6' : '#fef2f2', color: v.status === 'Active' ? '#047857' : v.status === 'Inactive' ? '#6b7280' : '#dc2626' }}>{v.status}</span></td>
                   <td style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => setViewVendor(v)} style={{ padding: '4px 10px', borderRadius: 6, background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'inherit' }}>View</button>
+                    <button onClick={() => openView(v)} style={{ padding: '4px 10px', borderRadius: 6, background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'inherit' }}>View</button>
                     <button onClick={() => openEdit(v)} style={{ padding: '4px 10px', borderRadius: 6, background: '#fef2f2', border: '1px solid #fecaca', color: '#ef4444', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'inherit' }}>Edit</button>
                     <button onClick={() => handleDelete(v._id, v.companyName)} style={{ padding: '4px 10px', borderRadius: 6, background: '#fee2e2', border: '1px solid #fecaca', color: '#dc2626', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'inherit' }}>Delete</button>
                   </td>
@@ -460,7 +490,7 @@ export default function VendorsTab({
                 <div className="vt-card-meta-item"><MdEmail size={14} /> {v.email}</div>
               </div>
               <div className="vt-card-actions">
-                <button onClick={() => setViewVendor(v)} className="vt-card-btn vt-card-btn-view"><MdVisibility size={14} /> View</button>
+                <button onClick={() => openView(v)} className="vt-card-btn vt-card-btn-view"><MdVisibility size={14} /> View</button>
                 <button onClick={() => openEdit(v)} className="vt-card-btn vt-card-btn-edit"><MdEdit size={14} /> Edit</button>
                 <button onClick={() => handleDelete(v._id, v.companyName)} className="vt-card-btn" style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca' }}><MdDelete size={14} /> Delete</button>
               </div>
@@ -487,6 +517,11 @@ export default function VendorsTab({
           </>
         }>
         <div className="vt-form-grid">
+          {formErrors._general && (
+            <div style={{ gridColumn: 'span 2', padding: '8px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', fontWeight: 600 }}>
+              ❌ {formErrors._general}
+            </div>
+          )}
           <div><label style={lbl}>Vendor Name *</label><input style={{...inp, borderColor: formErrors.companyName ? '#ef4444' : '#e2e8f0'}} placeholder="Company name" value={form.companyName} onChange={f('companyName')} />{formErrors.companyName && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.companyName}</div>}</div>
           <div><label style={lbl}>Category *</label>
             <select style={{...inp, borderColor: formErrors.category ? '#ef4444' : '#e2e8f0'}} value={form.category} onChange={f('category')}>
@@ -502,13 +537,12 @@ export default function VendorsTab({
           <div><label style={lbl}>State *</label><input style={{...inp, borderColor: formErrors.state ? '#ef4444' : '#e2e8f0'}} placeholder="State" value={form.state} onChange={f('state')} />{formErrors.state && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.state}</div>}</div>
           <div><label style={lbl}>Pincode *</label><input style={{...inp, borderColor: formErrors.pincode ? '#ef4444' : '#e2e8f0'}} placeholder="6-digit pincode" value={form.pincode} onChange={f('pincode')} />{formErrors.pincode && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.pincode}</div>}</div>
           <div className="vt-span2"><label style={lbl}>Address *</label><input style={{...inp, borderColor: formErrors.address ? '#ef4444' : '#e2e8f0'}} placeholder="Full address" value={form.address} onChange={f('address')} />{formErrors.address && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.address}</div>}</div>
-          <div><label style={lbl}>GST Number *</label><input style={{...inp, borderColor: formErrors.gstNumber ? '#ef4444' : '#e2e8f0'}} placeholder="GSTIN" value={form.gstNumber} onChange={f('gstNumber')} />{formErrors.gstNumber && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.gstNumber}</div>}</div>
+          <div><label style={lbl}>GST Number</label><input style={{...inp, borderColor: formErrors.gstNumber ? '#ef4444' : '#e2e8f0'}} placeholder="GSTIN (optional)" value={form.gstNumber} onChange={f('gstNumber')} />{formErrors.gstNumber && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.gstNumber}</div>}</div>
           <div><label style={lbl}>Payment Terms</label>
             <select style={inp} value={form.paymentTerms} onChange={f('paymentTerms')}>
               {['Net 30','Net 45','Net 60','Net 90','Advance Payment','COD'].map(t => <option key={t}>{t}</option>)}
             </select>
           </div>
-          <div><label style={lbl}>Lead Time (days)</label><input style={inp} type="number" placeholder="0" value={form.leadTimeDays} onChange={f('leadTimeDays')} /></div>
           <div><label style={lbl}>Status</label>
             <select style={inp} value={form.status} onChange={f('status')}>
               <option>Active</option><option>Inactive</option><option>Blacklisted</option>
@@ -669,6 +703,36 @@ export default function VendorsTab({
             }}>
               <div className="field-label" style={{ color: '#92400E', marginBottom: 4 }}>Additional Remarks</div>
               <div className="field-value" style={{ color: '#78350F', fontSize: 13 }}>{viewVendor.remarks}</div>
+            </div>
+          )}
+
+          {/* Linked RFQs & POs */}
+          {(vendorRFQs.length > 0 || vendorPOs.length > 0) && (
+            <div style={{ marginTop: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div style={{ background: '#f0f9ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '12px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                  <MdAssignment size={15} style={{ color: '#2563eb' }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>RFQs ({vendorRFQs.length})</span>
+                </div>
+                {vendorRFQs.slice(0, 5).map(r => (
+                  <div key={r._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid #dbeafe', fontSize: 12 }}>
+                    <span style={{ fontWeight: 600, color: '#1e293b' }}>{r.rfqId}</span>
+                    <span style={{ padding: '2px 7px', borderRadius: 8, background: r.status === 'Sent' ? '#eff6ff' : r.status === 'Quoted' ? '#f0fdf4' : '#f1f5f9', color: r.status === 'Sent' ? '#2563eb' : r.status === 'Quoted' ? '#16a34a' : '#64748b', fontWeight: 600, fontSize: 10 }}>{r.status}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                  <MdShoppingCart size={15} style={{ color: '#16a34a' }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Purchase Orders ({vendorPOs.length})</span>
+                </div>
+                {vendorPOs.slice(0, 5).map(p => (
+                  <div key={p._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid #dcfce7', fontSize: 12 }}>
+                    <span style={{ fontWeight: 600, color: '#1e293b' }}>{p.poId}</span>
+                    <span style={{ fontWeight: 600, color: '#16a34a' }}>₹{(p.grandTotal || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </Modal>

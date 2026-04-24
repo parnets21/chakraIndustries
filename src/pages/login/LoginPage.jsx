@@ -178,6 +178,11 @@ export default function LoginPage() {
           text-align: center;
           transition: all 0.3s ease;
           box-shadow: 0 3px 8px rgba(192, 57, 43, 0.07);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
         }
 
         .stat-card:hover {
@@ -520,15 +525,15 @@ export default function LoginPage() {
             
             <div className="stats-grid">
               <div className="stat-card">
-                <div style={{ fontSize: '32px', marginBottom: '4px' }}><TbFileAnalyticsFilled size={32} color="#c0392b" /></div>
+                <TbFileAnalyticsFilled size={32} color="#c0392b" />
                 <span className="stat-label">Smart Analytics</span>
               </div>
               <div className="stat-card">
-                <div style={{ fontSize: '32px', marginBottom: '4px' }}><FiZap size={32} color="#c0392b" /></div>
+                <FiZap size={32} color="#c0392b" />
                 <span className="stat-label">Fast Performance</span>
               </div>
               <div className="stat-card">
-                <div style={{ fontSize: '32px', marginBottom: '4px' }}><FiTarget size={32} color="#c0392b" /></div>
+                <FiTarget size={32} color="#c0392b" />
                 <span className="stat-label">Goal Driven</span>
               </div>
             </div>

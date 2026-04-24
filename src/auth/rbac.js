@@ -1,7 +1,7 @@
 // ─── Role-Based Access Control Config ────────────────────────────────────────
 // access: 'full' | 'view' | false
 
-export const ROLES = {
+export const BASE_ROLES = {
   super_admin:        'Super Admin',
   management:         'Management',
   purchase_manager:   'Purchase Manager',
@@ -10,7 +10,69 @@ export const ROLES = {
   corporate_client:   'Corporate Client',
 };
 
-export const ROLE_KEYS = Object.keys(ROLES);
+const CUSTOM_ROLES_KEY = 'chakra_custom_roles';
+
+// Load custom roles from localStorage { key: label, ... }
+export function loadCustomRoles() {
+  try {
+    const raw = localStorage.getItem(CUSTOM_ROLES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+export function saveCustomRole(key, label) {
+  const existing = loadCustomRoles();
+  existing[key] = label;
+  localStorage.setItem(CUSTOM_ROLES_KEY, JSON.stringify(existing));
+}
+
+export function deleteCustomRole(key) {
+  const existing = loadCustomRoles();
+  delete existing[key];
+  localStorage.setItem(CUSTOM_ROLES_KEY, JSON.stringify(existing));
+  // Also clean up page access for this role
+  try {
+    const raw = localStorage.getItem('chakra_page_access');
+    if (raw) {
+      const matrix = JSON.parse(raw);
+      for (const page of Object.keys(matrix)) {
+        delete matrix[page][key];
+      }
+      localStorage.setItem('chakra_page_access', JSON.stringify(matrix));
+    }
+  } catch { /* ignore */ }
+}
+
+// Merged ROLES = base + custom (live, reads localStorage each call)
+export function getAllRoles() {
+  return { ...BASE_ROLES, ...loadCustomRoles() };
+}
+
+// For static imports that need ROLES at module load time — use BASE_ROLES + custom
+export const ROLES = new Proxy({}, {
+  get(_, prop) { return getAllRoles()[prop]; },
+  ownKeys() { return Object.keys(getAllRoles()); },
+  has(_, prop) { return prop in getAllRoles(); },
+  getOwnPropertyDescriptor(_, prop) {
+    const val = getAllRoles()[prop];
+    return val !== undefined ? { value: val, writable: true, enumerable: true, configurable: true } : undefined;
+  },
+});
+
+export const ROLE_KEYS = new Proxy([], {
+  get(target, prop) {
+    const keys = Object.keys(getAllRoles());
+    if (prop === 'length') return keys.length;
+    if (prop === Symbol.iterator) return keys[Symbol.iterator].bind(keys);
+    if (prop === 'filter') return keys.filter.bind(keys);
+    if (prop === 'map') return keys.map.bind(keys);
+    if (prop === 'forEach') return keys.forEach.bind(keys);
+    if (prop === 'find') return keys.find.bind(keys);
+    if (prop === 'includes') return keys.includes.bind(keys);
+    if (typeof prop === 'string' && !isNaN(prop)) return keys[Number(prop)];
+    return target[prop];
+  },
+});
 
 // Default access matrix — super_admin is always locked to 'full'
 export const DEFAULT_PAGE_ACCESS = {
@@ -42,16 +104,29 @@ const STORAGE_KEY = 'chakra_page_access';
 export function loadPageAccess() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
+    const customRoles = loadCustomRoles();
     if (raw) {
       const saved = JSON.parse(raw);
-      // Merge with defaults so new pages added later still work
       const merged = {};
       for (const page of Object.keys(DEFAULT_PAGE_ACCESS)) {
         merged[page] = { ...DEFAULT_PAGE_ACCESS[page], ...saved[page] };
         merged[page].super_admin = 'full'; // always lock super_admin
+        // Ensure custom roles have an entry (default false)
+        for (const cr of Object.keys(customRoles)) {
+          if (merged[page][cr] === undefined) merged[page][cr] = false;
+        }
       }
       return merged;
     }
+    // No saved data — build from defaults + custom roles defaulting to false
+    const fresh = {};
+    for (const page of Object.keys(DEFAULT_PAGE_ACCESS)) {
+      fresh[page] = { ...DEFAULT_PAGE_ACCESS[page] };
+      for (const cr of Object.keys(customRoles)) {
+        fresh[page][cr] = false;
+      }
+    }
+    return fresh;
   } catch { /* ignore */ }
   return { ...DEFAULT_PAGE_ACCESS };
 }

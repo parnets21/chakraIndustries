@@ -1,16 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 
-// ─── Mock users (replace with real API call) ──────────────────────────────────
-const MOCK_USERS = [
-  { id: 1, email: 'chakra@admin.com',     password: 'chakra123',   name: 'Admin User',     role: 'super_admin',      avatar: 'AU' },
-  { id: 2, email: 'admin@chakra.in',      password: 'admin123',    name: 'Arjun Kumar',    role: 'super_admin',      avatar: 'AK' },
-  { id: 3, email: 'ceo@chakra.in',        password: 'mgmt123',     name: 'Priya Sharma',   role: 'management',       avatar: 'PS' },
-  { id: 4, email: 'purchase@chakra.in',   password: 'purchase123', name: 'Ramesh Gupta',   role: 'purchase_manager', avatar: 'RG' },
-  { id: 5, email: 'production@chakra.in', password: 'prod123',     name: 'Sunil Das',      role: 'production_manager', avatar: 'SD' },
-  { id: 6, email: 'dealer@chakra.in',     password: 'dealer123',   name: 'Vijay Rao',      role: 'dealer',           avatar: 'VR' },
-  { id: 7, email: 'client@chakra.in',     password: 'client123',   name: 'Meera Patel',    role: 'corporate_client', avatar: 'MP' },
-];
-
+const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 
 const AuthContext = createContext(null);
@@ -19,16 +9,36 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     try {
       const stored = localStorage.getItem('chakra_user') || sessionStorage.getItem('chakra_user');
+      const token = localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
+      if (stored && !token) {
+        // Stale mock session — no real JWT, clear it
+        localStorage.removeItem('chakra_user');
+        sessionStorage.removeItem('chakra_user');
+        return null;
+      }
       return stored ? JSON.parse(stored) : null;
     } catch { return null; }
   });
 
   const timerRef = useRef(null);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    // Fire logout to backend (best-effort)
+    try {
+      const token = localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
+      if (token) {
+        await fetch(`${BASE}/auth/logout`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+    } catch { /* ignore */ }
+
     setUser(null);
     localStorage.removeItem('chakra_user');
+    localStorage.removeItem('chakra_token');
     sessionStorage.removeItem('chakra_user');
+    sessionStorage.removeItem('chakra_token');
     if (timerRef.current) clearTimeout(timerRef.current);
   }, []);
 
@@ -50,21 +60,22 @@ export function AuthProvider({ children }) {
   }, [user, resetTimer]);
 
   const login = async (email, password, remember = false) => {
-    console.log('Login attempt:', { email, password });
-    console.log('Available users:', MOCK_USERS.map(u => ({ email: u.email, password: u.password })));
-    
-    const found = MOCK_USERS.find(
-      u => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-    );
-    
-    console.log('Found user:', found);
-    
-    if (!found) throw new Error('Invalid email or password');
-    const { password: _, ...safeUser } = found;
-    setUser(safeUser);
+    const res = await fetch(`${BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim(), password }),
+    });
+
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'Invalid email or password');
+
+    const { token, user: userData } = data;
     const storage = remember ? localStorage : sessionStorage;
-    storage.setItem('chakra_user', JSON.stringify(safeUser));
-    return safeUser;
+
+    storage.setItem('chakra_token', token);
+    storage.setItem('chakra_user', JSON.stringify(userData));
+    setUser(userData);
+    return userData;
   };
 
   return (

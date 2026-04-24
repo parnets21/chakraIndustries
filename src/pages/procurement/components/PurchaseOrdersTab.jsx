@@ -6,26 +6,24 @@ import { vendorApi } from '../../../api/vendorApi';
 import { rfqApi } from '../../../api/rfqApi';
 import { MdVisibility, MdDeleteOutline } from 'react-icons/md';
 
-export default function PurchaseOrdersTab({ showPOModal, setShowPOModal }) {
-  const [pos, setPOs] = useState([]);
-  const [vendors, setVendors] = useState([]);
-  const [rfqs, setRFQs] = useState([]);
-  const [loading, setLoading] = useState(false);
+const EMPTY_FORM = {
+  vendor: '', linkedRFQ: '', deliveryDate: '',
+  paymentTerms: 'Net 30', remarks: '',
+  items: [{ name: '', qty: 1, unit: 'Nos', basePrice: 0, gst: 18 }],
+};
+
+export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved }) {
+  const [pos, setPOs]               = useState([]);
+  const [vendors, setVendors]       = useState([]);
+  const [rfqs, setRFQs]             = useState([]);
+  const [loading, setLoading]       = useState(false);
   const [filterStatus, setFilterStatus] = useState('');
-  const [viewPO, setViewPO] = useState(null);
-  const [deletePO, setDeletePO] = useState(null);
-  const [deleting, setDeleting] = useState(false);
-  
-  // Form state
-  const [formData, setFormData] = useState({
-    vendor: '',
-    linkedRFQ: '',
-    deliveryDate: '',
-    paymentTerms: 'Net 30',
-    items: [{ name: '', qty: 1, unit: 'Nos', basePrice: 0, gst: 18 }],
-    remarks: ''
-  });
-  const [saving, setSaving] = useState(false);
+  const [viewPO, setViewPO]         = useState(null);
+  const [deletePO, setDeletePO]     = useState(null);
+  const [deleting, setDeleting]     = useState(false);
+  const [formData, setFormData]     = useState(EMPTY_FORM);
+  const [saving, setSaving]         = useState(false);
+  const [formError, setFormError]   = useState('');
 
   const fetchPOs = async () => {
     setLoading(true);
@@ -34,38 +32,81 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal }) {
       if (filterStatus) params.status = filterStatus;
       const res = await poApi.getAll(params);
       setPOs(res.data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchVendors = async () => {
-    try {
-      const res = await vendorApi.getAll({ status: 'Active' });
-      setVendors(res.data);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const fetchRFQs = async () => {
-    try {
-      const res = await rfqApi.getAll({ status: 'Quoted' });
-      setRFQs(res.data);
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { fetchPOs(); }, [filterStatus]);
-  useEffect(() => { 
+
+  useEffect(() => {
     if (showPOModal) {
-      fetchVendors();
-      fetchRFQs();
+      setFormData(EMPTY_FORM);
+      setFormError('');
+      Promise.all([
+        vendorApi.getAll({ status: 'Active' }),
+        rfqApi.getAll({ status: 'Quoted' }),
+        rfqApi.getAll({ status: 'Closed' }),
+      ]).then(([vRes, quotedRes, closedRes]) => {
+        setVendors(vRes.data || []);
+        setRFQs([...(quotedRes.data || []), ...(closedRes.data || [])]);
+      }).catch(console.error);
     }
   }, [showPOModal]);
+
+  // When vendor changes — find matching RFQ quotation and auto-fill items
+  const handleVendorChange = (vendorId) => {
+    setFormData(prev => {
+      // If an RFQ is already selected, find this vendor's quotation
+      if (prev.linkedRFQ) {
+        const rfq = rfqs.find(r => r._id === prev.linkedRFQ);
+        const quotation = rfq?.quotations?.find(q => (q.vendor?._id || q.vendor) === vendorId);
+        if (quotation?.items?.length) {
+          return {
+            ...prev,
+            vendor: vendorId,
+            items: quotation.items.map(it => ({
+              name: it.name, qty: it.qty, unit: it.unit || 'Nos',
+              basePrice: it.unitPrice, gst: 18,
+            })),
+          };
+        }
+      }
+      return { ...prev, vendor: vendorId };
+    });
+  };
+
+  // When RFQ changes — auto-select vendor + fill items from that vendor's quotation
+  const handleRFQChange = (rfqId) => {
+    if (!rfqId) { setFormData(prev => ({ ...prev, linkedRFQ: '', items: EMPTY_FORM.items })); return; }
+    const rfq = rfqs.find(r => r._id === rfqId);
+    if (!rfq) { setFormData(prev => ({ ...prev, linkedRFQ: rfqId })); return; }
+
+    // Find quotation for currently selected vendor, or pick the best (lowest total)
+    let quotation = null;
+    if (formData.vendor) {
+      quotation = rfq.quotations?.find(q => (q.vendor?._id || q.vendor) === formData.vendor);
+    }
+    if (!quotation && rfq.quotations?.length) {
+      quotation = rfq.quotations.reduce((best, q) =>
+        (q.totalAmount || 0) < (best.totalAmount || Infinity) ? q : best
+      , rfq.quotations[0]);
+    }
+
+    const vendorId = quotation ? (quotation.vendor?._id || quotation.vendor) : (rfq.vendors?.[0]?._id || '');
+
+    setFormData(prev => ({
+      ...prev,
+      linkedRFQ: rfqId,
+      vendor: vendorId || prev.vendor,
+      items: quotation?.items?.length
+        ? quotation.items.map(it => ({
+            name: it.name, qty: it.qty, unit: it.unit || 'Nos',
+            basePrice: it.unitPrice, gst: 18,
+          }))
+        : rfq.items?.map(it => ({ name: it.name, qty: it.qty, unit: it.unit || 'Nos', basePrice: 0, gst: 18 }))
+          || EMPTY_FORM.items,
+    }));
+  };
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -73,77 +114,34 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal }) {
       await poApi.delete(deletePO._id);
       setDeletePO(null);
       fetchPOs();
-    } catch (e) {
-      alert(e.message);
-    } finally {
-      setDeleting(false);
-    }
+    } catch (e) { alert(e.message); }
+    finally { setDeleting(false); }
   };
 
-  const handleAddItem = () => {
-    setFormData(prev => ({
-      ...prev,
-      items: [...prev.items, { name: '', qty: 1, unit: 'Nos', basePrice: 0, gst: 18 }]
-    }));
-  };
+  const handleItemChange = (i, field, value) =>
+    setFormData(prev => ({ ...prev, items: prev.items.map((it, idx) => idx === i ? { ...it, [field]: value } : it) }));
 
-  const handleRemoveItem = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.filter((_, i) => i !== index)
-    }));
-  };
-
-  const handleItemChange = (index, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.map((item, i) => 
-        i === index ? { ...item, [field]: value } : item
-      )
-    }));
-  };
-
-  const calculateTotals = () => {
-    const subtotal = formData.items.reduce((sum, item) => 
-      sum + (parseFloat(item.qty) || 0) * (parseFloat(item.basePrice) || 0), 0
-    );
-    const gstTotal = formData.items.reduce((sum, item) => 
-      sum + (parseFloat(item.qty) || 0) * (parseFloat(item.basePrice) || 0) * (parseFloat(item.gst) || 0) / 100, 0
-    );
+  const calcTotals = () => {
+    const subtotal  = formData.items.reduce((s, it) => s + (parseFloat(it.qty) || 0) * (parseFloat(it.basePrice) || 0), 0);
+    const gstTotal  = formData.items.reduce((s, it) => s + (parseFloat(it.qty) || 0) * (parseFloat(it.basePrice) || 0) * (parseFloat(it.gst) || 0) / 100, 0);
     return { subtotal, gstTotal, grandTotal: subtotal + gstTotal };
   };
 
   const handleSubmit = async () => {
-    if (!formData.vendor) {
-      alert('Please select a vendor');
-      return;
-    }
-    if (formData.items.length === 0 || !formData.items[0].name) {
-      alert('Please add at least one item');
-      return;
-    }
-
+    setFormError('');
+    if (!formData.vendor) { setFormError('Please select a vendor.'); return; }
+    if (!formData.items[0]?.name) { setFormError('Add at least one item.'); return; }
     setSaving(true);
     try {
       await poApi.create(formData);
       setShowPOModal(false);
-      setFormData({
-        vendor: '',
-        linkedRFQ: '',
-        deliveryDate: '',
-        paymentTerms: 'Net 30',
-        items: [{ name: '', qty: 1, unit: 'Nos', basePrice: 0, gst: 18 }],
-        remarks: ''
-      });
       fetchPOs();
-    } catch (e) {
-      alert(e.message);
-    } finally {
-      setSaving(false);
-    }
+      onSaved?.();
+    } catch (e) { setFormError(e.message); }
+    finally { setSaving(false); }
   };
 
-  const totals = calculateTotals();
+  const totals = calcTotals();
 
   return (
     <>
@@ -198,6 +196,19 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal }) {
                         <button className="btn btn-sm" title="View" style={{ background: '#f1f5f9', color: 'var(--text)', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setViewPO(p)}>
                           <MdVisibility size={16} />
                         </button>
+                        {(p.status === 'Draft' || p.status === 'Pending') && (
+                          <button
+                            className="btn btn-sm"
+                            title="Approve PO"
+                            style={{ background: '#f0fdf4', color: '#16a34a', padding: '6px 10px', height: 32, display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, border: '1px solid #bbf7d0', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit' }}
+                            onClick={async () => {
+                              try {
+                                await poApi.updateStatus(p._id, 'Approved');
+                                fetchPOs();
+                              } catch (e) { alert(e.message); }
+                            }}
+                          >✓ Approve</button>
+                        )}
                         <button className="btn btn-sm" title="Delete" style={{ background: '#fee2e2', color: '#dc2626', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setDeletePO(p)}>
                           <MdDeleteOutline size={16} />
                         </button>
@@ -317,54 +328,60 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal }) {
             </button>
           </>
         }>
+
+        {formError && (
+          <div style={{ marginBottom: 14, padding: '8px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', fontWeight: 600 }}>
+            {formError}
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
           <div className="form-group">
+            <label className="form-label">Linked RFQ (auto-fills items)</label>
+            <select className="form-select" value={formData.linkedRFQ} onChange={e => handleRFQChange(e.target.value)}>
+              <option value="">— None —</option>
+              {rfqs.map(r => <option key={r._id} value={r._id}>{r.rfqId} — {r.quotations?.length || 0} quote(s)</option>)}
+            </select>
+          </div>
+          <div className="form-group">
             <label className="form-label">Vendor *</label>
-            <select className="form-select" value={formData.vendor} onChange={e => setFormData({ ...formData, vendor: e.target.value })}>
+            <select className="form-select" value={formData.vendor} onChange={e => handleVendorChange(e.target.value)}>
               <option value="">Select vendor</option>
               {vendors.map(v => <option key={v._id} value={v._id}>{v.companyName}</option>)}
             </select>
           </div>
           <div className="form-group">
-            <label className="form-label">Linked RFQ (Optional)</label>
-            <select className="form-select" value={formData.linkedRFQ} onChange={e => setFormData({ ...formData, linkedRFQ: e.target.value })}>
-              <option value="">None</option>
-              {rfqs.map(r => <option key={r._id} value={r._id}>{r.rfqId} — {r.title}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
             <label className="form-label">Delivery Date</label>
-            <input type="date" className="form-input" value={formData.deliveryDate} onChange={e => setFormData({ ...formData, deliveryDate: e.target.value })} />
+            <input type="date" className="form-input" value={formData.deliveryDate} onChange={e => setFormData(p => ({ ...p, deliveryDate: e.target.value }))} />
           </div>
           <div className="form-group">
             <label className="form-label">Payment Terms</label>
-            <select className="form-select" value={formData.paymentTerms} onChange={e => setFormData({ ...formData, paymentTerms: e.target.value })}>
-              <option>Net 30</option>
-              <option>Net 45</option>
-              <option>Net 60</option>
-              <option>Net 90</option>
-              <option>Advance Payment</option>
-              <option>COD</option>
+            <select className="form-select" value={formData.paymentTerms} onChange={e => setFormData(p => ({ ...p, paymentTerms: e.target.value }))}>
+              <option>Net 30</option><option>Net 45</option><option>Net 60</option>
+              <option>Net 90</option><option>Advance Payment</option><option>COD</option>
             </select>
           </div>
         </div>
 
+        {/* Auto-fill notice */}
+        {formData.linkedRFQ && formData.vendor && (
+          <div style={{ marginBottom: 14, padding: '8px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 12, color: '#15803d', fontWeight: 600 }}>
+            ✓ Items auto-filled from vendor's quotation. You can still edit below.
+          </div>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <div style={{ fontWeight: 700, fontSize: 13 }}>Items</div>
-          <button className="btn btn-sm btn-outline" onClick={handleAddItem}>+ Add Item</button>
+          <button className="btn btn-sm btn-outline" onClick={() => setFormData(p => ({ ...p, items: [...p.items, { name: '', qty: 1, unit: 'Nos', basePrice: 0, gst: 18 }] }))}>+ Add Item</button>
         </div>
 
         <div style={{ overflowX: 'auto', marginBottom: 16 }}>
           <table style={{ width: '100%', fontSize: 13 }}>
             <thead>
               <tr style={{ background: '#F8FAFC' }}>
-                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#64748B', fontSize: 11 }}>ITEM NAME</th>
-                <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#64748B', fontSize: 11 }}>QTY</th>
-                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#64748B', fontSize: 11 }}>UNIT</th>
-                <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#64748B', fontSize: 11 }}>BASE PRICE</th>
-                <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#64748B', fontSize: 11 }}>GST %</th>
-                <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#64748B', fontSize: 11 }}>TOTAL</th>
-                <th style={{ padding: '8px 12px', fontWeight: 600, color: '#64748B', fontSize: 11 }}></th>
+                {['ITEM NAME','QTY','UNIT','BASE PRICE','GST %','TOTAL',''].map(h => (
+                  <th key={h} style={{ padding: '8px 12px', textAlign: h === 'TOTAL' || h === 'QTY' || h === 'BASE PRICE' || h === 'GST %' ? 'right' : 'left', fontWeight: 600, color: '#64748B', fontSize: 11 }}>{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -373,42 +390,31 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal }) {
                 return (
                   <tr key={i} style={{ borderBottom: '1px solid #E2E8F0' }}>
                     <td style={{ padding: '8px 12px' }}>
-                      <input type="text" className="form-input" placeholder="Item name" value={item.name} 
+                      <input type="text" className="form-input" placeholder="Item name" value={item.name}
                         onChange={e => handleItemChange(i, 'name', e.target.value)} style={{ minWidth: 150 }} />
                     </td>
                     <td style={{ padding: '8px 12px' }}>
-                      <input type="number" className="form-input" value={item.qty} 
+                      <input type="number" className="form-input" value={item.qty}
                         onChange={e => handleItemChange(i, 'qty', e.target.value)} style={{ width: 70, textAlign: 'right' }} />
                     </td>
                     <td style={{ padding: '8px 12px' }}>
                       <select className="form-select" value={item.unit} onChange={e => handleItemChange(i, 'unit', e.target.value)} style={{ width: 90 }}>
-                        <option>Nos</option>
-                        <option>Kg</option>
-                        <option>Grams</option>
-                        <option>Litre</option>
-                        <option>ML</option>
-                        <option>Metre</option>
-                        <option>CM</option>
-                        <option>Set</option>
-                        <option>Box</option>
-                        <option>Carton</option>
-                        <option>Pcs</option>
-                        <option>Dozen</option>
+                        {['Nos','Kg','Grams','Litre','ML','Metre','CM','Set','Box','Carton','Pcs','Dozen'].map(u => <option key={u}>{u}</option>)}
                       </select>
                     </td>
                     <td style={{ padding: '8px 12px' }}>
-                      <input type="number" className="form-input" value={item.basePrice} 
+                      <input type="number" className="form-input" value={item.basePrice}
                         onChange={e => handleItemChange(i, 'basePrice', e.target.value)} style={{ width: 100, textAlign: 'right' }} />
                     </td>
                     <td style={{ padding: '8px 12px' }}>
-                      <input type="number" className="form-input" value={item.gst} 
+                      <input type="number" className="form-input" value={item.gst}
                         onChange={e => handleItemChange(i, 'gst', e.target.value)} style={{ width: 70, textAlign: 'right' }} />
                     </td>
                     <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>₹{Math.round(itemTotal).toLocaleString()}</td>
                     <td style={{ padding: '8px 12px' }}>
                       {formData.items.length > 1 && (
-                        <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#dc2626', padding: '4px 8px' }} 
-                          onClick={() => handleRemoveItem(i)}>×</button>
+                        <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#dc2626', padding: '4px 8px' }}
+                          onClick={() => setFormData(p => ({ ...p, items: p.items.filter((_, idx) => idx !== i) }))}>×</button>
                       )}
                     </td>
                   </tr>
@@ -420,25 +426,21 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal }) {
 
         <div style={{ background: '#f8fafc', borderRadius: 8, padding: 16, marginLeft: 'auto', maxWidth: 280 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
-            <span>Subtotal</span>
-            <span style={{ fontWeight: 600 }}>₹{Math.round(totals.subtotal).toLocaleString()}</span>
+            <span>Subtotal</span><span style={{ fontWeight: 600 }}>₹{Math.round(totals.subtotal).toLocaleString()}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
-            <span>GST Total</span>
-            <span style={{ fontWeight: 600 }}>₹{Math.round(totals.gstTotal).toLocaleString()}</span>
+            <span>GST Total</span><span style={{ fontWeight: 600 }}>₹{Math.round(totals.gstTotal).toLocaleString()}</span>
           </div>
-          <div className="divider" />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800, color: 'var(--primary-dark)' }}>
-            <span>Grand Total</span>
-            <span>₹{Math.round(totals.grandTotal).toLocaleString()}</span>
+          <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 8, display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800, color: '#c0392b' }}>
+            <span>Grand Total</span><span>₹{Math.round(totals.grandTotal).toLocaleString()}</span>
           </div>
         </div>
 
         <div className="form-group" style={{ marginTop: 16 }}>
           <label className="form-label">Remarks</label>
-          <textarea className="form-input" rows={2} value={formData.remarks} 
-            onChange={e => setFormData({ ...formData, remarks: e.target.value })} 
-            placeholder="Additional notes or instructions..." />
+          <textarea className="form-input" rows={2} value={formData.remarks}
+            onChange={e => setFormData(p => ({ ...p, remarks: e.target.value }))}
+            placeholder="Additional notes..." />
         </div>
       </Modal>
     </>

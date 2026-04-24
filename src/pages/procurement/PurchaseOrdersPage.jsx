@@ -1,22 +1,38 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShell';
 import PurchaseOrdersTab from './components/PurchaseOrdersTab';
-import { pos } from './components/data';
+import { poApi } from '../../api/poApi';
 import { MdShoppingCart, MdHourglassEmpty, MdCheckCircle, MdLocalShipping, MdAdd } from 'react-icons/md';
 
 export default function PurchaseOrdersPage() {
   const [showPOModal, setShowPOModal] = useState(false);
+  const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, totalValue: 0 });
 
-  const pending  = pos.filter(p => p.status === 'Pending').length;
-  const approved = pos.filter(p => p.status === 'Approved').length;
-  const received = pos.filter(p => p.status === 'Received').length;
-  const totalVal = '₹12,74,400';
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await poApi.getAll();
+      const list = res.data || [];
+      const totalValue = list.reduce((sum, p) => sum + (p.grandTotal || 0), 0);
+      setStats({
+        total:      list.length,
+        pending:    list.filter(p => p.status === 'Pending').length,
+        approved:   list.filter(p => p.status === 'Approved').length,
+        totalValue,
+      });
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+
+  const fmt = (n) => n >= 100000
+    ? `₹${(n / 100000).toFixed(1)}L`
+    : `₹${n.toLocaleString('en-IN')}`;
 
   const kpis = [
-    { label: 'Total POs',     value: pos.length, icon: <MdShoppingCart size={18} />,   color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.25)' },
-    { label: 'Pending',       value: pending,    icon: <MdHourglassEmpty size={18} />, color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.25)' },
-    { label: 'Approved',      value: approved,   icon: <MdCheckCircle size={18} />,    color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)' },
-    { label: 'Total Value',   value: totalVal,   icon: <MdLocalShipping size={18} />,  color: '#2563eb', color2: '#3b82f6', glow: 'rgba(37,99,235,0.2)' },
+    { label: 'Total POs',   value: stats.total,          icon: <MdShoppingCart size={18} />,   color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.25)' },
+    { label: 'Pending',     value: stats.pending,        icon: <MdHourglassEmpty size={18} />, color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.25)' },
+    { label: 'Approved',    value: stats.approved,       icon: <MdCheckCircle size={18} />,    color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)' },
+    { label: 'Total Value', value: fmt(stats.totalValue), icon: <MdLocalShipping size={18} />,  color: '#2563eb', color2: '#3b82f6', glow: 'rgba(37,99,235,0.2)' },
   ];
 
   return (
@@ -42,7 +58,11 @@ export default function PurchaseOrdersPage() {
 
       <PageCard noPad>
         <div style={{ padding: '20px' }}>
-          <PurchaseOrdersTab showPOModal={showPOModal} setShowPOModal={setShowPOModal} />
+          <PurchaseOrdersTab
+            showPOModal={showPOModal}
+            setShowPOModal={setShowPOModal}
+            onSaved={fetchStats}
+          />
         </div>
       </PageCard>
     </div>

@@ -1,44 +1,25 @@
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
+const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
+
 const handle = async (res) => {
-  if (!res.ok) {
-    const text = await res.text();
-    let errorMsg = 'Request failed';
-    try {
-      const data = JSON.parse(text);
-      errorMsg = data.message || errorMsg;
-    } catch (e) {
-      errorMsg = `${res.status} ${res.statusText}`;
-    }
-    throw new Error(errorMsg);
-  }
   const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Request failed');
   return data;
 };
 
 export const poApi = {
   getAll: (params = {}) => {
     const q = new URLSearchParams(params).toString();
-    return fetch(`${BASE}/purchase-orders${q ? '?' + q : ''}`).then(handle);
+    return fetch(`${BASE}/purchase-orders${q ? '?' + q : ''}`, { headers: authHeaders() }).then(handle);
   },
-  getById: (id) => fetch(`${BASE}/purchase-orders/${id}`).then(handle),
+  getById: (id) => fetch(`${BASE}/purchase-orders/${id}`, { headers: authHeaders() }).then(handle),
   create: (body) =>
-    fetch(`${BASE}/purchase-orders`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }).then(handle),
+    fetch(`${BASE}/purchase-orders`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   update: (id, body) =>
-    fetch(`${BASE}/purchase-orders/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }).then(handle),
+    fetch(`${BASE}/purchase-orders/${id}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   updateStatus: (id, status) =>
-    fetch(`${BASE}/purchase-orders/${id}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    }).then(handle),
-  delete: (id) => fetch(`${BASE}/purchase-orders/${id}`, { method: 'DELETE' }).then(handle),
+    fetch(`${BASE}/purchase-orders/${id}/status`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ status }) }).then(handle),
+  delete: (id) => fetch(`${BASE}/purchase-orders/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
 };

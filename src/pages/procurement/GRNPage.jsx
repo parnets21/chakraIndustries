@@ -1,21 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShell';
 import GRNTab from './components/GRNTab';
-import { grns } from './components/data';
+import { grnApi } from '../../api/grnApi';
 import { MdInventory, MdCheckCircle, MdHourglassEmpty, MdWarning, MdAdd } from 'react-icons/md';
 
 export default function GRNPage() {
   const [showCreate, setShowCreate] = useState(false);
+  const [stats, setStats] = useState({ total: 0, completed: 0, partial: 0, pending: 0 });
 
-  const completed = grns.filter(g => g.status === 'Completed').length;
-  const partial   = grns.filter(g => g.status === 'Partial').length;
-  const pending   = grns.filter(g => g.status === 'Pending').length;
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await grnApi.getAll();
+      const list = res.data || [];
+      setStats({
+        total:     list.length,
+        completed: list.filter(g => g.status === 'Completed').length,
+        partial:   list.filter(g => g.status === 'Partial').length,
+        pending:   list.filter(g => g.status === 'Pending').length,
+      });
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => { fetchStats(); }, [fetchStats]);
 
   const kpis = [
-    { label: 'Total GRNs',  value: grns.length, icon: <MdInventory size={18} />,       color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.25)' },
-    { label: 'Completed',   value: completed,   icon: <MdCheckCircle size={18} />,     color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)' },
-    { label: 'Partial',     value: partial,     icon: <MdHourglassEmpty size={18} />,  color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.25)' },
-    { label: 'Pending QC',  value: pending,     icon: <MdWarning size={18} />,         color: '#64748b', color2: '#94a3b8', glow: 'rgba(100,116,139,0.2)' },
+    { label: 'Total GRNs', value: stats.total,     icon: <MdInventory size={18} />,      color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.25)' },
+    { label: 'Completed',  value: stats.completed, icon: <MdCheckCircle size={18} />,    color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)' },
+    { label: 'Partial',    value: stats.partial,   icon: <MdHourglassEmpty size={18} />, color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.25)' },
+    { label: 'Pending',    value: stats.pending,   icon: <MdWarning size={18} />,        color: '#64748b', color2: '#94a3b8', glow: 'rgba(100,116,139,0.2)' },
   ];
 
   return (
@@ -41,7 +53,11 @@ export default function GRNPage() {
 
       <PageCard noPad>
         <div style={{ padding: '20px 20px 0' }}>
-          <GRNTab externalShowCreate={showCreate} onExternalClose={() => setShowCreate(false)} />
+          <GRNTab
+            externalShowCreate={showCreate}
+            onExternalClose={() => setShowCreate(false)}
+            onSaved={fetchStats}
+          />
         </div>
       </PageCard>
     </div>

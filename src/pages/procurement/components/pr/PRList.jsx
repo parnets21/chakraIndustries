@@ -119,10 +119,9 @@ export default function PRList({ onEdit, refresh, viewOnly }) {
                     <StatusBadge status={p.status} />
                   </div>
                 </div>
-                {/* Row 2: dept + value */}
+                {/* Row 2: dept */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                   <span style={{ fontSize: 13, color: '#334155', fontWeight: 500 }}>{p.department}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#1a202c' }}>₹{Math.round(p.totalValue).toLocaleString()}</span>
                 </div>
                 {/* Row 3: meta */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
@@ -148,7 +147,7 @@ export default function PRList({ onEdit, refresh, viewOnly }) {
             <table style={{ width: '100%', minWidth: 860 }}>
               <thead>
                 <tr>
-                  {['PR ID','Department','Items','Value','Requested By','Required By','Priority','Approval','Status','Actions'].map(h => (
+                  {['PR ID','Department','Items','Requested By','Required By','Priority','Approval','Status','Actions'].map(h => (
                     <th key={h} style={{ padding: '11px 12px', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -159,7 +158,6 @@ export default function PRList({ onEdit, refresh, viewOnly }) {
                     <td style={{ fontWeight: 600, color: 'var(--primary)', whiteSpace: 'nowrap', padding: '12px' }}>{p.prId}</td>
                     <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>{p.department}</td>
                     <td style={{ padding: '12px' }}>{p.items?.length ?? 0}</td>
-                    <td style={{ fontWeight: 700, whiteSpace: 'nowrap', padding: '12px' }}>₹{Math.round(p.totalValue).toLocaleString()}</td>
                     <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>{p.requestedBy}</td>
                     <td style={{ color: '#64748b', fontSize: 12, whiteSpace: 'nowrap', padding: '12px' }}>
                       {p.requiredBy ? new Date(p.requiredBy).toLocaleDateString('en-IN') : '—'}
@@ -224,7 +222,6 @@ export default function PRList({ onEdit, refresh, viewOnly }) {
                 ['Department', viewPR.department],
                 ['Requested By', viewPR.requestedBy],
                 ['Required By', viewPR.requiredBy ? new Date(viewPR.requiredBy).toLocaleDateString('en-IN') : '—'],
-                ['Cost Center', viewPR.costCenter || '—'],
               ].map(([k, v]) => (
                 <div key={k} className="pr-field">
                   <div className="pr-label">{k}</div>
@@ -235,12 +232,6 @@ export default function PRList({ onEdit, refresh, viewOnly }) {
                 <div className="pr-label">Priority</div>
                 <div className="pr-value">
                   <span style={priorityStyle(viewPR.priority)}>{viewPR.priority}</span>
-                </div>
-              </div>
-              <div className="pr-field">
-                <div className="pr-label">Total Value</div>
-                <div className="pr-value" style={{ fontWeight: 700, color: '#c0392b', fontSize: 15 }}>
-                  ₹{Math.round(viewPR.totalValue).toLocaleString()}
                 </div>
               </div>
               {viewPR.remarks && (
@@ -255,10 +246,10 @@ export default function PRList({ onEdit, refresh, viewOnly }) {
           <div>
             <div className="pr-sec-row"><h3 className="pr-sec">Items ({viewPR.items?.length || 0})</h3></div>
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', fontSize: 13, minWidth: 380 }}>
+              <table style={{ width: '100%', fontSize: 13, minWidth: 280 }}>
                 <thead>
                   <tr style={{ background: '#F8FAFC' }}>
-                    {['ITEM NAME','QTY','UNIT','EST. PRICE','TOTAL'].map((h, i) => (
+                    {['ITEM NAME','QTY','UNIT'].map((h, i) => (
                       <th key={h} style={{ padding: '8px 10px', textAlign: i > 0 ? 'right' : 'left', fontWeight: 600, color: '#64748B', fontSize: 11 }}>{h}</th>
                     ))}
                   </tr>
@@ -269,21 +260,9 @@ export default function PRList({ onEdit, refresh, viewOnly }) {
                       <td style={{ padding: '9px 10px', fontWeight: 600 }}>{item.name}</td>
                       <td style={{ padding: '9px 10px', textAlign: 'right' }}>{item.qty}</td>
                       <td style={{ padding: '9px 10px', textAlign: 'right' }}>{item.unit}</td>
-                      <td style={{ padding: '9px 10px', textAlign: 'right' }}>₹{parseFloat(item.estimatedPrice || 0).toLocaleString()}</td>
-                      <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 700 }}>
-                        ₹{((parseFloat(item.qty) || 0) * (parseFloat(item.estimatedPrice) || 0)).toLocaleString()}
-                      </td>
                     </tr>
                   ))}
                 </tbody>
-                <tfoot>
-                  <tr style={{ background: '#F8FAFC', fontWeight: 700 }}>
-                    <td colSpan={4} style={{ padding: '9px 10px', textAlign: 'right' }}>Grand Total:</td>
-                    <td style={{ padding: '9px 10px', textAlign: 'right', color: '#c0392b', fontSize: 14 }}>
-                      ₹{Math.round(viewPR.totalValue).toLocaleString()}
-                    </td>
-                  </tr>
-                </tfoot>
               </table>
             </div>
           </div>
@@ -319,7 +298,6 @@ export default function PRList({ onEdit, refresh, viewOnly }) {
                 {[
                   ['PR ID', deleteConfirm.prId],
                   ['Department', deleteConfirm.department],
-                  ['Total Value', `₹${Math.round(deleteConfirm.totalValue).toLocaleString()}`],
                   ['Items', `${deleteConfirm.items?.length || 0} item(s)`],
                 ].map(([k, v]) => (
                   <>

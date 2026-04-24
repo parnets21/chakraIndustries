@@ -6,8 +6,8 @@ import { departmentApi } from '../../../../api/departmentApi';
 import { useAuth } from '../../../../auth/AuthContext';
 
 const steps = ['Details', 'Items', 'Review', 'Submit'];
-const emptyItem = { name: '', qty: '', unit: 'Nos', estimatedPrice: '' };
-const emptyForm = { department: '', requiredBy: '', priority: 'Normal', costCenter: '', remarks: '' };
+const emptyItem = { name: '', qty: '', unit: 'Nos' };
+const emptyForm = { department: '', requiredBy: '', priority: 'Normal', remarks: '' };
 
 export default function CreatePRModal({ open, onClose, onSaved, editData }) {
   const { user } = useAuth();
@@ -27,7 +27,6 @@ export default function CreatePRModal({ open, onClose, onSaved, editData }) {
         department: editData.department || '',
         requiredBy: editData.requiredBy ? editData.requiredBy.slice(0, 10) : '',
         priority: editData.priority || 'Normal',
-        costCenter: editData.costCenter || '',
         remarks: editData.remarks || '',
       });
       setItems(editData.items?.length ? editData.items : [{ ...emptyItem }]);
@@ -42,8 +41,6 @@ export default function CreatePRModal({ open, onClose, onSaved, editData }) {
   const updateItem = (i, k, v) => setItems(prev => prev.map((it, idx) => idx === i ? { ...it, [k]: v } : it));
   const addItem = () => setItems(prev => [...prev, { ...emptyItem }]);
   const removeItem = (i) => setItems(prev => prev.filter((_, idx) => idx !== i));
-
-  const totalEstimate = items.reduce((s, i) => s + (parseFloat(i.qty) || 0) * (parseFloat(i.estimatedPrice) || 0), 0);
 
   const handleClose = () => { setStep(0); onClose(); };
 
@@ -86,8 +83,8 @@ export default function CreatePRModal({ open, onClose, onSaved, editData }) {
         @media(max-width: 520px) { .pr-form-span { grid-column: span 1; } }
         .pr-review-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
         @media(max-width: 480px) { .pr-review-grid { grid-template-columns: 1fr; } }
-        .pr-item-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 8px; align-items: center; }
-        .pr-item-header { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 8px; }
+        .pr-item-row { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 8px; align-items: center; }
+        .pr-item-header { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 8px; }
         @media(max-width: 520px) {
           .pr-item-row { grid-template-columns: 1fr 1fr; gap: 8px; }
           .pr-item-header { display: none; }
@@ -100,7 +97,7 @@ export default function CreatePRModal({ open, onClose, onSaved, editData }) {
 
       {/* Step 0 — Details */}
       {step === 0 && (
-        <div className="pr-form-grid">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
           <div className="form-group">
             <label className="form-label">Department *</label>
             <select className="form-select" value={form.department} onChange={e => updateForm('department', e.target.value)}>
@@ -118,11 +115,7 @@ export default function CreatePRModal({ open, onClose, onSaved, editData }) {
               <option>Normal</option><option>Urgent</option><option>Critical</option>
             </select>
           </div>
-          <div className="form-group">
-            <label className="form-label">Cost Center</label>
-            <input className="form-input" placeholder="e.g. CC-PROD-01" value={form.costCenter} onChange={e => updateForm('costCenter', e.target.value)} />
-          </div>
-          <div className="form-group pr-form-span">
+          <div className="form-group" style={{ gridColumn: 'span 3' }}>
             <label className="form-label">Remarks</label>
             <textarea className="form-input" rows={2} placeholder="Reason for requisition..." value={form.remarks} onChange={e => updateForm('remarks', e.target.value)} />
           </div>
@@ -139,7 +132,7 @@ export default function CreatePRModal({ open, onClose, onSaved, editData }) {
 
           {/* Desktop header */}
           <div className="pr-item-header" style={{ marginBottom: 6 }}>
-            {['ITEM NAME', 'QTY', 'UNIT', 'EST. PRICE (₹)', ''].map(h => (
+            {['ITEM NAME', 'QTY', 'UNIT', ''].map(h => (
               <span key={h} style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>{h}</span>
             ))}
           </div>
@@ -154,7 +147,6 @@ export default function CreatePRModal({ open, onClose, onSaved, editData }) {
                 <select className="form-select" value={item.unit} onChange={e => updateItem(i, 'unit', e.target.value)}>
                   <option>Nos</option><option>Kg</option><option>Set</option><option>Litre</option><option>Metre</option>
                 </select>
-                <input className="form-input" type="number" placeholder="Price" value={item.estimatedPrice} onChange={e => updateItem(i, 'estimatedPrice', e.target.value)} />
                 <div className="pr-item-remove">
                   <button
                     className="btn btn-sm"
@@ -166,12 +158,6 @@ export default function CreatePRModal({ open, onClose, onSaved, editData }) {
               </div>
             ))}
           </div>
-
-          {totalEstimate > 0 && (
-            <div style={{ marginTop: 14, textAlign: 'right', fontSize: 13 }}>
-              Estimated Total: <span style={{ fontWeight: 800, color: 'var(--primary)', fontSize: 15 }}>₹{Math.round(totalEstimate).toLocaleString()}</span>
-            </div>
-          )}
         </div>
       )}
 
@@ -183,7 +169,6 @@ export default function CreatePRModal({ open, onClose, onSaved, editData }) {
               ['Department', form.department],
               ['Required By', form.requiredBy || '—'],
               ['Priority', form.priority],
-              ['Cost Center', form.costCenter || '—'],
               ['Remarks', form.remarks || '—'],
             ].map(([k, v]) => (
               <div key={k} style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid var(--border)' }}>
@@ -197,7 +182,7 @@ export default function CreatePRModal({ open, onClose, onSaved, editData }) {
             <table style={{ width: '100%', minWidth: 360, fontSize: 13 }}>
               <thead>
                 <tr style={{ background: '#f8fafc' }}>
-                  {['Item','Qty','Unit','Est. Price','Total'].map(h => (
+                  {['Item', 'Qty', 'Unit'].map(h => (
                     <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: '#64748b', fontSize: 11 }}>{h}</th>
                   ))}
                 </tr>
@@ -208,15 +193,10 @@ export default function CreatePRModal({ open, onClose, onSaved, editData }) {
                     <td style={{ padding: '8px 10px', fontWeight: 600 }}>{it.name || '—'}</td>
                     <td style={{ padding: '8px 10px' }}>{it.qty || 0}</td>
                     <td style={{ padding: '8px 10px' }}>{it.unit}</td>
-                    <td style={{ padding: '8px 10px' }}>₹{it.estimatedPrice || 0}</td>
-                    <td style={{ padding: '8px 10px', fontWeight: 700 }}>₹{((parseFloat(it.qty) || 0) * (parseFloat(it.estimatedPrice) || 0)).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-          <div style={{ textAlign: 'right', marginTop: 12, fontSize: 14, fontWeight: 800, color: 'var(--primary)' }}>
-            Grand Total: ₹{Math.round(totalEstimate).toLocaleString()}
           </div>
         </div>
       )}
@@ -238,7 +218,6 @@ export default function CreatePRModal({ open, onClose, onSaved, editData }) {
             {[
               ['Department', form.department],
               ['Items', `${items.length} item(s)`],
-              ['Estimated Value', `₹${Math.round(totalEstimate).toLocaleString()}`],
             ].map(([k, v], i) => (
               <div key={k} style={{ marginBottom: i < 2 ? 10 : 0 }}>
                 <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>{k}</div>

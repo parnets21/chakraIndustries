@@ -3,8 +3,9 @@ import Modal from '../../../../components/common/Modal';
 import { rfqApi } from '../../../../api/rfqApi';
 import { vendorApi } from '../../../../api/vendorApi';
 import { prApi } from '../../../../api/prApi';
-import { MdCompareArrows, MdDeleteOutline, MdVisibility, MdAttachFile, MdClose } from 'react-icons/md';
+import { MdCompareArrows, MdDeleteOutline, MdVisibility, MdClose, MdAdd } from 'react-icons/md';
 import { TiEdit } from 'react-icons/ti';
+import CompareQuotesModal from './CompareQuotesModal';
 
 export default function RFQList({ onCompare, refresh }) {
   const [rfqs, setRfqs] = useState([]);
@@ -14,6 +15,7 @@ export default function RFQList({ onCompare, refresh }) {
   const [deleting, setDeleting] = useState(false);
   const [viewRFQ, setViewRFQ] = useState(null);
   const [editRFQ, setEditRFQ] = useState(null);
+  const [addQuoteRFQ, setAddQuoteRFQ] = useState(null); // open compare/add-quote modal directly
   const [editForm, setEditForm] = useState({});
   const [editItems, setEditItems] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -29,13 +31,10 @@ export default function RFQList({ onCompare, refresh }) {
     try {
       const params = {};
       if (filterStatus) params.status = filterStatus;
-      console.log('🔵 Fetching RFQs from API...');
       const res = await rfqApi.getAll(params);
-      console.log('✅ RFQ API Response:', res);
       setRfqs(res.data);
     } catch (e) {
-      console.error('❌ RFQ Fetch Error:', e);
-      alert('Failed to load RFQs: ' + e.message);
+      console.error('RFQ fetch error:', e.message);
     } finally {
       setLoading(false);
     }
@@ -303,12 +302,23 @@ export default function RFQList({ onCompare, refresh }) {
                         >
                           <TiEdit size={20} />
                         </button>
-                        <button 
-                          className="rfq-action-btn rfq-action-compare"
-                          title="Compare Quotes"
-                          onClick={() => onCompare(r)}
+                        {/* Add Quote / Compare — main action */}
+                        <button
+                          title={r.quotations?.length > 0 ? `${r.quotations.length} quote(s) — Compare` : 'Add vendor quotation'}
+                          onClick={() => { setAddQuoteRFQ(r); onCompare(r); }}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                            padding: '5px 10px', borderRadius: 8, cursor: 'pointer',
+                            border: `1.5px solid ${r.quotations?.length > 0 ? '#bbf7d0' : '#fde68a'}`,
+                            background: r.quotations?.length > 0 ? '#f0fdf4' : '#fffbeb',
+                            color: r.quotations?.length > 0 ? '#15803d' : '#92400e',
+                            fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
+                          }}
                         >
-                          <MdCompareArrows size={18} />
+                          {r.quotations?.length > 0
+                            ? <><MdCompareArrows size={14} /> {r.quotations.length} Quote{r.quotations.length > 1 ? 's' : ''}</>
+                            : <><MdAdd size={14} /> Add Quote</>
+                          }
                         </button>
                         <button 
                           className="rfq-action-btn rfq-action-delete" 
@@ -1475,6 +1485,14 @@ export default function RFQList({ onCompare, refresh }) {
           </div>
         </Modal>
       )}
+
+      {/* Add Quote / Compare Quotes — triggered from row button */}
+      <CompareQuotesModal
+        open={!!addQuoteRFQ}
+        onClose={() => setAddQuoteRFQ(null)}
+        rfq={addQuoteRFQ}
+        onRefresh={() => { setAddQuoteRFQ(null); fetchRFQs(); }}
+      />
     </>
   );
 }

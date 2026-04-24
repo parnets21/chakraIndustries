@@ -4,15 +4,15 @@ import { poApi } from '../../../../api/poApi';
 import { grnApi } from '../../../../api/grnApi';
 
 export default function CreateGRNModal({ open, onClose, onSaved }) {
-  const [pos, setPOs]           = useState([]);
+  const [pos, setPOs]               = useState([]);
   const [selectedPO, setSelectedPO] = useState('');
-  const [poData, setPoData]     = useState(null);
+  const [poData, setPoData]         = useState(null);
   const [receiptDate, setReceiptDate] = useState('');
   const [receivedBy, setReceivedBy]   = useState('');
-  const [remarks, setRemarks]   = useState('');
-  const [items, setItems]       = useState([]);
-  const [saving, setSaving]     = useState(false);
-  const [loading, setLoading]   = useState(false);
+  const [remarks, setRemarks]         = useState('');
+  const [items, setItems]             = useState([]);
+  const [saving, setSaving]           = useState(false);
+  const [loading, setLoading]         = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -25,7 +25,6 @@ export default function CreateGRNModal({ open, onClose, onSaved }) {
   const loadPOs = async () => {
     setLoading(true);
     try {
-      // Fetch all POs then filter out Draft and Cancelled on the frontend
       const res = await poApi.getAll();
       const usable = (res.data || []).filter(p => p.status !== 'Draft' && p.status !== 'Cancelled');
       setPOs(usable);
@@ -54,13 +53,12 @@ export default function CreateGRNModal({ open, onClose, onSaved }) {
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, [k]: v } : it));
 
   const handleSave = async () => {
-    if (!selectedPO) { alert('Please select a PO'); return; }
-    if (!receiptDate) { alert('Please enter receipt date'); return; }
+    if (!selectedPO)        { alert('Please select a PO'); return; }
+    if (!receiptDate)       { alert('Please enter receipt date'); return; }
     if (!receivedBy.trim()) { alert('Please enter received by'); return; }
 
     const totalOrdered  = items.reduce((s, i) => s + i.ordered, 0);
     const totalReceived = items.reduce((s, i) => s + (parseInt(i.received) || 0), 0);
-
     if (totalReceived === 0) { alert('Please enter received quantities'); return; }
 
     const status = totalReceived >= totalOrdered ? 'Completed' : totalReceived > 0 ? 'Partial' : 'Pending';
@@ -116,7 +114,7 @@ export default function CreateGRNModal({ open, onClose, onSaved }) {
                 ))}
               </select>
               {pos.length === 0 && !loading && (
-                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>No POs available. Create a PO first.</div>
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>No POs available. Create and approve a PO first.</div>
               )}
             </div>
             <div className="form-group">
@@ -133,7 +131,6 @@ export default function CreateGRNModal({ open, onClose, onSaved }) {
             </div>
           </div>
 
-          {/* Vendor info */}
           {poData && (
             <div style={{ padding: '10px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 9, marginBottom: 16, fontSize: 13 }}>
               <span style={{ fontWeight: 600, color: '#15803d' }}>Vendor: </span>
@@ -143,7 +140,6 @@ export default function CreateGRNModal({ open, onClose, onSaved }) {
             </div>
           )}
 
-          {/* Items */}
           {items.length > 0 && (
             <>
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>Items Received</div>
@@ -186,7 +182,6 @@ export default function CreateGRNModal({ open, onClose, onSaved }) {
                 </table>
               </div>
 
-              {/* Summary */}
               <div style={{ background: '#f8fafc', borderRadius: 9, padding: 14, border: '1px solid #e2e8f0' }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 8 }}>RECEIPT SUMMARY</div>
                 <div style={{ display: 'flex', gap: 24 }}>

@@ -104,8 +104,8 @@ export default function ProductionPage({ initialTab = 0 }) {
         {activeTab === 1 && <button onClick={() => setShowWOModal(true)} style={primaryBtn}>+ New Work Order</button>}
         {activeTab === 2 && <button onClick={() => setShowWOModal(true)} style={primaryBtn}>+ New Plan</button>}
         {activeTab === 3 && <button onClick={() => setShowWOModal(true)} style={primaryBtn}>+ Schedule WO</button>}
-        {activeTab === 5 && <button style={outlineBtn}>⬇ Export</button>}
-        {activeTab === 6 && <button style={outlineBtn}>⬇ Export</button>}
+        {activeTab === 5 && <button onClick={() => alert('📊 Exporting efficiency report...')} style={outlineBtn}>⬇ Export</button>}
+        {activeTab === 6 && <button onClick={() => alert('📊 Exporting wastage report...')} style={outlineBtn}>⬇ Export</button>}
       </div>
       {activeTab === 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

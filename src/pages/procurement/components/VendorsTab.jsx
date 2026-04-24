@@ -4,7 +4,8 @@ import Modal from '../../../components/common/Modal';
 import { vendorApi } from '../../../api/vendorApi';
 import { rfqApi } from '../../../api/rfqApi';
 import { poApi } from '../../../api/poApi';
-import { MdVisibility, MdEdit, MdAdd, MdSearch, MdBusiness, MdPhone, MdEmail, MdLocationOn, MdStar, MdDelete, MdPrint, MdAssignment, MdShoppingCart } from 'react-icons/md';
+import VendorPriceMapping from './VendorPriceMapping';
+import { MdVisibility, MdEdit, MdAdd, MdSearch, MdFilterList, MdBusiness, MdPhone, MdEmail, MdLocationOn, MdStar, MdDelete, MdPrint, MdAssignment, MdShoppingCart } from 'react-icons/md';
 
 const EMPTY_FORM = {
   companyName: '', category: '', contactPerson: '', phone: '',
@@ -41,9 +42,9 @@ export default function VendorsTab({
   const [viewVendor, setViewVendor] = useState(null);
   const [formErrors, setFormErrors] = useState({});
   const [successMsg, setSuccessMsg] = useState('');
-  // Linked data for vendor detail view
+  const [showPriceMapping, setShowPriceMapping] = useState(false);
   const [vendorRFQs, setVendorRFQs] = useState([]);
-  const [vendorPOs,  setVendorPOs]  = useState([]);
+  const [vendorPOs, setVendorPOs]   = useState([]);
 
   const fetchVendors = useCallback(async () => {
     setLoading(true); setError('');
@@ -559,6 +560,7 @@ export default function VendorsTab({
             <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', gap: 12 }}>
               <div style={{ fontSize: 12, color: '#64748B' }}>Vendor ID: <span style={{ fontWeight: 600, color: '#1E293B' }}>{viewVendor.vendorId}</span></div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <button onClick={() => setShowPriceMapping(!showPriceMapping)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f0fdf4', border: '1.5px solid #bbf7d0', color: '#16a34a', padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }} onMouseEnter={(e) => { e.target.style.background = '#dcfce7'; e.target.style.borderColor = '#86efac'; }} onMouseLeave={(e) => { e.target.style.background = '#f0fdf4'; e.target.style.borderColor = '#bbf7d0'; }}>💰 {showPriceMapping ? 'Hide' : 'Show'} Prices</button>
                 <button onClick={() => handlePrint(viewVendor)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f0f9ff', border: '1.5px solid #bfdbfe', color: '#1e40af', padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }} onMouseEnter={(e) => { e.target.style.background = '#e0f2fe'; e.target.style.borderColor = '#7dd3fc'; }} onMouseLeave={(e) => { e.target.style.background = '#f0f9ff'; e.target.style.borderColor = '#bfdbfe'; }}><MdPrint size={16} /> Print</button>
                 <button onClick={() => openEdit(viewVendor)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fef2f2', border: '1.5px solid #fecaca', color: '#ef4444', padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }} onMouseEnter={(e) => { e.target.style.background = '#fee2e2'; e.target.style.borderColor = '#fca5a5'; }} onMouseLeave={(e) => { e.target.style.background = '#fef2f2'; e.target.style.borderColor = '#fecaca'; }}><MdEdit size={16} /> Edit</button>
                 <button onClick={() => setViewVendor(null)} style={{ background: 'transparent', border: '1.5px solid #cbd5e1', color: '#475569', padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }} onMouseEnter={(e) => { e.target.style.background = '#f1f5f9'; }} onMouseLeave={(e) => { e.target.style.background = 'transparent'; }}>Close</button>
@@ -706,33 +708,14 @@ export default function VendorsTab({
             </div>
           )}
 
-          {/* Linked RFQs & POs */}
-          {(vendorRFQs.length > 0 || vendorPOs.length > 0) && (
-            <div style={{ marginTop: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <div style={{ background: '#f0f9ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '12px 14px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                  <MdAssignment size={15} style={{ color: '#2563eb' }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>RFQs ({vendorRFQs.length})</span>
-                </div>
-                {vendorRFQs.slice(0, 5).map(r => (
-                  <div key={r._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid #dbeafe', fontSize: 12 }}>
-                    <span style={{ fontWeight: 600, color: '#1e293b' }}>{r.rfqId}</span>
-                    <span style={{ padding: '2px 7px', borderRadius: 8, background: r.status === 'Sent' ? '#eff6ff' : r.status === 'Quoted' ? '#f0fdf4' : '#f1f5f9', color: r.status === 'Sent' ? '#2563eb' : r.status === 'Quoted' ? '#16a34a' : '#64748b', fontWeight: 600, fontSize: 10 }}>{r.status}</span>
-                  </div>
-                ))}
-              </div>
-              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 14px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                  <MdShoppingCart size={15} style={{ color: '#16a34a' }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Purchase Orders ({vendorPOs.length})</span>
-                </div>
-                {vendorPOs.slice(0, 5).map(p => (
-                  <div key={p._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid #dcfce7', fontSize: 12 }}>
-                    <span style={{ fontWeight: 600, color: '#1e293b' }}>{p.poId}</span>
-                    <span style={{ fontWeight: 600, color: '#16a34a' }}>₹{(p.grandTotal || 0).toLocaleString('en-IN')}</span>
-                  </div>
-                ))}
-              </div>
+          {/* Price Mapping Section */}
+          {showPriceMapping && (
+            <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #e2e8f0' }}>
+              <VendorPriceMapping 
+                vendorId={viewVendor._id} 
+                vendorName={viewVendor.companyName}
+                onClose={() => setShowPriceMapping(false)}
+              />
             </div>
           )}
         </Modal>

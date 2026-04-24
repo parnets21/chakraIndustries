@@ -97,7 +97,7 @@ export default function ForecastingPage({ initialTab = 0 }) {
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-3.5">
             <div className="text-sm font-bold text-gray-800">Suggested Purchase Orders</div>
-            <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-amber-300 to-amber-500 text-white font-semibold border-0 cursor-pointer font-[inherit]">
+            <button onClick={() => alert('📦 Auto-generating purchase orders...')} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-amber-300 to-amber-500 text-white font-semibold border-0 cursor-pointer font-[inherit]">
               Auto-Generate POs
             </button>
           </div>
@@ -115,7 +115,7 @@ export default function ForecastingPage({ initialTab = 0 }) {
                     <td className={tdCls}>{s.vendor}</td>
                     <td className={tdCls}><StatusBadge status={s.urgency} type={s.urgency === 'Critical' ? 'danger' : s.urgency === 'Normal' ? 'warning' : 'info'} /></td>
                     <td className={tdCls}>
-                      <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">Create PO</button>
+                      <button onClick={() => alert(`📦 Creating PO for ${s.sku}...`)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">Create PO</button>
                     </td>
                   </tr>
                 ))}
@@ -184,7 +184,7 @@ export default function ForecastingPage({ initialTab = 0 }) {
                 );
               })}
             </div>
-            <button className="inline-flex items-center justify-center gap-1.5 w-full px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">
+            <button onClick={() => alert('💾 Saving seasonal configuration...')} className="inline-flex items-center justify-center gap-1.5 w-full px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">
               Save Seasonal Config
             </button>
           </div>

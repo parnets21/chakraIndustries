@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import StatusBadge from '../../../../components/common/StatusBadge';
 import Modal from '../../../../components/common/Modal';
-import { grnApi } from '../../../../api/grnApi';
+import EditGRNModal from './EditGRNModal';
+import { grnDetails } from '../data';
 import { FaRegEdit } from 'react-icons/fa';
 import { MdVisibility, MdDeleteOutline } from 'react-icons/md';
 
@@ -9,7 +10,7 @@ export default function GRNList({ onView, refresh }) {
   const [grns, setGrns]           = useState([]);
   const [loading, setLoading]     = useState(false);
   const [deleteGRN, setDeleteGRN] = useState(null);
-  const [deleting, setDeleting]   = useState(false);
+  const [editGRN, setEditGRN]     = useState(null);
 
   const fetchGRNs = useCallback(async () => {
     setLoading(true);
@@ -38,30 +39,52 @@ export default function GRNList({ onView, refresh }) {
     }
   };
 
-  const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+  const handleEditSave = (updatedGRN) => {
+    setItems(prev => prev.map(g => g.id === updatedGRN.id ? updatedGRN : g));
+  };
 
   return (
     <>
       <div className="card">
         <div style={{ fontWeight: 700, marginBottom: 14 }}>GRN List</div>
-
-        {loading ? (
-          <div style={{ padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Loading...</div>
-        ) : grns.length === 0 ? (
-          <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>No GRNs found</div>
-        ) : (
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>GRN ID</th>
-                  <th>PO Ref</th>
-                  <th>Vendor</th>
-                  <th>Ordered</th>
-                  <th>Received</th>
-                  <th>Date</th>
-                  <th>Status</th>
-                  <th>Actions</th>
+        <div className="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>GRN ID</th><th>PO Ref</th><th>Vendor</th><th>Warehouse</th>
+                <th>Received By</th><th>Date</th><th>GST %</th><th>QC Status</th><th>Status</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((g, i) => (
+                <tr key={i}>
+                  <td style={{ fontWeight: 600, color: 'var(--primary)' }}>{g.id}</td>
+                  <td style={{ color: '#64748b' }}>{g.poRef}</td>
+                  <td style={{ fontWeight: 500 }}>{g.vendor}</td>
+                  <td>{g.warehouse}</td>
+                  <td>{g.receivedBy}</td>
+                  <td style={{ color: '#64748b', fontSize: 12 }}>{g.receivedDate}</td>
+                  <td style={{ fontWeight: 600 }}>{g.gst}%</td>
+                  <td><StatusBadge status={g.qcStatus} /></td>
+                  <td><StatusBadge status={g.status} /></td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn btn-outline btn-sm" title="Edit" style={{ padding: '4px 8px' }}
+                        onClick={() => setEditGRN(g)}>
+                        <FaRegEdit size={15} />
+                      </button>
+                      <button className="btn btn-sm" title="View Details"
+                        style={{ background: '#f1f5f9', color: 'var(--text)', padding: '4px 8px' }}
+                        onClick={() => onView(g)}>
+                        <MdVisibility size={16} />
+                      </button>
+                      <button className="btn btn-sm" title="Delete"
+                        style={{ background: '#fee2e2', color: '#dc2626', padding: '4px 8px' }}
+                        onClick={() => setDeleteGRN(g)}>
+                        <MdDeleteOutline size={16} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               </thead>
               <tbody>
@@ -117,6 +140,9 @@ export default function GRNList({ onView, refresh }) {
           Delete <strong>{deleteGRN?.grnId}</strong>? This cannot be undone.
         </p>
       </Modal>
+
+      {/* Edit GRN Modal */}
+      <EditGRNModal open={!!editGRN} onClose={() => setEditGRN(null)} grn={editGRN} onSave={handleEditSave} />
     </>
   );
 }

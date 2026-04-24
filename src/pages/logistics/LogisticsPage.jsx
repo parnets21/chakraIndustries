@@ -122,7 +122,7 @@ export default function LogisticsPage({ initialTab = 0 }) {
                 { key: 'warehouse', label: 'Warehouse' },
                 { key: 'weight', label: 'Weight' },
                 { key: 'id', label: 'Actions', render: () => (
-                  <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-amber-300 to-amber-500 text-white font-semibold border-0 cursor-pointer font-[inherit]">
+                  <button onClick={() => alert('🚛 Assigning vehicle...')} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-amber-300 to-amber-500 text-white font-semibold border-0 cursor-pointer font-[inherit]">
                     Assign Vehicle
                   </button>
                 )},
@@ -215,7 +215,7 @@ export default function LogisticsPage({ initialTab = 0 }) {
             </div>
             <div className="flex gap-2 items-center">
               <StatusBadge status="2 Pending" type="warning" />
-              <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">
+              <button onClick={() => alert('✓ Regularizing all pending DCs...')} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">
                 Regularize All
               </button>
             </div>
@@ -231,7 +231,7 @@ export default function LogisticsPage({ initialTab = 0 }) {
               { key: 'value', label: 'Value', render: v => <span className="font-bold">{v}</span> },
               { key: 'status', label: 'Status', render: v => <StatusBadge status={v} type={v === 'Regularized' ? 'success' : v === 'Overdue' ? 'danger' : 'warning'} /> },
               { key: 'id', label: 'Action', render: (_, row) => row.status !== 'Regularized' ? (
-                <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">Raise Invoice</button>
+                <button onClick={() => alert(`📄 Raising invoice for ${row.id}...`)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">Raise Invoice</button>
               ) : <span className="text-green-600 text-xs">✓ Done</span> },
             ]}
             data={dcEntries}
@@ -267,7 +267,7 @@ export default function LogisticsPage({ initialTab = 0 }) {
                 { key: 'daysOld', label: 'Age', render: v => <span className={`font-bold ${v > 5 ? 'text-red-500' : v > 2 ? 'text-amber-500' : 'text-gray-500'}`}>{v}d</span> },
                 { key: 'reason', label: 'Reason', render: v => <span className="text-[11px] text-gray-500">{v}</span> },
                 { key: 'id', label: 'Action', render: () => (
-                  <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]">Resolve</button>
+                  <button onClick={() => alert('🔧 Resolving pendency...')} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]">Resolve</button>
                 )},
               ]}
               data={pendencyData}
@@ -304,9 +304,9 @@ export default function LogisticsPage({ initialTab = 0 }) {
                 { key: 'eta', label: 'ETA' },
                 { key: 'status', label: 'Status', render: v => <StatusBadge status={v} type={v === 'Delivered' ? 'success' : v === 'Out for Delivery' ? 'warning' : 'info'} /> },
                 { key: 'pod', label: 'POD', render: v => v ? (
-                  <button className="px-2 py-1 text-[11px] rounded bg-green-100 text-green-800 border-0 cursor-pointer font-[inherit]">📄 View POD</button>
+                  <button onClick={() => alert('📄 Viewing POD...')} className="px-2 py-1 text-[11px] rounded bg-green-100 text-green-800 border-0 cursor-pointer font-[inherit]">📄 View POD</button>
                 ) : (
-                  <button className="px-2 py-1 text-[11px] rounded bg-amber-100 text-amber-800 border-0 cursor-pointer font-[inherit]">⬆ Upload</button>
+                  <button onClick={() => alert('⬆ Upload POD image...')} className="px-2 py-1 text-[11px] rounded bg-amber-100 text-amber-800 border-0 cursor-pointer font-[inherit]">⬆ Upload</button>
                 )},
               ]}
               data={courierShipments}
@@ -325,8 +325,8 @@ export default function LogisticsPage({ initialTab = 0 }) {
                   <div className="text-[10px] text-gray-400 mt-1">JPG, PNG, PDF — Max 5MB</div>
                 </div>
                 <div className="flex gap-2">
-                  <button className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]">Cancel</button>
-                  <button className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">Submit POD</button>
+                  <button onClick={() => setShowModal(false)} className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]">Cancel</button>
+                  <button onClick={() => { alert('✓ POD submitted successfully'); setShowModal(false); }} className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">Submit POD</button>
                 </div>
               </div>
               <div>

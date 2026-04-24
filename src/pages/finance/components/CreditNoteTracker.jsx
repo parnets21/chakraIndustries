@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import StatusBadge from '../../../components/common/StatusBadge';
-import { MdBell, MdCheckCircle, MdWarning, MdError } from 'react-icons/md';
+import { MdCheckCircle, MdWarning, MdError, MdNotifications } from 'react-icons/md';
 
 export default function CreditNoteTracker() {
   const [notes, setNotes] = useState([]);
@@ -74,7 +74,7 @@ export default function CreditNoteTracker() {
     switch (priority) {
       case 'critical': return <MdError size={16} style={{ color: '#dc2626' }} />;
       case 'high': return <MdWarning size={16} style={{ color: '#f59e0b' }} />;
-      default: return <MdBell size={16} style={{ color: '#3b82f6' }} />;
+      default: return <MdNotifications size={16} style={{ color: '#3b82f6' }} />;
     }
   };
 

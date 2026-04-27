@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { MdEmail, MdLock, MdVisibility, MdVisibilityOff, MdLogin, MdArrowForward } from 'react-icons/md';
-import { FiAlertTriangle } from 'react-icons/fi';
+import { FiAlertTriangle, FiZap, FiTarget } from 'react-icons/fi';
 import { TbFileAnalyticsFilled } from 'react-icons/tb';
 import { FcSalesPerformance } from 'react-icons/fc';
 import { GoGoal } from 'react-icons/go';
@@ -654,7 +654,7 @@ export default function LoginPage() {
                   Test Credentials:
                 </div>
                 <div style={{ color: '#78350f', lineHeight: '1.6' }}>
-                  <div><strong>Admin:</strong> admin@chakra.in / admin123</div>
+                  <div><strong>Admin:</strong>  chakra@admin.com / chakra123</div>
                   <div><strong>Purchase:</strong> purchase@chakra.in / purchase123</div>
                   <div><strong>Production:</strong> production@chakra.in / prod123</div>
                 </div>

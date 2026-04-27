@@ -25,6 +25,7 @@ import ProductionSubPage from '../pages/production/ProductionSubPage';
 
 // Bulk Orders
 import BulkSubPage from '../pages/bulk/BulkSubPage';
+import ClientsESMEPage from '../pages/bulk/ClientsESMEPage';
 
 // Logistics
 import LogisticsSubPage from '../pages/logistics/LogisticsSubPage';
@@ -112,6 +113,7 @@ export default function AppRoutes() {
       {/* Bulk Orders */}
       <Route path="/bulk"             element={<Navigate to="/bulk/clients" replace />} />
       <Route path="/bulk/clients"     element={<P element={<BulkSubPage tab="clients" />} />} />
+      <Route path="/bulk/clientsESME" element={<P element={<ClientsESMEPage />} />} />
       <Route path="/bulk/quotations"  element={<P element={<BulkSubPage tab="quotations" />} />} />
       <Route path="/bulk/packaging"   element={<P element={<BulkSubPage tab="packaging" />} />} />
       <Route path="/bulk/delivery"    element={<P element={<BulkSubPage tab="delivery" />} />} />

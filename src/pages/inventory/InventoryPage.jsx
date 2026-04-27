@@ -4,7 +4,7 @@ import BarChart from '../../components/charts/BarChart';
 import Modal from '../../components/common/Modal';
 import StorageLocationPage from './StorageLocationPage';
 import PincodeStockPage from './PincodeStockPage';
-import { MdWarehouse, MdLocationOn, MdAdd } from 'react-icons/md';
+import { MdWarehouse, MdLocationOn, MdAdd, MdDownload, MdSwapHoriz, MdDescription, MdScale, MdCheckCircle, MdWarningAmber, MdLocalShipping, MdSchedule } from 'react-icons/md';
 import { toast } from '../../components/common/Toast';
 
 // ─── Design tokens ───────────────────────────────────────────────────────────
@@ -181,7 +181,6 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   // Mutable data state
   const [stockList, setStockList]       = useState(stockData);
   const [warehouseList, setWarehouseList] = useState(warehouses);
-  const [movementList, setMovementList] = useState(movements);
   const [pickList, setPickList]         = useState(pickData);
   const [sortList, setSortList]         = useState(sortData);
   const [packList, setPackList]         = useState(packData);
@@ -192,7 +191,6 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   // Adjust/Move modal state
   const [adjustItem, setAdjustItem]   = useState(null);
   const [moveItem, setMoveItem]       = useState(null);
-  const [adjustQty, setAdjustQty]     = useState('');
   const [moveToWH, setMoveToWH]       = useState('');
 
   // merge external trigger (from PageHeader button) with any internal triggers
@@ -412,7 +410,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                   <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>Warehouse Summary</div>
                 </div>
                 <div style={{ padding:'8px 0' }}>
-                  {warehouses.map((wh, i) => {
+                  {warehouseList.map((wh, i) => {
                     const pct = Math.round((wh.used / wh.capacity) * 100);
                     const barColor = pct > 85 ? RED_LIGHT : pct > 70 ? AMBER : GREEN;
                     return (
@@ -455,7 +453,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               border:'1px solid #e2e8f0', background:'#fff',
             }}>
               <option value="All">All Warehouses</option>
-              {warehouses.map(w => <option key={w.id} value={w.id}>{w.id} — {w.name}</option>)}
+              {warehouseList.map(w => <option key={w.id} value={w.id}>{w.id} — {w.name}</option>)}
             </select>
             <div style={{ display:'flex', gap:6 }}>
               {['All','Active','Critical','Dead'].map(f => (
@@ -551,7 +549,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             <span style={{ fontSize:13, fontWeight:700, color: TEXT_DARK, flexShrink:0 }}>Warehouse:</span>
             <select
               value={selectedWH?.id || ''}
-              onChange={e => setSelectedWH(warehouses.find(w => w.id === e.target.value))}
+              onChange={e => setSelectedWH(warehouseList.find(w => w.id === e.target.value))}
               style={{
                 flex:1, minWidth:200, maxWidth:320,
                 padding:'8px 12px', border:'1.5px solid #e2e8f0',
@@ -560,7 +558,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 outline:'none', cursor:'pointer', fontFamily:'inherit',
               }}
             >
-              {warehouses.map(w => (
+              {warehouseList.map(w => (
                 <option key={w.id} value={w.id}>{w.id} — {w.name} ({w.location})</option>
               ))}
             </select>
@@ -678,46 +676,66 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             <div style={{ padding:'14px 20px', borderBottom: BORDER }}>
               <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>All Warehouses Overview</div>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:1, background:'#f1f5f9' }}>
-              {warehouses.map((wh, i) => {
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, padding:12, background:'#fafbfc' }}>
+              {warehouseList.map((wh, i) => {
                 const pct = Math.round((wh.used / wh.capacity) * 100);
                 const barColor = pct > 85 ? RED_LIGHT : pct > 70 ? AMBER : GREEN;
                 const gradients = [
-                  'linear-gradient(135deg,#c0392b,#e74c3c)',
-                  'linear-gradient(135deg,#7c3aed,#a855f7)',
-                  'linear-gradient(135deg,#0369a1,#3b82f6)',
+                  'linear-gradient(135deg,#ef4444,#dc2626)',
+                  'linear-gradient(135deg,#a855f7,#9333ea)',
+                  'linear-gradient(135deg,#3b82f6,#2563eb)',
                 ];
-                const accentColor = i === 0 ? RED : i === 1 ? PURPLE : BLUE;
                 return (
                   <div key={i} style={{
-                    background:'#fff', padding:'20px',
-                    cursor:'pointer', transition:'background 0.1s',
+                    background:'#fff', padding:'16px',
+                    borderRadius:10, border:'1px solid #e5e7eb',
+                    cursor:'pointer', transition:'all 0.3s ease',
+                    boxShadow:'0 1px 3px rgba(0,0,0,0.06)',
+                    position:'relative', overflow:'hidden',
                   }}
                     onClick={() => setSelectedWH(wh)}
-                    onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.boxShadow = '0 8px 16px rgba(15,23,42,0.12)';
+                      e.currentTarget.style.transform = 'translateY(-3px)';
+                      e.currentTarget.style.borderColor = barColor;
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.borderColor = '#e5e7eb';
+                    }}
                   >
-                    <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
-                      <div style={{
-                        width:36, height:36, borderRadius:10, flexShrink:0,
-                        background: gradients[i],
-                        display:'flex', alignItems:'center', justifyContent:'center',
-                        color:'#fff', fontSize:16,
-                      }}><MdWarehouse size={20} /></div>
-                      <div>
-                        <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>{wh.name}</div>
-                        <div style={{ fontSize:11, color: TEXT_LIGHT }}>{wh.id} · {wh.location}</div>
+                    {/* Thin gradient top bar */}
+                    <div style={{
+                      position:'absolute', top:0, left:0, right:0, height:3,
+                      background: gradients[i % 3],
+                    }} />
+
+                    {/* Content */}
+                    <div style={{ marginTop:4 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
+                        <div style={{
+                          width:32, height:32, borderRadius:8, flexShrink:0,
+                          background: gradients[i],
+                          display:'flex', alignItems:'center', justifyContent:'center',
+                          color:'#fff', fontSize:14,
+                        }}><MdWarehouse size={18} /></div>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:12, fontWeight:700, color: TEXT_DARK }}>{wh.name}</div>
+                          <div style={{ fontSize:10, color: TEXT_LIGHT }}>{wh.id}</div>
+                        </div>
                       </div>
-                    </div>
-                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
-                      <span style={{ fontSize:11.5, color: TEXT_MID }}>{wh.skus} SKUs</span>
-                      <span style={{ fontSize:11.5, fontWeight:700, color: barColor }}>{pct}%</span>
-                    </div>
-                    <div style={{ height:6, background:'#f1f5f9', borderRadius:3, overflow:'hidden' }}>
-                      <div style={{ height:'100%', width:`${pct}%`, background: barColor, borderRadius:3 }} />
-                    </div>
-                    <div style={{ fontSize:11, color: TEXT_LIGHT, marginTop:4 }}>
-                      {wh.used.toLocaleString()} / {wh.capacity.toLocaleString()} units
+                      <div style={{ fontSize:10, color: TEXT_LIGHT, marginBottom:10, display:'flex', alignItems:'center', gap:6 }}><MdLocationOn size={12} /> {wh.location}</div>
+                      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8, fontSize:11 }}>
+                        <span style={{ color: TEXT_MID }}>{wh.skus} SKUs</span>
+                        <span style={{ fontWeight:700, color: barColor }}>{pct}%</span>
+                      </div>
+                      <div style={{ height:5, background:'#f1f5f9', borderRadius:3, overflow:'hidden', marginBottom:8 }}>
+                        <div style={{ height:'100%', width:`${pct}%`, background: barColor, borderRadius:3 }} />
+                      </div>
+                      <div style={{ fontSize:10, color: TEXT_LIGHT }}>
+                        {wh.used.toLocaleString()} / {wh.capacity.toLocaleString()} units
+                      </div>
                     </div>
                   </div>
                 );
@@ -765,7 +783,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
           </div>
 
           {/* Movement cards */}
-          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
             {movementList.filter(m => m.type === movTab).length === 0 ? (
               <div style={{
                 textAlign:'center', padding:'40px 20px',
@@ -786,39 +804,51 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 const typeIcon  = mv.type==='Inward' ? '↓' : mv.type==='Outward' ? '↑' : '⇄';
                 return (
                   <div key={i} style={{
-                    ...card(), padding:'16px 20px',
-                    borderLeft:`4px solid ${typeColor}`,
-                    display:'flex', alignItems:'center', gap:20,
-                  }}>
+                    ...card(), padding:'18px 20px',
+                    borderLeft:`5px solid ${typeColor}`,
+                    display:'flex', alignItems:'center', gap:18,
+                    boxShadow:'0 1px 3px rgba(0,0,0,0.06)',
+                    transition:'all 0.2s ease',
+                    cursor:'pointer',
+                  }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+                      e.currentTarget.style.transform = 'translateX(4px)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)';
+                      e.currentTarget.style.transform = 'translateX(0)';
+                    }}
+                  >
                     {/* Icon circle */}
                     <div style={{
-                      width:44, height:44, borderRadius:'50%', flexShrink:0,
-                      background: typeColor+'18', display:'flex', alignItems:'center',
-                      justifyContent:'center', fontSize:20, color: typeColor, fontWeight:900,
+                      width:48, height:48, borderRadius:'50%', flexShrink:0,
+                      background: typeColor+'20', display:'flex', alignItems:'center',
+                      justifyContent:'center', fontSize:22, color: typeColor, fontWeight:900,
                     }}>{typeIcon}</div>
 
                     {/* Center info */}
                     <div style={{ flex:1 }}>
-                      <div style={{ fontSize:14, fontWeight:700, color: TEXT_DARK }}>{mv.name}</div>
-                      <div style={{ display:'flex', gap:10, marginTop:4, flexWrap:'wrap' }}>
-                        <span style={{ fontSize:11.5, fontFamily:'monospace', color: RED, fontWeight:600 }}>{mv.sku}</span>
-                        <span style={{ fontSize:11.5, color: TEXT_LIGHT }}>Ref: {mv.ref}</span>
-                        <span style={{ fontSize:11.5, color: TEXT_LIGHT }}>{mv.id}</span>
+                      <div style={{ fontSize:14, fontWeight:800, color: TEXT_DARK, marginBottom:6 }}>{mv.name}</div>
+                      <div style={{ display:'flex', gap:12, marginBottom:8, flexWrap:'wrap' }}>
+                        <span style={{ fontSize:11, fontFamily:'monospace', color: RED, fontWeight:700, background:'#fef2f2', padding:'2px 8px', borderRadius:4 }}>{mv.sku}</span>
+                        <span style={{ fontSize:11, color: TEXT_LIGHT, background:'#f8fafc', padding:'2px 8px', borderRadius:4 }}>Ref: {mv.ref}</span>
+                        <span style={{ fontSize:11, color: TEXT_LIGHT, background:'#f8fafc', padding:'2px 8px', borderRadius:4 }}>{mv.id}</span>
                       </div>
-                      <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:6 }}>
-                        <span style={{ fontSize:12, color: TEXT_MID, fontWeight:600 }}>{mv.from}</span>
-                        <span style={{ fontSize:14, color: typeColor }}>→</span>
-                        <span style={{ fontSize:12, color: TEXT_MID, fontWeight:600 }}>{mv.to}</span>
+                      <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, fontWeight:600 }}>
+                        <span style={{ color: TEXT_MID }}>{mv.from}</span>
+                        <span style={{ fontSize:16, color: typeColor }}>→</span>
+                        <span style={{ color: TEXT_MID }}>{mv.to}</span>
                       </div>
                     </div>
 
                     {/* Right: qty + date */}
-                    <div style={{ textAlign:'right', flexShrink:0 }}>
+                    <div style={{ textAlign:'right', flexShrink:0, minWidth:80 }}>
                       <div style={{
-                        fontSize:20, fontWeight:900, color: typeColor,
+                        fontSize:22, fontWeight:900, color: typeColor, marginBottom:4,
                       }}>{mv.qty}</div>
-                      <div style={{ fontSize:11, color: TEXT_LIGHT, marginTop:2 }}>units</div>
-                      <div style={{ fontSize:11.5, color: TEXT_MID, marginTop:6, fontWeight:600 }}>{mv.date}</div>
+                      <div style={{ fontSize:10, color: TEXT_LIGHT, marginBottom:8, fontWeight:600 }}>units</div>
+                      <div style={{ fontSize:12, color: TEXT_MID, fontWeight:700, background: typeColor+'10', padding:'4px 8px', borderRadius:6 }}>{mv.date}</div>
                     </div>
                   </div>
                 );
@@ -876,7 +906,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                       <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginBottom:2 }}>Order: {p.order}</div>
                       <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginBottom:2 }}>SKU: <span style={{ fontFamily:'monospace', color: RED }}>{p.sku}</span></div>
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:8 }}>
-                        <span style={{ fontSize:11.5, color: TEXT_MID }}>📍 {p.loc}</span>
+                        <span style={{ fontSize:11.5, color: TEXT_MID, display:'flex', alignItems:'center', gap:4 }}><MdLocationOn size={14} /> {p.loc}</span>
                         <span style={{
                           background: col.color+'18', color: col.color,
                           borderRadius:12, padding:'2px 9px', fontSize:11, fontWeight:700,
@@ -894,69 +924,14 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                   ))}
                 </div>
               </div>
-            )}
-
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16 }}>
-              {cols.map((col,ci) => (
-                <div key={ci} style={{ ...card(), overflow:'hidden' }}>
-                  {/* Column header */}
-                  <div style={{
-                    background: col.color, padding:'12px 16px',
-                    display:'flex', alignItems:'center', justifyContent:'space-between',
-                  }}>
-                    <span style={{ fontSize:13, fontWeight:800, color:'#fff' }}>{col.label}</span>
-                    <span style={{
-                      background:'rgba(255,255,255,0.3)', color:'#fff',
-                      borderRadius:12, padding:'1px 9px', fontSize:12, fontWeight:700,
-                    }}>{col.items.length}</span>
-                  </div>
-
-                  {/* Cards */}
-                  <div style={{ padding:12, display:'flex', flexDirection:'column', gap:10 }}>
-                    {col.items.length === 0 && (
-                      <div style={{ textAlign:'center', padding:'24px 0', color: TEXT_LIGHT, fontSize:12 }}>No items</div>
-                    )}
-                    {col.items.map((p,pi) => (
-                      <div key={pi} style={{
-                        background:'#fff', border: BORDER, borderRadius: RADIUS_MD,
-                        padding:'14px 14px', boxShadow:'0 1px 4px rgba(15,23,42,0.05)',
-                      }}>
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
-                          <span style={{ fontSize:12, fontWeight:800, color: col.color }}>{p.id}</span>
-                          {/* Picker avatar */}
-                          <div style={{
-                            width:28, height:28, borderRadius:'50%', background: col.color+'22',
-                            display:'flex', alignItems:'center', justifyContent:'center',
-                            fontSize:11, fontWeight:800, color: col.color,
-                          }}>{p.picker.slice(0,2).toUpperCase()}</div>
-                        </div>
-                        <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK, marginBottom:4 }}>{p.item}</div>
-                        <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginBottom:2 }}>Order: {p.order}</div>
-                        <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginBottom:2 }}>SKU: <span style={{ fontFamily:'monospace', color: RED }}>{p.sku}</span></div>
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:8 }}>
-                          <span style={{ fontSize:11.5, color: TEXT_MID, display:'flex', alignItems:'center', gap:4 }}><MdLocationOn size={14} /> {p.loc}</span>
-                          <span style={{
-                            background: col.color+'18', color: col.color,
-                            borderRadius:12, padding:'2px 9px', fontSize:11, fontWeight:700,
-                          }}>Qty: {p.qty}</span>
-                        </div>
-                        {p.status === 'In Progress' && (
-                          <button style={{
-                            marginTop:10, width:'100%', padding:'7px 0',
-                            borderRadius: RADIUS_SM, border:'none',
-                            background: BLUE, color:'#fff',
-                            fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:6,
-                          }}><MdCheckCircle size={16} /> Confirm Pick</button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+            ))}
           </div>
         );
       })()}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          TAB 5 — Additional content (if needed)
+      ══════════════════════════════════════════════════════════════════════ */}
 
       {/* ══════════════════════════════════════════════════════════════════════
           TAB 5 — Sorting & Packing  (Split workflow panels)
@@ -1018,7 +993,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             </div>
             <div style={{ padding:'8px 0' }}>
               {packList.map((r,i) => {
-                const statusIcon  = r.status==='Packed' ? '📦' : r.status==='Packing' ? '⏳' : '🕐';
+                const statusIcon  = r.status==='Packed' ? <MdLocalShipping size={14} /> : r.status==='Packing' ? <MdSchedule size={14} /> : <MdSchedule size={14} />;
                 const statusColor = r.status==='Packed' ? GREEN : r.status==='Packing' ? BLUE : TEXT_LIGHT;
                 return (
                   <div key={i} style={{
@@ -1216,52 +1191,76 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             <div style={{ ...card(), overflow:'hidden' }}>
               <div style={{
                 display:'flex', alignItems:'center', justifyContent:'space-between',
-                padding:'14px 20px', borderBottom: BORDER,
-                background:'linear-gradient(90deg,#fef2f2,#fff)',
+                padding:'16px 20px', borderBottom: BORDER,
+                background:'linear-gradient(135deg,#fef2f2 0%,#fff5f5 100%)',
               }}>
-                <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>Defective Stock Register</div>
-                <button onClick={() => setInternalModal(true)} style={{
-                  padding:'6px 14px', borderRadius: RADIUS_SM, fontSize:12, fontWeight:700,
-                  background: RED_LIGHT, color:'#fff', border:'none', cursor:'pointer', fontFamily:'inherit',
-                }}>+ Log Defect</button>
+                <div style={{ fontSize:14, fontWeight:700, color: TEXT_DARK, letterSpacing:'-0.3px' }}>Defective Stock Register</div>
               </div>
-              <div style={{ padding:'4px 0' }}>
+              <div style={{ padding:'0' }}>
                 {defectList.map((r,i) => {
                   const stageBorder = r.stage==='QC Hold' ? AMBER : r.stage==='Repair' ? BLUE : RED_LIGHT;
                   const stageBg     = r.stage==='QC Hold' ? '#fffbeb' : r.stage==='Repair' ? '#eff6ff' : '#fef2f2';
                   return (
                     <div key={i} style={{
-                      padding:'14px 20px', borderLeft:`4px solid ${stageBorder}`,
+                      padding:'16px 20px', 
+                      borderLeft:`5px solid ${stageBorder}`,
                       background: stageBg,
                       borderBottom: i < defectList.length-1 ? BORDER : 'none',
+                      transition:'all 0.2s ease',
+                      cursor:'pointer',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = stageBg.replace(')', ', 0.8)').replace('rgb', 'rgba');
+                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = stageBg;
+                      e.currentTarget.style.boxShadow = 'none';
                     }}>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:4 }}>
-                        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                          <span style={{ fontSize:13, fontWeight:800, color: RED }}>{r.id}</span>
-                          <span style={{ fontSize:11.5, fontFamily:'monospace', color: TEXT_LIGHT }}>{r.sku}</span>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+                        <div style={{ display:'flex', gap:10, alignItems:'center', flex:1 }}>
+                          <span style={{ fontSize:13, fontWeight:800, color: RED, minWidth:'50px' }}>{r.id}</span>
+                          <span style={{ fontSize:12, fontFamily:'monospace', color: TEXT_LIGHT, background:'#f5f5f5', padding:'2px 8px', borderRadius:4 }}>{r.sku}</span>
                         </div>
                         <span style={{
-                          padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700,
+                          padding:'4px 12px', borderRadius:16, fontSize:11, fontWeight:700,
                           background: stageBorder+'22', color: stageBorder,
+                          whiteSpace:'nowrap', marginLeft:8,
                         }}>{r.stage}</span>
                       </div>
-                      <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>{r.item} — {r.qty} units</div>
-                      <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginTop:3 }}>
-                        {r.type} · {r.source} · {r.date} ·{' '}
-                        <span style={{ color: r.daysAged > 2 ? RED_LIGHT : TEXT_LIGHT, fontWeight: r.daysAged > 2 ? 700 : 400 }}>
+                      <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK, marginBottom:6, lineHeight:1.4 }}>{r.item} — <span style={{ fontWeight:600, color: TEXT_MID }}>{r.qty} units</span></div>
+                      <div style={{ fontSize:12, color: TEXT_LIGHT, marginBottom:10, display:'flex', gap:12, flexWrap:'wrap' }}>
+                        <span>{r.type}</span>
+                        <span>•</span>
+                        <span>{r.source}</span>
+                        <span>•</span>
+                        <span>{r.date}</span>
+                        <span>•</span>
+                        <span style={{ color: r.daysAged > 2 ? RED_LIGHT : TEXT_LIGHT, fontWeight: r.daysAged > 2 ? 700 : 500 }}>
                           {r.daysAged}d aged
                         </span>
                       </div>
-                      <div style={{ display:'flex', gap:8, marginTop:10 }}>
+                      <div style={{ display:'flex', gap:8, marginTop:12 }}>
                         {[
                           { label:'Repair', color: BLUE },
                           { label:'Rework', color: AMBER },
                           { label:'Scrap',  color: RED_LIGHT },
                         ].map(btn => (
                           <button key={btn.label} onClick={() => handleDefectAction(r.id, btn.label)} style={{
-                            padding:'4px 12px', borderRadius:20, fontSize:11, fontWeight:700,
+                            padding:'6px 14px', borderRadius:18, fontSize:11, fontWeight:700,
                             background: btn.color+'18', color: btn.color,
-                            border:`1px solid ${btn.color}40`, cursor:'pointer', fontFamily:'inherit',
+                            border:`1.5px solid ${btn.color}40`, cursor:'pointer', fontFamily:'inherit',
+                            transition:'all 0.2s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = btn.color+'28';
+                            e.currentTarget.style.borderColor = btn.color+'60';
+                            e.currentTarget.style.transform = 'translateY(-1px)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = btn.color+'18';
+                            e.currentTarget.style.borderColor = btn.color+'40';
+                            e.currentTarget.style.transform = 'translateY(0)';
                           }}>{btn.label}</button>
                         ))}
                       </div>
@@ -1272,31 +1271,32 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             </div>
 
             {/* Timeline */}
-            <div style={{ ...card(), padding:20 }}>
-              <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK, marginBottom:20 }}>
+            <div style={{ ...card(), padding:20, display:'flex', flexDirection:'column' }}>
+              <div style={{ fontSize:14, fontWeight:700, color: TEXT_DARK, marginBottom:24, letterSpacing:'-0.3px' }}>
                 Movement Log — QC → Defective → Disposal/Repair
               </div>
-              <div style={{ position:'relative', paddingLeft:28 }}>
+              <div style={{ position:'relative', paddingLeft:32, flex:1 }}>
                 {/* Connecting line */}
                 <div style={{
-                  position:'absolute', left:9, top:6, bottom:6,
-                  width:2, background:'#e2e8f0', borderRadius:1,
+                  position:'absolute', left:11, top:0, bottom:0,
+                  width:2, background:'linear-gradient(180deg,#e2e8f0 0%,#cbd5e1 100%)', borderRadius:1,
                 }} />
                 {defectLogList.map((item,i) => (
-                  <div key={i} style={{ position:'relative', marginBottom: i < defectLogList.length-1 ? 22 : 0 }}>
+                  <div key={i} style={{ position:'relative', marginBottom: i < defectLogList.length-1 ? 28 : 0 }}>
                     {/* Dot */}
                     <div style={{
-                      position:'absolute', left:-19, top:3,
-                      width:12, height:12, borderRadius:'50%',
+                      position:'absolute', left:-20, top:2,
+                      width:14, height:14, borderRadius:'50%',
                       background: item.color,
-                      boxShadow:`0 0 0 3px ${item.color}30`,
+                      boxShadow:`0 0 0 4px ${item.color}25, 0 2px 6px rgba(0,0,0,0.1)`,
+                      border:`2px solid #fff`,
                     }} />
-                    <div style={{ fontSize:13, fontWeight:600, color: TEXT_DARK, lineHeight:1.4 }}>{item.event}</div>
-                    <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:5 }}>
-                      <span style={{ fontSize:11.5, color: TEXT_LIGHT }}>{item.time}</span>
+                    <div style={{ fontSize:13, fontWeight:600, color: TEXT_DARK, lineHeight:1.5 }}>{item.event}</div>
+                    <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:6 }}>
+                      <span style={{ fontSize:12, color: TEXT_LIGHT }}>{item.time}</span>
                       <span style={{
-                        padding:'2px 8px', borderRadius:20, fontSize:10.5, fontWeight:700,
-                        background: item.color+'20', color: item.color,
+                        padding:'3px 10px', borderRadius:14, fontSize:11, fontWeight:700,
+                        background: item.color+'22', color: item.color,
                       }}>{item.stage}</span>
                     </div>
                   </div>
@@ -1308,7 +1308,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       )}
 
       {/* ── Tabs 9 & 10 ── */}
-      {activeTab === 9  && <StorageLocationPage />}
+      {activeTab === 9  && <StorageLocationPage externalShowModal={showModal} onExternalModalClose={closeModal} />}
       {activeTab === 10 && <PincodeStockPage />}
 
       {/* ── Tab-specific Modals ── */}
@@ -1611,7 +1611,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>New Quantity *</label>
-              <input type="number" value={adjustQty} onChange={e => setAdjustQty(e.target.value)} style={inputStyle} autoFocus />
+              <input type="number" value={adjustQty} onChange={e => setAdjustQty(e.target.value)} style={inputStyle} autoFocus placeholder="Enter new quantity" />
             </div>
           </div>
         )}
@@ -1631,7 +1631,10 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Move to Warehouse *</label>
               <select value={moveToWH} onChange={e => setMoveToWH(e.target.value)} style={inputStyle}>
-                {warehouseList.filter(w => w.id !== moveItem.warehouse).map(w => <option key={w.id} value={w.id}>{w.id} — {w.name}</option>)}
+                <option value="">-- Select Warehouse --</option>
+                {warehouseList && warehouseList.filter(w => w.id !== moveItem.warehouse).map(w => (
+                  <option key={w.id} value={w.id}>{w.id} — {w.name}</option>
+                ))}
               </select>
             </div>
           </div>

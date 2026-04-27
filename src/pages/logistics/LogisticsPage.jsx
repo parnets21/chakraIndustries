@@ -58,6 +58,18 @@ export default function LogisticsPage({ initialTab = 0 }) {
   const [vehicleList, setVehicleList] = useState(vehicles);
   const [shipmentList, setShipmentList] = useState(courierShipments);
   const [allocationList, setAllocationList] = useState(allocations);
+  const [selectedShipmentForPOD, setSelectedShipmentForPOD] = useState(null);
+  const [podFormData, setPodFormData] = useState({
+    receiverName: '',
+    deliveryDateTime: '',
+    podImage: null,
+  });
+  const [shipmentFormData, setShipmentFormData] = useState({
+    orderRef: '',
+    customer: '',
+    weight: '',
+  });
+  const [selectedOrderForShipment, setSelectedOrderForShipment] = useState(null);
 
   const handleSaveModal = () => {
     if (activeTab === 0) toast('Dispatch created successfully');

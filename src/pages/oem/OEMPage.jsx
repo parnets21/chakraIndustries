@@ -123,7 +123,7 @@ export default function OEMPage() {
                     <td className="px-4 py-3 text-gray-800 align-middle">{b.components}</td>
                     <td className="px-4 py-3 text-gray-800 align-middle"><StatusBadge status={b.status} /></td>
                     <td className="px-4 py-3 text-gray-800 align-middle">
-                      <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]">
+                      <button onClick={() => toast(`Viewing BOM: ${b.id}`)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]">
                         View BOM
                       </button>
                     </td>

@@ -102,7 +102,7 @@ const PAGE_META = {
   ageing: {
     title: 'Ageing Stock Analysis',
     breadcrumb: 'Inventory › Ageing',
-    actionLabel: '⬇ Export Report',
+   
     kpis: [
       { label: '0–30 Days',  value: '2', icon: <MdInventory2 size={18} />,     color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)'  },
       { label: '31–60 Days', value: '1', icon: <MdHourglassEmpty size={18} />, color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.25)'  },

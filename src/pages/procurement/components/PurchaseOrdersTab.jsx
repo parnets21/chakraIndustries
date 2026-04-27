@@ -35,6 +35,7 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
     remarks: ''
   });
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
 
   const fetchPOs = async () => {
     setLoading(true);

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { MdLocationOn } from 'react-icons/md';
 
 const pincodeData = [
   {
@@ -84,7 +85,7 @@ export default function PincodeStockPage() {
                 <span className={`text-sm font-extrabold ${loc.qty === 0 ? 'text-red-500' : loc.qty < 20 ? 'text-amber-500' : 'text-green-600'}`}>{loc.qty} units</span>
               </div>
               <div className="text-xs text-gray-600 font-medium">{loc.name}</div>
-              <div className="text-[10px] text-gray-400 mt-0.5">📍 {loc.loc}</div>
+              <div className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1"><MdLocationOn size={12} /> {loc.loc}</div>
             </div>
           ))}
           <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between text-sm">

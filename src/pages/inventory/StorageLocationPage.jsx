@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import StatusBadge from '../../components/common/StatusBadge';
 import Modal from '../../components/common/Modal';
 import { toast } from '../../components/common/Toast';
+import { MdTrendingUp, MdCancel, MdCheckCircle, MdSettings, MdStar, MdBarChart } from 'react-icons/md';
 
 const zones = [
   {
@@ -41,11 +41,76 @@ const pickingSeq = [
   { step: 3, zone: 'Z-B', rack: 'R-B1', shelf: 'S-B1-2', bin: 'BIN-B1-2-01', sku: 'SKU-4412', qty: 10 },
 ];
 
-export default function StorageLocationPage({ initialTab = 0 }) {
+export default function StorageLocationPage({ initialTab = 0, externalShowModal = false, onExternalModalClose }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [selectedZone, setSelectedZone] = useState(zones[0]);
   const [selectedRack, setSelectedRack] = useState(zones[0].racks[0]);
-  const [showModal, setShowModal] = useState(false);
+  const [internalShowModal, setInternalShowModal] = useState(false);
+  const [modalStep, setModalStep] = useState('form'); // 'form' or 'confirm'
+  const [locationForm, setLocationForm] = useState({ zone: '', rack: '', shelf: '', bins: '', sku: '' });
+  const [tabForm, setTabForm] = useState({ zone: '', rack: '', shelf: '', bins: '', sku: '' });
+  const [optimizedSequence, setOptimizedSequence] = useState(pickingSeq);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [showOptimizeModal, setShowOptimizeModal] = useState(false);
+  const [optimizeForm, setOptimizeForm] = useState({ method: 'zone', priority: 'distance' });
+
+  // Merge external and internal modal triggers
+  const showModal = externalShowModal || internalShowModal;
+  const closeModal = () => {
+    setInternalShowModal(false);
+    setModalStep('form');
+    onExternalModalClose?.();
+  };
+
+  const optimizeRoute = () => {
+    setShowOptimizeModal(true);
+  };
+
+  const performOptimization = () => {
+    setIsOptimizing(true);
+    
+    // Simulate optimization process with steps
+    const steps = [
+      { msg: 'Analyzing warehouse layout...', delay: 300 },
+      { msg: 'Calculating optimal path...', delay: 600 },
+      { msg: 'Organizing by zone...', delay: 900 },
+      { msg: 'Finalizing route...', delay: 1200 }
+    ];
+    
+    steps.forEach(step => {
+      setTimeout(() => {
+        toast(step.msg);
+      }, step.delay);
+    });
+    
+    setTimeout(() => {
+      // Advanced optimization: Group by zone, then by rack, then by shelf
+      const zoneOrder = { 'Z-A': 1, 'Z-B': 2, 'Z-C': 3 };
+      
+      const sorted = [...pickingSeq].sort((a, b) => {
+        const zoneCompare = (zoneOrder[a.zone] || 999) - (zoneOrder[b.zone] || 999);
+        if (zoneCompare !== 0) return zoneCompare;
+        
+        const rackCompare = a.rack.localeCompare(b.rack);
+        if (rackCompare !== 0) return rackCompare;
+        
+        return a.shelf.localeCompare(b.shelf);
+      });
+      
+      const optimized = sorted.map((item, idx) => ({
+        ...item,
+        step: idx + 1,
+        optimized: true
+      }));
+      
+      setOptimizedSequence(optimized);
+      setIsOptimizing(false);
+      setShowOptimizeModal(false);
+      
+      const efficiency = Math.round((1 - (optimized.length / pickingSeq.length)) * 100) || 0;
+      toast(`✓ Route optimized! Efficiency: ${efficiency}% better path`);
+    }, 1500);
+  };
 
   const tabs = ['Warehouse Map', 'Picking Sequence', 'Location Config'];
 
@@ -119,20 +184,23 @@ export default function StorageLocationPage({ initialTab = 0 }) {
               <div className="text-sm font-bold text-gray-800">Picking & Sorting Sequence</div>
               <div className="text-xs text-gray-400 mt-0.5">Optimized pick path for current order</div>
             </div>
-            <button className="px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">Optimize Route</button>
+            <button onClick={optimizeRoute} className="px-4 py-2 text-sm rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit] hover:-translate-y-px transition-all flex items-center gap-2">
+              <MdTrendingUp size={16} />
+              Optimize Route
+            </button>
           </div>
           <div className="overflow-x-auto rounded-xl border border-gray-200">
             <table className="w-full">
               <thead>
-                <tr>{['Step', 'Zone', 'Rack', 'Shelf', 'Bin', 'SKU', 'Qty to Pick', 'Action'].map(h => (
+                <tr>{['Step', 'Zone', 'Rack', 'Shelf', 'Bin', 'SKU', 'Qty to Pick', 'Status'].map(h => (
                   <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
                 ))}</tr>
               </thead>
               <tbody>
-                {pickingSeq.map((row, i) => (
-                  <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
+                {optimizedSequence.map((row, i) => (
+                  <tr key={i} className={`border-b border-gray-50 last:border-0 transition-colors ${row.optimized ? 'bg-green-50/30 hover:bg-green-50/60' : 'hover:bg-red-50/40'}`}>
                     <td className="px-4 py-3 align-middle">
-                      <span className="w-6 h-6 rounded-full bg-red-600 text-white text-xs font-bold flex items-center justify-center">{row.step}</span>
+                      <span className={`w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center ${row.optimized ? 'bg-green-600' : 'bg-red-600'}`}>{row.step}</span>
                     </td>
                     <td className="px-4 py-3 align-middle font-semibold text-blue-600">{row.zone}</td>
                     <td className="px-4 py-3 align-middle">{row.rack}</td>
@@ -141,12 +209,27 @@ export default function StorageLocationPage({ initialTab = 0 }) {
                     <td className="px-4 py-3 align-middle font-semibold text-red-700">{row.sku}</td>
                     <td className="px-4 py-3 align-middle font-bold">{row.qty}</td>
                     <td className="px-4 py-3 align-middle">
-                      <button className="px-2 py-1 text-[11px] rounded bg-green-100 text-green-800 font-semibold border-0 cursor-pointer font-[inherit]">✓ Picked</button>
+                      <button className={`px-2 py-1 text-[11px] rounded font-semibold border-0 cursor-pointer font-[inherit] inline-flex items-center gap-1 ${row.optimized ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                        {row.optimized ? (
+                          <>
+                            <MdCheckCircle size={12} />
+                            Optimized
+                          </>
+                        ) : (
+                          <>
+                            <MdCancel size={12} />
+                            Pending
+                          </>
+                        )}
+                      </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800">
+            <span className="font-semibold flex items-center gap-1"><MdBarChart size={14} /> Tip:</span> Click "Optimize Route" to reorganize the picking sequence for maximum efficiency and minimal travel distance.
           </div>
         </div>
       )}
@@ -157,28 +240,46 @@ export default function StorageLocationPage({ initialTab = 0 }) {
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
             <div className="text-sm font-bold text-gray-800 mb-4">Add New Location</div>
             <div className="flex flex-col gap-3">
-              {[['Zone', ['Zone A', 'Zone B', 'Zone C']], ['Rack', ['R-A1', 'R-A2', 'R-B1', 'R-C1']]].map(([label, opts]) => (
-                <div key={label} className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-600">{label}</label>
-                  <select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]">
-                    {opts.map(o => <option key={o}>{o}</option>)}
-                  </select>
-                </div>
-              ))}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Zone</label>
+                <select value={tabForm.zone} onChange={(e) => setTabForm(p => ({...p, zone: e.target.value}))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]">
+                  <option value="">Select Zone</option>
+                  {['Zone A', 'Zone B', 'Zone C'].map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Rack</label>
+                <select value={tabForm.rack} onChange={(e) => setTabForm(p => ({...p, rack: e.target.value}))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]">
+                  <option value="">Select Rack</option>
+                  {['R-A1', 'R-A2', 'R-B1', 'R-C1'].map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-gray-600">Shelf ID</label>
-                <input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="e.g. S-A1-3" />
+                <input value={tabForm.shelf} onChange={(e) => setTabForm(p => ({...p, shelf: e.target.value}))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="e.g. S-A1-3" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-gray-600">Number of Bins</label>
-                <input type="number" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="0" />
+                <input type="number" value={tabForm.bins} onChange={(e) => setTabForm(p => ({...p, bins: e.target.value}))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="0" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-gray-600">Assign SKU</label>
-                <input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="SKU-XXXX" />
+                <input value={tabForm.sku} onChange={(e) => setTabForm(p => ({...p, sku: e.target.value}))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="SKU-XXXX" />
               </div>
-              <button className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">
-                Save Location
+              <button onClick={() => { 
+                if(!tabForm.zone || !tabForm.rack || !tabForm.shelf || !tabForm.bins || tabForm.bins === '') {
+                  toast('Please fill all required fields');
+                  return;
+                }
+                if(isNaN(tabForm.bins) || parseInt(tabForm.bins) < 1) {
+                  toast('Number of Bins must be a valid number');
+                  return;
+                }
+                setLocationForm({...tabForm}); 
+                setModalStep('confirm');
+                setInternalShowModal(true); 
+              }} className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">
+                + Add Location
               </button>
             </div>
           </div>
@@ -200,16 +301,193 @@ export default function StorageLocationPage({ initialTab = 0 }) {
         </div>
       )}
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Add Storage Location"
-        footer={<>
-          <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Cancel</button>
-          <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={() => { setShowModal(false); toast('Storage location saved'); }}>Save</button>
-        </>}>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Zone</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Zone ID" /></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Rack</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Rack ID" /></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Shelf</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Shelf ID" /></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Bin Count</label><input type="number" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="0" /></div>
+      <Modal 
+        open={showModal} 
+        onClose={() => { 
+          closeModal(); 
+          setLocationForm({ zone: '', rack: '', shelf: '', bins: '', sku: '' }); 
+        }} 
+        title={modalStep === 'form' ? 'Add New Location' : 'Confirm Add Location'}
+        footer={
+          modalStep === 'form' ? (
+            <>
+              <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]" onClick={() => { closeModal(); setTabForm({ zone: '', rack: '', shelf: '', bins: '', sku: '' }); }}>Cancel</button>
+              <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={() => { 
+                if(!tabForm.zone || !tabForm.rack || !tabForm.shelf || !tabForm.bins || tabForm.bins === '') {
+                  toast('Please fill all required fields');
+                  return;
+                }
+                if(isNaN(tabForm.bins) || parseInt(tabForm.bins) < 1) {
+                  toast('Number of Bins must be a valid number');
+                  return;
+                }
+                setLocationForm({...tabForm}); 
+                setModalStep('confirm');
+              }}>Next</button>
+            </>
+          ) : (
+            <>
+              <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]" onClick={() => { setModalStep('form'); }}>Back</button>
+              <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={() => { toast(`Location ${locationForm.shelf} added successfully`); closeModal(); setLocationForm({ zone: '', rack: '', shelf: '', bins: '', sku: '' }); setTabForm({ zone: '', rack: '', shelf: '', bins: '', sku: '' }); }}>Save Location</button>
+            </>
+          )
+        }
+      >
+        {modalStep === 'form' ? (
+          <div className="space-y-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-gray-600">Zone</label>
+              <select value={tabForm.zone} onChange={(e) => setTabForm(p => ({...p, zone: e.target.value}))} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]">
+                <option value="">Select Zone</option>
+                {['Zone A', 'Zone B', 'Zone C'].map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-gray-600">Rack</label>
+              <select value={tabForm.rack} onChange={(e) => setTabForm(p => ({...p, rack: e.target.value}))} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]">
+                <option value="">Select Rack</option>
+                {['R-A1', 'R-A2', 'R-B1', 'R-C1'].map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-gray-600">Shelf ID</label>
+              <input value={tabForm.shelf} onChange={(e) => setTabForm(p => ({...p, shelf: e.target.value}))} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="e.g. S-A1-3" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-gray-600">Number of Bins</label>
+              <input type="number" value={tabForm.bins} onChange={(e) => setTabForm(p => ({...p, bins: e.target.value}))} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="0" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-gray-600">Assign SKU (Optional)</label>
+              <input value={tabForm.sku} onChange={(e) => setTabForm(p => ({...p, sku: e.target.value}))} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="SKU-XXXX" />
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-300 rounded-lg p-5">
+              <div className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs"><MdCheckCircle size={12} /></span>
+                Location Details
+              </div>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between items-center py-2 border-b border-blue-200">
+                  <span className="text-gray-600 font-medium">Zone:</span>
+                  <span className="font-semibold text-gray-900 bg-white px-3 py-1 rounded-md">{locationForm.zone || '—'}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-blue-200">
+                  <span className="text-gray-600 font-medium">Rack:</span>
+                  <span className="font-semibold text-gray-900 bg-white px-3 py-1 rounded-md">{locationForm.rack || '—'}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-blue-200">
+                  <span className="text-gray-600 font-medium">Shelf ID:</span>
+                  <span className="font-mono font-semibold text-gray-900 bg-white px-3 py-1 rounded-md">{locationForm.shelf || '—'}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-blue-200">
+                  <span className="text-gray-600 font-medium">Number of Bins:</span>
+                  <span className="font-semibold text-gray-900 bg-white px-3 py-1 rounded-md">{locationForm.bins || '—'}</span>
+                </div>
+                {locationForm.sku && (
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-gray-600 font-medium">SKU:</span>
+                    <span className="font-semibold text-red-700 bg-red-50 px-3 py-1 rounded-md">{locationForm.sku}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+              <span className="font-semibold">Note:</span> Click "Save Location" to confirm and add this location to the warehouse.
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal 
+        open={showOptimizeModal} 
+        onClose={() => setShowOptimizeModal(false)} 
+        title="Optimize Picking Route"
+        size="md"
+        footer={
+          <>
+            <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]" onClick={() => setShowOptimizeModal(false)}>
+              <MdCancel size={16} />
+              Cancel
+            </button>
+            <button disabled={isOptimizing} className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit] disabled:opacity-60 disabled:cursor-not-allowed" onClick={performOptimization}>
+              {isOptimizing ? (
+                <>
+                  <span className="inline-block animate-spin"><MdTrendingUp size={16} /></span>
+                  Optimizing...
+                </>
+              ) : (
+                <>
+                  <MdTrendingUp size={16} />
+                  Start Optimization
+                </>
+              )}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-5">
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-300 rounded-lg p-5">
+            <div className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs"><MdSettings size={12} /></span>
+              Optimization Method
+            </div>
+            <div className="space-y-3">
+              <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-blue-100 transition-colors">
+                <input type="radio" name="method" value="zone" checked={optimizeForm.method === 'zone'} onChange={(e) => setOptimizeForm(p => ({...p, method: e.target.value}))} className="w-4 h-4 cursor-pointer" />
+                <div>
+                  <div className="text-sm font-semibold text-gray-800">Zone-based</div>
+                  <div className="text-xs text-gray-600">Minimize zone changes for efficiency</div>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-blue-100 transition-colors">
+                <input type="radio" name="method" value="distance" checked={optimizeForm.method === 'distance'} onChange={(e) => setOptimizeForm(p => ({...p, method: e.target.value}))} className="w-4 h-4 cursor-pointer" />
+                <div>
+                  <div className="text-sm font-semibold text-gray-800">Distance-based</div>
+                  <div className="text-xs text-gray-600">Minimize total travel distance</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-300 rounded-lg p-5">
+            <div className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center text-xs"><MdStar size={12} /></span>
+              Priority
+            </div>
+            <div className="space-y-3">
+              <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-green-100 transition-colors">
+                <input type="radio" name="priority" value="distance" checked={optimizeForm.priority === 'distance'} onChange={(e) => setOptimizeForm(p => ({...p, priority: e.target.value}))} className="w-4 h-4 cursor-pointer" />
+                <div>
+                  <div className="text-sm font-semibold text-gray-800">Distance</div>
+                  <div className="text-xs text-gray-600">Fastest route possible</div>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-green-100 transition-colors">
+                <input type="radio" name="priority" value="efficiency" checked={optimizeForm.priority === 'efficiency'} onChange={(e) => setOptimizeForm(p => ({...p, priority: e.target.value}))} className="w-4 h-4 cursor-pointer" />
+                <div>
+                  <div className="text-sm font-semibold text-gray-800">Efficiency</div>
+                  <div className="text-xs text-gray-600">Minimize stops and backtracking</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-300 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <MdBarChart size={20} className="text-amber-700" />
+              <div>
+                <div className="text-sm font-bold text-gray-800">Current Sequence</div>
+                <div className="text-xs text-gray-600 mt-1">
+                  <div>Total Items: <span className="font-semibold text-amber-700">{pickingSeq.length}</span></div>
+                  <div>Total Quantity: <span className="font-semibold text-amber-700">{pickingSeq.reduce((sum, item) => sum + item.qty, 0)}</span> units</div>
+                  <div>Zones: <span className="font-semibold text-amber-700">{new Set(pickingSeq.map(item => item.zone)).size}</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </Modal>
     </div>

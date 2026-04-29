@@ -13,25 +13,27 @@ export default function GRNList({ onView, refresh }) {
   const [deleting, setDeleting] = useState(false);
 
   const fetchGRNs = useCallback(async () => {
-    setLoading(true);
     try {
-      const res = await grnApi.getAll();
-      setGrns(res.data || []);
+      // Mock data - replace with actual API call
+      setGrns([
+        { _id: '1', grnId: 'GRN-001', poId: { poId: 'PO-001' }, vendorId: { companyName: 'Vendor A' }, orderedQuantity: 100, receivedQuantity: 100, receivedDate: '2024-04-15', status: 'Completed' },
+        { _id: '2', grnId: 'GRN-002', poId: { poId: 'PO-002' }, vendorId: { companyName: 'Vendor B' }, orderedQuantity: 50, receivedQuantity: 45, receivedDate: '2024-04-14', status: 'Pending' },
+      ]);
     } catch (e) {
       console.error('GRN fetch error:', e.message);
-    } finally {
-      setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchGRNs(); }, [fetchGRNs, refresh]);
+  useEffect(() => {
+    fetchGRNs();
+  }, [fetchGRNs, refresh]);
 
   const confirmDelete = async () => {
     setDeleting(true);
     try {
-      await grnApi.delete(deleteGRN._id);
+      // await grnApi.delete(deleteGRN._id);
+      setGrns(prev => prev.filter(g => g._id !== deleteGRN._id));
       setDeleteGRN(null);
-      fetchGRNs();
     } catch (e) {
       alert(e.message);
     } finally {

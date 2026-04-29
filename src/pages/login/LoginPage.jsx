@@ -654,7 +654,7 @@ export default function LoginPage() {
                   Test Credentials:
                 </div>
                 <div style={{ color: '#78350f', lineHeight: '1.6' }}>
-                  <div><strong>Admin:</strong> admin@chakra.in / admin123</div>
+                  <div><strong>Admin:</strong>  chakra@admin.com / chakra123</div>
                   <div><strong>Purchase:</strong> purchase@chakra.in / purchase123</div>
                   <div><strong>Production:</strong> production@chakra.in / prod123</div>
                 </div>

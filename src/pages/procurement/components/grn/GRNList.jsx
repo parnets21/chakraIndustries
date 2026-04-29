@@ -62,6 +62,8 @@ export default function GRNList({ onView, refresh }) {
                   <th style={{ padding: '11px 12px', textAlign: 'center' }}>Received</th>
                   <th style={{ padding: '11px 12px' }}>Date</th>
                   <th style={{ padding: '11px 12px' }}>Status</th>
+                  <th style={{ padding: '11px 12px' }}>QC Status</th>
+                  <th style={{ padding: '11px 12px' }}>Approval</th>
                   <th style={{ padding: '11px 12px' }}>Actions</th>
                 </tr>
               </thead>
@@ -84,6 +86,12 @@ export default function GRNList({ onView, refresh }) {
                     </td>
                     <td style={{ color: '#64748b', fontSize: 12, padding: '12px' }}>{fmt(g.receivedDate)}</td>
                     <td style={{ padding: '12px' }}><StatusBadge status={g.status} /></td>
+                    <td style={{ padding: '12px' }}>
+                      <StatusBadge status={g.qcStatus || 'Not Started'} />
+                    </td>
+                    <td style={{ padding: '12px' }}>
+                      <StatusBadge status={g.approvalStatus || 'Not Required'} />
+                    </td>
                     <td style={{ padding: '12px' }}>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button className="btn btn-sm" title="View Details"

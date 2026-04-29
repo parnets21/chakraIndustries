@@ -4,7 +4,7 @@ import PRApprovalBadge from './PRApprovalBadge';
 import Modal from '../../../../components/common/Modal';
 import { prApi } from '../../../../api/prApi';
 import { FaRegTrashAlt } from 'react-icons/fa';
-import { MdVisibility, MdEdit } from 'react-icons/md';
+import { MdVisibility, MdEdit, MdCheckCircle, MdCancel } from 'react-icons/md';
 
 function useIsMobile() {
   const [mobile, setMobile] = useState(() => window.innerWidth < 640);
@@ -29,6 +29,8 @@ export default function PRList({ onEdit, refresh, viewOnly }) {
   const [viewPR, setViewPR] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [approvalModal, setApprovalModal] = useState(null); // { pr, type: 'approve'|'reject' }
+  const [approving, setApproving] = useState(false);
   const isMobile = useIsMobile();
 
   const fetchPRs = async () => {
@@ -54,6 +56,17 @@ export default function PRList({ onEdit, refresh, viewOnly }) {
     finally { setDeleting(false); }
   };
 
+  const handleApproval = async () => {
+    if (!approvalModal) return;
+    setApproving(true);
+    try {
+      await prApi.updateStatus(approvalModal.pr._id, approvalModal.type === 'approve' ? 'Approved' : 'Rejected');
+      setApprovalModal(null);
+      fetchPRs();
+    } catch (e) { alert(e.message); }
+    finally { setApproving(false); }
+  };
+
   const ActionButtons = ({ p }) => (
     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
       <button
@@ -62,6 +75,20 @@ export default function PRList({ onEdit, refresh, viewOnly }) {
         onClick={() => setViewPR(p)}
       ><MdVisibility size={16} /></button>
       {!viewOnly && <>
+        {p.status === 'Pending' && (
+          <>
+            <button
+              title="Approve PR"
+              style={{ background: '#dcfce7', color: '#16a34a', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '1px solid #bbf7d0', borderRadius: 6 }}
+              onClick={() => setApprovalModal({ pr: p, type: 'approve' })}
+            ><MdCheckCircle size={16} /></button>
+            <button
+              title="Reject PR"
+              style={{ background: '#fee2e2', color: '#dc2626', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '1px solid #fecaca', borderRadius: 6 }}
+              onClick={() => setApprovalModal({ pr: p, type: 'reject' })}
+            ><MdCancel size={16} /></button>
+          </>
+        )}
         <button
           title="Edit"
           style={{ background: '#fef2f2', color: '#ef4444', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '1px solid #fecaca', borderRadius: 6 }}
@@ -310,6 +337,48 @@ export default function PRList({ onEdit, refresh, viewOnly }) {
           </div>
         </Modal>
       )}
+
+      {/* ── Approve / Reject PR Modal ── */}
+      <Modal
+        open={!!approvalModal}
+        onClose={() => setApprovalModal(null)}
+        title={approvalModal?.type === 'approve' ? 'Approve Purchase Requisition' : 'Reject Purchase Requisition'}
+        size="md"
+        footer={
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', width: '100%' }}>
+            <button
+              style={{ background: 'transparent', border: '1px solid #CBD5E1', color: '#475569', padding: '8px 16px', borderRadius: 6, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+              onClick={() => setApprovalModal(null)} disabled={approving}
+            >Cancel</button>
+            <button
+              style={{
+                background: approvalModal?.type === 'approve' ? 'linear-gradient(135deg,#22c55e,#16a34a)' : 'linear-gradient(135deg,#ef4444,#b91c1c)',
+                color: 'white', padding: '8px 20px', borderRadius: 6, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', border: 'none',
+              }}
+              onClick={handleApproval} disabled={approving}
+            >{approving ? 'Processing...' : approvalModal?.type === 'approve' ? '✓ Approve PR' : '✗ Reject PR'}</button>
+          </div>
+        }
+      >
+        <div style={{ textAlign: 'center', padding: '12px 0' }}>
+          <div style={{ fontSize: 40, marginBottom: 10 }}>{approvalModal?.type === 'approve' ? '✅' : '❌'}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6, color: '#1E293B' }}>
+            {approvalModal?.type === 'approve' ? 'Approve this PR?' : 'Reject this PR?'}
+          </div>
+          <div style={{ fontSize: 13, color: '#64748B', marginBottom: 16 }}>
+            {approvalModal?.type === 'approve'
+              ? 'Approving will allow an RFQ to be created from this PR.'
+              : 'Rejecting will block this PR from moving forward.'}
+          </div>
+          {approvalModal?.pr && (
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14, textAlign: 'left', maxWidth: 320, margin: '0 auto' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 8 }}>PR DETAILS</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#ef4444', marginBottom: 4 }}>{approvalModal.pr.prId}</div>
+              <div style={{ fontSize: 12, color: '#475569' }}>{approvalModal.pr.department} · {approvalModal.pr.items?.length || 0} items</div>
+            </div>
+          )}
+        </div>
+      </Modal>
     </>
   );
 }

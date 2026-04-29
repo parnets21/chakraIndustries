@@ -76,7 +76,7 @@ export default function SyncStatus() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 20 }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Inventory Sync Status</div>
-            <div style={{ fontSize: 12, color: '#64748b' }}>Real-time synchronization with Vinculum</div>
+            <div style={{ fontSize: 12, color: '#64748b' }}>Real-time inventory synchronization</div>
           </div>
           <button className="btn btn-sm btn-primary" onClick={handleManualSync} disabled={syncing} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <MdRefresh size={16} style={{ animation: syncing ? 'spin 1s linear infinite' : 'none' }} />

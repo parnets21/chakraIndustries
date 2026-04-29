@@ -29,7 +29,7 @@ export default function IntegrationSettings() {
     },
     {
       id: 'vinculum',
-      name: 'Vinculum (VI Connect)',
+      name: 'Inventory Sync API',
       status: 'Disconnected',
       lastSync: null,
       config: {
@@ -247,13 +247,13 @@ export default function IntegrationSettings() {
                   <label className="form-label">API Key</label>
                   <input type="password" className="form-input" value={formData.apiKey || ''}
                     onChange={e => setFormData({ ...formData, apiKey: e.target.value })}
-                    placeholder="Enter Vinculum API key" />
+                    placeholder="Enter API key" />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Client ID</label>
                   <input type="text" className="form-input" value={formData.clientId || ''}
                     onChange={e => setFormData({ ...formData, clientId: e.target.value })}
-                    placeholder="Your Vinculum client ID" />
+                    placeholder="Your client ID" />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Sync Frequency</label>

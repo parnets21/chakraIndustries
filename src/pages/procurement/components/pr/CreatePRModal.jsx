@@ -18,8 +18,10 @@ export default function CreatePRModal({ open, onClose, onSaved, editData }) {
   const [departments, setDepartments] = useState([]);
 
   useEffect(() => {
-    departmentApi.getAll().then(res => setDepartments(res.data)).catch(console.error);
-  }, []);
+    if (open) {
+      departmentApi.getAll().then(res => setDepartments(res.data)).catch(console.error);
+    }
+  }, [open]);
 
   useEffect(() => {
     if (editData) {
@@ -45,9 +47,19 @@ export default function CreatePRModal({ open, onClose, onSaved, editData }) {
   const handleClose = () => { setStep(0); onClose(); };
 
   const handleSubmit = async () => {
+    // Validate required fields
+    if (!form.department) { alert('Please select a department.'); setStep(0); return; }
+    const validItems = items.filter(it => it.name?.trim() && it.qty);
+    if (validItems.length === 0) { alert('Add at least one item with a name and quantity.'); setStep(1); return; }
+
     setSaving(true);
     try {
-      const payload = { ...form, items, requestedBy: user?.name || user?.email || 'Unknown' };
+      const payload = {
+        ...form,
+        requiredBy: form.requiredBy || null,
+        items: validItems.map(it => ({ ...it, qty: parseFloat(it.qty) || 0 })),
+        requestedBy: user?.name || user?.email || 'Unknown',
+      };
       if (editData) await prApi.update(editData._id, payload);
       else await prApi.create(payload);
       onSaved?.();
@@ -68,7 +80,11 @@ export default function CreatePRModal({ open, onClose, onSaved, editData }) {
             {step === 0 ? 'Cancel' : '← Back'}
           </button>
           {step < steps.length - 1
-            ? <button className="btn btn-primary" onClick={() => setStep(s => s + 1)}>Next →</button>
+            ? <button className="btn btn-primary" onClick={() => {
+                if (step === 0 && !form.department) { alert('Please select a department.'); return; }
+                if (step === 1 && !items.some(it => it.name?.trim() && it.qty)) { alert('Add at least one item with name and quantity.'); return; }
+                setStep(s => s + 1);
+              }}>Next →</button>
             : <button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>
                 {saving ? 'Submitting...' : editData ? 'Update PR' : 'Submit PR'}
               </button>
@@ -166,7 +182,7 @@ export default function CreatePRModal({ open, onClose, onSaved, editData }) {
         <div>
           <div className="pr-review-grid">
             {[
-              ['Department', form.department],
+              ['Department', form.department], 
               ['Required By', form.requiredBy || '—'],
               ['Priority', form.priority],
               ['Remarks', form.remarks || '—'],

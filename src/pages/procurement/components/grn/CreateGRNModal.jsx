@@ -26,7 +26,8 @@ export default function CreateGRNModal({ open, onClose, onSaved }) {
     setLoading(true);
     try {
       const res = await poApi.getAll();
-      const usable = (res.data || []).filter(p => p.status !== 'Draft' && p.status !== 'Cancelled');
+      // Only allow Approved POs for GRN creation (enforcing the flow)
+      const usable = (res.data || []).filter(p => p.status === 'Approved');
       setPOs(usable);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -73,6 +74,12 @@ export default function CreateGRNModal({ open, onClose, onSaved }) {
         receivedDate: receiptDate,
         status,
         remarks: remarks.trim(),
+        items: items.map(it => ({
+          name: it.name,
+          orderedQty: it.ordered,
+          receivedQty: parseInt(it.received) || 0,
+          unit: it.unit || 'Nos',
+        })),
       });
       onSaved?.();
       onClose();
@@ -114,7 +121,7 @@ export default function CreateGRNModal({ open, onClose, onSaved }) {
                 ))}
               </select>
               {pos.length === 0 && !loading && (
-                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>No POs available. Create and approve a PO first.</div>
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>No approved POs available. Approve a PO first before creating a GRN.</div>
               )}
             </div>
             <div className="form-group">

@@ -4,13 +4,12 @@ import CreateGRNModal from './grn/CreateGRNModal';
 import GRNDetailModal from './grn/GRNDetailModal';
 
 export default function GRNTab({ externalShowCreate, onExternalClose, onSaved }) {
-  const [showCreate, setShowCreate] = useState(false);
-  const [viewGRN, setViewGRN]       = useState(null);
-  const [refresh, setRefresh]       = useState(0);
+  const [viewGRN, setViewGRN] = useState(null);
+  const [refresh, setRefresh] = useState(0);
 
-  const isOpen = externalShowCreate || showCreate;
+  const isOpen = externalShowCreate;
 
-  const handleClose = () => { setShowCreate(false); onExternalClose?.(); };
+  const handleClose = () => { onExternalClose?.(); };
 
   const handleSaved = () => {
     setRefresh(r => r + 1);
@@ -20,12 +19,6 @@ export default function GRNTab({ externalShowCreate, onExternalClose, onSaved })
 
   return (
     <div>
-      {!externalShowCreate && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
-          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ Create GRN</button>
-        </div>
-      )}
-
       <GRNList onView={(grn) => setViewGRN(grn)} refresh={refresh} />
 
       <CreateGRNModal open={isOpen} onClose={handleClose} onSaved={handleSaved} />

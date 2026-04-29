@@ -1,63 +1,162 @@
-import { PageHeader, KpiStrip, PageCard, PTable } from '../../components/common/PageShell';
+import { useState, useEffect, useCallback } from 'react';
+import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShell';
 import StatusBadge from '../../components/common/StatusBadge';
-import { MdPendingActions, MdWarning, MdCheckCircle, MdAccessTime } from 'react-icons/md';
+import Modal from '../../components/common/Modal';
+import { approvalApi } from '../../api/approvalApi';
+import { useAuth } from '../../auth/AuthContext';
+import { MdPendingActions, MdCheckCircle, MdCancel, MdAccessTime } from 'react-icons/md';
 
-const pendingApprovals = [
-  { id: 'PO-2024-089', type: 'Purchase Order',       amount: '₹4,82,000', requestedBy: 'Ravi Sharma',  dept: 'Procurement', age: '2d', level: 'L2 — Manager',  status: 'Pending'   },
-  { id: 'PR-2024-034', type: 'Purchase Requisition', amount: '₹1,20,000', requestedBy: 'Priya Nair',   dept: 'Production',  age: '1d', level: 'L1 — HOD',      status: 'Pending'   },
-  { id: 'RFQ-2024-012',type: 'RFQ',                  amount: '₹8,40,000', requestedBy: 'Amit Patel',   dept: 'Procurement', age: '3d', level: 'L3 — Director',  status: 'Pending'   },
-  { id: 'PO-2024-085', type: 'Purchase Order',       amount: '₹2,10,000', requestedBy: 'Suresh Jain',  dept: 'Maintenance', age: '4d', level: 'L2 — Manager',  status: 'Escalated' },
-];
 
 export default function ApprovalsPage() {
-  const escalated = pendingApprovals.filter(a => a.status === 'Escalated').length;
-  const pending   = pendingApprovals.filter(a => a.status === 'Pending').length;
-  const avgAge    = '2.5d';
+  const { user } = useAuth();
+  const [approvals, setApprovals] = useState([]);
+  const [stats, setStats]         = useState({ pending: 0, approved: 0, rejected: 0, total: 0 });
+  const [loading, setLoading]     = useState(false);
+  const [filterStatus, setFilter] = useState('');
+  const [actionModal, setActionModal] = useState(null); // { approval, type: 'approve'|'reject' }
+  const [remarks, setRemarks]     = useState('');
+  const [saving, setSaving]       = useState(false);
+
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = filterStatus ? { status: filterStatus } : {};
+      const [aRes, sRes] = await Promise.all([approvalApi.getAll(params), approvalApi.getStats()]);
+      setApprovals(aRes.data || []);
+      setStats(sRes.data || {});
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }, [filterStatus]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const handleAction = async () => {
+    if (!actionModal) return;
+    setSaving(true);
+    try {
+      const body = { approvedBy: user?.name || user?.email || 'Admin', remarks };
+      if (actionModal.type === 'approve') {
+        await approvalApi.approve(actionModal.approval._id, body);
+      } else {
+        await approvalApi.reject(actionModal.approval._id, body);
+      }
+      setActionModal(null);
+      setRemarks('');
+      await fetchAll();
+    } catch (e) { alert(e.message); }
+    finally { setSaving(false); }
+  };
 
   const kpis = [
-    { label: 'Pending Approvals', value: pending,   icon: <MdPendingActions size={18} />, color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.25)' },
-    { label: 'Escalated',         value: escalated, icon: <MdWarning size={18} />,        color: '#dc2626', color2: '#ef4444', glow: 'rgba(220,38,38,0.3)' },
-    { label: 'Avg. Age',          value: avgAge,    icon: <MdAccessTime size={18} />,     color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.25)' },
-    { label: 'Approved Today',    value: '12',      icon: <MdCheckCircle size={18} />,    color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)' },
-  ];
-
-  const columns = [
-    { key: 'id',          label: 'Doc ID',       render: v => <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#ef4444', fontWeight: 600 }}>{v}</span> },
-    { key: 'type',        label: 'Type' },
-    { key: 'amount',      label: 'Amount',       render: v => <span style={{ fontWeight: 700 }}>{v}</span> },
-    { key: 'requestedBy', label: 'Requested By' },
-    { key: 'dept',        label: 'Dept' },
-    { key: 'age',         label: 'Age',          render: (v, row) => <span style={{ fontWeight: 700, color: parseInt(v) > 2 ? '#ef4444' : '#f59e0b' }}>{v}</span> },
-    { key: 'level',       label: 'Level' },
-    { key: 'status',      label: 'Status',       render: v => <StatusBadge status={v} type={v === 'Escalated' ? 'danger' : 'warning'} /> },
-    { key: 'actions',     label: 'Actions',      render: () => (
-      <div style={{ display: 'flex', gap: 6 }}>
-        <button style={{
-          padding: '5px 12px', fontSize: 12, borderRadius: 8,
-          background: '#dcfce7', color: '#16a34a', border: '1px solid #bbf7d0',
-          cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit',
-        }}>✓ Approve</button>
-        <button style={{
-          padding: '5px 12px', fontSize: 12, borderRadius: 8,
-          background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca',
-          cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit',
-        }}>✗ Reject</button>
-      </div>
-    )},
+    { label: 'Pending',  value: stats.pending,  icon: <MdPendingActions size={18} />, color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.25)' },
+    { label: 'Approved', value: stats.approved, icon: <MdCheckCircle size={18} />,   color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)' },
+    { label: 'Rejected', value: stats.rejected, icon: <MdCancel size={18} />,        color: '#dc2626', color2: '#ef4444', glow: 'rgba(220,38,38,0.3)' },
+    { label: 'Total',    value: stats.total,    icon: <MdAccessTime size={18} />,    color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.25)' },
   ];
 
   return (
     <div>
       <PageHeader title="Approval Dashboard" breadcrumb="Procurement › Approvals" />
-
       <KpiStrip kpis={kpis} />
 
       <PageCard>
-        <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>
-          Pending Approvals
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>Approval Requests</div>
+          <select className="form-select" value={filterStatus} onChange={e => setFilter(e.target.value)} style={{ maxWidth: 160 }}>
+            <option value="">All Status</option>
+            <option>Pending</option>
+            <option>Approved</option>
+            <option>Rejected</option>
+          </select>
         </div>
-        <PTable columns={columns} rows={pendingApprovals} emptyText="No pending approvals" />
+
+        {loading ? (
+          <div style={{ padding: 24, textAlign: 'center', color: '#94a3b8' }}>Loading...</div>
+        ) : (
+          <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid #f1f5f9' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
+              <thead>
+                <tr style={{ background: '#f8fafc' }}>
+                  {['Approval ID', 'Type', 'Doc Ref', 'Vendor', 'Amount', 'Requested By', 'Status', 'Actions'].map(h => (
+                    <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 10.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.7px', borderBottom: '1px solid #f1f5f9', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {approvals.length === 0 ? (
+                  <tr><td colSpan={8} style={{ padding: 24, textAlign: 'center', color: '#94a3b8' }}>No approvals yet. Complete a QC inspection to generate approval requests.</td></tr>
+                ) : approvals.map((a) => (
+                  <tr key={a._id} style={{ borderBottom: '1px solid #f8fafc', transition: 'background .1s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <td style={{ padding: '11px 14px', fontFamily: 'monospace', fontSize: 12, color: '#ef4444', fontWeight: 600 }}>{a.approvalId}</td>
+                    <td style={{ padding: '11px 14px', fontSize: 12.5 }}>
+                      <span style={{ padding: '3px 8px', borderRadius: 6, background: '#f1f5f9', fontSize: 11, fontWeight: 700, color: '#475569' }}>{a.docType}</span>
+                    </td>
+                    <td style={{ padding: '11px 14px', fontFamily: 'monospace', fontSize: 12, color: '#1e293b', fontWeight: 600 }}>{a.docRef}</td>
+                    <td style={{ padding: '11px 14px', fontSize: 12.5, color: '#1e293b' }}>{a.vendorId?.companyName || '—'}</td>
+                    <td style={{ padding: '11px 14px', fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>
+                      {a.amount ? `₹${Number(a.amount).toLocaleString('en-IN')}` : '—'}
+                    </td>
+                    <td style={{ padding: '11px 14px', fontSize: 12.5, color: '#475569' }}>{a.requestedBy || '—'}</td>
+                    <td style={{ padding: '11px 14px' }}><StatusBadge status={a.status} /></td>
+                    <td style={{ padding: '11px 14px' }}>
+                      {a.status === 'Pending' ? (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={() => { setActionModal({ approval: a, type: 'approve' }); setRemarks(''); }} style={{
+                            padding: '5px 12px', fontSize: 12, borderRadius: 8,
+                            background: '#dcfce7', color: '#16a34a', border: '1px solid #bbf7d0',
+                            cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit',
+                          }}>✓ Approve</button>
+                          <button onClick={() => { setActionModal({ approval: a, type: 'reject' }); setRemarks(''); }} style={{
+                            padding: '5px 12px', fontSize: 12, borderRadius: 8,
+                            background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca',
+                            cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit',
+                          }}>✗ Reject</button>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                          {a.approvedBy && `By ${a.approvedBy}`}
+                          {a.approvedAt && ` · ${new Date(a.approvedAt).toLocaleDateString('en-IN')}`}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </PageCard>
+
+      {/* Confirm Modal */}
+      <Modal
+        open={!!actionModal}
+        onClose={() => setActionModal(null)}
+        title={actionModal?.type === 'approve' ? 'Approve Request' : 'Reject Request'}
+        footer={
+          <>
+            <button className="btn btn-outline" onClick={() => setActionModal(null)} disabled={saving}>Cancel</button>
+            <button
+              className="btn btn-primary"
+              disabled={saving}
+              onClick={handleAction}
+              style={{ background: actionModal?.type === 'approve' ? 'linear-gradient(135deg,#22c55e,#16a34a)' : 'linear-gradient(135deg,#ef4444,#b91c1c)' }}
+            >
+              {saving ? 'Processing...' : actionModal?.type === 'approve' ? '✓ Confirm Approve' : '✗ Confirm Reject'}
+            </button>
+          </>
+        }
+      >
+        <p style={{ fontSize: 13, color: '#374151', marginBottom: 12 }}>
+          {actionModal?.type === 'approve'
+            ? <>Approve <strong>{actionModal?.approval?.approvalId}</strong> for <strong>{actionModal?.approval?.docRef}</strong>? This will mark the PO as <strong>Received</strong>.</>
+            : <>Reject <strong>{actionModal?.approval?.approvalId}</strong>? This action will be recorded.</>
+          }
+        </p>
+        <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Remarks (optional)</label>
+        <input className="form-input" placeholder="Add remarks..." value={remarks} onChange={e => setRemarks(e.target.value)} />
+      </Modal>
     </div>
   );
 }

@@ -1,199 +1,177 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import Modal from '../../components/common/Modal';
-
-const creditNotes = [
-  { id: 'CN-2024-015', party: 'Shree Metals', against: 'MR-001', amount: '₹62,000', date: '15 Apr', daysOpen: 0, status: 'Open', reason: 'Material Return' },
-  { id: 'CN-2024-013', party: 'Apex Gaskets', against: 'MR-003', amount: '₹40,000', date: '12 Apr', daysOpen: 3, status: 'Open', reason: 'Quality Rejection' },
-  { id: 'CN-2024-012', party: 'Hero MotoCorp', against: 'RET-002', amount: '₹22,000', date: '14 Apr', daysOpen: 1, status: 'Open', reason: 'Wrong Item Return' },
-  { id: 'CN-2024-009', party: 'TVS Motor', against: 'RET-003', amount: '₹80,000', date: '10 Apr', daysOpen: 5, status: 'Open', reason: 'Defective Return' },
-  { id: 'CN-2024-005', party: 'Bajaj Auto', against: 'RET-001', amount: '₹48,000', date: '5 Apr', daysOpen: 10, status: 'Open', reason: 'Excess Supply' },
-  { id: 'CN-2024-001', party: 'Tata Motors', against: 'RET-004', amount: '₹12,000', date: '1 Apr', daysOpen: 14, status: 'Closed', reason: 'Resolved' },
-];
-
-const escalationRules = [
-  { days: 7, action: 'Email reminder to party', enabled: true },
-  { days: 14, action: 'Escalate to Finance Manager', enabled: true },
-  { days: 21, action: 'Escalate to Management', enabled: false },
-  { days: 30, action: 'Legal notice trigger', enabled: false },
-];
-
-const agingBuckets = [
-  { label: '0–7 days', count: creditNotes.filter(c => c.daysOpen <= 7 && c.status === 'Open').length, color: '#10b981' },
-  { label: '8–15 days', count: creditNotes.filter(c => c.daysOpen > 7 && c.daysOpen <= 15 && c.status === 'Open').length, color: '#f59e0b' },
-  { label: '15+ days', count: creditNotes.filter(c => c.daysOpen > 15 && c.status === 'Open').length, color: '#ef4444' },
-];
+import { creditNoteApi } from '../../api/creditNoteApi';
+import { toast } from '../../components/common/Toast';
 
 export default function CreditNoteTrackingPage({ initialTab = 0 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
-  const [showReminder, setShowReminder] = useState(false);
-  const [loginAlert] = useState(creditNotes.filter(c => c.daysOpen >= 7 && c.status === 'Open'));
+  const [notes, setNotes]         = useState([]);
+  const [stats, setStats]         = useState({ openCount: 0, totalValue: 0, overdue: 0, closed: 0 });
+  const [showCreate, setShowCreate] = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [form, setForm] = useState({ party: '', against: '', amount: '', reason: '' });
 
-  const tabs = ['Open Credit Notes', 'Aging & Reminders', 'Escalation Rules'];
+  const fetchAll = useCallback(async () => {
+    try {
+      const [listRes, statsRes] = await Promise.all([creditNoteApi.getAll(), creditNoteApi.getStats()]);
+      setNotes(listRes.data || []);
+      setStats(statsRes.data || {});
+    } catch (e) { console.error(e); }
+  }, []);
 
-  const totalOpen = creditNotes.filter(c => c.status === 'Open').reduce((s, c) => {
-    const num = parseFloat(c.amount.replace(/[₹,]/g, ''));
-    return s + num;
-  }, 0);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const handleCreate = async () => {
+    if (!form.party || !form.amount) { toast('Party and amount are required', 'error'); return; }
+    setSaving(true);
+    try {
+      await creditNoteApi.create({ ...form, amount: parseFloat(form.amount) });
+      setShowCreate(false);
+      setForm({ party: '', against: '', amount: '', reason: '' });
+      await fetchAll();
+      toast('Credit note created');
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setSaving(false); }
+  };
+
+  const handleReminder = async (id, cnId) => {
+    try {
+      await creditNoteApi.sendReminder(id);
+      toast(`Reminder logged for ${cnId}`);
+      await fetchAll();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  const handleClose = async (id) => {
+    try {
+      await creditNoteApi.updateStatus(id, 'Closed');
+      toast('Credit note closed');
+      await fetchAll();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  const agingBuckets = [
+    { label: '0–7 days',  count: notes.filter(c => c.daysOpen <= 7  && c.status === 'Open').length, color: '#10b981' },
+    { label: '8–15 days', count: notes.filter(c => c.daysOpen > 7  && c.daysOpen <= 15 && c.status === 'Open').length, color: '#f59e0b' },
+    { label: '15+ days',  count: notes.filter(c => c.daysOpen > 15 && c.status === 'Open').length, color: '#ef4444' },
+  ];
+
+  const overdue = notes.filter(c => c.daysOpen >= 7 && c.status === 'Open');
 
   return (
     <div>
-      {/* Login popup alert */}
-      {loginAlert.length > 0 && (
+      {overdue.length > 0 && (
         <div className="mb-4 p-4 bg-amber-50 border border-amber-300 rounded-2xl flex items-start gap-3">
           <span className="text-2xl">🔔</span>
           <div className="flex-1">
             <div className="font-bold text-amber-800 text-sm mb-1">Credit Note Reminders</div>
-            <div className="text-xs text-amber-700">{loginAlert.length} credit note{loginAlert.length > 1 ? 's' : ''} are overdue for collection: {loginAlert.map(c => c.id).join(', ')}</div>
+            <div className="text-xs text-amber-700">{overdue.length} credit note{overdue.length > 1 ? 's' : ''} overdue: {overdue.map(c => c.cnId).join(', ')}</div>
           </div>
-          <button onClick={() => setShowReminder(true)} className="px-3 py-1.5 text-xs rounded-lg bg-amber-400 text-white font-semibold border-0 cursor-pointer font-[inherit]">View All</button>
         </div>
       )}
 
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <button onClick={() => setShowCreate(true)} style={{
+          padding: '8px 18px', borderRadius: 10, background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
+          color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+        }}>+ New Credit Note</button>
+      </div>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
-          <div className="text-2xl font-black tracking-tight text-red-600">{creditNotes.filter(c => c.status === 'Open').length}</div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="text-2xl font-black tracking-tight text-red-600">{stats.openCount}</div>
           <div className="text-xs text-gray-500 font-medium mt-1">Open Credit Notes</div>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
-          <div className="text-2xl font-black tracking-tight text-amber-500">₹{(totalOpen / 100000).toFixed(1)}L</div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="text-2xl font-black tracking-tight text-amber-500">₹{((stats.totalValue || 0) / 100000).toFixed(1)}L</div>
           <div className="text-xs text-gray-500 font-medium mt-1">Total Open Value</div>
         </div>
         {agingBuckets.map((b, i) => (
-          <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
+          <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
             <div className="text-2xl font-black tracking-tight" style={{ color: b.color }}>{b.count}</div>
             <div className="text-xs text-gray-500 font-medium mt-1">{b.label}</div>
           </div>
         ))}
       </div>
 
-      {/* Tab 0: Open Credit Notes */}
       {activeTab === 0 && (
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
           <div className="text-sm font-bold text-gray-800 mb-3.5">Open Credit Notes</div>
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
-            <table className="w-full">
-              <thead>
-                <tr>{['CN No.', 'Party', 'Against', 'Amount', 'Date', 'Days Open', 'Reason', 'Status', 'Action'].map(h => (
-                  <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
-                ))}</tr>
-              </thead>
-              <tbody>
-                {creditNotes.map((cn, i) => (
-                  <tr key={i} className={`border-b border-gray-50 last:border-0 transition-colors ${cn.daysOpen >= 7 && cn.status === 'Open' ? 'bg-amber-50/40' : 'hover:bg-gray-50'}`}>
-                    <td className="px-4 py-3 align-middle font-semibold text-red-700">{cn.id}</td>
-                    <td className="px-4 py-3 align-middle font-semibold">{cn.party}</td>
-                    <td className="px-4 py-3 align-middle font-mono text-[11px]">{cn.against}</td>
-                    <td className="px-4 py-3 align-middle font-bold text-green-600">{cn.amount}</td>
-                    <td className="px-4 py-3 align-middle text-gray-500">{cn.date}</td>
-                    <td className="px-4 py-3 align-middle">
-                      <span className={`font-bold text-sm ${cn.daysOpen >= 14 ? 'text-red-500' : cn.daysOpen >= 7 ? 'text-amber-500' : 'text-green-600'}`}>{cn.daysOpen}d</span>
-                    </td>
-                    <td className="px-4 py-3 align-middle text-xs text-gray-500">{cn.reason}</td>
-                    <td className="px-4 py-3 align-middle"><StatusBadge status={cn.status} type={cn.status === 'Closed' ? 'success' : 'warning'} /></td>
-                    <td className="px-4 py-3 align-middle">
-                      {cn.status === 'Open' && (
-                        <button className="px-2 py-1 text-[11px] rounded bg-red-100 text-red-700 font-semibold border-0 cursor-pointer font-[inherit]">Send Reminder</button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {notes.length === 0 ? (
+            <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>No credit notes yet.</div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
+              <table className="w-full">
+                <thead>
+                  <tr>{['CN No.', 'Party', 'Against', 'Amount', 'Days Open', 'Reason', 'Status', 'Action'].map(h => (
+                    <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
+                  ))}</tr>
+                </thead>
+                <tbody>
+                  {notes.map((cn, i) => (
+                    <tr key={i} className={`border-b border-gray-50 last:border-0 transition-colors ${cn.daysOpen >= 7 && cn.status === 'Open' ? 'bg-amber-50/40' : 'hover:bg-gray-50'}`}>
+                      <td className="px-4 py-3 font-semibold text-red-700">{cn.cnId}</td>
+                      <td className="px-4 py-3 font-semibold">{cn.party}</td>
+                      <td className="px-4 py-3 font-mono text-[11px]">{cn.against || '—'}</td>
+                      <td className="px-4 py-3 font-bold text-green-600">₹{(cn.amount || 0).toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-3">
+                        <span className={`font-bold text-sm ${cn.daysOpen >= 14 ? 'text-red-500' : cn.daysOpen >= 7 ? 'text-amber-500' : 'text-green-600'}`}>{cn.daysOpen}d</span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-500">{cn.reason || '—'}</td>
+                      <td className="px-4 py-3"><StatusBadge status={cn.status} type={cn.status === 'Closed' ? 'success' : 'warning'} /></td>
+                      <td className="px-4 py-3">
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          {cn.status === 'Open' && (
+                            <>
+                              <button onClick={() => handleReminder(cn._id, cn.cnId)} className="px-2 py-1 text-[11px] rounded bg-amber-100 text-amber-800 font-semibold border-0 cursor-pointer font-[inherit]">Remind</button>
+                              <button onClick={() => handleClose(cn._id)} className="px-2 py-1 text-[11px] rounded bg-green-100 text-green-800 font-semibold border-0 cursor-pointer font-[inherit]">Close</button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {overdue.map((cn, i) => (
+            <div key={i} className="mt-3 p-3.5 bg-red-50 rounded-lg border border-red-200">
+              <div className="font-bold text-sm text-red-800 mb-1">⚠ Overdue — {cn.cnId} ({cn.party})</div>
+              <div className="text-xs text-red-700">{cn.daysOpen} days open · ₹{(cn.amount || 0).toLocaleString('en-IN')} · {cn.reason}</div>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Tab 1: Aging & Reminders */}
       {activeTab === 1 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <div className="text-sm font-bold text-gray-800 mb-4">Aging Buckets</div>
-            {agingBuckets.map((b, i) => (
-              <div key={i} className="mb-3">
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="font-semibold" style={{ color: b.color }}>{b.label}</span>
-                  <span className="font-bold">{b.count} notes</span>
-                </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all" style={{ width: `${(b.count / creditNotes.length) * 100}%`, background: b.color }} />
-                </div>
-              </div>
-            ))}
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <div className="text-sm font-bold text-gray-800 mb-3">Overdue Reminders</div>
-              {creditNotes.filter(c => c.daysOpen >= 7 && c.status === 'Open').map((cn, i) => (
-                <div key={i} className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0">
-                  <div>
-                    <div className="font-semibold text-sm">{cn.id} — {cn.party}</div>
-                    <div className="text-xs text-gray-400">{cn.amount} · {cn.daysOpen} days open</div>
-                  </div>
-                  <button className="px-2 py-1 text-[11px] rounded bg-amber-100 text-amber-800 font-semibold border-0 cursor-pointer font-[inherit]">Remind</button>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <div className="text-sm font-bold text-gray-800 mb-4">Reminder Log</div>
-            {[
-              { cn: 'CN-2024-009', party: 'TVS Motor', sent: '12 Apr, 10:00 AM', type: 'Email', status: 'Sent' },
-              { cn: 'CN-2024-005', party: 'Bajaj Auto', sent: '10 Apr, 09:00 AM', type: 'Email', status: 'Sent' },
-              { cn: 'CN-2024-005', party: 'Bajaj Auto', sent: '13 Apr, 09:00 AM', type: 'Escalation', status: 'Sent' },
-            ].map((r, i) => (
-              <div key={i} className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0">
-                <div>
-                  <div className="font-semibold text-sm">{r.cn} — {r.party}</div>
-                  <div className="text-xs text-gray-400">{r.type} · {r.sent}</div>
-                </div>
-                <StatusBadge status={r.status} type="success" />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Tab 2: Escalation Rules */}
-      {activeTab === 2 && (
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <div className="text-sm font-bold text-gray-800">Auto-Escalation Rules</div>
-              <div className="text-xs text-gray-400 mt-0.5">Configure automatic reminders and escalations</div>
+          <div className="text-sm font-bold text-gray-800 mb-4">Aging Buckets</div>
+          {agingBuckets.map((b, i) => (
+            <div key={i} className="mb-3">
+              <div className="flex justify-between text-sm mb-1">
+                <span className="font-semibold" style={{ color: b.color }}>{b.label}</span>
+                <span className="font-bold">{b.count} notes</span>
+              </div>
+              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full" style={{ width: `${notes.length ? (b.count / notes.length) * 100 : 0}%`, background: b.color }} />
+              </div>
             </div>
-            <button className="px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">+ Add Rule</button>
-          </div>
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
-            <table className="w-full">
-              <thead>
-                <tr>{['Trigger (Days)', 'Action', 'Status', 'Toggle'].map(h => (
-                  <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
-                ))}</tr>
-              </thead>
-              <tbody>
-                {escalationRules.map((rule, i) => (
-                  <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 align-middle font-bold text-red-700">{rule.days} days</td>
-                    <td className="px-4 py-3 align-middle font-semibold">{rule.action}</td>
-                    <td className="px-4 py-3 align-middle"><StatusBadge status={rule.enabled ? 'Active' : 'Inactive'} type={rule.enabled ? 'success' : 'gray'} /></td>
-                    <td className="px-4 py-3 align-middle">
-                      <div className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${rule.enabled ? 'bg-green-500' : 'bg-gray-200'}`}>
-                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${rule.enabled ? 'left-5' : 'left-0.5'}`} />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          ))}
         </div>
       )}
 
-      <Modal open={showReminder} onClose={() => setShowReminder(false)} title="Overdue Credit Notes">
-        <div className="flex flex-col gap-2">
-          {loginAlert.map((cn, i) => (
-            <div key={i} className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-              <div className="font-bold text-sm text-amber-800">{cn.id} — {cn.party}</div>
-              <div className="text-xs text-amber-700 mt-0.5">{cn.amount} · {cn.daysOpen} days open · {cn.reason}</div>
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="New Credit Note"
+        footer={<>
+          <button className="btn btn-outline" onClick={() => setShowCreate(false)} disabled={saving}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleCreate} disabled={saving}>{saving ? 'Saving...' : 'Create'}</button>
+        </>}>
+        <div className="grid grid-cols-2 gap-4">
+          {[['Party *', 'party', 'text', 'Party name'], ['Against (MR/Return ID)', 'against', 'text', 'MR-001'], ['Amount (₹) *', 'amount', 'number', '0'], ['Reason', 'reason', 'text', 'Material return, quality rejection...']].map(([label, key, type, ph]) => (
+            <div key={key} className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-gray-600">{label}</label>
+              <input type={type} className="form-input" placeholder={ph} value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))} />
             </div>
           ))}
         </div>

@@ -3,9 +3,9 @@ import StatusBadge from '../../../components/common/StatusBadge';
 import Modal from '../../../components/common/Modal';
 import BulkPOUpload from './BulkPOUpload';
 import { poApi } from '../../../api/poApi';
-import { vendorApi } from '../../../api/vendorApi';
+import { vendorApi } from '../../../api/vendorApi';   
 import { rfqApi } from '../../../api/rfqApi';
-import { MdVisibility, MdDeleteOutline } from 'react-icons/md';
+import { MdVisibility, MdDeleteOutline, MdCheckCircle, MdCancel, MdSend } from 'react-icons/md';
 import { FaEdit } from 'react-icons/fa';
 
 const EMPTY_FORM = {
@@ -24,6 +24,7 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
   const [editPO, setEditPO] = useState(null);
   const [deletePO, setDeletePO] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [statusModal, setStatusModal] = useState(null); // { po, action: 'Approved'|'Cancelled'|'Pending' }
   
   // Form state
   const [formData, setFormData] = useState({
@@ -35,18 +36,17 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
     remarks: ''
   });
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
 
   const fetchPOs = async () => {
     setLoading(true);
     try {
       const params = {};
       if (filterStatus) params.status = filterStatus;
-      console.log('📦 Fetching POs with params:', params);
       const res = await poApi.getAll(params);
-      console.log('✅ POs fetched:', res.data);
       setPOs(res.data || []);
     } catch (e) {
-      console.error('❌ Error fetching POs:', e);
+      console.error('Error fetching POs:', e);
       setPOs([]);
     } finally {
       setLoading(false);
@@ -55,12 +55,10 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
 
   const fetchVendors = async () => {
     try {
-      console.log('👥 Fetching vendors...');
       const res = await vendorApi.getAll({ status: 'Active' });
-      console.log('✅ Vendors fetched:', res.data);
       setVendors(res.data || []);
     } catch (e) {
-      console.error('❌ Error fetching vendors:', e);
+      console.error('Error fetching vendors:', e);
       setVendors([]);
     }
   };
@@ -68,82 +66,29 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
   const fetchRFQs = async () => {
     try {
       const res = await rfqApi.getAll({ status: 'Quoted' });
-      console.log('📋 RFQs fetched:', res.data);
       setRFQs(res.data);
     } catch (e) {
-      console.error('❌ Error fetching RFQs:', e);
+      console.error('Error fetching RFQs:', e);
     }
   };
 
   // Get RFQs for selected vendor
   const getVendorRFQs = () => {
     if (!formData.vendor) return [];
-    
     const selectedVendor = vendors.find(v => v._id === formData.vendor);
     if (!selectedVendor) return [];
-    
-    console.log('🔍 Selected Vendor:', selectedVendor);
-    console.log('📋 All RFQs:', rfqs);
-    
-    const filtered = rfqs.filter(rfq => {
-      console.log('Checking RFQ:', rfq.rfqId, 'Vendors:', rfq.vendors);
-      
-      if (!rfq.vendors || rfq.vendors.length === 0) {
-        console.log('  ❌ No vendors in RFQ');
-        return false;
-      }
-      
-      // Check if vendor ID matches
-      const hasVendorId = rfq.vendors.some(v => {
+
+    return rfqs.filter(rfq => {
+      if (!rfq.vendors || rfq.vendors.length === 0) return false;
+      return rfq.vendors.some(v => {
         const vendorId = typeof v === 'object' ? v._id : v;
-        const matches = vendorId === formData.vendor;
-        console.log(`  Checking ID: ${vendorId} === ${formData.vendor} ? ${matches}`);
-        return matches;
-      });
-      
-      // Check if vendor name matches
-      const hasVendorName = rfq.vendors.some(v => {
         const vendorName = typeof v === 'object' ? v.companyName : v;
-        const matches = vendorName === selectedVendor.companyName;
-        console.log(`  Checking Name: ${vendorName} === ${selectedVendor.companyName} ? ${matches}`);
-        return matches;
+        return vendorId === formData.vendor || vendorName === selectedVendor.companyName;
       });
-      
-      const result = hasVendorId || hasVendorName;
-      console.log(`  Result: ${result}`);
-      return result;
     });
-    
-    console.log(`✅ Vendor: ${selectedVendor.companyName}, RFQs found: ${filtered.length}`, filtered);
-    return filtered;
   };
 
-  // Auto-populate items when RFQ is selected
-  const handleRFQSelect = (rfqId) => {
-    setFormData(prev => ({ ...prev, linkedRFQ: rfqId }));
-    
-    if (rfqId) {
-      const selectedRFQ = rfqs.find(r => r._id === rfqId);
-      if (selectedRFQ && selectedRFQ.quotations) {
-        // Find quotation for this vendor
-        const vendorQuotation = selectedRFQ.quotations.find(q => 
-          q.vendor._id === formData.vendor || q.vendor === formData.vendor
-        );
-        
-        if (vendorQuotation && vendorQuotation.items) {
-          const newItems = vendorQuotation.items.map(item => ({
-            name: item.name,
-            qty: item.qty,
-            unit: item.unit,
-            basePrice: item.unitPrice || 0,
-            gst: 18
-          }));
-          setFormData(prev => ({ ...prev, items: newItems }));
-        }
-      }
-    }
-  };
-
+  // Auto-populate items when RFQ is selected (used by handleRFQChange)
   useEffect(() => { fetchPOs(); }, [filterStatus]);
 
   useEffect(() => {
@@ -226,6 +171,16 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
     finally { setDeleting(false); }
   };
 
+  const handleStatusChange = async () => {
+    if (!statusModal) return;
+    try {
+      await poApi.updateStatus(statusModal.po._id, statusModal.action);
+      setStatusModal(null);
+      fetchPOs();
+      onSaved?.();
+    } catch (e) { alert(e.message); }
+  };
+
   const handleEdit = (po) => {
     setFormData({
       vendor: po.vendor?._id || '',
@@ -243,6 +198,13 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
     setFormData(prev => ({
       ...prev,
       items: [...prev.items, { name: '', qty: 1, unit: 'Nos', basePrice: 0, gst: 18 }]
+    }));
+  };
+
+  const handleItemChange = (index, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.map((item, i) => i === index ? { ...item, [field]: value } : item),
     }));
   };
 
@@ -284,17 +246,11 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
         remarks: formData.remarks
       };
 
-      console.log('📤 Sending PO payload:', payload);
-      
       if (editPO) {
-        // Update existing PO
         await poApi.update(editPO, payload);
-        console.log('✅ PO updated successfully');
         alert('✓ Purchase Order updated successfully!');
       } else {
-        // Create new PO
         await poApi.create(payload);
-        console.log('✅ PO created successfully');
         alert('✓ Purchase Order created successfully!');
       }
       
@@ -310,7 +266,7 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
       });
       fetchPOs();
     } catch (e) {
-      console.error('❌ Error saving PO:', e);
+      console.error('Error saving PO:', e);
       alert(`❌ Error: ${e.message}`);
     } finally {
       setSaving(false);
@@ -322,19 +278,16 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
   return (
     <>
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '22px 22px 14px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ fontWeight: 700 }}>Purchase Orders</div>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <BulkPOUpload onSuccess={fetchPOs} />
-            <select className="form-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ maxWidth: 160 }}>
-              <option value="">All Status</option>
-              <option>Draft</option>
-              <option>Pending</option>
-              <option>Approved</option>
-              <option>Received</option>
-              <option>Cancelled</option>
-            </select>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '14px 22px', borderBottom: '1px solid var(--border)', gap: 10 }}>
+          <BulkPOUpload onSuccess={fetchPOs} />
+          <select className="form-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ maxWidth: 160 }}>
+            <option value="">All Status</option>
+            <option>Draft</option>
+            <option>Pending</option>
+            <option>Approved</option>
+            <option>Received</option>
+            <option>Cancelled</option>
+          </select>
         </div>
 
         {loading ? (
@@ -378,6 +331,24 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
                         <button className="btn btn-sm" title="Edit" style={{ background: '#fef3c7', color: '#92400e', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => handleEdit(p)}>
                           <FaEdit size={16} />
                         </button>
+                        {(p.status === 'Draft' || p.status === 'Pending') && (
+                          <button className="btn btn-sm" title="Approve PO" style={{ background: '#dcfce7', color: '#16a34a', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #bbf7d0', borderRadius: 6 }}
+                            onClick={() => setStatusModal({ po: p, action: 'Approved' })}>
+                            <MdCheckCircle size={16} />
+                          </button>
+                        )}
+                        {p.status === 'Draft' && (
+                          <button className="btn btn-sm" title="Submit for Approval" style={{ background: '#eff6ff', color: '#2563eb', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #bfdbfe', borderRadius: 6 }}
+                            onClick={() => setStatusModal({ po: p, action: 'Pending' })}>
+                            <MdSend size={16} />
+                          </button>
+                        )}
+                        {(p.status === 'Draft' || p.status === 'Pending') && (
+                          <button className="btn btn-sm" title="Cancel PO" style={{ background: '#fee2e2', color: '#dc2626', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #fecaca', borderRadius: 6 }}
+                            onClick={() => setStatusModal({ po: p, action: 'Cancelled' })}>
+                            <MdCancel size={16} />
+                          </button>
+                        )}
                         <button className="btn btn-sm" title="Delete" style={{ background: '#fee2e2', color: '#dc2626', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setDeletePO(p)}>
                           <MdDeleteOutline size={16} />
                         </button>
@@ -506,27 +477,20 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
           <div className="form-group">
-            <label className="form-label">Linked RFQ (auto-fills items)</label>
-            <select className="form-select" value={formData.linkedRFQ} onChange={e => handleRFQChange(e.target.value)}>
-              <option value="">— None —</option>
-              {rfqs.map(r => <option key={r._id} value={r._id}>{r.rfqId} — {r.quotations?.length || 0} quote(s)</option>)}
-            </select>
-          </div>
-          <div className="form-group">
             <label className="form-label">Vendor *</label>
-            <select className="form-select" value={formData.vendor} onChange={e => setFormData({ ...formData, vendor: e.target.value, linkedRFQ: '' })}>
+            <select className="form-select" value={formData.vendor} onChange={e => handleVendorChange(e.target.value)}>
               <option value="">Select vendor</option>
               {vendors.map(v => <option key={v._id} value={v._id}>{v.companyName}</option>)}
             </select>
           </div>
           <div className="form-group">
-            <label className="form-label">Linked RFQ (Optional)</label>
-            <select className="form-select" value={formData.linkedRFQ} onChange={e => handleRFQSelect(e.target.value)} disabled={!formData.vendor}>
-              <option value="">None</option>
-              {getVendorRFQs().map(r => <option key={r._id} value={r._id}>{r.rfqId} — {r.title}</option>)}
+            <label className="form-label">Linked RFQ (Optional — auto-fills items)</label>
+            <select className="form-select" value={formData.linkedRFQ} onChange={e => handleRFQChange(e.target.value)} disabled={!formData.vendor}>
+              <option value="">— None —</option>
+              {getVendorRFQs().map(r => <option key={r._id} value={r._id}>{r.rfqId} — {r.title || r.quotations?.length + ' quote(s)'}</option>)}
             </select>
-            {!formData.vendor && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Select a vendor first</div>}
-            {formData.vendor && getVendorRFQs().length === 0 && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>No RFQs available for this vendor</div>}
+            {!formData.vendor && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>Select a vendor first to see linked RFQs</div>}
+            {formData.vendor && getVendorRFQs().length === 0 && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>No quoted RFQs for this vendor</div>}
           </div>
           <div className="form-group">
             <label className="form-label">Delivery Date</label>
@@ -600,7 +564,7 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
                       <div style={{ color: '#1e40af', fontSize: 11, marginBottom: 4, opacity: 0.7, fontWeight: 600 }}>DUE DATE</div>
                       <div style={{ fontWeight: 600, color: '#1e40af' }}>{rfq.dueDate ? new Date(rfq.dueDate).toLocaleDateString('en-IN') : 'N/A'}</div>
                     </div>
-                  </div>
+                  </div>  
                   <div style={{ background: '#dbeafe', borderRadius: 8, padding: 10, marginTop: 10 }}>
                     <div style={{ color: '#1e40af', fontSize: 11, marginBottom: 6, opacity: 0.7, fontWeight: 600 }}>📦 ITEMS IN RFQ</div>
                     <div style={{ fontSize: 12, color: '#1e40af' }}>
@@ -693,6 +657,58 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
           <textarea className="form-input" rows={2} value={formData.remarks}
             onChange={e => setFormData(p => ({ ...p, remarks: e.target.value }))}
             placeholder="Additional notes..." />
+        </div>
+      </Modal>
+
+      {/* Status Change Modal */}
+      <Modal
+        open={!!statusModal}
+        onClose={() => setStatusModal(null)}
+        title={
+          statusModal?.action === 'Approved' ? 'Approve Purchase Order' :
+          statusModal?.action === 'Cancelled' ? 'Cancel Purchase Order' :
+          'Submit for Approval'
+        }
+        footer={
+          <>
+            <button className="btn btn-outline" onClick={() => setStatusModal(null)}>Cancel</button>
+            <button
+              className="btn btn-primary"
+              onClick={handleStatusChange}
+              style={{
+                background: statusModal?.action === 'Approved' ? 'linear-gradient(135deg,#22c55e,#16a34a)' :
+                  statusModal?.action === 'Cancelled' ? 'linear-gradient(135deg,#ef4444,#b91c1c)' :
+                  'linear-gradient(135deg,#3b82f6,#2563eb)',
+              }}
+            >
+              {statusModal?.action === 'Approved' ? '✓ Approve PO' :
+               statusModal?.action === 'Cancelled' ? '✗ Cancel PO' : '→ Submit PO'}
+            </button>
+          </>
+        }
+      >
+        <div style={{ textAlign: 'center', padding: '12px 0' }}>
+          <div style={{ fontSize: 40, marginBottom: 10 }}>
+            {statusModal?.action === 'Approved' ? '✅' : statusModal?.action === 'Cancelled' ? '❌' : '📤'}
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6, color: '#1e293b' }}>
+            {statusModal?.action === 'Approved' ? 'Approve this PO?' :
+             statusModal?.action === 'Cancelled' ? 'Cancel this PO?' : 'Submit this PO for approval?'}
+          </div>
+          <div style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
+            {statusModal?.action === 'Approved'
+              ? 'Approving will allow a GRN to be created against this PO.'
+              : statusModal?.action === 'Cancelled'
+              ? 'This PO will be cancelled and cannot be used for GRN.'
+              : 'PO will be submitted for manager approval.'}
+          </div>
+          {statusModal?.po && (
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14, textAlign: 'left', maxWidth: 320, margin: '0 auto' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 8 }}>PO DETAILS</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#ef4444', marginBottom: 4 }}>{statusModal.po.poId}</div>
+              <div style={{ fontSize: 12, color: '#475569' }}>{statusModal.po.vendor?.companyName} · ₹{Math.round(statusModal.po.grandTotal || 0).toLocaleString('en-IN')}</div>
+            </div>
+          )}
         </div>
       </Modal>
     </>

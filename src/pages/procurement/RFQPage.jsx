@@ -4,6 +4,7 @@ import RFQTab from './components/RFQTab';
 import { rfqApi } from '../../api/rfqApi';
 import { MdRequestQuote, MdHourglassEmpty, MdCheckCircle, MdAdd } from 'react-icons/md';
 
+
 export default function RFQPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [stats, setStats] = useState({ total: 0, sent: 0, quoted: 0, closed: 0 });

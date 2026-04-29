@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { MdEmail, MdLock, MdVisibility, MdVisibilityOff, MdLogin, MdArrowForward } from 'react-icons/md';
-import { FiAlertTriangle } from 'react-icons/fi';
+import { FiAlertTriangle, FiZap, FiTarget } from 'react-icons/fi';
 import { TbFileAnalyticsFilled } from 'react-icons/tb';
 import { FcSalesPerformance } from 'react-icons/fc';
 import { GoGoal } from 'react-icons/go';

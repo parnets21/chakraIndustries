@@ -10,6 +10,7 @@ export default function CreateGRNModal({ open, onClose, onSaved }) {
   const [receiptDate, setReceiptDate] = useState('');
   const [receivedBy, setReceivedBy]   = useState('');
   const [remarks, setRemarks]         = useState('');
+  const [warehouseId, setWarehouseId] = useState('');
   const [items, setItems]             = useState([]);
   const [saving, setSaving]           = useState(false);
   const [loading, setLoading]         = useState(false);
@@ -18,7 +19,7 @@ export default function CreateGRNModal({ open, onClose, onSaved }) {
     if (open) {
       loadPOs();
       setSelectedPO(''); setPoData(null); setItems([]);
-      setReceiptDate(''); setReceivedBy(''); setRemarks('');
+      setReceiptDate(''); setReceivedBy(''); setRemarks(''); setWarehouseId('');
     }
   }, [open]);
 
@@ -40,6 +41,7 @@ export default function CreateGRNModal({ open, onClose, onSaved }) {
       const po = res.data;
       setPoData(po);
       setItems((po.items || []).map(it => ({
+        skuId: it.skuId || it._id,
         name: it.name,
         ordered: it.qty,
         received: '',
@@ -56,23 +58,31 @@ export default function CreateGRNModal({ open, onClose, onSaved }) {
     if (!selectedPO)        { alert('Please select a PO'); return; }
     if (!receiptDate)       { alert('Please enter receipt date'); return; }
     if (!receivedBy.trim()) { alert('Please enter received by'); return; }
+    if (!warehouseId.trim()) { alert('Please select a warehouse'); return; }
 
     const totalOrdered  = items.reduce((s, i) => s + i.ordered, 0);
     const totalReceived = items.reduce((s, i) => s + (parseInt(i.received) || 0), 0);
     if (totalReceived === 0) { alert('Please enter received quantities'); return; }
-
-    const status = totalReceived >= totalOrdered ? 'Completed' : totalReceived > 0 ? 'Partial' : 'Pending';
 
     setSaving(true);
     try {
       await grnApi.create({
         poId: selectedPO,
         vendorId: poData?.vendor?._id || poData?.vendor,
+        warehouseId,
         orderedQuantity: totalOrdered,
         receivedQuantity: totalReceived,
         receivedDate: receiptDate,
-        status,
+        grnStatus: 'Received',
         remarks: remarks.trim(),
+        items: items.map(it => ({
+          skuId: it.skuId,
+          name: it.name,
+          orderedQty: it.ordered,
+          receivedQty: parseInt(it.received) || 0,
+          condition: it.condition,
+          itemRemarks: it.remarks
+        }))
       });
       onSaved?.();
       onClose();
@@ -122,10 +132,14 @@ export default function CreateGRNModal({ open, onClose, onSaved }) {
               <input type="date" className="form-input" value={receiptDate} onChange={e => setReceiptDate(e.target.value)} />
             </div>
             <div className="form-group">
+              <label className="form-label">Warehouse *</label>
+              <input className="form-input" placeholder="Warehouse ID" value={warehouseId} onChange={e => setWarehouseId(e.target.value)} />
+            </div>
+            <div className="form-group">
               <label className="form-label">Received By *</label>
               <input className="form-input" placeholder="Staff name" value={receivedBy} onChange={e => setReceivedBy(e.target.value)} />
             </div>
-            <div className="form-group">
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <label className="form-label">Remarks</label>
               <input className="form-input" placeholder="Optional notes" value={remarks} onChange={e => setRemarks(e.target.value)} />
             </div>

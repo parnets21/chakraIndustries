@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Modal from '../../components/common/Modal';
 import { toast } from '../../components/common/Toast';
+import { getStorageLocations } from '../../api/storageLocationApi';
 import { MdTrendingUp, MdCancel, MdCheckCircle, MdSettings, MdStar, MdBarChart } from 'react-icons/md';
 
 const zones = [

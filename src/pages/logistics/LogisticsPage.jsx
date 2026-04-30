@@ -1,17 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
 import { toast } from '../../components/common/Toast';
+import inventoryApi from '../../api/inventoryApi';
 
 const tabs = ['Dispatch Dashboard', 'Vehicle Allocation', 'Delivery Tracking', 'DC Regularization', 'Pendency', 'Courier & POD'];
 
-const readyOrders = [
-  { id: 'ORD-2024-085', customer: 'TVS Motor', items: 18, value: '₹3,24,000', warehouse: 'WH-01', weight: '420 kg' },
-  { id: 'ORD-2024-082', customer: 'Ashok Leyland', items: 30, value: '₹6,80,000', warehouse: 'WH-03', weight: '780 kg' },
-  { id: 'ORD-2024-079', customer: 'Force Motors', items: 10, value: '₹1,40,000', warehouse: 'WH-01', weight: '210 kg' },
-];
-
+// Hardcoded data for vehicles (can be replaced with API later)
 const vehicles = [
   { id: 'VH-001', type: 'Truck', number: 'MH-12-AB-1234', driver: 'Ramesh Patil', capacity: '5 Ton', status: 'Available' },
   { id: 'VH-002', type: 'Mini Truck', number: 'MH-12-CD-5678', driver: 'Suresh Kumar', capacity: '2 Ton', status: 'In Transit' },
@@ -54,7 +50,8 @@ const courierShipments = [
 export default function LogisticsPage({ initialTab = 0 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [showModal, setShowModal] = useState(false);
-  const [dispatchList, setDispatchList] = useState(readyOrders);
+  const [readyOrders, setReadyOrders] = useState([]);
+  const [dispatchList, setDispatchList] = useState([]);
   const [vehicleList, setVehicleList] = useState(vehicles);
   const [shipmentList, setShipmentList] = useState(courierShipments);
   const [allocationList, setAllocationList] = useState(allocations);
@@ -70,6 +67,44 @@ export default function LogisticsPage({ initialTab = 0 }) {
     weight: '',
   });
   const [selectedOrderForShipment, setSelectedOrderForShipment] = useState(null);
+
+  // Fetch movement data from backend
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await inventoryApi.getAllMovementsData();
+        const data = res.data.data || [];
+        
+        // Transform movement data to orders format
+        const orders = data.slice(0, 3).map((m, idx) => ({
+          id: `ORD-2024-${85 - idx}`,
+          customer: m.from || 'Customer',
+          items: m.qty || 0,
+          value: `₹${(m.qty * 1000).toLocaleString()}`,
+          warehouse: m.warehouse || 'WH-01',
+          weight: `${m.qty * 5} kg`
+        }));
+        
+        setReadyOrders(orders);
+        setDispatchList(orders);
+      } catch (err) {
+        console.error('Error fetching logistics data:', err);
+        // Use fallback data
+        setReadyOrders([
+          { id: 'ORD-2024-085', customer: 'TVS Motor', items: 18, value: '₹3,24,000', warehouse: 'WH-01', weight: '420 kg' },
+          { id: 'ORD-2024-082', customer: 'Ashok Leyland', items: 30, value: '₹6,80,000', warehouse: 'WH-03', weight: '780 kg' },
+          { id: 'ORD-2024-079', customer: 'Force Motors', items: 10, value: '₹1,40,000', warehouse: 'WH-01', weight: '210 kg' },
+        ]);
+        setDispatchList([
+          { id: 'ORD-2024-085', customer: 'TVS Motor', items: 18, value: '₹3,24,000', warehouse: 'WH-01', weight: '420 kg' },
+          { id: 'ORD-2024-082', customer: 'Ashok Leyland', items: 30, value: '₹6,80,000', warehouse: 'WH-03', weight: '780 kg' },
+          { id: 'ORD-2024-079', customer: 'Force Motors', items: 10, value: '₹1,40,000', warehouse: 'WH-01', weight: '210 kg' },
+        ]);
+      }
+    };
+    
+    fetchData();
+  }, []);
 
   const handleSaveModal = () => {
     if (activeTab === 0) toast('Dispatch created successfully');
@@ -387,8 +422,8 @@ export default function LogisticsPage({ initialTab = 0 }) {
           <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Dispatch Date</label><input type="date" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" /></div>
           <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Expected Delivery</label><input type="date" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" /></div>
           <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Total Weight (kg)</label><input type="number" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="0" /></div>
+          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Delivery Instructions</label><textarea className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Special handling notes..." /></div>
         </div>
-        <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Delivery Instructions</label><textarea className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Special handling notes..." /></div>
       </Modal>
     </div>
   );

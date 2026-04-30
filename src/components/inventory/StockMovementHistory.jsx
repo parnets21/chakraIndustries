@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import inventoryApi from '../../api/inventoryApi';
 
 const StockMovementHistory = ({ sku, onClose }) => {
   const [movements, setMovements] = useState([]);
@@ -12,21 +13,27 @@ const StockMovementHistory = ({ sku, onClose }) => {
 
   const fetchMovementHistory = async () => {
     try {
-      // Mock data - replace with actual API call
-      const mockData = [
-        { type: 'inward', quantity: 100, location: 'WH-01', date: new Date().toISOString(), reference: 'PO-001' },
-        { type: 'outward', quantity: 50, location: 'WH-01', date: new Date().toISOString(), reference: 'SO-001' },
-        { type: 'transfer', quantity: 25, location: 'WH-02', date: new Date().toISOString(), reference: 'TR-001' },
-      ];
+      setLoading(true);
+      // Fetch all movements from backend
+      const res = await inventoryApi.getAllMovementsData();
+      let data = res.data.data || [];
       
-      let filtered = mockData;
-      if (filter !== 'all') {
-        filtered = filtered.filter(m => m.type === filter);
+      // Filter by SKU if provided
+      if (sku) {
+        data = data.filter(m => m.sku === sku);
       }
-      setMovements(filtered);
+      
+      // Filter by type if not 'all'
+      if (filter !== 'all') {
+        data = data.filter(m => m.type?.toLowerCase() === filter.toLowerCase());
+      }
+      
+      setMovements(data);
       setError(null);
     } catch (err) {
+      console.error('Error fetching movement history:', err);
       setError('Failed to load movement history');
+      setMovements([]);
     } finally {
       setLoading(false);
     }
@@ -166,9 +173,21 @@ const StockMovementHistory = ({ sku, onClose }) => {
                       <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>
                         Qty: <strong>{movement.quantity}</strong> | Location: <strong>{movement.location}</strong>
                       </div>
-                      <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
                         Ref: {movement.reference}
                       </div>
+                      {movement.grnId && (
+                        <div style={{ fontSize: 11 }}>
+                          <a href={`#/procurement/grn/${movement.grnId}`} style={{
+                            color: '#3b82f6', textDecoration: 'none', fontWeight: 600, fontFamily: 'monospace',
+                            cursor: 'pointer', padding: '2px 6px', borderRadius: 4,
+                            background: '#eff6ff', border: '1px solid #bfdbfe',
+                            display: 'inline-block',
+                          }}>
+                            GRN: {movement.grnId}
+                          </a>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

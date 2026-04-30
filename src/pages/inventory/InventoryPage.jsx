@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import BarChart from '../../components/charts/BarChart';
 import Modal from '../../components/common/Modal';
 import StorageLocationPage from './StorageLocationPage';
 import PincodeStockPage from './PincodeStockPage';
+import AgeingStockPage from './AgeingStockPage';
+import DefectiveStockPage from './DefectiveStockPage';
 import { MdWarehouse, MdLocationOn, MdAdd, MdDownload, MdSwapHoriz, MdDescription, MdScale, MdCheckCircle, MdWarningAmber, MdLocalShipping, MdSchedule } from 'react-icons/md';
 import { toast } from '../../components/common/Toast';
+import useInventoryData from '../../hooks/useInventoryData';
 
 // ─── Design tokens ───────────────────────────────────────────────────────────
 const BG_CARD   = '#ffffff';
@@ -138,13 +141,16 @@ function Pill({ label, color, bg }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function InventoryPage({ initialTab = 0, externalShowModal = false, onExternalModalClose }) {
+  // Get data from persistence hook
+  const { stockData: hookStockData, warehouses: hookWarehouses, movements: hookMovements, batches: hookBatches, loading, addInventoryItem, addWarehouse, addMovement, addBatch } = useInventoryData();
+
   const [activeTab, setActiveTab]     = useState(initialTab);
   const [movTab, setMovTab]           = useState('Inward');
   const [internalModal, setInternalModal] = useState(false);
   const [stockFilter, setStockFilter] = useState('All');
   const [whFilter, setWhFilter]       = useState('All');
   const [stockSearch, setStockSearch] = useState('');
-  const [selectedWH, setSelectedWH]   = useState(warehouses[0]);
+  const [selectedWH, setSelectedWH]   = useState(null);
   const [adjustModal, setAdjustModal] = useState(false);
   const [moveModal, setMoveModal]     = useState(false);
   const [selectedStock, setSelectedStock] = useState(null);
@@ -154,7 +160,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const [adjustQty, setAdjustQty] = useState('');
   
   // Movement form state
-  const [movementList, setMovementList] = useState(movements);
+  const [movementList, setMovementList] = useState([]);
   const [movementForm, setMovementForm] = useState({
     type: 'Inward',
     sku: '',
@@ -178,15 +184,34 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
     notes: '',
   });
 
-  // Mutable data state
-  const [stockList, setStockList]       = useState(stockData);
-  const [warehouseList, setWarehouseList] = useState(warehouses);
+  // Mutable data state - use hook data
+  const [stockList, setStockList]       = useState([]);
+  const [warehouseList, setWarehouseList] = useState([]);
   const [pickList, setPickList]         = useState(pickData);
   const [sortList, setSortList]         = useState(sortData);
   const [packList, setPackList]         = useState(packData);
-  const [batchList, setBatchList]       = useState(batchData);
+  const [batchList, setBatchList]       = useState([]);
   const [defectList, setDefectList]     = useState(defectData);
   const [defectLogList, setDefectLogList] = useState(defectLog);
+
+  // Sync hook data to local state
+  useEffect(() => {
+    if (hookStockData && hookStockData.length > 0) {
+      setStockList(hookStockData);
+    }
+    if (hookWarehouses && hookWarehouses.length > 0) {
+      setWarehouseList(hookWarehouses);
+      if (!selectedWH) {
+        setSelectedWH(hookWarehouses[0]);
+      }
+    }
+    if (hookMovements && hookMovements.length > 0) {
+      setMovementList(hookMovements);
+    }
+    if (hookBatches && hookBatches.length > 0) {
+      setBatchList(hookBatches);
+    }
+  }, [hookStockData, hookWarehouses, hookMovements, hookBatches]);
 
   // Adjust/Move modal state
   const [adjustItem, setAdjustItem]   = useState(null);
@@ -208,29 +233,50 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const [defectForm, setDefectForm] = useState({ sku:'SKU-1042', qty:'', type:'Dimensional', source:'GRN Inspection', stage:'QC Hold', warehouse:'WH-01', remarks:'' });
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-  const handleAddStock = () => {
+  const handleAddStock = async () => {
     if (!stockForm.sku || !stockForm.name || !stockForm.qty) { toast('Please fill required fields', 'error'); return; }
     const newItem = { sku: stockForm.sku, name: stockForm.name, warehouse: stockForm.warehouse.split(' ')[0], qty: parseInt(stockForm.qty)||0, batch: stockForm.batch||'—', minQty: parseInt(stockForm.minQty)||0, status: parseInt(stockForm.qty) === 0 ? 'Dead' : parseInt(stockForm.qty) < parseInt(stockForm.minQty||0) ? 'Critical' : 'Active' };
-    setStockList(prev => [...prev, newItem]);
-    setStockForm({ sku:'', name:'', qty:'', minQty:'', batch:'', warehouse:'WH-01', category:'Raw Material', uom:'Nos', remarks:'' });
-    closeModal(); toast(`Stock entry added — ${newItem.sku}`);
+    
+    // Save to backend via hook
+    const result = await addInventoryItem(newItem);
+    if (result.success) {
+      setStockForm({ sku:'', name:'', qty:'', minQty:'', batch:'', warehouse:'WH-01', category:'Raw Material', uom:'Nos', remarks:'' });
+      closeModal(); 
+      toast(`Stock entry added — ${newItem.sku}`);
+    } else {
+      toast(`Error: ${result.error}`, 'error');
+    }
   };
 
-  const handleAddWarehouse = () => {
+  const handleAddWarehouse = async () => {
     if (!whForm.id || !whForm.name || !whForm.location) { toast('Please fill required fields', 'error'); return; }
-    const newWH = { id: whForm.id, name: whForm.name, location: whForm.location, capacity: parseInt(whForm.capacity)||0, used: 0, skus: 0, manager: whForm.manager };
-    setWarehouseList(prev => [...prev, newWH]);
-    setWhForm({ id:'', name:'', location:'', manager:'', capacity:'', phone:'', type:'Raw Material', status:'Active', address:'' });
-    closeModal(); toast(`Warehouse ${newWH.id} added`);
+    const newWH = { warehouseId: whForm.id, name: whForm.name, location: whForm.location, capacity: parseInt(whForm.capacity)||0, used: 0, skus: 0, manager: whForm.manager };
+    
+    // Save to backend via hook
+    const result = await addWarehouse(newWH);
+    if (result.success) {
+      setWhForm({ id:'', name:'', location:'', manager:'', capacity:'', phone:'', type:'Raw Material', status:'Active', address:'' });
+      closeModal(); 
+      toast(`Warehouse ${newWH.warehouseId} added`);
+    } else {
+      toast(`Error: ${result.error}`, 'error');
+    }
   };
 
-  const handleRecordMovement = () => {
+  const handleRecordMovement = async () => {
     if (!movForm.qty) { toast('Please enter quantity', 'error'); return; }
     const skuItem = stockList.find(s => s.sku === movForm.sku.split(' ')[0]);
-    const newMov = { id:`MV-${String(movementList.length+1).padStart(3,'0')}`, type: movForm.type, sku: movForm.sku.split(' ')[0], name: skuItem?.name||movForm.sku, qty: parseInt(movForm.qty), from: movForm.from.split(' ')[0], to: movForm.to.split(' ')[0], date: new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short'}), ref: movForm.ref||'—' };
-    setMovementList(prev => [...prev, newMov]);
-    setMovForm({ type:'Inward', sku:'SKU-1042', from:'Supplier', to:'WH-01', qty:'', ref:'' });
-    closeModal(); toast(`Movement recorded — ${newMov.id}`);
+    const newMov = { type: movForm.type, sku: movForm.sku.split(' ')[0], itemName: skuItem?.name||movForm.sku, quantity: parseInt(movForm.qty), from: movForm.from.split(' ')[0], to: movForm.to.split(' ')[0], reference: movForm.ref||'—' };
+    
+    // Save to backend via hook
+    const result = await addMovement(newMov);
+    if (result.success) {
+      setMovForm({ type:'Inward', sku:'SKU-1042', from:'Supplier', to:'WH-01', qty:'', ref:'' });
+      closeModal(); 
+      toast(`Movement recorded`);
+    } else {
+      toast(`Error: ${result.error}`, 'error');
+    }
   };
 
   const handleCreatePickList = () => {
@@ -268,29 +314,103 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
     toast(`Pack job ${id} → ${newStatus}`);
   };
 
-  const handleAddBatch = () => {
+  const handleAddBatch = async () => {
     if (!batchForm.batch || !batchForm.qty || !batchForm.mfg || !batchForm.exp) { toast('Please fill required fields', 'error'); return; }
     const skuItem = stockList.find(s => s.sku === batchForm.sku.split(' ')[0]);
+    if (!skuItem) { toast('SKU not found in inventory', 'error'); return; }
+    
     const mfgDate = new Date(batchForm.mfg + '-01');
     const expDate = new Date(batchForm.exp + '-01');
-    const totalMs = expDate - mfgDate;
-    const remainMs = expDate - new Date();
-    const shelfPct = Math.max(0, Math.min(100, Math.round((remainMs / totalMs) * 100)));
-    const newBatch = { batch: batchForm.batch, sku: batchForm.sku.split(' ')[0], item: skuItem?.name||batchForm.sku, qty: parseInt(batchForm.qty), mfg: new Date(batchForm.mfg+'-01').toLocaleDateString('en-IN',{month:'short',year:'numeric'}), exp: new Date(batchForm.exp+'-01').toLocaleDateString('en-IN',{month:'short',year:'numeric'}), wh: batchForm.warehouse.split(' ')[0], status: shelfPct < 20 ? 'Critical' : 'Active', shelfPct };
-    setBatchList(prev => [...prev, newBatch]);
-    setBatchForm({ batch:'', sku:'SKU-1042', qty:'', warehouse:'WH-01', mfg:'', exp:'' });
-    closeModal(); toast(`Batch ${newBatch.batch} added`);
+    
+    const newBatch = { 
+      batchNumber: batchForm.batch, 
+      sku: batchForm.sku.split(' ')[0], 
+      inventory: batchForm.sku.split(' ')[0],
+      itemName: skuItem?.name||batchForm.sku, 
+      quantity: parseInt(batchForm.qty), 
+      warehouse: batchForm.warehouse.split(' ')[0],
+      manufacturingDate: mfgDate,
+      expiryDate: expDate
+    };
+    
+    // Save to backend via hook
+    const result = await addBatch(newBatch);
+    if (result.success) {
+      setBatchForm({ batch:'', sku:'SKU-1042', qty:'', warehouse:'WH-01', mfg:'', exp:'' });
+      closeModal(); 
+      toast(`Batch ${newBatch.batchNumber} added`);
+    } else {
+      toast(`Error: ${result.error}`, 'error');
+    }
   };
 
-  const handleLogDefect = () => {
+  const handleLogDefect = async () => {
     if (!defectForm.qty) { toast('Please enter quantity', 'error'); return; }
     const skuItem = stockList.find(s => s.sku === defectForm.sku.split(' ')[0]);
-    const newDefect = { id:`DEF-${String(defectList.length+1).padStart(3,'0')}`, sku: defectForm.sku.split(' ')[0], item: skuItem?.name||defectForm.sku, qty: parseInt(defectForm.qty), type: defectForm.type, source: defectForm.source, date: new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short'}), daysAged: 0, stage: defectForm.stage };
-    const newLog = { event:`${newDefect.id} — ${newDefect.item} (${newDefect.qty} units) flagged at ${newDefect.source}`, time: new Date().toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}), stage: newDefect.stage, color: newDefect.stage==='QC Hold' ? '#f59e0b' : '#ef4444' };
-    setDefectList(prev => [...prev, newDefect]);
-    setDefectLogList(prev => [newLog, ...prev]);
-    setDefectForm({ sku:'SKU-1042', qty:'', type:'Dimensional', source:'GRN Inspection', stage:'QC Hold', warehouse:'WH-01', remarks:'' });
-    closeModal(); toast(`Defect ${newDefect.id} logged`);
+    if (!skuItem) { toast('SKU not found in inventory', 'error'); return; }
+    
+    const newDefect = { 
+      id:`DEF-${String(defectList.length+1).padStart(3,'0')}`, 
+      sku: defectForm.sku.split(' ')[0], 
+      item: skuItem?.name||defectForm.sku, 
+      qty: parseInt(defectForm.qty), 
+      type: defectForm.type, 
+      source: defectForm.source, 
+      date: new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short'}), 
+      daysAged: 0, 
+      stage: defectForm.stage 
+    };
+    
+    // Prepare data for API - with proper fallbacks
+    const defectiveData = {
+      sku: defectForm.sku.split(' ')[0],
+      name: skuItem.name || skuItem.item || defectForm.sku.split(' ')[0],
+      quantity: parseInt(defectForm.qty) || 0,
+      warehouse: defectForm.warehouse.split(' ')[0],
+      warehouseName: warehouseList.find(w => w.id === defectForm.warehouse.split(' ')[0])?.name || defectForm.warehouse.split(' ')[0],
+      category: skuItem.category || 'Defective',
+      unitPrice: skuItem.unitPrice || skuItem.price || 0
+    };
+    
+    console.log('Sending defective data:', defectiveData);
+    console.log('SKU Item details:', skuItem);
+    
+    try {
+      // Send to backend
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/inventory-data/defective/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token')}`
+        },
+        body: JSON.stringify(defectiveData)
+      });
+      
+      const responseData = await response.json();
+      console.log('Backend response:', responseData);
+      
+      if (!response.ok) {
+        console.error('❌ Backend error:', responseData);
+        throw new Error(responseData.message || responseData.error || 'Failed to create defective stock');
+      }
+      
+      // Update local state
+      const newLog = { event:`${newDefect.id} — ${newDefect.item} (${newDefect.qty} units) flagged at ${newDefect.source}`, time: new Date().toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}), stage: newDefect.stage, color: newDefect.stage==='QC Hold' ? '#f59e0b' : '#ef4444' };
+      setDefectList(prev => [...prev, newDefect]);
+      setDefectLogList(prev => [newLog, ...prev]);
+      setDefectForm({ sku:'SKU-1042', qty:'', type:'Dimensional', source:'GRN Inspection', stage:'QC Hold', warehouse:'WH-01', remarks:'' });
+      closeModal(); 
+      toast(`Defect ${newDefect.id} logged`);
+      
+      // Refresh defective stock page if it exists
+      if (window.refreshDefectiveStock) {
+        window.refreshDefectiveStock();
+      }
+    } catch (error) {
+      console.error('❌ Error logging defect:', error);
+      console.error('Error message:', error.message);
+      toast(`Error: ${error.message}`, 'error');
+    }
   };
 
   const handleDefectAction = (id, action) => {
@@ -338,7 +458,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       {activeTab === 0 && (
         <div>
           {/* Low stock alert banner */}
-          {stockData.filter(s => s.qty < s.minQty && s.qty > 0).length > 0 && (
+          {stockList.filter(s => s.qty < s.minQty && s.qty > 0).length > 0 && (
             <div style={{
               display:'flex', alignItems:'center', gap:12,
               padding:'12px 18px', marginBottom:16,
@@ -348,10 +468,10 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               <span style={{ fontSize:18 }}>⚠️</span>
               <div>
                 <div style={{ fontSize:13, fontWeight:700, color:'#92400e' }}>
-                  {stockData.filter(s => s.qty < s.minQty && s.qty > 0).length} items below minimum stock level
+                  {stockList.filter(s => s.qty < s.minQty && s.qty > 0).length} items below minimum stock level
                 </div>
                 <div style={{ fontSize:11.5, color:'#b45309', marginTop:2 }}>
-                  {stockData.filter(s => s.qty < s.minQty && s.qty > 0).map(s => s.name).join(' · ')}
+                  {stockList.filter(s => s.qty < s.minQty && s.qty > 0).map(s => s.name).join(' · ')}
                 </div>
               </div>
               <button onClick={() => toast('Redirecting to Purchase Requisition…', 'info')} style={{
@@ -414,7 +534,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     const pct = Math.round((wh.used / wh.capacity) * 100);
                     const barColor = pct > 85 ? RED_LIGHT : pct > 70 ? AMBER : GREEN;
                     return (
-                      <div key={i} style={{ padding:'10px 20px', borderBottom: i < warehouses.length-1 ? BORDER : 'none' }}>
+                      <div key={i} style={{ padding:'10px 20px', borderBottom: i < warehouseList.length-1 ? BORDER : 'none' }}>
                         <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
                           <span style={{ fontSize:12, fontWeight:700, color: TEXT_DARK }}>{wh.id}</span>
                           <span style={{ fontSize:11.5, fontWeight:700, color: barColor }}>{pct}%</span>
@@ -478,7 +598,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             <table style={{ width:'100%', borderCollapse:'collapse' }}>
               <thead>
                 <tr style={{ position:'sticky', top:0, background:'#f8fafc', zIndex:1 }}>
-                  {['SKU','Item Name','Warehouse','Qty','Min Qty','Batch','Status','Actions'].map(h => (
+                  {['SKU','Item Name','Warehouse','Qty','Min Qty','Batch','GRN Reference','Status','Actions'].map(h => (
                     <th key={h} style={{
                       padding:'10px 16px', textAlign:'left', fontSize:10.5,
                       fontWeight:700, color: TEXT_LIGHT, textTransform:'uppercase',
@@ -511,6 +631,20 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     </td>
                     <td style={{ padding:'11px 16px', fontSize:13, color: TEXT_MID }}>{r.minQty}</td>
                     <td style={{ padding:'11px 16px', fontSize:12, fontFamily:'monospace', color: TEXT_MID }}>{r.batch}</td>
+                    <td style={{ padding:'11px 16px', fontSize:12 }}>
+                      {r.grnId ? (
+                        <a href={`#/procurement/grn/${r.grnId}`} style={{
+                          color: BLUE, textDecoration:'none', fontWeight:600, fontFamily:'monospace',
+                          cursor:'pointer', padding:'3px 8px', borderRadius:6,
+                          background:'#eff6ff', border:`1px solid #bfdbfe`,
+                          display:'inline-block',
+                        }}>
+                          {r.grnId}
+                        </a>
+                      ) : (
+                        <span style={{ color: TEXT_LIGHT, fontSize:11 }}>—</span>
+                      )}
+                    </td>
                     <td style={{ padding:'11px 16px' }}><StatusBadge status={r.status} /></td>
                     <td style={{ padding:'11px 16px' }}>
                       <div style={{ display:'flex', gap:6 }}>
@@ -1113,199 +1247,12 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       {/* ══════════════════════════════════════════════════════════════════════
           TAB 7 — Ageing Stock  (Heat-map style analysis)
       ══════════════════════════════════════════════════════════════════════ */}
-      {activeTab === 7 && (
-        <div>
-          {/* Main table */}
-          <div style={{ ...card(), overflow:'hidden' }}>
-            <div style={{
-              display:'flex', alignItems:'center', justifyContent:'space-between',
-              padding:'14px 20px', borderBottom: BORDER,
-            }}>
-              <div>
-                <div style={{ fontSize:14, fontWeight:700, color: TEXT_DARK }}>Ageing Stock Analysis</div>
-                <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginTop:2 }}>Items not moved — with action suggestions</div>
-              </div>
-              <button onClick={() => handleExportCSV(ageingData, 'ageing-stock-report.csv')} style={{
-                padding:'7px 16px', borderRadius: RADIUS_SM, fontSize:12, fontWeight:700,
-                background:'linear-gradient(135deg,#ef4444,#b91c1c)', color:'#fff',
-                border:'none', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:6,
-              }}><MdDownload size={14} /> Export Report</button>
-            </div>
-            <div style={{ overflowX:'auto' }}>
-              <table style={{ width:'100%', borderCollapse:'collapse' }}>
-                <thead>
-                  <tr style={{ background:'#f8fafc' }}>
-                    {['SKU','Item','Warehouse','Qty','Last Movement','Days Idle','Bucket','Value','Suggested Action'].map(h => (
-                      <th key={h} style={{
-                        padding:'10px 16px', textAlign:'left', fontSize:10.5,
-                        fontWeight:700, color: TEXT_LIGHT, textTransform:'uppercase',
-                        letterSpacing:'0.06em', borderBottom: BORDER, whiteSpace:'nowrap',
-                      }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {ageingData.map((r,i) => {
-                    const rowBg = r.days > 90 ? 'rgba(239,68,68,0.08)' : r.days > 60 ? 'rgba(245,158,11,0.08)' : r.days > 30 ? 'rgba(251,191,36,0.05)' : '#fff';
-                    const daysColor = r.days > 90 ? RED_LIGHT : r.days > 60 ? '#f97316' : r.days > 30 ? AMBER : GREEN;
-                    return (
-                      <tr key={i} style={{ background: rowBg, borderBottom:'1px solid #f1f5f9' }}>
-                        <td style={{ padding:'12px 16px', fontFamily:'monospace', fontSize:12, fontWeight:700, color: RED }}>{r.sku}</td>
-                        <td style={{ padding:'12px 16px', fontSize:13, fontWeight:600, color: TEXT_DARK }}>{r.item}</td>
-                        <td style={{ padding:'12px 16px', fontSize:13, color: TEXT_MID }}>{r.wh}</td>
-                        <td style={{ padding:'12px 16px', fontSize:13, fontWeight:700, color: TEXT_DARK }}>{r.qty}</td>
-                        <td style={{ padding:'12px 16px', fontSize:12, color: TEXT_MID }}>{r.lastMov}</td>
-                        <td style={{ padding:'12px 16px' }}>
-                          <span style={{ fontSize:18, fontWeight:900, color: daysColor }}>{r.days}</span>
-                          <span style={{ fontSize:11, color: TEXT_LIGHT, marginLeft:2 }}>d</span>
-                        </td>
-                        <td style={{ padding:'12px 16px' }}>
-                          <Pill label={r.bucket} color={r.actionColor} />
-                        </td>
-                        <td style={{ padding:'12px 16px', fontSize:13, fontWeight:700, color: TEXT_DARK }}>{r.value}</td>
-                        <td style={{ padding:'12px 16px' }}>
-                          <span style={{
-                            display:'inline-block', padding:'4px 12px', borderRadius: RADIUS_SM,
-                            fontSize:11.5, fontWeight:700,
-                            background: r.actionColor+'18', color: r.actionColor,
-                            border:`1px solid ${r.actionColor}30`,
-                          }}>{r.action}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
+      {activeTab === 7 && <AgeingStockPage />}
 
       {/* ══════════════════════════════════════════════════════════════════════
           TAB 8 — Defective Stock  (Status-flow layout)
       ══════════════════════════════════════════════════════════════════════ */}
-      {activeTab === 8 && (
-        <div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
-            {/* Defective register */}
-            <div style={{ ...card(), overflow:'hidden' }}>
-              <div style={{
-                display:'flex', alignItems:'center', justifyContent:'space-between',
-                padding:'16px 20px', borderBottom: BORDER,
-                background:'linear-gradient(135deg,#fef2f2 0%,#fff5f5 100%)',
-              }}>
-                <div style={{ fontSize:14, fontWeight:700, color: TEXT_DARK, letterSpacing:'-0.3px' }}>Defective Stock Register</div>
-              </div>
-              <div style={{ padding:'0' }}>
-                {defectList.map((r,i) => {
-                  const stageBorder = r.stage==='QC Hold' ? AMBER : r.stage==='Repair' ? BLUE : RED_LIGHT;
-                  const stageBg     = r.stage==='QC Hold' ? '#fffbeb' : r.stage==='Repair' ? '#eff6ff' : '#fef2f2';
-                  return (
-                    <div key={i} style={{
-                      padding:'16px 20px', 
-                      borderLeft:`5px solid ${stageBorder}`,
-                      background: stageBg,
-                      borderBottom: i < defectList.length-1 ? BORDER : 'none',
-                      transition:'all 0.2s ease',
-                      cursor:'pointer',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = stageBg.replace(')', ', 0.8)').replace('rgb', 'rgba');
-                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = stageBg;
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
-                        <div style={{ display:'flex', gap:10, alignItems:'center', flex:1 }}>
-                          <span style={{ fontSize:13, fontWeight:800, color: RED, minWidth:'50px' }}>{r.id}</span>
-                          <span style={{ fontSize:12, fontFamily:'monospace', color: TEXT_LIGHT, background:'#f5f5f5', padding:'2px 8px', borderRadius:4 }}>{r.sku}</span>
-                        </div>
-                        <span style={{
-                          padding:'4px 12px', borderRadius:16, fontSize:11, fontWeight:700,
-                          background: stageBorder+'22', color: stageBorder,
-                          whiteSpace:'nowrap', marginLeft:8,
-                        }}>{r.stage}</span>
-                      </div>
-                      <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK, marginBottom:6, lineHeight:1.4 }}>{r.item} — <span style={{ fontWeight:600, color: TEXT_MID }}>{r.qty} units</span></div>
-                      <div style={{ fontSize:12, color: TEXT_LIGHT, marginBottom:10, display:'flex', gap:12, flexWrap:'wrap' }}>
-                        <span>{r.type}</span>
-                        <span>•</span>
-                        <span>{r.source}</span>
-                        <span>•</span>
-                        <span>{r.date}</span>
-                        <span>•</span>
-                        <span style={{ color: r.daysAged > 2 ? RED_LIGHT : TEXT_LIGHT, fontWeight: r.daysAged > 2 ? 700 : 500 }}>
-                          {r.daysAged}d aged
-                        </span>
-                      </div>
-                      <div style={{ display:'flex', gap:8, marginTop:12 }}>
-                        {[
-                          { label:'Repair', color: BLUE },
-                          { label:'Rework', color: AMBER },
-                          { label:'Scrap',  color: RED_LIGHT },
-                        ].map(btn => (
-                          <button key={btn.label} onClick={() => handleDefectAction(r.id, btn.label)} style={{
-                            padding:'6px 14px', borderRadius:18, fontSize:11, fontWeight:700,
-                            background: btn.color+'18', color: btn.color,
-                            border:`1.5px solid ${btn.color}40`, cursor:'pointer', fontFamily:'inherit',
-                            transition:'all 0.2s ease',
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = btn.color+'28';
-                            e.currentTarget.style.borderColor = btn.color+'60';
-                            e.currentTarget.style.transform = 'translateY(-1px)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = btn.color+'18';
-                            e.currentTarget.style.borderColor = btn.color+'40';
-                            e.currentTarget.style.transform = 'translateY(0)';
-                          }}>{btn.label}</button>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Timeline */}
-            <div style={{ ...card(), padding:20, display:'flex', flexDirection:'column' }}>
-              <div style={{ fontSize:14, fontWeight:700, color: TEXT_DARK, marginBottom:24, letterSpacing:'-0.3px' }}>
-                Movement Log — QC → Defective → Disposal/Repair
-              </div>
-              <div style={{ position:'relative', paddingLeft:32, flex:1 }}>
-                {/* Connecting line */}
-                <div style={{
-                  position:'absolute', left:11, top:0, bottom:0,
-                  width:2, background:'linear-gradient(180deg,#e2e8f0 0%,#cbd5e1 100%)', borderRadius:1,
-                }} />
-                {defectLogList.map((item,i) => (
-                  <div key={i} style={{ position:'relative', marginBottom: i < defectLogList.length-1 ? 28 : 0 }}>
-                    {/* Dot */}
-                    <div style={{
-                      position:'absolute', left:-20, top:2,
-                      width:14, height:14, borderRadius:'50%',
-                      background: item.color,
-                      boxShadow:`0 0 0 4px ${item.color}25, 0 2px 6px rgba(0,0,0,0.1)`,
-                      border:`2px solid #fff`,
-                    }} />
-                    <div style={{ fontSize:13, fontWeight:600, color: TEXT_DARK, lineHeight:1.5 }}>{item.event}</div>
-                    <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:6 }}>
-                      <span style={{ fontSize:12, color: TEXT_LIGHT }}>{item.time}</span>
-                      <span style={{
-                        padding:'3px 10px', borderRadius:14, fontSize:11, fontWeight:700,
-                        background: item.color+'22', color: item.color,
-                      }}>{item.stage}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {activeTab === 8 && <DefectiveStockPage />}
 
       {/* ── Tabs 9 & 10 ── */}
       {activeTab === 9  && <StorageLocationPage externalShowModal={showModal} onExternalModalClose={closeModal} />}

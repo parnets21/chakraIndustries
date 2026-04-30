@@ -29,10 +29,25 @@ const docketTimeline = {
   ],
 };
 
-const debitCreditMatching = [
-  { returnId: 'RET-002', customer: 'Hero MotoCorp', debitNote: 'DN-2024-012', debitAmt: '₹22,000', creditNote: 'CN-2024-012', creditAmt: '₹22,000', diff: '₹0', status: 'Matched' },
-  { returnId: 'RET-003', customer: 'TVS Motor', debitNote: 'DN-2024-009', debitAmt: '₹84,000', creditNote: 'CN-2024-009', creditAmt: '₹80,000', diff: '₹4,000', status: 'Mismatch' },
-];
+const getDebitCreditMatching = (returnsList) => {
+  return returnsList
+    .filter(r => r.debitNote && r.creditNote)
+    .map(r => {
+      const debitAmt = parseInt(r.value.replace(/[₹,]/g, ''));
+      const creditAmt = r.id === 'RET-003' ? 80000 : debitAmt;
+      const diff = debitAmt - creditAmt;
+      return {
+        returnId: r.id,
+        customer: r.customer,
+        debitNote: r.debitNote,
+        debitAmt: r.value,
+        creditNote: r.creditNote,
+        creditAmt: `₹${creditAmt.toLocaleString('en-IN')}`,
+        diff: diff === 0 ? '₹0' : `₹${diff.toLocaleString('en-IN')}`,
+        status: diff === 0 ? 'Matched' : 'Mismatch'
+      };
+    });
+};
 
 const lossTracking = [
   { id: 'RET-003', customer: 'TVS Motor', returnValue: '₹84,000', recoverable: '₹80,000', loss: '₹4,000', reason: 'Damaged beyond repair (2 units)', status: 'Loss Confirmed' },
@@ -205,49 +220,69 @@ export default function ReturnsPage({ initialTab = 0 }) {
       )}
 
       {/* Tab 2: Debit / Credit Matching */}
-      {activeTab === 2 && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <div className="text-sm font-bold text-gray-800">Debit vs Credit Note Matching</div>
-              <div className="text-xs text-gray-400 mt-0.5">Reconcile debit notes raised against credit notes issued</div>
+      {activeTab === 2 && (() => {
+        const matchingData = getDebitCreditMatching(returnList);
+        const mismatches = matchingData.filter(m => m.status === 'Mismatch');
+        return (
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="text-sm font-bold text-gray-800">Debit vs Credit Note Matching</div>
+                <div className="text-xs text-gray-400 mt-0.5">Reconcile debit notes raised against credit notes issued</div>
+              </div>
+              {mismatches.length > 0 && <StatusBadge status={`${mismatches.length} Mismatch${mismatches.length > 1 ? 'es' : ''}`} type="warning" />}
             </div>
-            <StatusBadge status="1 Mismatch" type="warning" />
+            {matchingData.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <div className="text-sm font-semibold mb-1">No matching records</div>
+                <div className="text-xs">Returns with both debit and credit notes will appear here</div>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto rounded-xl border border-gray-200">
+                  <table className="w-full">
+                    <thead>
+                      <tr>
+                        {['Return ID', 'Customer', 'Debit Note', 'Debit Amt', 'Credit Note', 'Credit Amt', 'Difference', 'Status'].map(h => (
+                          <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {matchingData.map((row, i) => (
+                        <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
+                          <td className="px-4 py-3 align-middle font-semibold text-red-700">{row.returnId}</td>
+                          <td className="px-4 py-3 align-middle font-semibold text-gray-800">{row.customer}</td>
+                          <td className="px-4 py-3 align-middle font-mono text-[11px] text-gray-800">{row.debitNote}</td>
+                          <td className="px-4 py-3 align-middle font-bold text-red-500">{row.debitAmt}</td>
+                          <td className="px-4 py-3 align-middle font-mono text-[11px] text-gray-800">{row.creditNote}</td>
+                          <td className="px-4 py-3 align-middle font-bold text-green-600">{row.creditAmt}</td>
+                          <td className={`px-4 py-3 align-middle font-extrabold ${row.diff === '₹0' ? 'text-green-600' : 'text-red-500'}`}>{row.diff}</td>
+                          <td className="px-4 py-3 align-middle"><StatusBadge status={row.status} type={row.status === 'Matched' ? 'success' : 'danger'} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {mismatches.length > 0 && (
+                  <div className="mt-4 p-3.5 bg-amber-50 rounded-lg border border-amber-300">
+                    <div className="font-bold text-sm text-amber-800 mb-2">⚠ {mismatches.length} Mismatch{mismatches.length > 1 ? 'es' : ''} Found</div>
+                    {mismatches.map((m, i) => (
+                      <div key={i} className="text-xs text-amber-700 mb-2 last:mb-0">
+                        <div className="font-semibold">{m.returnId} — {m.customer}</div>
+                        <div>Debit Note {m.debitNote} ({m.debitAmt}) does not match Credit Note {m.creditNote} ({m.creditAmt}). Difference: {m.diff}</div>
+                      </div>
+                    ))}
+                    <button className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-amber-400 text-white font-semibold border-0 cursor-pointer font-[inherit]">
+                      Resolve Mismatches
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
-            <table className="w-full">
-              <thead>
-                <tr>
-                  {['Return ID', 'Customer', 'Debit Note', 'Debit Amt', 'Credit Note', 'Credit Amt', 'Difference', 'Status'].map(h => (
-                    <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {debitCreditMatching.map((row, i) => (
-                  <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
-                    <td className="px-4 py-3 align-middle font-semibold text-red-700">{row.returnId}</td>
-                    <td className="px-4 py-3 align-middle font-semibold text-gray-800">{row.customer}</td>
-                    <td className="px-4 py-3 align-middle font-mono text-[11px] text-gray-800">{row.debitNote}</td>
-                    <td className="px-4 py-3 align-middle font-bold text-red-500">{row.debitAmt}</td>
-                    <td className="px-4 py-3 align-middle font-mono text-[11px] text-gray-800">{row.creditNote}</td>
-                    <td className="px-4 py-3 align-middle font-bold text-green-600">{row.creditAmt}</td>
-                    <td className={`px-4 py-3 align-middle font-extrabold ${row.diff === '₹0' ? 'text-green-600' : 'text-red-500'}`}>{row.diff}</td>
-                    <td className="px-4 py-3 align-middle"><StatusBadge status={row.status} type={row.status === 'Matched' ? 'success' : 'danger'} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-4 p-3.5 bg-amber-50 rounded-lg border border-amber-300">
-            <div className="font-bold text-sm text-amber-800 mb-1">⚠ Mismatch Alert — RET-003</div>
-            <div className="text-xs text-amber-700">Debit Note DN-2024-009 (₹84,000) does not match Credit Note CN-2024-009 (₹80,000). Difference of ₹4,000 needs resolution.</div>
-            <button className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-amber-400 text-white font-semibold border-0 cursor-pointer font-[inherit]">
-              Resolve Mismatch
-            </button>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Tab 3: Loss Tracking */}
       {activeTab === 3 && (

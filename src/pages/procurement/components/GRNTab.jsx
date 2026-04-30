@@ -22,7 +22,7 @@ export default function GRNTab({ externalShowCreate, onExternalClose, onSaved })
     <div>
       {!externalShowCreate && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
-          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ Create GRN</button>
+       
         </div>
       )}
 

@@ -3,8 +3,21 @@ import StatusBadge from '../../../../components/common/StatusBadge';
 
 const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
+const renderValue = (label, value) => {
+  if (label === 'Status') {
+    return <StatusBadge status={typeof value === 'string' ? value : value?.status || 'Unknown'} />;
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    return value;
+  }
+  if (value === null || value === undefined) {
+    return '—';
+  }
+  return '—';
+};
+
 export default function GRNDetailModal({ open, onClose, grn }) {
-  if (!grn) return null;
+  if (!grn || !grn._id) return null;
 
   return (
     <Modal open={open} onClose={onClose} title={`GRN Details — ${grn.grnId}`} size="lg"
@@ -12,17 +25,17 @@ export default function GRNDetailModal({ open, onClose, grn }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
         {[
-          ['GRN ID',       grn.grnId],
-          ['PO Reference', grn.poId?.poId || '—'],
-          ['Vendor',       grn.vendorId?.companyName || '—'],
+          ['GRN ID',       grn.grnId || '—'],
+          ['PO Reference', typeof grn.poId === 'string' ? grn.poId : (grn.poId?.poId || '—')],
+          ['Vendor',       typeof grn.vendorId === 'string' ? grn.vendorId : (grn.vendorId?.companyName || '—')],
           ['Receipt Date', fmt(grn.receivedDate)],
-          ['Status',       grn.status],
+          ['Status',       grn.status || 'Unknown'],
           ['Remarks',      grn.remarks || '—'],
         ].map(([label, value]) => (
           <div key={label} style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{label}</div>
             <div style={{ fontWeight: 600, fontSize: 13 }}>
-              {label === 'Status' ? <StatusBadge status={value} /> : value}
+              {renderValue(label, value)}
             </div>
           </div>
         ))}

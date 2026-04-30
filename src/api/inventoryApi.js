@@ -1,266 +1,273 @@
-import axios from 'axios';
-
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+import axiosInstance from './axiosConfig';
 
 const inventoryApi = {
   // ============ STOCK MANAGEMENT ============
   
   // Get all stock with filters
   getAllStock: (filters = {}) =>
-    axios.get(`${API_BASE}/inventory/stock`, { params: filters }),
+    axiosInstance.get(`/inventory/stock`, { params: filters }),
 
   // Get stock by warehouse
   getStockByWarehouse: (warehouseId) =>
-    axios.get(`${API_BASE}/inventory/stock/warehouse/${warehouseId}`),
+    axiosInstance.get(`/inventory/stock/warehouse/${warehouseId}`),
 
   // Get stock by location
   getStockByLocation: (locationId) =>
-    axios.get(`${API_BASE}/inventory/stock/location/${locationId}`),
+    axiosInstance.get(`/inventory/stock/location/${locationId}`),
 
   // Get stock by SKU
   getStockBySKU: (sku) =>
-    axios.get(`${API_BASE}/inventory/stock/sku/${sku}`),
+    axiosInstance.get(`/inventory/stock/sku/${sku}`),
 
   // Get stock by warehouse and SKU
   getStockByWarehouseAndSKU: (warehouseId, sku) =>
-    axios.get(`${API_BASE}/inventory/stock/warehouse/${warehouseId}/sku/${sku}`),
+    axiosInstance.get(`/inventory/stock/warehouse/${warehouseId}/sku/${sku}`),
 
   // Get stock by location and SKU
   getStockByLocationAndSKU: (locationId, sku) =>
-    axios.get(`${API_BASE}/inventory/stock/location/${locationId}/sku/${sku}`),
+    axiosInstance.get(`/inventory/stock/location/${locationId}/sku/${sku}`),
 
-  // ============ STOCK TYPES ============
-  
-  // Get stock by type (available, reserved, damaged, expired, etc.)
-  getStockByType: (stockType) =>
-    axios.get(`${API_BASE}/inventory/stock/type/${stockType}`),
-
-  // Get stock breakdown by type for SKU
+  // Get stock type breakdown for SKU
   getStockTypeBreakdown: (sku) =>
-    axios.get(`${API_BASE}/inventory/stock/${sku}/breakdown`),
+    axiosInstance.get(`/inventory/stock/${sku}/breakdown`),
 
   // Update stock quantity
   updateStock: (data) =>
-    axios.post(`${API_BASE}/inventory/stock/update`, data),
+    axiosInstance.post(`/inventory/stock/update`, data),
 
   // Transfer stock between locations
   transferStock: (data) =>
-    axios.post(`${API_BASE}/inventory/stock/transfer`, data),
+    axiosInstance.post(`/inventory/stock/transfer`, data),
 
   // Adjust stock (damage, loss, etc.)
   adjustStock: (data) =>
-    axios.post(`${API_BASE}/inventory/stock/adjust`, data),
+    axiosInstance.post(`/inventory/stock/adjust`, data),
 
   // ============ WAREHOUSE MANAGEMENT ============
   
   // Get all warehouses
   getWarehouses: () =>
-    axios.get(`${API_BASE}/inventory/warehouses`),
+    axiosInstance.get(`/warehouses`),
+
+  // Get all warehouses with automatic data
+  getWarehousesWithData: () =>
+    axiosInstance.get(`/warehouses/data/all`),
 
   // Get warehouse details
   getWarehouseDetails: (warehouseId) =>
-    axios.get(`${API_BASE}/inventory/warehouses/${warehouseId}`),
+    axiosInstance.get(`/warehouses/${warehouseId}`),
 
   // Get warehouse capacity
   getWarehouseCapacity: (warehouseId) =>
-    axios.get(`${API_BASE}/inventory/warehouses/${warehouseId}/capacity`),
+    axiosInstance.get(`/warehouses/${warehouseId}/capacity`),
 
   // Get warehouse zones
   getWarehouseZones: (warehouseId) =>
-    axios.get(`${API_BASE}/inventory/warehouses/${warehouseId}/zones`),
+    axiosInstance.get(`/warehouses/${warehouseId}/zones`),
 
-  // Get zone capacity
-  getZoneCapacity: (zoneId) =>
-    axios.get(`${API_BASE}/inventory/zones/${zoneId}/capacity`),
+  // Get warehouse summary
+  getWarehouseSummary: (warehouseId) =>
+    axiosInstance.get(`/warehouses/${warehouseId}/summary`),
+
+  // Sync warehouse capacity from inventory
+  syncWarehouseCapacity: (warehouseId) =>
+    axiosInstance.get(`/warehouses/${warehouseId}/sync`),
+
+  // Create warehouse
+  createWarehouse: (data) =>
+    axiosInstance.post(`/warehouses`, data),
+
+  // Update warehouse
+  updateWarehouse: (warehouseId, data) =>
+    axiosInstance.put(`/warehouses/${warehouseId}`, data),
+
+  // Delete warehouse
+  deleteWarehouse: (warehouseId) =>
+    axiosInstance.delete(`/warehouses/${warehouseId}`),
+
+  // Add zone to warehouse
+  addZone: (warehouseId, data) =>
+    axiosInstance.post(`/warehouses/${warehouseId}/zones`, data),
+
+  // Update zone in warehouse
+  updateZone: (warehouseId, zoneId, data) =>
+    axiosInstance.put(`/warehouses/${warehouseId}/zones/${zoneId}`, data),
 
   // ============ LOCATION MANAGEMENT ============
   
   // Get all locations
   getLocations: (filters = {}) =>
-    axios.get(`${API_BASE}/inventory/locations`, { params: filters }),
+    axiosInstance.get(`/locations`, { params: filters }),
 
   // Get locations by warehouse
   getLocationsByWarehouse: (warehouseId) =>
-    axios.get(`${API_BASE}/inventory/warehouses/${warehouseId}/locations`),
+    axiosInstance.get(`/locations`, { params: { warehouse: warehouseId } }),
 
   // Get location details
   getLocationDetails: (locationId) =>
-    axios.get(`${API_BASE}/inventory/locations/${locationId}`),
+    axiosInstance.get(`/locations/${locationId}`),
 
   // Get location capacity
   getLocationCapacity: (locationId) =>
-    axios.get(`${API_BASE}/inventory/locations/${locationId}/capacity`),
+    axiosInstance.get(`/locations/${locationId}/capacity`),
 
   // Update location capacity
   updateLocationCapacity: (locationId, capacity) =>
-    axios.put(`${API_BASE}/inventory/locations/${locationId}/capacity`, { capacity }),
+    axiosInstance.put(`/locations/${locationId}/capacity`, { capacity }),
+
+  // Create location
+  createLocation: (data) =>
+    axiosInstance.post(`/locations`, data),
+
+  // Add bin to location
+  addBin: (locationId, data) =>
+    axiosInstance.post(`/locations/${locationId}/bins`, data),
+
+  // Update bin quantity
+  updateBinQuantity: (locationId, data) =>
+    axiosInstance.put(`/locations/${locationId}/bins`, data),
 
   // ============ BATCH MANAGEMENT ============
   
   // Get all batches
   getAllBatches: (filters = {}) =>
-    axios.get(`${API_BASE}/inventory/batches`, { params: filters }),
+    axiosInstance.get(`/batches`, { params: filters }),
 
   // Get batches by SKU
   getBatchesBySKU: (sku) =>
-    axios.get(`${API_BASE}/inventory/batches/sku/${sku}`),
+    axiosInstance.get(`/batches/sku/${sku}`),
 
   // Get batch details
   getBatchDetails: (batchId) =>
-    axios.get(`${API_BASE}/inventory/batches/${batchId}`),
+    axiosInstance.get(`/batches/${batchId}`),
 
   // Create batch
   createBatch: (data) =>
-    axios.post(`${API_BASE}/inventory/batches`, data),
+    axiosInstance.post(`/batches`, data),
 
   // Update batch
   updateBatch: (batchId, data) =>
-    axios.put(`${API_BASE}/inventory/batches/${batchId}`, data),
+    axiosInstance.put(`/batches/${batchId}`, data),
 
   // Get batch expiry info
   getBatchExpiry: (batchId) =>
-    axios.get(`${API_BASE}/inventory/batches/${batchId}/expiry`),
+    axiosInstance.get(`/batches/${batchId}/expiry`),
 
   // Update batch expiry
   updateBatchExpiry: (batchId, expiryDate) =>
-    axios.put(`${API_BASE}/inventory/batches/${batchId}/expiry`, { expiryDate }),
+    axiosInstance.put(`/batches/${batchId}/expiry`, { expiryDate }),
 
   // Get expiring batches
   getExpiringBatches: (daysThreshold = 30) =>
-    axios.get(`${API_BASE}/inventory/batches/expiring`, { params: { days: daysThreshold } }),
+    axiosInstance.get(`/batches/expiring`, { params: { days: daysThreshold } }),
 
-  // ============ BARCODE MANAGEMENT ============
-  
-  // Generate barcode
-  generateBarcode: (data) =>
-    axios.post(`${API_BASE}/inventory/barcode/generate`, data),
-
-  // Generate multiple barcodes
-  generateBarcodes: (data) =>
-    axios.post(`${API_BASE}/inventory/barcode/generate-batch`, data),
-
-  // Scan barcode
-  scanBarcode: (barcodeValue) =>
-    axios.post(`${API_BASE}/inventory/barcode/scan`, { barcodeValue }),
-
-  // Validate barcode
-  validateBarcode: (barcodeValue) =>
-    axios.get(`${API_BASE}/inventory/barcode/validate/${barcodeValue}`),
-
-  // Get barcode history
-  getBarcodeHistory: (barcodeId) =>
-    axios.get(`${API_BASE}/inventory/barcode/${barcodeId}/history`),
-
-  // Print barcodes
-  printBarcodes: (barcodeIds) =>
-    axios.post(`${API_BASE}/inventory/barcode/print`, { barcodeIds }),
-
-  // Lookup barcode
-  lookupBarcode: (barcodeValue) =>
-    axios.get(`${API_BASE}/inventory/barcode/lookup/${barcodeValue}`),
+  // Get ageing report
+  getAgeingReport: () =>
+    axiosInstance.get(`/batches/ageing-report`),
 
   // ============ STOCK MOVEMENT TRACKING ============
   
   // Get movement history
   getMovementHistory: (filters = {}) =>
-    axios.get(`${API_BASE}/inventory/movements`, { params: filters }),
+    axiosInstance.get(`/stock-movements`, { params: filters }),
 
   // Get movements by SKU
   getMovementsBySKU: (sku, limit = 100) =>
-    axios.get(`${API_BASE}/inventory/movements/sku/${sku}`, { params: { limit } }),
+    axiosInstance.get(`/stock-movements/sku/${sku}`, { params: { limit } }),
 
   // Get movements by warehouse
   getMovementsByWarehouse: (warehouseId, limit = 100) =>
-    axios.get(`${API_BASE}/inventory/movements/warehouse/${warehouseId}`, { params: { limit } }),
+    axiosInstance.get(`/stock-movements/warehouse/${warehouseId}`, { params: { limit } }),
 
   // Get movements by location
   getMovementsByLocation: (locationId, limit = 100) =>
-    axios.get(`${API_BASE}/inventory/movements/location/${locationId}`, { params: { limit } }),
+    axiosInstance.get(`/stock-movements/location/${locationId}`, { params: { limit } }),
 
   // Record movement
   recordMovement: (data) =>
-    axios.post(`${API_BASE}/inventory/movements`, data),
+    axiosInstance.post(`/stock-movements`, data),
 
   // Get movement details
   getMovementDetails: (movementId) =>
-    axios.get(`${API_BASE}/inventory/movements/${movementId}`),
+    axiosInstance.get(`/stock-movements/${movementId}`),
 
-  // ============ REAL-TIME UPDATES ============
+  // Transfer stock between warehouses
+  transferStockBetweenWarehouses: (data) =>
+    axiosInstance.post(`/stock-movements/transfer`, data),
+
+  // ============ INVENTORY DASHBOARD ============
   
-  // Get real-time stock levels
-  getRealTimeStock: (sku) =>
-    axios.get(`${API_BASE}/inventory/stock/realtime/${sku}`),
-
-  // Subscribe to stock updates (WebSocket)
-  subscribeToStockUpdates: (sku, callback) => {
-    const ws = new WebSocket(`${process.env.REACT_APP_WS_URL || 'ws://localhost:5000'}/inventory/stock/${sku}`);
-    ws.onmessage = (event) => callback(JSON.parse(event.data));
-    return ws;
-  },
-
-  // ============ ALERTS & AUTOMATION ============
-  
-  // Get all alerts
-  getAlerts: (filters = {}) =>
-    axios.get(`${API_BASE}/inventory/alerts`, { params: filters }),
-
-  // Get stock alerts
-  getStockAlerts: () =>
-    axios.get(`${API_BASE}/inventory/alerts/stock`),
-
-  // Get capacity alerts
-  getCapacityAlerts: () =>
-    axios.get(`${API_BASE}/inventory/alerts/capacity`),
-
-  // Get expiry alerts
-  getExpiryAlerts: () =>
-    axios.get(`${API_BASE}/inventory/alerts/expiry`),
-
-  // Create alert
-  createAlert: (data) =>
-    axios.post(`${API_BASE}/inventory/alerts`, data),
-
-  // Acknowledge alert
-  acknowledgeAlert: (alertId) =>
-    axios.put(`${API_BASE}/inventory/alerts/${alertId}/acknowledge`),
-
-  // Get reorder points
-  getReorderPoints: () =>
-    axios.get(`${API_BASE}/inventory/reorder-points`),
-
-  // Set reorder point
-  setReorderPoint: (sku, data) =>
-    axios.post(`${API_BASE}/inventory/reorder-points/${sku}`, data),
-
-  // Trigger auto-reorder
-  triggerAutoReorder: (sku) =>
-    axios.post(`${API_BASE}/inventory/auto-reorder/${sku}`),
-
-  // ============ RECONCILIATION & REPORTING ============
-  
-  // Get reconciliation report
-  getReconciliationReport: (filters = {}) =>
-    axios.get(`${API_BASE}/inventory/reconciliation`, { params: filters }),
-
-  // Create reconciliation
-  createReconciliation: (data) =>
-    axios.post(`${API_BASE}/inventory/reconciliation`, data),
-
-  // Get inventory variance
-  getInventoryVariance: (filters = {}) =>
-    axios.get(`${API_BASE}/inventory/variance`, { params: filters }),
+  // Get dashboard stats
+  getDashboardStats: () =>
+    axiosInstance.get(`/inventory/stats`),
 
   // Get stock summary
   getStockSummary: () =>
-    axios.get(`${API_BASE}/inventory/summary`),
+    axiosInstance.get(`/inventory/summary`),
 
-  // Get warehouse summary
-  getWarehouseSummary: (warehouseId) =>
-    axios.get(`${API_BASE}/inventory/warehouses/${warehouseId}/summary`),
+  // ============ BASIC INVENTORY CRUD ============
+  
+  // Get all inventory items
+  getAllInventory: (filters = {}) =>
+    axiosInstance.get(`/inventory`, { params: filters }),
 
-  // Export inventory report
-  exportInventoryReport: (format = 'csv') =>
-    axios.get(`${API_BASE}/inventory/export`, { params: { format }, responseType: 'blob' }),
+  // Get inventory by ID
+  getInventoryById: (id) =>
+    axiosInstance.get(`/inventory/${id}`),
+
+  // Create inventory item
+  createInventory: (data) =>
+    axiosInstance.post(`/inventory`, data),
+
+  // Update inventory item
+  updateInventory: (id, data) =>
+    axiosInstance.put(`/inventory/${id}`, data),
+
+  // Delete inventory item
+  deleteInventory: (id) =>
+    axiosInstance.delete(`/inventory/${id}`),
+
+  // Adjust inventory stock
+  adjustInventoryStock: (id, data) =>
+    axiosInstance.patch(`/inventory/${id}/adjust`, data),
+
+  // ============ INVENTORY DATA ENDPOINTS (FOR PAGE DISPLAY) ============
+  
+  // Get all inventory data for display
+  getAllInventoryData: () =>
+    axiosInstance.get(`/inventory-data/inventory/all`),
+
+  // Get all warehouses data for display
+  getAllWarehousesData: () =>
+    axiosInstance.get(`/inventory-data/warehouses/all`),
+
+  // Get all movements data for display
+  getAllMovementsData: () =>
+    axiosInstance.get(`/inventory-data/movements/all`),
+
+  // Get all batches data for display
+  getAllBatchesData: () =>
+    axiosInstance.get(`/inventory-data/batches/all`),
+
+  // Get ageing stock data for display
+  getAgeingStockData: () =>
+    axiosInstance.get(`/inventory-data/ageing/all`),
+
+  // Create inventory item
+  createInventoryData: (data) =>
+    axiosInstance.post(`/inventory-data/inventory/create`, data),
+
+  // Create warehouse
+  createWarehouseData: (data) =>
+    axiosInstance.post(`/inventory-data/warehouse/create`, data),
+
+  // Create movement
+  createMovementData: (data) =>
+    axiosInstance.post(`/inventory-data/movement/create`, data),
+
+  // Create batch
+  createBatchData: (data) =>
+    axiosInstance.post(`/inventory-data/batch/create`, data),
 };
 
 export default inventoryApi;

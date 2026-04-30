@@ -438,7 +438,9 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
               {viewPO.linkedRFQ && (
                 <div style={{ gridColumn: 'span 3' }}>
                   <div style={{ fontSize: 11, color: '#64748B', marginBottom: 4, fontWeight: 600 }}>LINKED RFQ</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--primary)' }}>{viewPO.linkedRFQ.rfqId} — {viewPO.linkedRFQ.title}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--primary)' }}>
+                    {typeof viewPO.linkedRFQ === 'string' ? viewPO.linkedRFQ : (viewPO.linkedRFQ?.rfqId || '—')} {typeof viewPO.linkedRFQ === 'object' && viewPO.linkedRFQ?.title ? ` — ${viewPO.linkedRFQ.title}` : ''}
+                  </div>
                 </div>
               )}
             </div>

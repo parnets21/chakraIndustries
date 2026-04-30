@@ -287,6 +287,39 @@
   /* MISC */
   .divider { height: 1px; background: var(--border); margin: 16px 0; }
 
+  /* MOBILE RESPONSIVE UTILITIES */
+  @media (max-width: 640px) {
+    .main-content { margin-left: 0 !important; }
+    .page-content { padding: 16px 12px !important; }
+    
+    /* Toolbar stacking */
+    .toolbar-row { flex-direction: column; align-items: stretch !important; }
+    .toolbar-row > * { width: 100%; max-width: none !important; }
+    .toolbar-row .ml-auto { margin-left: 0 !important; margin-top: 8px; }
+    .toolbar-row .flex.gap-2 { width: 100%; }
+    .toolbar-row button { width: 100%; justify-content: center; }
+    
+    /* Kanban mobile */
+    .kanban-board { gap: 12px; }
+    .kanban-col { min-width: 240px !important; }
+    
+    /* Grid mobile */
+    .grid.grid-cols-2 { grid-template-columns: 1fr !important; }
+    .grid.grid-cols-3 { grid-template-columns: 1fr !important; }
+    .grid.grid-cols-4 { grid-template-columns: repeat(2, 1fr) !important; }
+    
+    /* Table mobile hint */
+    .table-container::after {
+      content: '← Swipe to see more →';
+      display: block; text-align: center; padding: 8px;
+      font-size: 11px; color: #94a3b8; font-weight: 600;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .grid.grid-cols-4 { grid-template-columns: 1fr !important; }
+  }
+
   /* DASHBOARD RESPONSIVE */
   @media (max-width: 1024px) {
     .dash-charts-row { grid-template-columns: 1fr !important; }

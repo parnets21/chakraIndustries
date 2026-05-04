@@ -76,6 +76,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   // ── Forms ──────────────────────────────────────────────────────────────────
   const [stockForm,  setStockForm]  = useState({ sku:'', name:'', qty:'', minQty:'', warehouse:'', unit:'Nos', category:'', batch:'', remarks:'' });
   const [whForm,     setWhForm]     = useState({ warehouseId:'', name:'', location:'', manager:'', capacity:'', phone:'', type:'Raw Material', address:'' });
+  const [nextWhId,   setNextWhId]   = useState('');
   const [movForm,    setMovForm]    = useState({ type:'Inward', sku:'', from:'Supplier', to:'', qty:'', ref:'' });
   const [adjustItem, setAdjustItem] = useState(null);
   const [adjustQty,  setAdjustQty]  = useState('');
@@ -213,14 +214,24 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   };
 
   const handleAddWarehouse = async () => {
-    if (!whForm.warehouseId || !whForm.name || !whForm.location) { toast('ID, name and location are required', 'error'); return; }
+    if (!whForm.name || !whForm.location) { toast('Name and location are required', 'error'); return; }
     try {
       await inventoryApi.createWarehouse(whForm);
-      toast(`Warehouse ${whForm.warehouseId} added`);
+      toast(`Warehouse added`);
       setWhForm({ warehouseId:'', name:'', location:'', manager:'', capacity:'', phone:'', type:'Raw Material', address:'' });
+      setNextWhId('');
       closeModal(); loadAll();
     } catch (e) { toast(e.message || 'Failed to add warehouse', 'error'); }
   };
+
+  // Fetch next warehouse ID when the add-warehouse modal opens
+  useEffect(() => {
+    if (activeTab === 2 && showModal) {
+      inventoryApi.getNextWarehouseId()
+        .then(res => setNextWhId(res.data?.warehouseId || ''))
+        .catch(() => setNextWhId(''));
+    }
+  }, [activeTab, showModal]);
 
   const handleDeleteWarehouse = async (id) => {
     if (!window.confirm('Delete this warehouse?')) return;
@@ -1207,8 +1218,16 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       {activeTab === 2 && (
         <Modal open={showModal} onClose={closeModal} title="Add New Warehouse"
           footer={<><button style={btnOutline} onClick={closeModal}>Cancel</button><button style={btnPrimary} onClick={handleAddWarehouse}>Save Warehouse</button></>}>
+          {/* Auto-generated ID preview */}
+          <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:10, marginBottom:14 }}>
+            <div style={{ width:8, height:8, borderRadius:'50%', background:'#22c55e', flexShrink:0 }} />
+            <span style={{ fontSize:12, fontWeight:600, color:'#15803d' }}>Warehouse ID — auto-generated</span>
+            <span style={{ marginLeft:'auto', fontSize:14, fontWeight:800, color:'#15803d', fontFamily:'monospace', background:'#dcfce7', padding:'3px 12px', borderRadius:6, letterSpacing:'0.5px' }}>
+              {nextWhId || '...'}
+            </span>
+          </div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-            {[{ label:'Warehouse ID *', key:'warehouseId', placeholder:'e.g. WH-04' }, { label:'Warehouse Name *', key:'name', placeholder:'e.g. North Godown' }, { label:'Location *', key:'location', placeholder:'City / Area' }, { label:'Manager Name', key:'manager', placeholder:'Full name' }, { label:'Capacity (units)', key:'capacity', placeholder:'0', type:'number' }, { label:'Contact Phone', key:'phone', placeholder:'10-digit number' }].map((f, i) => (
+            {[{ label:'Warehouse Name *', key:'name', placeholder:'e.g. North Godown' }, { label:'Location *', key:'location', placeholder:'City / Area' }, { label:'Manager Name', key:'manager', placeholder:'Full name' }, { label:'Capacity (units)', key:'capacity', placeholder:'0', type:'number' }, { label:'Contact Phone', key:'phone', placeholder:'10-digit number' }].map((f, i) => (
               <div key={i} style={{ display:'flex', flexDirection:'column', gap:5 }}>
                 <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>{f.label}</label>
                 <input type={f.type||'text'} placeholder={f.placeholder} value={whForm[f.key]} onChange={e => setWhForm(p=>({...p,[f.key]:e.target.value}))} style={inp} />

@@ -15,10 +15,11 @@ export const inventoryApi = {
   delete:    (id)          => fetch(`${BASE}/inventory/${id}`,                 { method: 'DELETE', headers: authHeaders() }).then(handle),
 
   // ── Warehouses ─────────────────────────────────────────────────────────────
-  getWarehouses:    ()         => fetch(`${BASE}/inventory/warehouses`,        { headers: authHeaders() }).then(handle),
-  createWarehouse:  (body)     => fetch(`${BASE}/inventory/warehouses`,        { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
-  updateWarehouse:  (id, body) => fetch(`${BASE}/inventory/warehouses/${id}`,  { method: 'PUT',    headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
-  deleteWarehouse:  (id)       => fetch(`${BASE}/inventory/warehouses/${id}`,  { method: 'DELETE', headers: authHeaders() }).then(handle),
+  getWarehouses:      ()         => fetch(`${BASE}/inventory/warehouses`,           { headers: authHeaders() }).then(handle),
+  getNextWarehouseId: ()         => fetch(`${BASE}/inventory/warehouses/next-id`,   { headers: authHeaders() }).then(handle),
+  createWarehouse:    (body)     => fetch(`${BASE}/inventory/warehouses`,           { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  updateWarehouse:    (id, body) => fetch(`${BASE}/inventory/warehouses/${id}`,     { method: 'PUT',    headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  deleteWarehouse:    (id)       => fetch(`${BASE}/inventory/warehouses/${id}`,     { method: 'DELETE', headers: authHeaders() }).then(handle),
 
   // ── Movements ──────────────────────────────────────────────────────────────
   getMovements:    (params = {}) => fetch(`${BASE}/inventory/movements${q(params)}`, { headers: authHeaders() }).then(handle),

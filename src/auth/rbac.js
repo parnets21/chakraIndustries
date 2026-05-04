@@ -169,8 +169,8 @@ export const NAV_ITEMS = [
     label: 'Procurement', page: 'procurement', icon: 'MdShoppingCart',
     children: [
       { path: '/procurement/vendors',   label: 'Vendors',               page: 'procurement' },
-      { path: '/procurement/rfq',       label: 'RFQ',                   page: 'procurement' },
       { path: '/procurement/pr',        label: 'Purchase Requisition',  page: 'procurement' },
+      { path: '/procurement/rfq',       label: 'RFQ',                   page: 'procurement' },
       { path: '/procurement/approvals', label: 'Approvals',             page: 'procurement' },
       { path: '/procurement/po',        label: 'Purchase Orders',       page: 'procurement' },
       { path: '/procurement/grn',       label: 'GRN',                   page: 'procurement' },
@@ -284,7 +284,7 @@ export const NAV_ITEMS = [
   },
   { section: 'TOOLS' },
   {
-    label: 'Vinculum', page: 'vinculum', icon: 'MdSync',
+    label: 'Inventory Sync', page: 'vinculum', icon: 'MdSync',
     children: [
       { path: '/vinculum/config', label: 'API Configuration', page: 'vinculum' },
       { path: '/vinculum/logs',   label: 'Sync Logs',         page: 'vinculum' },

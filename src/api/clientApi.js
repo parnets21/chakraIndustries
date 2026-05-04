@@ -33,3 +33,5 @@ export const clientApi = {
     }).then(handle),
   delete: (id) => fetch(`${BASE}/clients/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
 };
+
+export default clientApi;

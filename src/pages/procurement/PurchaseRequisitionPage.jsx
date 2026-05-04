@@ -1,17 +1,38 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Modal from '../../components/common/Modal';
 import { departmentApi } from '../../api/departmentApi';
+import { prApi } from '../../api/prApi';
 import PurchaseRequisitionTab from './components/PurchaseRequisitionTab';
 import { useAuth } from '../../auth/AuthContext';
 import { isViewOnly } from '../../auth/rbac';
+import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShell';
+import { MdAssignment, MdHourglassEmpty, MdCheckCircle, MdCancel, MdAdd } from 'react-icons/md';
+
 
 export default function PurchaseRequisitionPage() {
   const { user } = useAuth();
   const viewOnly = isViewOnly(user?.role, 'procurement');
   const [showDepartmentModal, setShowDepartmentModal] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
   const [departments, setDepartments] = useState([]);
   const [newDepartment, setNewDepartment] = useState('');
   const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, rejected: 0 });
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await prApi.getAll();
+      const list = res.data || [];
+      setStats({
+        total:    list.length,
+        pending:  list.filter(p => p.status === 'Pending').length,
+        approved: list.filter(p => p.status === 'Approved').length,
+        rejected: list.filter(p => p.status === 'Rejected').length,
+      });
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => { fetchStats(); }, [fetchStats]);
 
   const loadDepartments = async () => {
     setLoading(true);
@@ -40,35 +61,49 @@ export default function PurchaseRequisitionPage() {
 
   const openDepartmentModal = () => { setShowDepartmentModal(true); loadDepartments(); };
 
-  return (
-    <div style={{ padding: '0 0 24px' }}>
-      {/* Page Header */}
-      <div style={{
-        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-        marginBottom: 16, gap: 12, flexWrap: 'wrap',
-      }}>
-        <div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#1a202c', letterSpacing: '-0.3px', lineHeight: 1.2 }}>
-            Purchase Requisition
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
-            <span style={{ fontSize: 11, color: '#94a3b8' }}>Procurement</span>
-            <span style={{ fontSize: 11, color: '#94a3b8' }}>›</span>
-            <span style={{ fontSize: 11, color: '#c0392b', fontWeight: 600 }}>Purchase Requisition</span>
-          </div>
-        </div>
-        {!viewOnly && (
-          <button
-            className="btn btn-outline"
-            onClick={openDepartmentModal}
-            style={{ fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}
-          >
-            ⚙ Manage Departments
-          </button>
-        )}
-      </div>
+  const kpis = [
+    { label: 'Total PRs',  value: stats.total,    icon: <MdAssignment size={18} />,    color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.25)' },
+    { label: 'Pending',    value: stats.pending,  icon: <MdHourglassEmpty size={18} />, color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.25)' },
+    { label: 'Approved',   value: stats.approved, icon: <MdCheckCircle size={18} />,   color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)' },
+    { label: 'Rejected',   value: stats.rejected, icon: <MdCancel size={18} />,        color: '#64748b', color2: '#94a3b8', glow: 'rgba(100,116,139,0.2)' },
+  ];
 
-      <PurchaseRequisitionTab />
+  return (
+    <div>
+      <PageHeader
+        title="Purchase Requisition"
+        breadcrumb="Procurement › Purchase Requisition"
+        action={
+          !viewOnly && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={openDepartmentModal}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 14px', background: '#f8fafc', color: '#475569', border: '1.5px solid #e2e8f0', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+              >
+                ⚙ Departments
+              </button>
+              <button
+                onClick={() => setShowCreate(true)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, background: 'linear-gradient(135deg,#ef4444,#b91c1c)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, boxShadow: '0 3px 10px rgba(185,28,28,0.3)' }}
+              >
+                <MdAdd size={16} /> Create PR
+              </button>
+            </div>
+          )
+        }
+      />
+
+      <KpiStrip kpis={kpis} />
+
+      <PageCard noPad>
+        <div style={{ padding: '20px 20px 0' }}>
+          <PurchaseRequisitionTab
+            externalShowCreate={showCreate}
+            onExternalClose={() => setShowCreate(false)}
+            onSaved={fetchStats}
+          />
+        </div>
+      </PageCard>
 
       {/* Manage Departments Modal */}
       <Modal

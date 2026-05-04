@@ -1,4 +1,7 @@
-const BASE = import.meta.env.VITE_API_URL || 'https://chakraindustries-backend.onrender.com/api';
+const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
+const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
 
 const handle = async (res) => {
   const data = await res.json();
@@ -7,12 +10,12 @@ const handle = async (res) => {
 };
 
 export const departmentApi = {
-  getAll: () => fetch(`${BASE}/departments`).then(handle),
+  getAll: () => fetch(`${BASE}/departments`, { headers: authHeaders() }).then(handle),
   create: (name) =>
     fetch(`${BASE}/departments`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({ name }),
     }).then(handle),
-  delete: (id) => fetch(`${BASE}/departments/${id}`, { method: 'DELETE' }).then(handle),
+  delete: (id) => fetch(`${BASE}/departments/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
 };

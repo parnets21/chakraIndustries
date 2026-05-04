@@ -1,9 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { categoryApi } from '../../api/categoryApi';
 import { vendorApi } from '../../api/vendorApi';
-import { rfqApi } from '../../api/rfqApi';
-import { poApi } from '../../api/poApi';
-import Modal from '../../components/common/Modal';
 import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShell';
 import VendorsTab from './components/VendorsTab';
 import { MdBusiness, MdCheckCircle, MdWarning, MdBlock, MdAdd } from 'react-icons/md';
@@ -105,46 +102,6 @@ export default function VendorsPage() {
           onStatsChange={fetchStats}
         />
       </PageCard>
-
-      {/* Manage Categories Modal */}
-      <Modal
-        open={showCategoryModal}
-        onClose={() => setShowCategoryModal(false)}
-        title="Manage Vendor Categories"
-        footer={
-          <button onClick={() => setShowCategoryModal(false)} style={{ padding: '8px 18px', borderRadius: 9, background: 'linear-gradient(135deg,#ef4444,#b91c1c)', color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: 13 }}>Done</button>
-        }
-      >
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-          <input
-            style={{ flex: 1, padding: '9px 12px', border: '1.5px solid #e2e8f0', borderRadius: 9, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}
-            placeholder="New category name..."
-            value={newCategory}
-            onChange={e => setNewCategory(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') handleAddCategory(newCategory); }}
-            onFocus={e => e.target.style.borderColor = '#ef4444'}
-            onBlur={e => e.target.style.borderColor = '#e2e8f0'}
-          />
-          <button
-            onClick={() => handleAddCategory(newCategory)}
-            style={{ padding: '9px 16px', borderRadius: 9, background: 'linear-gradient(135deg,#ef4444,#b91c1c)', color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: 14 }}
-          >+</button>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {categories.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8', fontSize: 13 }}>No categories yet. Add one above.</div>
-          )}
-          {categories.map((cat) => (
-            <div key={cat._id || cat} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', background: '#f8fafc', borderRadius: 9, border: '1px solid #e2e8f0' }}>
-              <span style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{cat.name || cat}</span>
-              <button
-                onClick={() => handleDeleteCategory(cat)}
-                style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'inherit' }}
-              >Remove</button>
-            </div>
-          ))}
-        </div>
-      </Modal>
     </div>
   );
 }

@@ -4,10 +4,11 @@ import {
   MdSearch, MdNotifications, MdKeyboardArrowDown,
   MdWarning, MdError, MdCheckCircle, MdInfo,
   MdPerson, MdSettings, MdHelpOutline, MdLogout,
-  MdMenu, MdAdd,
+  MdMenu, MdAdd, MdRefresh,
 } from 'react-icons/md';
 import { useAuth } from '../auth/AuthContext';
 import { ROLES } from '../auth/rbac';
+import { useNotifications } from '../hooks/useNotifications';
 
 const PAGE_LABELS = {
   dashboard: 'Dashboard', procurement: 'Procurement', inventory: 'Inventory',
@@ -23,13 +24,6 @@ const NOTIF_META = {
   success: { icon: <MdCheckCircle size={13} />, color: '#22c55e', bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.2)' },
   info:    { icon: <MdInfo size={13} />,    color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', border: 'rgba(59,130,246,0.2)' },
 };
-
-const NOTIFICATIONS = [
-  { id: 1, text: 'PO #PO-2024-089 awaiting approval', time: '5m ago',  type: 'warning' },
-  { id: 2, text: 'Low stock: SKU-1042 (Bearing 6205)', time: '12m ago', type: 'danger'  },
-  { id: 3, text: 'GRN #GRN-0234 received successfully', time: '1h ago', type: 'success' },
-  { id: 4, text: 'Work Order WO-0891 completed',        time: '2h ago', type: 'info'    },
-];
 
 const QUICK_ITEMS = [
   { label: 'Purchase Order', path: '/procurement/po',  color: '#ef4444' },
@@ -47,6 +41,18 @@ const ROLE_GRADIENTS = {
   dealer:             'linear-gradient(135deg,#f59e0b,#d97706)',
   corporate_client:   'linear-gradient(135deg,#14b8a6,#0f766e)',
 };
+
+function formatTimeAgo(date) {
+  if (!date) return '';
+  const diff = Date.now() - new Date(date).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1)  return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
 
 function Avatar({ size = 32, name, role }) {
   const gradient = ROLE_GRADIENTS[role] || ROLE_GRADIENTS.super_admin;
@@ -108,6 +114,7 @@ export default function Navbar({ activePage, onMenuClick, isMobile }) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(null);
+  const { notifications, unreadCount, loading, hasNew, clearNew, refetch } = useNotifications();
 
   const wrapRef = useRef();
 
@@ -129,6 +136,14 @@ export default function Navbar({ activePage, onMenuClick, isMobile }) {
         @keyframes nbPanelIn {
           from { opacity:0; transform:scale(.96) translateY(-4px); }
           to   { opacity:1; transform:scale(1)   translateY(0);    }
+        }
+        @keyframes nbPulse {
+          0%,100% { transform: scale(1); }
+          50%      { transform: scale(1.35); }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
         }
 
         /* ── search bar ── */
@@ -315,53 +330,78 @@ export default function Navbar({ activePage, onMenuClick, isMobile }) {
           <div style={{ position: 'relative' }}>
             <button
               className={`nb-icon-btn ${open === 'notif' ? 'active' : ''}`}
-              onClick={() => toggle('notif')}
+              onClick={() => { toggle('notif'); clearNew(); }}
             >
               <MdNotifications size={18} />
-              <span style={{
-                position: 'absolute', top: -4, right: -4,
-                minWidth: 15, height: 15,
-                background: '#ef4444', color: '#fff',
-                fontSize: 8, fontWeight: 800,
-                borderRadius: 99, border: '2px solid #fff',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                padding: '0 2px',
-              }}>4</span>
+              {unreadCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: -4, right: -4,
+                  minWidth: 15, height: 15,
+                  background: hasNew ? '#ef4444' : '#ef4444',
+                  color: '#fff', fontSize: 8, fontWeight: 800,
+                  borderRadius: 99, border: '2px solid #fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: '0 2px',
+                  animation: hasNew ? 'nbPulse .6s ease-in-out 3' : 'none',
+                }}>{unreadCount > 99 ? '99+' : unreadCount}</span>
+              )}
             </button>
 
             {open === 'notif' && (
-              <Panel width={320} className="nb-notif-panel">
+              <Panel width={340} className="nb-notif-panel">
+                {/* Header */}
                 <div style={{ padding: '12px 14px 9px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Notifications</span>
-                    <span style={{ background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 20 }}>4</span>
+                    {unreadCount > 0 && (
+                      <span style={{ background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 20 }}>{unreadCount}</span>
+                    )}
                   </div>
-                  <span style={{ fontSize: 11, color: '#ef4444', fontWeight: 600, cursor: 'pointer' }}>Mark all read</span>
+                  <button onClick={refetch} title="Refresh" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', padding: 2 }}>
+                    <MdRefresh size={15} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+                  </button>
                 </div>
-                {NOTIFICATIONS.map(n => {
-                  const m = NOTIF_META[n.type];
-                  return (
-                    <div key={n.id}
-                      style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', borderBottom: '1px solid #f8fafc', cursor: 'pointer' }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                    >
-                      <div style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: m.bg, border: `1px solid ${m.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: m.color }}>
-                        {m.icon}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, color: '#1e293b', fontWeight: 500, lineHeight: 1.4 }}>{n.text}</div>
-                        <div style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 2 }}>{n.time}</div>
-                      </div>
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: m.color, flexShrink: 0, marginTop: 6 }} />
+
+                {/* List */}
+                <div style={{ maxHeight: 380, overflowY: 'auto' }}>
+                  {loading && notifications.length === 0 ? (
+                    <div style={{ padding: '24px 14px', textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>Loading...</div>
+                  ) : notifications.length === 0 ? (
+                    <div style={{ padding: '24px 14px', textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>
+                      <div style={{ fontSize: 28, marginBottom: 6 }}>🔔</div>
+                      All caught up! No pending actions.
                     </div>
-                  );
-                })}
-                <div style={{ padding: '9px 14px', textAlign: 'center', fontSize: 12, color: '#ef4444', fontWeight: 600, cursor: 'pointer' }}
+                  ) : notifications.map(n => {
+                    const m = NOTIF_META[n.type] || NOTIF_META.info;
+                    const timeAgo = formatTimeAgo(n.time);
+                    return (
+                      <div key={n.id}
+                        onClick={() => { if (n.link) { navigate(n.link); close(); } }}
+                        style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', borderBottom: '1px solid #f8fafc', cursor: n.link ? 'pointer' : 'default' }}
+                        onMouseEnter={e => { if (n.link) e.currentTarget.style.background = '#fef2f2'; }}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                      >
+                        <div style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: m.bg, border: `1px solid ${m.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: m.color }}>
+                          {m.icon}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, color: '#1e293b', fontWeight: 500, lineHeight: 1.4 }}>{n.text}</div>
+                          {n.subtext && <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>{n.subtext}</div>}
+                          <div style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 2 }}>{timeAgo}</div>
+                        </div>
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: m.color, flexShrink: 0, marginTop: 6 }} />
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Footer */}
+                <div style={{ padding: '9px 14px', textAlign: 'center', fontSize: 12, color: '#ef4444', fontWeight: 600, cursor: 'pointer', borderTop: '1px solid #f1f5f9' }}
+                  onClick={() => { navigate('/procurement/approvals'); close(); }}
                   onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
-                  View all →
+                  View all approvals →
                 </div>
               </Panel>
             )}

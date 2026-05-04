@@ -10,7 +10,7 @@ import { MdVisibility, MdEdit, MdAdd, MdSearch, MdFilterList, MdBusiness, MdPhon
 const EMPTY_FORM = {
   companyName: '', category: '', contactPerson: '', phone: '',
   email: '', city: '', state: '', address: '', pincode: '',
-  gstNumber: '', paymentTerms: 'Net 30', leadTimeDays: '', rating: 3, status: 'Active', remarks: '',
+  gstNumber: '', paymentTerms: 'Net 30', status: 'Active', remarks: '',
 };
 
 const inp = {
@@ -70,7 +70,6 @@ export default function VendorsTab({
       email: v.email || '', city: v.city || '', state: v.state || '',
       address: v.address || '', pincode: v.pincode || '',
       gstNumber: v.gstNumber || '', paymentTerms: v.paymentTerms || 'Net 30',
-      leadTimeDays: v.leadTimeDays || '', rating: v.rating || 3,
       status: v.status || 'Active', remarks: v.remarks || '',
     });
     setEditId(v._id);
@@ -532,7 +531,7 @@ export default function VendorsTab({
             {formErrors.category && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.category}</div>}
           </div>
           <div><label style={lbl}>Contact Person *</label><input style={{...inp, borderColor: formErrors.contactPerson ? '#ef4444' : '#e2e8f0'}} placeholder="Name" value={form.contactPerson} onChange={f('contactPerson')} />{formErrors.contactPerson && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.contactPerson}</div>}</div>
-          <div><label style={lbl}>Phone *</label><input style={{...inp, borderColor: formErrors.phone ? '#ef4444' : '#e2e8f0'}} placeholder="10-digit number" value={form.phone} onChange={f('phone')} />{formErrors.phone && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.phone}</div>}</div>
+          <div><label style={lbl}>Phone *</label><input style={{...inp, borderColor: formErrors.phone ? '#ef4444' : '#e2e8f0'}} placeholder="10-digit number" value={form.phone} maxLength={10} onChange={e => { const v = e.target.value.replace(/\D/g, '').slice(0, 10); setForm(p => ({...p, phone: v})); }} />{formErrors.phone && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.phone}</div>}</div>
           <div><label style={lbl}>Email *</label><input style={{...inp, borderColor: formErrors.email ? '#ef4444' : '#e2e8f0'}} type="email" placeholder="email@company.com" value={form.email} onChange={f('email')} />{formErrors.email && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.email}</div>}</div>
           <div><label style={lbl}>City *</label><input style={{...inp, borderColor: formErrors.city ? '#ef4444' : '#e2e8f0'}} placeholder="City" value={form.city} onChange={f('city')} />{formErrors.city && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.city}</div>}</div>
           <div><label style={lbl}>State *</label><input style={{...inp, borderColor: formErrors.state ? '#ef4444' : '#e2e8f0'}} placeholder="State" value={form.state} onChange={f('state')} />{formErrors.state && <div style={{fontSize: 11, color: '#ef4444', marginTop: 3}}>⚠ {formErrors.state}</div>}</div>
@@ -675,21 +674,6 @@ export default function VendorsTab({
               <div className="field-group">
                 <div className="field-label">Payment Terms</div>
                 <div className="field-value">{viewVendor.paymentTerms}</div>
-              </div>
-              <div className="field-group">
-                <div className="field-label">Lead Time</div>
-                <div className="field-value">{viewVendor.leadTimeDays} days</div>
-              </div>
-              <div className="field-group section-full-width">
-                <div className="field-label">Vendor Rating</div>
-                <div className="rating-container">
-                  <span className="rating-value">{viewVendor.rating}.0</span>
-                  <span className="rating-max">/5.0</span>
-                  <div className="rating-bar">
-                    <div className="rating-bar-fill" style={{ width: `${(viewVendor.rating / 5) * 100}%` }}></div>
-                  </div>
-                  <span className="rating-stars">{'★'.repeat(viewVendor.rating)}{'☆'.repeat(5 - viewVendor.rating)}</span>
-                </div>
               </div>
             </div>
           </div>

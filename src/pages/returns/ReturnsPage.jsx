@@ -1,104 +1,132 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import Modal from '../../components/common/Modal';
+import { materialReturnApi } from '../../api/materialReturnApi';
 import { toast } from '../../components/common/Toast';
 
-const returns = [
-  { id: 'RET-001', docket: 'DKT-2024-041', order: 'ORD-2024-080', customer: 'Bajaj Auto', items: 4, value: '₹48,000', type: 'Defective', status: 'Pending', date: '13 Apr', debitNote: '', creditNote: '' },
-  { id: 'RET-002', docket: 'DKT-2024-038', order: 'ORD-2024-075', customer: 'Hero MotoCorp', items: 2, value: '₹22,000', type: 'Wrong Item', status: 'Approved', date: '12 Apr', debitNote: 'DN-2024-012', creditNote: 'CN-2024-012' },
-  { id: 'RET-003', docket: 'DKT-2024-031', order: 'ORD-2024-070', customer: 'TVS Motor', items: 6, value: '₹84,000', type: 'Defective', status: 'Completed', date: '10 Apr', debitNote: 'DN-2024-009', creditNote: 'CN-2024-009' },
-  { id: 'RET-004', docket: 'DKT-2024-025', order: 'ORD-2024-065', customer: 'Tata Motors', items: 1, value: '₹12,000', type: 'Excess', status: 'Rejected', date: '8 Apr', debitNote: '', creditNote: '' },
-];
-
-const docketTimeline = {
-  'RET-001': [
-    { event: 'Return Requested', time: '13 Apr, 10:00 AM', status: 'success' },
-    { event: 'Docket Created — DKT-2024-041', time: '13 Apr, 10:30 AM', status: 'success' },
-    { event: 'Pickup Scheduled', time: '14 Apr, 09:00 AM', status: 'warning' },
-    { event: 'Material Received at Warehouse', time: 'Pending', status: 'gray' },
-    { event: 'Quality Inspection', time: 'Pending', status: 'gray' },
-    { event: 'Credit Note Issued', time: 'Pending', status: 'gray' },
-  ],
-  'RET-002': [
-    { event: 'Return Requested', time: '12 Apr, 11:00 AM', status: 'success' },
-    { event: 'Docket Created — DKT-2024-038', time: '12 Apr, 11:30 AM', status: 'success' },
-    { event: 'Material Received', time: '13 Apr, 02:00 PM', status: 'success' },
-    { event: 'Inspection Passed', time: '13 Apr, 04:00 PM', status: 'success' },
-    { event: 'Debit Note DN-2024-012 Raised', time: '14 Apr, 09:00 AM', status: 'success' },
-    { event: 'Credit Note CN-2024-012 Issued', time: '14 Apr, 10:00 AM', status: 'success' },
-  ],
+const STAGES = ['Initiated', 'In-transit', 'Received', 'QC', 'Closed'];
+const stageColor = {
+  Initiated: '#6b7280', 'In-transit': '#3b82f6',
+  Received: '#f59e0b', QC: '#8b5cf6', Closed: '#10b981',
 };
 
-const getDebitCreditMatching = (returnsList) => {
-  return returnsList
-    .filter(r => r.debitNote && r.creditNote)
-    .map(r => {
-      const debitAmt = parseInt(r.value.replace(/[₹,]/g, ''));
-      const creditAmt = r.id === 'RET-003' ? 80000 : debitAmt;
-      const diff = debitAmt - creditAmt;
-      return {
-        returnId: r.id,
-        customer: r.customer,
-        debitNote: r.debitNote,
-        debitAmt: r.value,
-        creditNote: r.creditNote,
-        creditAmt: `₹${creditAmt.toLocaleString('en-IN')}`,
-        diff: diff === 0 ? '₹0' : `₹${diff.toLocaleString('en-IN')}`,
-        status: diff === 0 ? 'Matched' : 'Mismatch'
-      };
-    });
+const RETURN_TYPES = ['Defective', 'Wrong Item', 'Excess', 'Damaged in Transit', 'Quality Rejection'];
+
+const EMPTY_FORM = {
+  supplierName: '', items: 1, value: '', reason: '',
+  transport: '', awbNo: '', returnType: 'Defective',
+  orderRef: '', customer: '',
 };
 
-const lossTracking = [
-  { id: 'RET-003', customer: 'TVS Motor', returnValue: '₹84,000', recoverable: '₹80,000', loss: '₹4,000', reason: 'Damaged beyond repair (2 units)', status: 'Loss Confirmed' },
-  { id: 'RET-004', customer: 'Tata Motors', returnValue: '₹12,000', recoverable: '₹0', loss: '₹12,000', reason: 'Return rejected — no defect found', status: 'Disputed' },
-];
+const inp = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]';
+const lbl = 'text-xs font-semibold text-gray-600';
+const fld = 'flex flex-col gap-1.5';
 
 export default function ReturnsPage({ initialTab = 0 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
-  const [selected, setSelected] = useState(returns[0]);
-  const [showModal, setShowModal] = useState(false);
-  const [returnList, setReturnList] = useState(returns);
+  const [returns, setReturns]     = useState([]);
+  const [stats, setStats]         = useState({ total: 0, inTransit: 0, pendingQC: 0, closed: 0 });
+  const [selected, setSelected]   = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [deleting, setDeleting]   = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [form, setForm]           = useState(EMPTY_FORM);
+  const [loading, setLoading]     = useState(false);
 
-  const handleSubmitReturn = () => {
-    const newReturn = { id: `RET-${String(returnList.length + 5).padStart(3,'0')}`, docket: `DKT-${Date.now()}`, order: 'ORD-NEW', customer: 'New Customer', items: 1, value: '₹0', type: 'Defective', status: 'Pending', date: new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short'}), debitNote: '', creditNote: '' };
-    setReturnList(prev => [...prev, newReturn]);
-    setShowModal(false);
-    toast(`Return ${newReturn.id} submitted`);
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [listRes, statsRes] = await Promise.all([
+        materialReturnApi.getAll(),
+        materialReturnApi.getStats(),
+      ]);
+      const list = listRes.data || [];
+      setReturns(list);
+      setStats(statsRes.data || {});
+      if (!selected && list.length > 0) setSelected(list[0]);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const handleCreate = async () => {
+    if (!form.supplierName || !form.reason) {
+      toast('Supplier and reason are required', 'error'); return;
+    }
+    setSaving(true);
+    try {
+      await materialReturnApi.create({
+        ...form,
+        value: parseFloat(form.value) || 0,
+        items: parseInt(form.items) || 1,
+      });
+      setShowCreate(false);
+      setForm(EMPTY_FORM);
+      await fetchAll();
+      toast('Material return created successfully');
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setSaving(false); }
   };
 
-  const handleApproveReturn = (id) => {
-    setReturnList(prev => prev.map(r => r.id === id ? { ...r, status: 'Approved' } : r));
-    toast(`Return ${id} approved`);
+  const handleStageUpdate = async (id, stage) => {
+    try {
+      const res = await materialReturnApi.updateStage(id, stage);
+      setSelected(res.data);
+      await fetchAll();
+      toast(`Stage updated to ${stage}`);
+    } catch (e) { toast(e.message, 'error'); }
   };
 
-  const handleRejectReturn = (id) => {
-    setReturnList(prev => prev.map(r => r.id === id ? { ...r, status: 'Rejected' } : r));
-    toast(`Return ${id} rejected`, 'warning');
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await materialReturnApi.delete(deleteTarget._id);
+      setDeleteTarget(null);
+      if (selected?._id === deleteTarget._id) setSelected(null);
+      await fetchAll();
+      toast('Return deleted');
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setDeleting(false); }
   };
+
+  const stageIdx = (s) => STAGES.indexOf(s);
 
   const kpis = [
-    { label: 'Total Returns', value: returnList.length, color: '#1c2833' },
-    { label: 'Pending', value: returnList.filter(r => r.status === 'Pending').length, color: '#f59e0b' },
-    { label: 'Approved', value: returnList.filter(r => r.status === 'Approved').length, color: '#3b82f6' },
-    { label: 'Completed', value: returnList.filter(r => r.status === 'Completed').length, color: '#10b981' },
+    { label: 'Total Returns',  value: stats.total     || 0, color: '#1c2833' },
+    { label: 'In-transit',     value: stats.inTransit || 0, color: '#3b82f6' },
+    { label: 'Pending QC',     value: stats.pendingQC || 0, color: '#8b5cf6' },
+    { label: 'Closed',         value: stats.closed    || 0, color: '#10b981' },
   ];
 
-  const tabLabels = ['Return Requests', 'Docket Tracking', 'Debit / Credit Matching', 'Loss Tracking'];
+  const tabLabels = ['Return Requests', 'Docket Tracking', 'Stage Tracker', 'Loss Tracking'];
 
   return (
     <div>
       {/* Action Bar */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, marginBottom:20, flexWrap:'wrap' }}>
-        <button onClick={() => setShowModal(true)} style={{
-          display:'inline-flex', alignItems:'center', gap:6,
-          padding:'8px 16px', borderRadius:10,
-          background:'linear-gradient(135deg,#ef4444,#b91c1c)',
-          color:'#fff', border:'none', cursor:'pointer',
-          fontSize:13, fontWeight:600, fontFamily:'inherit',
-          boxShadow:'0 3px 10px rgba(185,28,28,0.3)',
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {tabLabels.map((t, i) => (
+            <button key={i} onClick={() => setActiveTab(i)} style={{
+              padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+              fontFamily: 'inherit', cursor: 'pointer', border: 'none',
+              background: activeTab === i ? 'linear-gradient(135deg,#ef4444,#b91c1c)' : '#f1f5f9',
+              color: activeTab === i ? '#fff' : '#475569',
+            }}>{t}</button>
+          ))}
+        </div>
+        <button onClick={() => setShowCreate(true)} style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '8px 16px', borderRadius: 10,
+          background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
+          color: '#fff', border: 'none', cursor: 'pointer',
+          fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+          boxShadow: '0 3px 10px rgba(185,28,28,0.3)',
         }}>+ New Return</button>
       </div>
+
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         {kpis.map((k, i) => (
@@ -109,251 +137,281 @@ export default function ReturnsPage({ initialTab = 0 }) {
         ))}
       </div>
 
+      {loading && (
+        <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Loading...</div>
+      )}
+
       {/* Tab 0: Return Requests */}
-      {activeTab === 0 && (
+      {!loading && activeTab === 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <div className="text-sm font-bold text-gray-800 mb-3.5">Returns List</div>
-            <div className="overflow-x-auto rounded-xl border border-gray-200">
-              <table className="w-full">
-                <thead>
-                  <tr>
-                    {['Return ID', 'Docket', 'Customer', 'Type', 'Status'].map(h => (
+            <div className="text-sm font-bold text-gray-800 mb-3.5">Returns List ({returns.length})</div>
+            {returns.length === 0 ? (
+              <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                No returns yet. Click "+ New Return" to create one.
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-gray-200">
+                <table className="w-full">
+                  <thead>
+                    <tr>{['MR ID', 'Supplier', 'Items', 'Value', 'Stage', 'Actions'].map(h => (
                       <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
+                    ))}</tr>
+                  </thead>
+                  <tbody>
+                    {returns.map((r) => (
+                      <tr key={r._id} onClick={() => setSelected(r)}
+                        className={`border-b border-gray-50 last:border-0 cursor-pointer transition-colors ${selected?._id === r._id ? 'bg-red-50/60' : 'hover:bg-red-50/40'}`}>
+                        <td className="px-4 py-3 font-semibold text-red-700">{r.mrId}</td>
+                        <td className="px-4 py-3 font-semibold">{r.supplierName}</td>
+                        <td className="px-4 py-3">{r.items}</td>
+                        <td className="px-4 py-3 font-bold">₹{(r.value || 0).toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white"
+                            style={{ background: stageColor[r.stage] || '#6b7280' }}>{r.stage}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button onClick={e => { e.stopPropagation(); setDeleteTarget(r); }}
+                            style={{ padding: '3px 10px', borderRadius: 6, background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', cursor: 'pointer', fontSize: 11, fontWeight: 600, fontFamily: 'inherit' }}>
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
                     ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {returns.map((r, i) => (
-                    <tr
-                      key={i}
-                      onClick={() => setSelected(r)}
-                      className={`border-b border-gray-50 last:border-0 transition-colors cursor-pointer ${selected?.id === r.id ? 'bg-red-50/60' : 'hover:bg-red-50/40'}`}
-                    >
-                      <td className="px-4 py-3 align-middle font-semibold text-red-700">{r.id}</td>
-                      <td className="px-4 py-3 align-middle font-mono text-[11px] text-gray-800">{r.docket}</td>
-                      <td className="px-4 py-3 align-middle font-semibold text-gray-800">{r.customer}</td>
-                      <td className="px-4 py-3 align-middle"><StatusBadge status={r.type} type="warning" /></td>
-                      <td className="px-4 py-3 align-middle"><StatusBadge status={r.status} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {selected && (
-            <div className="flex flex-col gap-4">
-              <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-                <div className="text-sm font-bold text-gray-800 mb-3">Material Validation — {selected.id}</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3.5">
-                  {[['Return ID', selected.id], ['Docket', selected.docket], ['Customer', selected.customer], ['Return Type', selected.type], ['Items', selected.items], ['Date', selected.date]].map(([k, v]) => (
-                    <div key={k} className="bg-gray-50 rounded-lg p-2.5">
-                      <div className="text-[10px] text-gray-500 mb-0.5">{k}</div>
-                      <div className="text-sm font-semibold">{v}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex flex-col gap-1.5 mb-4">
-                  <label className="text-xs font-semibold text-gray-600">Inspection Remarks</label>
-                  <textarea className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Enter inspection findings..." />
-                </div>
-                <div className="flex gap-2">
-                  <button className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-br from-green-400 to-green-600 text-white rounded-xl text-sm font-semibold border-0 cursor-pointer font-[inherit]">✓ Accept</button>
-                  <button className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold border-0 cursor-pointer font-[inherit]">✗ Reject</button>
-                </div>
-              </div>
-              <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-                <div className="text-sm font-bold text-gray-800 mb-3">Financial Processing</div>
-                {[['Return Value', selected.value], ['GST Credit', '₹7,200'], ['Net Refund', selected.value], ['Credit Note', 'CN-2024-' + selected.id.split('-')[1]]].map(([k, v]) => (
-                  <div key={k} className="flex justify-between py-2 border-b border-gray-100 text-sm last:border-0">
-                    <span className="text-gray-500">{k}</span>
-                    <span className="font-bold">{v}</span>
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+              <div className="text-sm font-bold text-gray-800 mb-3">Details — {selected.mrId}</div>
+              <div className="grid grid-cols-2 gap-2.5 mb-4">
+                {[
+                  ['MR ID', selected.mrId],
+                  ['Docket ID', selected.docketId],
+                  ['Supplier', selected.supplierName],
+                  ['Items', selected.items],
+                  ['Value', `₹${(selected.value || 0).toLocaleString('en-IN')}`],
+                  ['Reason', selected.reason],
+                  ['Transport', selected.transport || '—'],
+                  ['AWB No.', selected.awbNo || '—'],
+                  ['Credit Note', selected.creditNoteId || 'Not issued'],
+                  ['Stage', selected.stage],
+                ].map(([k, v]) => (
+                  <div key={k} className="bg-gray-50 rounded-lg p-2.5">
+                    <div className="text-[10px] text-gray-500 mb-0.5">{k}</div>
+                    <div className="text-sm font-semibold">{v}</div>
                   </div>
                 ))}
-                <button className="inline-flex items-center justify-center gap-1.5 w-full mt-3.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">
-                  Issue Credit Note
-                </button>
               </div>
+              {/* Stage advance button */}
+              {stageIdx(selected.stage) < STAGES.length - 1 && (
+                <button onClick={() => handleStageUpdate(selected._id, STAGES[stageIdx(selected.stage) + 1])}
+                  style={{
+                    width: '100%', padding: '9px 0', borderRadius: 10, border: 'none', cursor: 'pointer',
+                    background: 'linear-gradient(135deg,#f59e0b,#d97706)', color: '#fff',
+                    fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+                  }}>
+                  → Move to {STAGES[stageIdx(selected.stage) + 1]}
+                </button>
+              )}
+              {selected.stage === 'Closed' && (
+                <div style={{ padding: '10px 14px', background: '#f0fdf4', borderRadius: 10, border: '1px solid #bbf7d0', fontSize: 13, fontWeight: 600, color: '#16a34a', textAlign: 'center' }}>
+                  ✓ Return process completed
+                </div>
+              )}
             </div>
           )}
         </div>
       )}
 
       {/* Tab 1: Docket Tracking */}
-      {activeTab === 1 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <div className="text-sm font-bold text-gray-800 mb-3.5">Docket List</div>
-            {returns.map((r, i) => (
-              <div
-                key={i}
-                onClick={() => setSelected(r)}
-                className={`p-3 rounded-lg mb-2 cursor-pointer border-2 transition-all ${selected?.id === r.id ? 'border-red-600 bg-red-50/60' : 'border-gray-200 bg-white hover:border-red-300'}`}
-              >
-                <div className="flex justify-between items-center mb-1">
-                  <span className="font-bold text-red-700 text-sm">{r.docket}</span>
-                  <StatusBadge status={r.status} />
-                </div>
-                <div className="text-xs text-gray-500">{r.id} · {r.customer} · {r.date}</div>
-              </div>
-            ))}
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <div className="text-sm font-bold text-gray-800 mb-4">Docket Timeline — {selected?.docket}</div>
-            <div className="relative pl-6">
-              <div className="absolute left-2.5 top-1.5 bottom-1.5 w-0.5 bg-gray-200 rounded" />
-              {(docketTimeline[selected?.id] || docketTimeline['RET-001']).map((item, i) => (
-                <div key={i} className="relative mb-5 last:mb-0">
-                  <div className={`absolute -left-[17px] top-1 w-3 h-3 rounded-full ring-2 ring-offset-1 ${
-                    item.status === 'success' ? 'bg-green-500 ring-green-500' :
-                    item.status === 'warning' ? 'bg-amber-400 ring-amber-400' :
-                    'bg-gray-300 ring-gray-300'
-                  }`} />
-                  <div className="text-sm font-semibold text-gray-800">{item.event}</div>
-                  <div className="text-xs text-gray-400 mt-0.5">{item.time}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tab 2: Debit / Credit Matching */}
-      {activeTab === 2 && (() => {
-        const matchingData = getDebitCreditMatching(returnList);
-        const mismatches = matchingData.filter(m => m.status === 'Mismatch');
-        return (
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <div className="text-sm font-bold text-gray-800">Debit vs Credit Note Matching</div>
-                <div className="text-xs text-gray-400 mt-0.5">Reconcile debit notes raised against credit notes issued</div>
-              </div>
-              {mismatches.length > 0 && <StatusBadge status={`${mismatches.length} Mismatch${mismatches.length > 1 ? 'es' : ''}`} type="warning" />}
-            </div>
-            {matchingData.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <div className="text-sm font-semibold mb-1">No matching records</div>
-                <div className="text-xs">Returns with both debit and credit notes will appear here</div>
-              </div>
-            ) : (
-              <>
-                <div className="overflow-x-auto rounded-xl border border-gray-200">
-                  <table className="w-full">
-                    <thead>
-                      <tr>
-                        {['Return ID', 'Customer', 'Debit Note', 'Debit Amt', 'Credit Note', 'Credit Amt', 'Difference', 'Status'].map(h => (
-                          <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {matchingData.map((row, i) => (
-                        <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
-                          <td className="px-4 py-3 align-middle font-semibold text-red-700">{row.returnId}</td>
-                          <td className="px-4 py-3 align-middle font-semibold text-gray-800">{row.customer}</td>
-                          <td className="px-4 py-3 align-middle font-mono text-[11px] text-gray-800">{row.debitNote}</td>
-                          <td className="px-4 py-3 align-middle font-bold text-red-500">{row.debitAmt}</td>
-                          <td className="px-4 py-3 align-middle font-mono text-[11px] text-gray-800">{row.creditNote}</td>
-                          <td className="px-4 py-3 align-middle font-bold text-green-600">{row.creditAmt}</td>
-                          <td className={`px-4 py-3 align-middle font-extrabold ${row.diff === '₹0' ? 'text-green-600' : 'text-red-500'}`}>{row.diff}</td>
-                          <td className="px-4 py-3 align-middle"><StatusBadge status={row.status} type={row.status === 'Matched' ? 'success' : 'danger'} /></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {mismatches.length > 0 && (
-                  <div className="mt-4 p-3.5 bg-amber-50 rounded-lg border border-amber-300">
-                    <div className="font-bold text-sm text-amber-800 mb-2">⚠ {mismatches.length} Mismatch{mismatches.length > 1 ? 'es' : ''} Found</div>
-                    {mismatches.map((m, i) => (
-                      <div key={i} className="text-xs text-amber-700 mb-2 last:mb-0">
-                        <div className="font-semibold">{m.returnId} — {m.customer}</div>
-                        <div>Debit Note {m.debitNote} ({m.debitAmt}) does not match Credit Note {m.creditNote} ({m.creditAmt}). Difference: {m.diff}</div>
-                      </div>
-                    ))}
-                    <button className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-amber-400 text-white font-semibold border-0 cursor-pointer font-[inherit]">
-                      Resolve Mismatches
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        );
-      })()}
-
-      {/* Tab 3: Loss Tracking */}
-      {activeTab === 3 && (
-        <div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-            {[
-              { label: 'Total Loss Value', value: '₹16,000', color: '#ef4444' },
-              { label: 'Disputed Cases', value: lossTracking.filter(l => l.status === 'Disputed').length, color: '#f59e0b' },
-            ].map((k, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
-                <div className="text-2xl font-black tracking-tight" style={{ color: k.color }}>{k.value}</div>
-                <div className="text-xs text-gray-500 font-medium mt-1">{k.label}</div>
-              </div>
-            ))}
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <div className="text-sm font-bold text-gray-800 mb-3.5">Loss-End Tracking</div>
+      {!loading && activeTab === 1 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="text-sm font-bold text-gray-800 mb-4">Docket Tracking</div>
+          {returns.length === 0 ? (
+            <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>No returns to track.</div>
+          ) : (
             <div className="overflow-x-auto rounded-xl border border-gray-200">
               <table className="w-full">
                 <thead>
-                  <tr>
-                    {['Return ID', 'Customer', 'Return Value', 'Recoverable', 'Loss Amount', 'Reason', 'Status', 'Action'].map(h => (
-                      <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
+                  <tr>{['Docket ID', 'MR ID', 'Supplier', 'Transport', 'AWB No.', 'Stage'].map(h => (
+                    <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
+                  ))}</tr>
                 </thead>
                 <tbody>
-                  {lossTracking.map((row, i) => (
-                    <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
-                      <td className="px-4 py-3 align-middle font-semibold text-red-700">{row.id}</td>
-                      <td className="px-4 py-3 align-middle font-semibold text-gray-800">{row.customer}</td>
-                      <td className="px-4 py-3 align-middle text-gray-800">{row.returnValue}</td>
-                      <td className="px-4 py-3 align-middle font-bold text-green-600">{row.recoverable}</td>
-                      <td className="px-4 py-3 align-middle font-extrabold text-red-500">{row.loss}</td>
-                      <td className="px-4 py-3 align-middle text-[11px] text-gray-500 max-w-[180px]">{row.reason}</td>
-                      <td className="px-4 py-3 align-middle"><StatusBadge status={row.status} type={row.status === 'Loss Confirmed' ? 'danger' : 'warning'} /></td>
-                      <td className="px-4 py-3 align-middle">
-                        <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]">
-                          Write Off
-                        </button>
+                  {returns.map((r) => (
+                    <tr key={r._id} onClick={() => setSelected(r)}
+                      className={`border-b border-gray-50 last:border-0 cursor-pointer transition-colors ${selected?._id === r._id ? 'bg-red-50/60' : 'hover:bg-red-50/40'}`}>
+                      <td className="px-4 py-3 font-semibold text-red-700 font-mono text-[12px]">{r.docketId}</td>
+                      <td className="px-4 py-3 font-semibold">{r.mrId}</td>
+                      <td className="px-4 py-3">{r.supplierName}</td>
+                      <td className="px-4 py-3">{r.transport || '—'}</td>
+                      <td className="px-4 py-3 font-mono text-[11px]">{r.awbNo || '—'}</td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white"
+                          style={{ background: stageColor[r.stage] || '#6b7280' }}>{r.stage}</span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
+          )}
         </div>
       )}
 
-      {/* New Return Modal */}
-      <Modal
-        open={showModal}
-        onClose={() => setShowModal(false)}
-        title="Create New Return"
-        footer={
-          <>
-            <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Cancel</button>
-            <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={handleSubmitReturn}>Submit Return</button>
-          </>
-        }
-      >
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Order Reference *</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="e.g. ORD-2024-089" /></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Customer Name *</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Customer name" /></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Return Type *</label><select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]"><option>Defective</option><option>Wrong Item</option><option>Excess</option><option>Damaged in Transit</option></select></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Number of Items *</label><input type="number" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="0" /></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Return Value (₹) *</label><input type="number" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="0.00" /></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Return Date</label><input type="date" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" /></div>
+      {/* Tab 2: Stage Tracker */}
+      {!loading && activeTab === 2 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div className="text-sm font-bold text-gray-800 mb-3.5">Select Return</div>
+            {returns.map((r) => (
+              <div key={r._id} onClick={() => setSelected(r)}
+                className={`p-3 rounded-lg mb-2 cursor-pointer border-2 transition-all ${selected?._id === r._id ? 'border-red-600 bg-red-50/60' : 'border-gray-200 hover:border-red-300'}`}>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-bold text-red-700 text-sm">{r.mrId}</span>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white"
+                    style={{ background: stageColor[r.stage] || '#6b7280' }}>{r.stage}</span>
+                </div>
+                <div className="text-xs text-gray-500">{r.supplierName} · ₹{(r.value || 0).toLocaleString('en-IN')}</div>
+              </div>
+            ))}
+          </div>
+
+          {selected && (
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+              <div className="text-sm font-bold text-gray-800 mb-4">Stage Tracker — {selected.mrId}</div>
+              <div className="flex items-center mb-6 overflow-x-auto pb-1">
+                {STAGES.map((s, i) => {
+                  const cur = stageIdx(selected.stage);
+                  const done = i < cur; const active = i === cur;
+                  return (
+                    <div key={s} className="flex items-center flex-shrink-0">
+                      <div className="flex flex-col items-center">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 ${done ? 'bg-green-500 border-green-500 text-white' : active ? 'border-red-600 text-red-700 bg-red-50' : 'border-gray-200 text-gray-400 bg-white'}`}>
+                          {done ? '✓' : i + 1}
+                        </div>
+                        <div className={`text-[10px] mt-1 font-semibold whitespace-nowrap ${active ? 'text-red-700' : done ? 'text-green-600' : 'text-gray-400'}`}>{s}</div>
+                      </div>
+                      {i < STAGES.length - 1 && <div className={`h-0.5 w-8 mx-1 rounded ${i < cur ? 'bg-green-400' : 'bg-gray-200'}`} />}
+                    </div>
+                  );
+                })}
+              </div>
+              {stageIdx(selected.stage) < STAGES.length - 1 && (
+                <button onClick={() => handleStageUpdate(selected._id, STAGES[stageIdx(selected.stage) + 1])}
+                  style={{
+                    width: '100%', padding: '9px 0', borderRadius: 10, border: 'none', cursor: 'pointer',
+                    background: 'linear-gradient(135deg,#f59e0b,#d97706)', color: '#fff',
+                    fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+                  }}>
+                  → Move to {STAGES[stageIdx(selected.stage) + 1]}
+                </button>
+              )}
+            </div>
+          )}
         </div>
-        <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Reason / Description *</label><textarea className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Describe the reason for return..." /></div>
+      )}
+
+      {/* Tab 3: Loss Tracking */}
+      {!loading && activeTab === 3 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="text-sm font-bold text-gray-800 mb-3.5">Returns with Credit Note Status</div>
+          {returns.length === 0 ? (
+            <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>No returns found.</div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
+              <table className="w-full">
+                <thead>
+                  <tr>{['MR ID', 'Supplier', 'Value', 'Stage', 'Credit Note', 'Debit Note', 'Action'].map(h => (
+                    <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
+                  ))}</tr>
+                </thead>
+                <tbody>
+                  {returns.map((r) => (
+                    <tr key={r._id} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
+                      <td className="px-4 py-3 font-semibold text-red-700">{r.mrId}</td>
+                      <td className="px-4 py-3 font-semibold">{r.supplierName}</td>
+                      <td className="px-4 py-3 font-bold">₹{(r.value || 0).toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white"
+                          style={{ background: stageColor[r.stage] || '#6b7280' }}>{r.stage}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {r.creditNoteId
+                          ? <span className="font-semibold text-green-600">{r.creditNoteId}</span>
+                          : <span className="text-amber-500 text-xs font-semibold">Not issued</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {r.debitNoteId
+                          ? <span className="font-semibold text-blue-600">{r.debitNoteId}</span>
+                          : <span className="text-gray-400 text-xs">—</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {r.stage === 'Closed' && !r.creditNoteId && (
+                          <button
+                            onClick={async () => {
+                              const cnId = `CN-${new Date().getFullYear()}-${r.mrId.split('-').pop()}`;
+                              try {
+                                await materialReturnApi.issueCreditNote(r._id, cnId);
+                                await fetchAll();
+                                toast(`Credit note ${cnId} issued`);
+                              } catch (e) { toast(e.message, 'error'); }
+                            }}
+                            style={{ padding: '4px 10px', borderRadius: 6, background: '#dcfce7', color: '#16a34a', border: '1px solid #bbf7d0', cursor: 'pointer', fontSize: 11, fontWeight: 600, fontFamily: 'inherit' }}>
+                            Issue CN
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Create Return Modal */}
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="New Material Return"
+        footer={<>
+          <button className="btn btn-outline" onClick={() => setShowCreate(false)} disabled={saving}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleCreate} disabled={saving}>{saving ? 'Saving...' : 'Submit Return'}</button>
+        </>}>
+        <div className="grid grid-cols-2 gap-4">
+          <div className={fld}><label className={lbl}>Supplier Name *</label>
+            <input className={inp} placeholder="Supplier name" value={form.supplierName} onChange={e => setForm(p => ({ ...p, supplierName: e.target.value }))} /></div>
+          <div className={fld}><label className={lbl}>Return Type</label>
+            <select className={inp} value={form.returnType} onChange={e => setForm(p => ({ ...p, returnType: e.target.value }))}>
+              {RETURN_TYPES.map(t => <option key={t}>{t}</option>)}
+            </select></div>
+          <div className={fld}><label className={lbl}>No. of Items</label>
+            <input type="number" className={inp} placeholder="1" value={form.items} onChange={e => setForm(p => ({ ...p, items: e.target.value }))} /></div>
+          <div className={fld}><label className={lbl}>Return Value (₹)</label>
+            <input type="number" className={inp} placeholder="0" value={form.value} onChange={e => setForm(p => ({ ...p, value: e.target.value }))} /></div>
+          <div className={fld}><label className={lbl}>Transport / Courier</label>
+            <input className={inp} placeholder="Courier name" value={form.transport} onChange={e => setForm(p => ({ ...p, transport: e.target.value }))} /></div>
+          <div className={fld}><label className={lbl}>AWB / Tracking No.</label>
+            <input className={inp} placeholder="AWB number" value={form.awbNo} onChange={e => setForm(p => ({ ...p, awbNo: e.target.value }))} /></div>
+          <div className={`${fld} col-span-2`}><label className={lbl}>Reason *</label>
+            <textarea className={inp} rows={2} placeholder="Reason for return..." value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))} /></div>
+        </div>
+      </Modal>
+
+      {/* Delete Confirm Modal */}
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Return"
+        footer={<>
+          <button className="btn btn-outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</button>
+          <button className="btn btn-sm" style={{ background: '#dc2626', color: '#fff', padding: '6px 18px' }} onClick={handleDelete} disabled={deleting}>
+            {deleting ? 'Deleting...' : 'Delete'}
+          </button>
+        </>}>
+        <p style={{ fontSize: 14, color: '#374151' }}>
+          Delete return <strong>{deleteTarget?.mrId}</strong> from <strong>{deleteTarget?.supplierName}</strong>? This cannot be undone.
+        </p>
       </Modal>
     </div>
   );

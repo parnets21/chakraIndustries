@@ -1,80 +1,30 @@
 import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
 import LineChart from '../../components/charts/LineChart';
 import BarChart from '../../components/charts/BarChart';
 import DonutChart from '../../components/charts/DonutChart';
 import StatusBadge from '../../components/common/StatusBadge';
+import { useAuth } from '../../auth/AuthContext';
+import { prApi } from '../../api/prApi';
+import { poApi } from '../../api/poApi';
+import { grnApi } from '../../api/grnApi';
+import { approvalApi } from '../../api/approvalApi';
+import { rfqApi } from '../../api/rfqApi';
+import { qualityCheckApi } from '../../api/qualityCheckApi';
+import { vendorApi } from '../../api/vendorApi';
+import { inventoryApi } from '../../api/inventoryApi';
+import { inventoryFlowApi } from '../../api/inventoryFlowApi';
 import { MdProductionQuantityLimits } from 'react-icons/md';
 import { GiReturnArrow } from 'react-icons/gi';
 
-// ── Data ──────────────────────────────────────────────────────────────────────
-const kpis = [
-  { label: 'Total Revenue',    value: '₹48.2L', change: '+12.4%', up: true,  gradient: 'linear-gradient(135deg,#ef4444,#b91c1c)', glow: 'rgba(239,68,68,0.3)',   icon: <SalesIcon />,   sub: 'vs last month'     },
-  { label: 'Active Orders',    value: '284',    change: '+8.1%',  up: true,  gradient: 'linear-gradient(135deg,#22c55e,#15803d)', glow: 'rgba(34,197,94,0.3)',   icon: <OrderIcon />,   sub: 'in progress'       },
-  { label: 'Inventory Value',  value: '₹1.2Cr', change: '-2.3%',  up: false, gradient: 'linear-gradient(135deg,#f59e0b,#d97706)', glow: 'rgba(245,158,11,0.3)',  icon: <BoxIcon />,     sub: 'across warehouses' },
-  { label: 'Production Today', value: '1,840',  change: '+5.6%',  up: true,  gradient: 'linear-gradient(135deg,#a855f7,#7c3aed)', glow: 'rgba(168,85,247,0.3)',  icon: <FactoryIcon />, sub: 'units produced'    },
-  { label: 'Pending Dispatch', value: '37',     change: '-4.2%',  up: false, gradient: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', glow: 'rgba(59,130,246,0.3)',  icon: <TruckIcon />,   sub: 'awaiting shipment' },
-];
-
-const operationalAlerts = [
-  { label: 'Pending GRNs',        value: 8,     color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  icon: <ClipboardIcon /> },
-  { label: 'Return Requests',      value: 3,     color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   icon: <GiReturnArrow size={24} /> },
-  { label: "Today's Dispatches",   value: 12,    color: '#22c55e', bg: 'rgba(34,197,94,0.1)',   icon: <TruckDispatchIcon /> },
-  { label: 'Production vs Target', value: '94%', color: '#a855f7', bg: 'rgba(168,85,247,0.1)', icon: <MdProductionQuantityLimits size={24} /> },
-];
-
-const productionTarget = [
-  { product: 'Engine Assembly A', target: 50, actual: 50, pct: 100 },
-  { product: 'Gearbox Unit B',    target: 30, actual: 18, pct: 60  },
-  { product: 'Clutch Assembly C', target: 80, actual: 0,  pct: 0   },
-];
-
-const salesTrend = [
-  { label: 'Jan', value: 320000 }, { label: 'Feb', value: 410000 }, { label: 'Mar', value: 380000 },
-  { label: 'Apr', value: 520000 }, { label: 'May', value: 490000 }, { label: 'Jun', value: 610000 },
-  { label: 'Jul', value: 580000 }, { label: 'Aug', value: 720000 }, { label: 'Sep', value: 680000 },
-  { label: 'Oct', value: 790000 }, { label: 'Nov', value: 850000 }, { label: 'Dec', value: 920000 },
-];
-
-const inventoryStatus = [
-  { label: 'Raw Mat',  value: 4200, color: '#ef4444' },
-  { label: 'WIP',      value: 1800, color: '#f59e0b' },
-  { label: 'Finished', value: 3100, color: '#22c55e' },
-  { label: 'Dead',     value: 420,  color: '#64748b' },
-  { label: 'Quarant.', value: 280,  color: '#a855f7' },
-];
-
-const productionEff = [
-  { label: 'Mon', value: 88, color: '#ef4444' }, { label: 'Tue', value: 92, color: '#ef4444' },
-  { label: 'Wed', value: 85, color: '#ef4444' }, { label: 'Thu', value: 94, color: '#ef4444' },
-  { label: 'Fri', value: 90, color: '#ef4444' }, { label: 'Sat', value: 78, color: '#f59e0b' },
-];
-
-const donutData = [
-  { label: 'Delivered',  value: 142, color: '#22c55e' },
-  { label: 'Processing', value: 87,  color: '#ef4444' },
-  { label: 'Pending',    value: 55,  color: '#f59e0b' },
-];
-
-const recentOrders = [
-  { id: 'ORD-2024-089', customer: 'Tata Motors Ltd',     items: 12, value: '₹2,84,000', status: 'Processing', date: '14 Apr' },
-  { id: 'ORD-2024-088', customer: 'Mahindra & Mahindra', items: 8,  value: '₹1,56,000', status: 'Delivered',  date: '13 Apr' },
-  { id: 'ORD-2024-087', customer: 'Bajaj Auto',           items: 24, value: '₹4,12,000', status: 'Pending',    date: '13 Apr' },
-  { id: 'ORD-2024-086', customer: 'Hero MotoCorp',        items: 6,  value: '₹98,000',   status: 'Delivered',  date: '12 Apr' },
-  { id: 'ORD-2024-085', customer: 'TVS Motor',            items: 18, value: '₹3,24,000', status: 'Shipped',    date: '12 Apr' },
-];
-
-const lowStock = [
-  { sku: 'SKU-1042', name: 'Bearing 6205',     qty: 12, min: 50, warehouse: 'WH-01' },
-  { sku: 'SKU-2187', name: 'Oil Seal 35x52',   qty: 8,  min: 30, warehouse: 'WH-02' },
-  { sku: 'SKU-0934', name: 'Gasket Set A',      qty: 5,  min: 25, warehouse: 'WH-01' },
-  { sku: 'SKU-3301', name: 'Piston Ring 80mm', qty: 18, min: 40, warehouse: 'WH-03' },
-];
-
-const pendingApprovals = [
-  { id: 'PO-2024-089',  type: 'Purchase Order',       amount: '₹4,82,000', requestedBy: 'Ravi Sharma', age: '2d', color: '#ef4444' },
-  { id: 'PR-2024-034',  type: 'Purchase Requisition', amount: '₹1,20,000', requestedBy: 'Priya Nair',  age: '1d', color: '#f59e0b' },
-  { id: 'RFQ-2024-012', type: 'RFQ',                  amount: '₹8,40,000', requestedBy: 'Amit Patel',  age: '3d', color: '#a855f7' },
-];
+// ── Greeting helper ───────────────────────────────────────────────────────────
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return { text: 'Good Morning', emoji: '🌅' };
+  if (h < 17) return { text: 'Good Afternoon', emoji: '☀️' };
+  if (h < 21) return { text: 'Good Evening', emoji: '🌆' };
+  return { text: 'Good Night', emoji: '🌙' };
+}
 
 // ── Card shell ────────────────────────────────────────────────────────────────
 function Card({ children, style = {} }) {
@@ -104,9 +54,102 @@ function CardHead({ title, sub, right }) {
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
-  const navigate = useNavigate();
-  const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const go = (path) => navigate(path);
+  const navigate  = useNavigate();
+  const { user }  = useAuth();
+  const go        = (path) => navigate(path);
+  const greeting  = getGreeting();
+  const today     = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  const [loading, setLoading]             = useState(true);
+  const [prStats, setPrStats]             = useState({ total: 0, pending: 0, approved: 0 });
+  const [poStats, setPoStats]             = useState({ total: 0, pending: 0, approved: 0, totalValue: 0 });
+  const [grnStats, setGrnStats]           = useState({ total: 0, pending: 0 });
+  const [approvalStats, setApprovalStats] = useState({ pending: 0, approved: 0, total: 0 });
+  const [qcStats, setQcStats]             = useState({ total: 0, passed: 0, pending: 0, partial: 0, rejected: 0 });
+  const [vendorStats, setVendorStats]     = useState({ total: 0, active: 0 });
+  const [inventoryStats, setInventoryStats] = useState({ total: 0, critical: 0 });
+  const [recentPOs, setRecentPOs]         = useState([]);
+  const [pendingApprovals, setPendingApprovals] = useState([]);
+  const [lowStock, setLowStock]           = useState([]);
+  const [flowData, setFlowData]           = useState(null);
+
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [prRes, poRes, grnRes, approvalRes, qcRes, vendorRes, invRes, appListRes, flowRes] = await Promise.allSettled([
+        prApi.getAll(),
+        poApi.getAll(),
+        grnApi.getAll(),
+        approvalApi.getStats(),
+        qualityCheckApi.getStats(),
+        vendorApi.getAll(),
+        inventoryApi.getAll(),
+        approvalApi.getAll({ status: 'Pending' }),
+        inventoryFlowApi.getDashboard(),
+      ]);
+
+      if (prRes.status === 'fulfilled') {
+        const prs = prRes.value.data || [];
+        setPrStats({ total: prs.length, pending: prs.filter(p => p.status === 'Pending').length, approved: prs.filter(p => p.status === 'Approved').length });
+      }
+      if (poRes.status === 'fulfilled') {
+        const pos = poRes.value.data || [];
+        setPoStats({ total: pos.length, pending: pos.filter(p => p.status === 'Pending').length, approved: pos.filter(p => p.status === 'Approved').length, totalValue: pos.reduce((s, p) => s + (p.grandTotal || 0), 0) });
+        setRecentPOs(pos.slice(0, 5));
+      }
+      if (grnRes.status === 'fulfilled') {
+        const grns = grnRes.value.data || [];
+        setGrnStats({ total: grns.length, pending: grns.filter(g => g.qcStatus === 'Pending' || g.qcStatus === 'Not Started').length });
+      }
+      if (approvalRes.status === 'fulfilled') setApprovalStats(approvalRes.value.data || {});
+      if (qcRes.status === 'fulfilled') setQcStats(qcRes.value.data || {});
+      if (vendorRes.status === 'fulfilled') {
+        const v = vendorRes.value.data || [];
+        setVendorStats({ total: v.length, active: v.filter(x => x.status === 'Active').length });
+      }
+      if (invRes.status === 'fulfilled') {
+        const items = invRes.value.data || [];
+        setInventoryStats({ total: items.length, critical: items.filter(i => i.status === 'Critical').length });
+        setLowStock(items.filter(i => i.status === 'Critical' || (i.minQty > 0 && i.qty < i.minQty)).slice(0, 4));
+      }
+      if (appListRes.status === 'fulfilled') setPendingApprovals((appListRes.value.data || []).slice(0, 4));
+      if (flowRes.status === 'fulfilled') setFlowData(flowRes.value.data || null);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const fmt = (n) => n >= 100000 ? `₹${(n/100000).toFixed(1)}L` : `₹${(n||0).toLocaleString('en-IN')}`;
+
+  const kpis = [
+    { label: 'Total PO Value',     value: fmt(poStats.totalValue),          sub: `${poStats.total} purchase orders`,    gradient: 'linear-gradient(135deg,#ef4444,#b91c1c)', icon: <SalesIcon />,   link: '/procurement/po' },
+    { label: 'Pending Approvals',  value: String(approvalStats.pending||0), sub: `${approvalStats.total||0} total`,     gradient: 'linear-gradient(135deg,#f59e0b,#d97706)', icon: <OrderIcon />,   link: '/procurement/approvals' },
+    { label: 'Inventory Items',    value: String(inventoryStats.total||0),  sub: `${inventoryStats.critical||0} critical`, gradient: 'linear-gradient(135deg,#22c55e,#15803d)', icon: <BoxIcon />,     link: '/inventory/stock' },
+    { label: 'Active Vendors',     value: String(vendorStats.active||0),    sub: `${vendorStats.total||0} total`,       gradient: 'linear-gradient(135deg,#a855f7,#7c3aed)', icon: <FactoryIcon />, link: '/procurement/vendors' },
+    { label: 'GRNs Pending QC',    value: String(grnStats.pending||0),      sub: `${grnStats.total||0} total GRNs`,     gradient: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', icon: <TruckIcon />,   link: '/procurement/grn' },
+  ];
+
+  const alerts = [
+    { label: 'Pending PRs',       value: prStats.pending,           color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  icon: <ClipboardIcon />,                        link: '/procurement/pr' },
+    { label: 'Pending Approvals', value: approvalStats.pending||0,  color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   icon: <GiReturnArrow size={24} />,              link: '/procurement/approvals' },
+    { label: 'QC Pending',        value: qcStats.pending||0,        color: '#22c55e', bg: 'rgba(34,197,94,0.1)',   icon: <TruckDispatchIcon />,                    link: '/procurement/qc' },
+    { label: 'Critical Stock',    value: inventoryStats.critical||0, color: '#a855f7', bg: 'rgba(168,85,247,0.1)', icon: <MdProductionQuantityLimits size={24} />, link: '/inventory/stock' },
+  ];
+
+  const procurementDonut = [
+    { label: 'Approved PRs', value: prStats.approved||0,  color: '#22c55e' },
+    { label: 'Pending PRs',  value: prStats.pending||0,   color: '#f59e0b' },
+    { label: 'Approved POs', value: poStats.approved||0,  color: '#3b82f6' },
+    { label: 'Pending POs',  value: poStats.pending||0,   color: '#ef4444' },
+  ].filter(d => d.value > 0);
+
+  const qcBar = [
+    { label: 'Passed',   value: qcStats.passed||0,   color: '#22c55e' },
+    { label: 'Partial',  value: qcStats.partial||0,  color: '#f59e0b' },
+    { label: 'Pending',  value: qcStats.pending||0,  color: '#3b82f6' },
+    { label: 'Rejected', value: qcStats.rejected||0, color: '#ef4444' },
+  ];
 
   return (
     <>
@@ -189,19 +232,25 @@ export default function DashboardPage() {
 
           <div style={{ position:'relative', zIndex:1, minWidth:0 }}>
             <div style={{ fontSize:10, fontWeight:600, color:'rgba(148,163,184,0.8)', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:6 }}>
-              Good Morning 👋
+              {greeting.text} {greeting.emoji}
             </div>
             <div style={{ fontSize:20, fontWeight:800, color:'#f1f5f9', letterSpacing:'-0.4px', marginBottom:4, lineHeight:1.2 }}>
-              Chakra Industries ERP
+              {user?.name ? `Welcome back, ${user.name.split(' ')[0]}` : 'Chakra Industries ERP'}
             </div>
             <div style={{ fontSize:11.5, color:'#64748b' }}>{today}</div>
+            {user?.role && (
+              <div style={{ marginTop:6, display:'inline-flex', alignItems:'center', gap:5, background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:20, padding:'3px 10px' }}>
+                <div style={{ width:6, height:6, borderRadius:'50%', background:'#22c55e' }} />
+                <span style={{ fontSize:10.5, color:'#94a3b8', fontWeight:600, textTransform:'capitalize' }}>{user.role.replace(/_/g,' ')}</span>
+              </div>
+            )}
           </div>
 
           <div className="db-banner-stats" style={{ position:'relative', zIndex:1 }}>
             {[
-              { label:'FY Revenue', value:'₹82.4L', color:'#ef4444' },
-              { label:'Open POs',   value:'23',     color:'#f59e0b' },
-              { label:'Efficiency', value:'94%',    color:'#22c55e' },
+              { label:'Total POs',    value: loading ? '—' : poStats.total,              color:'#ef4444' },
+              { label:'Pending Appr', value: loading ? '—' : approvalStats.pending||0,   color:'#f59e0b' },
+              { label:'QC Passed',    value: loading ? '—' : qcStats.passed||0,          color:'#22c55e' },
             ].map((s, i) => (
               <div key={i} className="db-banner-chip">
                 <div style={{ fontSize:17, fontWeight:800, color:s.color, letterSpacing:'-0.3px' }}>{s.value}</div>
@@ -213,10 +262,8 @@ export default function DashboardPage() {
 
         {/* ── KPI Cards ── */}
         <div className="db-kpi-grid">
-          {kpis.map((k, i) => {
-            const kpiLinks = ['/finance/ledger', '/orders', '/inventory/dashboard', '/production/workorders', '/logistics/dispatch'];
-            return (
-            <div key={i} className="db-kpi-card" onClick={() => go(kpiLinks[i])} style={{
+          {kpis.map((k, i) => (
+            <div key={i} className="db-kpi-card" onClick={() => go(k.link)} style={{
               background:'#fff', borderRadius:14,
               border:'1px solid #e8edf2', padding:'16px',
               boxShadow:'0 2px 8px rgba(15,23,42,0.05)',
@@ -233,130 +280,170 @@ export default function DashboardPage() {
                   background:k.gradient,
                   display:'flex', alignItems:'center', justifyContent:'center',
                   color:'#fff', flexShrink:0,
-                }}>
+                }}>rr
                   {k.icon}
                 </div>
-                <span style={{
-                  fontSize:10.5, fontWeight:700, padding:'2px 7px', borderRadius:20,
-                  background: k.up ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
-                  color: k.up ? '#16a34a' : '#dc2626',
-                }}>
-                  {k.up ? '↑' : '↓'} {k.change}
-                </span>
               </div>
-              <div style={{ fontSize:22, fontWeight:800, color:'#0f172a', letterSpacing:'-0.5px', lineHeight:1 }}>{k.value}</div>
+              <div style={{ fontSize:22, fontWeight:800, color:'#0f172a', letterSpacing:'-0.5px', lineHeight:1 }}>
+                {loading ? <span style={{ color:'#e2e8f0' }}>—</span> : k.value}
+              </div>
               <div style={{ fontSize:11.5, color:'#64748b', fontWeight:500, marginTop:4 }}>{k.label}</div>
-              <div style={{ fontSize:10.5, color:'#94a3b8', marginTop:2 }}>{k.sub}</div>
+              <div style={{ fontSize:10.5, color:'#94a3b8', marginTop:2 }}>{loading ? '...' : k.sub}</div>
             </div>
-            );
-          })}
+          ))}
         </div>
 
-        {/* ── Charts Row 1: Revenue + Order Status ── */}
+        {/* ── Charts Row 1: Procurement Flow + QC Status ── */}
         <div className="db-charts-1">
           <Card>
             <CardHead
-              title="Revenue Trend"
-              sub="Monthly revenue — FY 2024-25"
+              title="Procurement Flow"
+              sub="PR & PO status breakdown"
               right={
                 <div style={{ textAlign:'right' }}>
-                  <div style={{ fontSize:18, fontWeight:800, color:'#ef4444', letterSpacing:'-0.4px' }}>₹82.4L</div>
-                  <div style={{ fontSize:10.5, fontWeight:700, color:'#22c55e' }}>↑ 18.2% vs last year</div>
+                  <div style={{ fontSize:18, fontWeight:800, color:'#ef4444', letterSpacing:'-0.4px' }}>{loading ? '—' : fmt(poStats.totalValue)}</div>
+                  <div style={{ fontSize:10.5, fontWeight:600, color:'#64748b' }}>Total PO value</div>
                 </div>
               }
             />
             <div style={{ padding:'0 18px 18px' }}>
-              <LineChart data={salesTrend} color="#ef4444" height={150} />
+              {procurementDonut.length > 0
+                ? <DonutChart data={procurementDonut} size={110} />
+                : <div style={{ height:130, display:'flex', alignItems:'center', justifyContent:'center', color:'#94a3b8', fontSize:13 }}>
+                    {loading ? 'Loading...' : 'No procurement data yet'}
+                  </div>
+              }
             </div>
           </Card>
 
           <Card>
-            <CardHead title="Order Status" sub="Current distribution" />
+            <CardHead title="Quality Check Status" sub="Inspection results" />
             <div style={{ padding:'0 18px 18px' }}>
-              <DonutChart data={donutData} size={110} />
+              <BarChart data={qcBar} height={140} />
             </div>
           </Card>
         </div>
 
+        {/* ── Inventory Flow Section ── */}
+        {flowData && (
+          <Card>
+            <CardHead
+              title="Inventory Flow Pipeline"
+              sub="GRN → Inventory Increase → Sales → Inventory Decrease → Production → Returns → Final Stock"
+            />
+            <div style={{ padding:'0 18px 18px' }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                gap: 12,
+              }}>
+                {[
+                  { label: 'GRN Received', value: flowData.grnStats?.today || 0, icon: '📦', color: '#3b82f6' },
+                  { label: 'Inventory ↑', value: flowData.flowTimeline?.grnReceived || 0, icon: '⬆️', color: '#22c55e' },
+                  { label: 'Sales ↓', value: flowData.flowTimeline?.salesOutward || 0, icon: '📉', color: '#ef4444' },
+                  { label: 'Production', value: flowData.flowTimeline?.productionUsage || 0, icon: '🏭', color: '#f59e0b' },
+                  { label: 'Returns ↑', value: flowData.flowTimeline?.returnsInward || 0, icon: '↩️', color: '#a855f7' },
+                  { label: 'Final Stock', value: flowData.inventoryStats?.availableQuantity || 0, icon: '📊', color: '#06b6d4' },
+                ].map((item, i) => (
+                  <div key={i} style={{
+                    background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                    border: `2px solid ${item.color}`,
+                    borderRadius: 12,
+                    padding: 14,
+                    textAlign: 'center',
+                  }}>
+                    <div style={{ fontSize: 24, marginBottom: 6 }}>{item.icon}</div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: item.color, letterSpacing: '-0.3px' }}>
+                      {loading ? '—' : item.value}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 4, fontWeight: 600 }}>{item.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+        )}
+
         {/* ── Operational Alerts ── */}
         <div className="db-alerts">
-          {operationalAlerts.map((a, i) => {
-            const alertLinks = ['/procurement/grn', '/returns/requests', '/logistics/dispatch', '/production/tracking'];
-            return (
+          {alerts.map((a, i) => (
             <Card key={i} style={{ padding:'14px 16px', display:'flex', alignItems:'center', gap:12, cursor:'pointer' }}
-              onClick={() => go(alertLinks[i])}
+              onClick={() => go(a.link)}
             >
               <div style={{
                 width:42, height:42, borderRadius:12, flexShrink:0,
                 background:a.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18,
               }}>{a.icon}</div>
               <div>
-                <div style={{ fontSize:20, fontWeight:800, color:a.color, letterSpacing:'-0.5px', lineHeight:1 }}>{a.value}</div>
+                <div style={{ fontSize:20, fontWeight:800, color:a.color, letterSpacing:'-0.5px', lineHeight:1 }}>
+                  {loading ? '—' : a.value}
+                </div>
                 <div style={{ fontSize:11, color:'#64748b', marginTop:3, fontWeight:500 }}>{a.label}</div>
               </div>
             </Card>
-            );
-          })}
+          ))}
         </div>
 
-        {/* ── Charts Row 2: Inventory + Production Efficiency ── */}
-        <div className="db-charts-2">
-          <Card>
-            <CardHead title="Inventory Status" sub="Units by category" />
-            <div style={{ padding:'0 18px 18px' }}>
-              <BarChart data={inventoryStatus} height={140} />
-            </div>
-          </Card>
-          <Card>
-            <CardHead title="Production Efficiency" sub="This week (%)" />
-            <div style={{ padding:'0 18px 18px' }}>
-              <BarChart data={productionEff} height={140} />
-            </div>
-          </Card>
-        </div>
-
-        {/* ── Production vs Target ── */}
-        <Card>
-          <CardHead
-            title="Production vs Target — Today"
-            sub="Work order progress"
-            right={<StatusBadge status="Active" />}
-          />
-          <div style={{ padding:'0 18px 18px', display:'flex', flexDirection:'column', gap:14 }}>
-            {productionTarget.map((p, i) => {
-              const color = p.pct === 100 ? '#22c55e' : p.pct > 50 ? '#f59e0b' : '#ef4444';
-              return (
-                <div key={i}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:7, flexWrap:'wrap', gap:4 }}>
-                    <span style={{ fontSize:12.5, fontWeight:600, color:'#1e293b' }}>{p.product}</span>
-                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                      <span style={{ fontSize:11.5, color:'#94a3b8' }}>{p.actual}/{p.target} units</span>
-                      <span style={{ fontSize:11, fontWeight:700, padding:'2px 7px', borderRadius:20, background:color+'18', color }}>{p.pct}%</span>
-                    </div>
-                  </div>
-                  <div style={{ height:7, background:'#f1f5f9', borderRadius:99, overflow:'hidden' }}>
-                    <div style={{
-                      height:'100%', borderRadius:99, width:`${p.pct}%`,
-                      background: p.pct===100 ? 'linear-gradient(90deg,#22c55e,#16a34a)' : p.pct>50 ? 'linear-gradient(90deg,#f59e0b,#d97706)' : 'linear-gradient(90deg,#ef4444,#b91c1c)',
-                      transition:'width 0.6s cubic-bezier(0.4,0,0.2,1)',
-                    }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-
-        {/* ── Bottom: Recent Orders + Side panels ── */}
-        <div className="db-bottom">
-
-          {/* Recent Orders */}
+        {/* ── Warehouse Breakdown ── */}
+        {flowData && Object.keys(flowData.warehouseBreakdown || {}).length > 0 && (
           <Card>
             <CardHead
-              title="Recent Orders"
-              sub="Latest customer orders"
+              title="Warehouse Stock Distribution"
+              sub="Inventory levels by warehouse"
+            />
+            <div style={{ padding:'0 18px 14px' }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: 12,
+              }}>
+                {Object.entries(flowData.warehouseBreakdown).map(([whName, data], i) => (
+                  <div key={i} style={{
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 10,
+                    padding: 12,
+                  }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>{whName}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                        <span style={{ color: '#64748b' }}>Items:</span>
+                        <span style={{ fontWeight: 600, color: '#1e293b' }}>{data.items}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                        <span style={{ color: '#64748b' }}>Total Qty:</span>
+                        <span style={{ fontWeight: 600, color: '#1e293b' }}>{data.totalQty}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                        <span style={{ color: '#64748b' }}>Available:</span>
+                        <span style={{ fontWeight: 600, color: '#22c55e' }}>{data.availableQty}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                        <span style={{ color: '#64748b' }}>Reserved:</span>
+                        <span style={{ fontWeight: 600, color: '#f59e0b' }}>{data.reservedQty}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, paddingTop: 6, borderTop: '1px solid #e2e8f0' }}>
+                        <span style={{ color: '#64748b' }}>Value:</span>
+                        <span style={{ fontWeight: 700, color: '#ef4444' }}>{fmt(data.value)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* ── Bottom: Recent POs + Side panels ── */}
+        <div className="db-bottom">
+
+          {/* Recent Purchase Orders */}
+          <Card>
+            <CardHead
+              title="Recent Purchase Orders"
+              sub="Latest POs in the system"
               right={
-                <button style={{
+                <button onClick={() => go('/procurement/po')} style={{
                   fontSize:11.5, fontWeight:600, color:'#ef4444',
                   background:'rgba(239,68,68,0.08)', border:'none',
                   padding:'4px 10px', borderRadius:7, cursor:'pointer',
@@ -367,7 +454,7 @@ export default function DashboardPage() {
               <table style={{ width:'100%', borderCollapse:'collapse', minWidth:460 }}>
                 <thead>
                   <tr style={{ background:'#f8fafc' }}>
-                    {['Order ID','Customer','Value','Status','Date'].map(h => (
+                    {['PO ID','Vendor','Grand Total','Status','Date'].map(h => (
                       <th key={h} style={{
                         padding:'9px 16px', textAlign:'left', fontSize:10.5,
                         fontWeight:700, color:'#94a3b8', textTransform:'uppercase',
@@ -377,17 +464,21 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {recentOrders.map((o, i) => (
+                  {loading ? (
+                    <tr><td colSpan={5} style={{ padding:24, textAlign:'center', color:'#94a3b8', fontSize:13 }}>Loading...</td></tr>
+                  ) : recentPOs.length === 0 ? (
+                    <tr><td colSpan={5} style={{ padding:24, textAlign:'center', color:'#94a3b8', fontSize:13 }}>No purchase orders yet</td></tr>
+                  ) : recentPOs.map((po, i) => (
                     <tr key={i} style={{ borderBottom:'1px solid #f8fafc', cursor:'pointer' }}
-                      onClick={() => go('/orders')}
+                      onClick={() => go('/procurement/po')}
                       onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
                       onMouseLeave={e => e.currentTarget.style.background='transparent'}
                     >
-                      <td style={{ padding:'11px 16px', fontSize:12, fontWeight:700, color:'#ef4444' }}>{o.id}</td>
-                      <td style={{ padding:'11px 16px', fontSize:12, color:'#1e293b' }}>{o.customer}</td>
-                      <td style={{ padding:'11px 16px', fontSize:12, fontWeight:600, color:'#1e293b' }}>{o.value}</td>
-                      <td style={{ padding:'11px 16px' }}><StatusBadge status={o.status} /></td>
-                      <td style={{ padding:'11px 16px', fontSize:11.5, color:'#94a3b8' }}>{o.date}</td>
+                      <td style={{ padding:'11px 16px', fontSize:12, fontWeight:700, color:'#ef4444' }}>{po.poId}</td>
+                      <td style={{ padding:'11px 16px', fontSize:12, color:'#1e293b' }}>{po.vendor?.companyName || '—'}</td>
+                      <td style={{ padding:'11px 16px', fontSize:12, fontWeight:600, color:'#1e293b' }}>{fmt(po.grandTotal)}</td>
+                      <td style={{ padding:'11px 16px' }}><StatusBadge status={po.status} /></td>
+                      <td style={{ padding:'11px 16px', fontSize:11.5, color:'#94a3b8' }}>{new Date(po.createdAt).toLocaleDateString('en-IN', { day:'numeric', month:'short' })}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -400,12 +491,16 @@ export default function DashboardPage() {
 
             <Card>
               <CardHead
-                title="Low Stock Alerts"
-                sub="Items below minimum"
+                title="Low / Critical Stock"
+                sub="Items needing attention"
                 right={<StatusBadge status="Critical" />}
               />
               <div style={{ padding:'0 18px 14px' }}>
-                {lowStock.map((s, i) => (
+                {loading ? (
+                  <div style={{ padding:16, textAlign:'center', color:'#94a3b8', fontSize:13 }}>Loading...</div>
+                ) : lowStock.length === 0 ? (
+                  <div style={{ padding:16, textAlign:'center', color:'#22c55e', fontSize:13 }}>✓ All stock levels healthy</div>
+                ) : lowStock.map((s, i) => (
                   <div key={i} onClick={() => go('/inventory/stock')} style={{
                     display:'flex', alignItems:'center', justifyContent:'space-between',
                     padding:'9px 0', cursor:'pointer',
@@ -413,11 +508,11 @@ export default function DashboardPage() {
                   }}>
                     <div>
                       <div style={{ fontSize:12.5, fontWeight:600, color:'#1e293b' }}>{s.name}</div>
-                      <div style={{ fontSize:11, color:'#94a3b8', marginTop:2 }}>{s.sku} · {s.warehouse}</div>
+                      <div style={{ fontSize:11, color:'#94a3b8', marginTop:2 }}>{s.sku} · {s.warehouse || 'WH-01'}</div>
                     </div>
                     <div style={{ textAlign:'right', flexShrink:0, marginLeft:8 }}>
                       <div style={{ fontSize:14, fontWeight:800, color:'#ef4444' }}>{s.qty}</div>
-                      <div style={{ fontSize:10, color:'#94a3b8' }}>min: {s.min}</div>
+                      <div style={{ fontSize:10, color:'#94a3b8' }}>min: {s.minQty || 0}</div>
                     </div>
                   </div>
                 ))}
@@ -425,21 +520,39 @@ export default function DashboardPage() {
             </Card>
 
             <Card>
-              <CardHead title="Pending Approvals" sub="Awaiting your action" />
+              <CardHead
+                title="Pending Approvals"
+                sub="Awaiting action"
+                right={
+                  <button onClick={() => go('/procurement/approvals')} style={{
+                    fontSize:11.5, fontWeight:600, color:'#ef4444',
+                    background:'rgba(239,68,68,0.08)', border:'none',
+                    padding:'4px 10px', borderRadius:7, cursor:'pointer',
+                  }}>View all →</button>
+                }
+              />
               <div style={{ padding:'0 18px 14px' }}>
-                {pendingApprovals.map((a, i) => (
-                  <div key={i} onClick={() => go('/procurement/approvals')} style={{
-                    padding:'9px 0', cursor:'pointer',
-                    borderBottom: i < pendingApprovals.length-1 ? '1px solid #f1f5f9' : 'none',
-                  }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:3 }}>
-                      <span style={{ fontSize:12, fontWeight:700, color:a.color }}>{a.id}</span>
-                      <span style={{ fontSize:10, fontWeight:600, padding:'2px 6px', borderRadius:20, background:'rgba(239,68,68,0.08)', color:'#ef4444' }}>{a.age} ago</span>
+                {loading ? (
+                  <div style={{ padding:16, textAlign:'center', color:'#94a3b8', fontSize:13 }}>Loading...</div>
+                ) : pendingApprovals.length === 0 ? (
+                  <div style={{ padding:16, textAlign:'center', color:'#22c55e', fontSize:13 }}>✓ No pending approvals</div>
+                ) : pendingApprovals.map((a, i) => {
+                  const typeColor = { GRN:'#ef4444', PO:'#f59e0b', PR:'#a855f7', QC:'#3b82f6' };
+                  const c = typeColor[a.docType] || '#64748b';
+                  return (
+                    <div key={i} onClick={() => go('/procurement/approvals')} style={{
+                      padding:'9px 0', cursor:'pointer',
+                      borderBottom: i < pendingApprovals.length-1 ? '1px solid #f1f5f9' : 'none',
+                    }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:3 }}>
+                        <span style={{ fontSize:12, fontWeight:700, color:c }}>{a.docRef || a.approvalId}</span>
+                        <span style={{ fontSize:10, fontWeight:600, padding:'2px 6px', borderRadius:20, background:'rgba(239,68,68,0.08)', color:'#ef4444' }}>{a.docType}</span>
+                      </div>
+                      <div style={{ fontSize:11.5, color:'#64748b' }}>{a.requestedBy || 'Procurement'} · {a.department}</div>
+                      <div style={{ fontSize:12.5, fontWeight:700, color:'#f59e0b', marginTop:3 }}>{a.amount ? fmt(a.amount) : '—'}</div>
                     </div>
-                    <div style={{ fontSize:11.5, color:'#64748b' }}>{a.type} · {a.requestedBy}</div>
-                    <div style={{ fontSize:12.5, fontWeight:700, color:'#f59e0b', marginTop:3 }}>{a.amount}</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </Card>
 

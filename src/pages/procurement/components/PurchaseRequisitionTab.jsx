@@ -4,7 +4,7 @@ import CreatePRModal from './pr/CreatePRModal';
 import { useAuth } from '../../../auth/AuthContext';
 import { isViewOnly } from '../../../auth/rbac';
 
-export default function PurchaseRequisitionTab({ externalShowCreate, onExternalClose }) {
+export default function PurchaseRequisitionTab({ externalShowCreate, onExternalClose, onSaved }) {
   const { user } = useAuth();
   const [showCreate, setShowCreate] = useState(false);
   const [editData, setEditData] = useState(null);
@@ -15,16 +15,10 @@ export default function PurchaseRequisitionTab({ externalShowCreate, onExternalC
   const handleClose = () => { setShowCreate(false); setEditData(null); onExternalClose?.(); };
 
   const handleEdit = (pr) => { if (viewOnly) return; setEditData(pr); setShowCreate(true); };
-  const handleSaved = () => setRefresh(r => r + 1);
+  const handleSaved = () => { setRefresh(r => r + 1); onSaved?.(); };
 
   return (
     <div>
-      {!externalShowCreate && !viewOnly && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
-          <button className="btn btn-primary" onClick={() => { setEditData(null); setShowCreate(true); }}>+ Create PR</button>
-        </div>
-      )}
-
       <PRList onEdit={!viewOnly ? handleEdit : undefined} refresh={refresh} viewOnly={viewOnly} />
 
       <CreatePRModal

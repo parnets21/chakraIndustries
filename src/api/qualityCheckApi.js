@@ -1,43 +1,11 @@
-import axios from 'axios';
+const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
+const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
+const handle = async (res) => { const d = await res.json(); if (!res.ok) throw new Error(d.message || 'Request failed'); return d; };
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
-export const qcApi = {
-  create: async (data) => {
-    const res = await axios.post(`${API_BASE}/quality-checks`, data);
-    return res.data;
-  },
-
-  getAll: async (filters = {}) => {
-    const params = new URLSearchParams();
-    if (filters.status) params.append('status', filters.status);
-    if (filters.grnId) params.append('grnId', filters.grnId);
-    if (filters.warehouseId) params.append('warehouseId', filters.warehouseId);
-
-    const res = await axios.get(`${API_BASE}/quality-checks?${params}`);
-    return res.data;
-  },
-
-  getById: async (id) => {
-    const res = await axios.get(`${API_BASE}/quality-checks/${id}`);
-    return res.data;
-  },
-
-  updateStatus: async (id, status, approvalNotes) => {
-    const res = await axios.put(`${API_BASE}/quality-checks/${id}/status`, {
-      status,
-      approvalNotes
-    });
-    return res.data;
-  },
-
-  getStats: async () => {
-    const res = await axios.get(`${API_BASE}/quality-checks/stats`);
-    return res.data;
-  },
-
-  delete: async (id) => {
-    const res = await axios.delete(`${API_BASE}/quality-checks/${id}`);
-    return res.data;
-  }
+export const qualityCheckApi = {
+  getAll:   ()        => fetch(`${BASE}/quality-checks`, { headers: authHeaders() }).then(handle),
+  getStats: ()        => fetch(`${BASE}/quality-checks/stats`, { headers: authHeaders() }).then(handle),
+  getById:  (id)      => fetch(`${BASE}/quality-checks/${id}`, { headers: authHeaders() }).then(handle),
+  submit:   (id, body) => fetch(`${BASE}/quality-checks/${id}/submit`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
 };

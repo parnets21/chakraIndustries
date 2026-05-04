@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   MdLock, MdSave, MdCheckCircle, MdVisibility, MdBlock,
@@ -348,8 +348,8 @@ export default function RolePermissionsPage() {
           </thead>
           <tbody>
             {PAGE_GROUPS.map(group => (
-              <>
-                <tr key={group.section}>
+              <React.Fragment key={group.section}>
+                <tr>
                   <td colSpan={2 + editableRoles.length} style={{ padding: '6px 16px', fontSize: 9, fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#94a3b8', background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
                     {group.section}
                   </td>
@@ -382,7 +382,7 @@ export default function RolePermissionsPage() {
                     ))}
                   </tr>
                 ))}
-              </>
+              </React.Fragment>
             ))}
           </tbody>
         </table>

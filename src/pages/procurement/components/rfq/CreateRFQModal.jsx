@@ -26,6 +26,7 @@ export default function CreateRFQModal({ open, onClose, onSaved }) {
   const [attachments, setAttachments]       = useState([]);
 
   const [form, setForm] = useState({
+    title: '',
     linkedPR: '',
     date: new Date().toISOString().slice(0, 10),
     deadline: '',
@@ -40,7 +41,7 @@ export default function CreateRFQModal({ open, onClose, onSaved }) {
       setItems([{ ...emptyItem }]);
       setAttachments([]);
       setError('');
-      setForm({ linkedPR: '', date: new Date().toISOString().slice(0, 10), deadline: '', notes: '' });
+      setForm({ title: '', linkedPR: '', date: new Date().toISOString().slice(0, 10), deadline: '', notes: '' });
     }
   }, [open]);
 
@@ -49,7 +50,7 @@ export default function CreateRFQModal({ open, onClose, onSaved }) {
     try {
       const [vRes, pRes] = await Promise.all([
         vendorApi.getAll({ status: 'Active' }),
-        prApi.getAll(),
+        prApi.getAll({ status: 'Approved' }), // Only approved PRs can be linked to RFQ
       ]);
       setVendors(vRes.data || []);
       setPrs(pRes.data || []);
@@ -70,14 +71,15 @@ export default function CreateRFQModal({ open, onClose, onSaved }) {
     setError('');
     if (selectedVendors.length === 0) { setError('Select at least one vendor.'); return; }
     if (!form.deadline) { setError('Deadline is required.'); return; }
+    if (!form.title.trim()) { setError('RFQ Title is required.'); return; }
     if (items.some(it => !it.name.trim() || !it.qty)) { setError('Fill item name and quantity for all rows.'); return; }
 
     setSaving(true);
     try {
       await rfqApi.create({
-        title: form.linkedPR
+        title: form.title.trim() || (form.linkedPR
           ? `RFQ for PR-${prs.find(p => p._id === form.linkedPR)?.prId || ''}`
-          : `RFQ — ${new Date().toLocaleDateString('en-IN')}`,
+          : `RFQ — ${new Date().toLocaleDateString('en-IN')}`),
         linkedPR: form.linkedPR || null,
         vendors: selectedVendors,
         dueDate: form.deadline,
@@ -150,14 +152,28 @@ export default function CreateRFQModal({ open, onClose, onSaved }) {
                   onFocus={e => e.target.style.borderColor = '#c0392b'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
               </div>
               <div style={{ gridColumn: 'span 3' }}>
-                <label style={lbl}>PR Reference (optional)</label>
-                <select style={inp} value={form.linkedPR} onChange={e => setForm(f => ({ ...f, linkedPR: e.target.value }))}
+                <label style={lbl}>PR Reference (Approved PRs only)</label>
+                <select style={inp} value={form.linkedPR} onChange={e => {
+                  const prId = e.target.value;
+                  const pr = prs.find(p => p._id === prId);
+                  setForm(f => ({
+                    ...f,
+                    linkedPR: prId,
+                    title: f.title || (pr ? `RFQ for ${pr.prId} — ${pr.department}` : ''),
+                  }));
+                }}
                   onFocus={e => e.target.style.borderColor = '#c0392b'} onBlur={e => e.target.style.borderColor = '#e2e8f0'}>
                   <option value="">— None —</option>
                   {prs.map(p => (
                     <option key={p._id} value={p._id}>{p.prId} — {p.department}</option>
                   ))}
                 </select>
+              </div>
+              <div style={{ gridColumn: 'span 3' }}>
+                <label style={lbl}>RFQ Title *</label>
+                <input style={inp} placeholder="e.g. Raw Material Supply Q3 — Vendor A" value={form.title}
+                  onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                  onFocus={e => e.target.style.borderColor = '#c0392b'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
               </div>
             </div>
           </section>

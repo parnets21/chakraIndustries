@@ -1,34 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FiBox, FiTruck, FiPackage, FiGift, FiCheck, FiX } from 'react-icons/fi';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
 import { toast } from '../../components/common/Toast';
-import { corporateClientApi } from '../../api/corporateClientApi';
-import { bulkQuotationApi } from '../../api/bulkQuotationApi';
-import { deliveryScheduleApi } from '../../api/deliveryScheduleApi';
-
-const corporateClients = [
-  { id: 'CC-001', name: 'Tata Motors Ltd', contact: 'Rajesh Mehta', phone: '9876543210', city: 'Mumbai', tier: 'Platinum', creditLimit: '₹50,00,000', outstanding: '₹12,40,000', status: 'Active' },
-  { id: 'CC-002', name: 'Mahindra & Mahindra', contact: 'Suresh Nair', phone: '9812345678', city: 'Pune', tier: 'Gold', creditLimit: '₹30,00,000', outstanding: '₹8,20,000', status: 'Active' },
-  { id: 'CC-003', name: 'Bajaj Auto Ltd', contact: 'Anil Sharma', phone: '9823456789', city: 'Aurangabad', tier: 'Platinum', creditLimit: '₹45,00,000', outstanding: '₹18,60,000', status: 'Active' },
-  { id: 'CC-004', name: 'Hero MotoCorp', contact: 'Vijay Rao', phone: '9834567890', city: 'Delhi', tier: 'Gold', creditLimit: '₹25,00,000', outstanding: '₹5,80,000', status: 'Active' },
-  { id: 'CC-005', name: 'TVS Motor Company', contact: 'Pradeep Kumar', phone: '9845678901', city: 'Chennai', tier: 'Silver', creditLimit: '₹15,00,000', outstanding: '₹3,20,000', status: 'Active' },
-  { id: 'CC-006', name: 'Ashok Leyland', contact: 'Ramesh Das', phone: '9856789012', city: 'Chennai', tier: 'Gold', creditLimit: '₹35,00,000', outstanding: '₹0', status: 'Inactive' },
-];
-
-const bulkQuotations = [
-  { id: 'BQ-2024-018', client: 'Tata Motors Ltd', items: 12, qty: 5000, value: '₹42,00,000', packaging: 'Custom Branded', validity: '30 Apr', status: 'Sent' },
-  { id: 'BQ-2024-017', client: 'Bajaj Auto Ltd', items: 8, qty: 3200, value: '₹28,50,000', packaging: 'Standard', validity: '25 Apr', status: 'Approved' },
-  { id: 'BQ-2024-016', client: 'Mahindra & Mahindra', items: 15, qty: 4800, value: '₹36,80,000', packaging: 'Custom Branded', validity: '20 Apr', status: 'Draft' },
-  { id: 'BQ-2024-015', client: 'Hero MotoCorp', items: 6, qty: 2000, value: '₹14,20,000', packaging: 'Bulk Loose', validity: '18 Apr', status: 'Expired' },
-];
-
-const quotationItems = [
-  { item: 'Bearing 6205', sku: 'SKU-1042', qty: 1000, unitPrice: 420, discount: 8, total: 386400 },
-  { item: 'Oil Seal 35x52', sku: 'SKU-2187', qty: 800, unitPrice: 115, discount: 10, total: 82800 },
-  { item: 'Gasket Set A', sku: 'SKU-0934', qty: 500, unitPrice: 650, discount: 5, total: 308750 },
-];
+import { bulkOrderApi } from '../../api/bulkOrderApi';
 
 const packagingOptions = [
   { id: 'PKG-01', name: 'Standard Box', description: 'Plain corrugated box with product label', moq: 100, extraCost: '₹0', leadTime: '0 days', icon: FiBox },
@@ -57,266 +33,126 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [selectedPkg, setSelectedPkg] = useState('PKG-02');
   const [loading, setLoading] = useState(false);
-  const [corporateClients, setCorporateClients] = useState([]);
-  const [bulkQuotations, setBulkQuotations] = useState([]);
-  const [deliverySchedules, setDeliverySchedules] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [quotations, setQuotations] = useState([]);
+  const [schedules, setSchedules] = useState([]);
+  const [stats, setStats] = useState({ activeClients: 0, activeQuotes: 0, approvedQuotes: 0, pipeline: 0 });
   const [selectedClient, setSelectedClient] = useState(null);
-  const [newClientForm, setNewClientForm] = useState({
-    name: '',
-    contact: '',
-    phone: '',
-    email: '',
-    city: '',
-    tier: 'Silver',
-    creditLimit: '',
-    gstNumber: '',
-    address: '',
-  });
-  const [newDeliveryForm, setNewDeliveryForm] = useState({
-    quotationId: '',
-    client: '',
-    items: '',
-    qty: '',
-    deliveryDate: '',
-    slot: '',
-    warehouse: 'WH-01',
-    vehicle: '',
-    status: 'Draft',
-  });
+  const [viewClient, setViewClient] = useState(null);
+  const [viewQuote, setViewQuote] = useState(null);
+  const [quoteItems, setQuoteItems] = useState([{ item: '', sku: '', qty: 1, unitPrice: 0, discount: 0 }]);
+  const [quoteForm, setQuoteForm] = useState({ clientId: '', packaging: 'Standard Box', paymentTerms: 'Net 30', validity: '' });
+  const [newClientForm, setNewClientForm] = useState({ name: '', contact: '', phone: '', email: '', city: '', tier: 'Silver', creditLimit: '', gstNumber: '', address: '' });
+  const [newDeliveryForm, setNewDeliveryForm] = useState({ quotationId: '', client: '', items: '', qty: '', deliveryDate: '', slot: '', warehouse: 'WH-01', vehicle: '', status: 'Draft' });
 
-  // Transform backend data to frontend format
-  const transformCorporateClient = (backendClient) => ({
-    id: backendClient.clientId || backendClient._id,
-    name: backendClient.name,
-    contact: backendClient.contact,
-    phone: backendClient.phone,
-    city: backendClient.city,
-    tier: backendClient.tier,
-    creditLimit: typeof backendClient.creditLimit === 'number' ? `₹${backendClient.creditLimit.toLocaleString()}` : backendClient.creditLimit,
-    outstanding: typeof backendClient.outstanding === 'number' ? `₹${backendClient.outstanding.toLocaleString()}` : backendClient.outstanding,
-    status: backendClient.status,
-  });
+  const fmtMoney = (v) => typeof v === 'number' ? `₹${v.toLocaleString('en-IN')}` : (v || '₹0');
 
-  const transformBulkQuotation = (backendQuotation) => ({
-    id: backendQuotation.quotationId || backendQuotation._id,
-    client: backendQuotation.client,
-    items: backendQuotation.items,
-    qty: backendQuotation.qty,
-    value: typeof backendQuotation.value === 'number' ? `₹${backendQuotation.value.toLocaleString()}` : backendQuotation.value,
-    packaging: backendQuotation.packaging,
-    validity: new Date(backendQuotation.validity).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
-    status: backendQuotation.status,
-  });
-
-  const transformDeliverySchedule = (backendSchedule) => ({
-    id: backendSchedule.scheduleId || backendSchedule._id,
-    quotationId: backendSchedule.quotationId,
-    client: backendSchedule.client,
-    items: backendSchedule.items,
-    qty: backendSchedule.qty,
-    date: new Date(backendSchedule.deliveryDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
-    slot: backendSchedule.slot,
-    wh: backendSchedule.warehouse,
-    vehicle: backendSchedule.vehicle,
-    status: backendSchedule.status,
-  });
-
-  // Fetch all data on component mount
-  useEffect(() => {
-    const fetchAllData = async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch clients
-        try {
-          const clientsRes = await corporateClientApi.getAll();
-          if (clientsRes.data && Array.isArray(clientsRes.data)) {
-            setCorporateClients(clientsRes.data.map(transformCorporateClient));
-          }
-        } catch (err) {
-          console.warn('Failed to fetch corporate clients:', err);
-          setCorporateClients([]);
-        }
-
-        // Fetch quotations
-        try {
-          const quotationsRes = await bulkQuotationApi.getAll();
-          if (quotationsRes.data && Array.isArray(quotationsRes.data)) {
-            setBulkQuotations(quotationsRes.data.map(transformBulkQuotation));
-          }
-        } catch (err) {
-          console.warn('Failed to fetch bulk quotations:', err);
-          setBulkQuotations([]);
-        }
-
-        // Fetch delivery schedules
-        try {
-          const schedulesRes = await deliveryScheduleApi.getAll();
-          if (schedulesRes.data && Array.isArray(schedulesRes.data)) {
-            setDeliverySchedules(schedulesRes.data.map(transformDeliverySchedule));
-          }
-        } catch (err) {
-          console.warn('Failed to fetch delivery schedules:', err);
-          setDeliverySchedules([]);
-        }
-      } catch (error) {
-        console.error('Failed to fetch data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAllData();
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [clientsRes, quotesRes, schedulesRes, statsRes] = await Promise.allSettled([
+        bulkOrderApi.getClients(),
+        bulkOrderApi.getQuotations(),
+        bulkOrderApi.getSchedules(),
+        bulkOrderApi.getStats(),
+      ]);
+      if (clientsRes.status === 'fulfilled') setClients(clientsRes.value.data || []);
+      if (quotesRes.status === 'fulfilled') setQuotations(quotesRes.value.data || []);
+      if (schedulesRes.status === 'fulfilled') setSchedules(schedulesRes.value.data || []);
+      if (statsRes.status === 'fulfilled') setStats(statsRes.value.data || {});
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   }, []);
 
-  const subtotal = quotationItems.reduce((s, i) => s + i.total, 0);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const subtotal = quoteItems.reduce((s, i) => s + ((parseFloat(i.qty)||0)*(parseFloat(i.unitPrice)||0)*(1-(parseFloat(i.discount)||0)/100)), 0);
   const gst = Math.round(subtotal * 0.18);
   const grand = subtotal + gst;
 
   const kpis = [
-    { label: 'Corporate Clients', value: corporateClients.filter(c => c.status === 'Active').length, color: '#8b5cf6' },
-    { label: 'Active Quotations', value: bulkQuotations.filter(q => q.status === 'Sent').length, color: '#f59e0b' },
-    { label: 'Approved Quotes', value: bulkQuotations.filter(q => q.status === 'Approved').length, color: '#10b981' },
-    { label: 'Total Pipeline', value: '₹1.21Cr', color: '#c0392b' },
+    { label: 'Corporate Clients', value: stats.activeClients ?? clients.filter(c => c.status === 'Active').length, color: '#8b5cf6' },
+    { label: 'Active Quotations', value: stats.activeQuotes ?? quotations.filter(q => q.status === 'Sent').length, color: '#f59e0b' },
+    { label: 'Approved Quotes',   value: stats.approvedQuotes ?? quotations.filter(q => q.status === 'Approved').length, color: '#10b981' },
+    { label: 'Pipeline Value',    value: stats.pipeline ? `₹${(stats.pipeline/100000).toFixed(1)}L` : '₹0', color: '#c0392b' },
   ];
 
   const handleAddCorporateClient = async () => {
-    if (!newClientForm.name || !newClientForm.contact) {
-      toast('❌ Please fill in required fields');
-      return;
-    }
-
+    if (!newClientForm.name || !newClientForm.contact) { toast('Please fill required fields', 'error'); return; }
+    setLoading(true);
     try {
-      setLoading(true);
-      const clientName = newClientForm.name;
-      
-      const payload = {
-        name: newClientForm.name,
-        contact: newClientForm.contact,
-        phone: newClientForm.phone || 'N/A',
-        email: newClientForm.email || 'N/A',
-        city: newClientForm.city || 'N/A',
-        tier: newClientForm.tier,
-        creditLimit: newClientForm.creditLimit ? parseInt(newClientForm.creditLimit) : 0,
-        gstNumber: newClientForm.gstNumber || 'N/A',
-        address: newClientForm.address || 'N/A',
+      const res = await bulkOrderApi.createClient({
+        ...newClientForm,
+        creditLimit: parseFloat(newClientForm.creditLimit) || 0,
         status: 'Active',
-      };
-
-      const response = await corporateClientApi.create(payload);
-      
-      if (response.success && response.data) {
-        const newClient = transformCorporateClient(response.data);
-        setCorporateClients([newClient, ...corporateClients]);
-        
-        setShowClientModal(false);
-        setNewClientForm({
-          name: '',
-          contact: '',
-          phone: '',
-          email: '',
-          city: '',
-          tier: 'Silver',
-          creditLimit: '',
-          gstNumber: '',
-          address: '',
-        });
-        toast(`✅ Corporate client "${clientName}" added successfully!`);
-      }
-    } catch (error) {
-      console.error('Failed to add corporate client:', error);
-      toast(`❌ Failed to add client: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
+      });
+      setClients(prev => [res.data, ...prev]);
+      setShowClientModal(false);
+      setNewClientForm({ name: '', contact: '', phone: '', email: '', city: '', tier: 'Silver', creditLimit: '', gstNumber: '', address: '' });
+      toast(`Client "${res.data.name}" added`);
+      fetchAll();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setLoading(false); }
   };
 
   const handleAddBulkQuotation = async () => {
-    if (!selectedClient) {
-      toast('❌ Please select a client');
-      return;
-    }
-
+    if (!quoteForm.clientId) { toast('Select a client', 'error'); return; }
+    if (!quoteItems[0]?.item) { toast('Add at least one item', 'error'); return; }
+    setLoading(true);
     try {
-      setLoading(true);
-      
-      const payload = {
-        client: selectedClient.name,
-        items: quotationItems.length,
-        qty: quotationItems.reduce((sum, item) => sum + item.qty, 0),
-        value: grand,
-        packaging: 'Custom Branded',
-        validity: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      const client = clients.find(c => c._id === quoteForm.clientId);
+      const items = quoteItems.map(it => ({
+        item: it.item, sku: it.sku,
+        qty: parseFloat(it.qty) || 0,
+        unitPrice: parseFloat(it.unitPrice) || 0,
+        discount: parseFloat(it.discount) || 0,
+        total: Math.round((parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0)*(1-(parseFloat(it.discount)||0)/100)),
+      }));
+      const res = await bulkOrderApi.createQuotation({
+        clientId: quoteForm.clientId,
+        clientName: client?.name || '',
+        items,
+        subtotal,
+        gstAmount: gst,
+        grandTotal: grand,
+        packaging: quoteForm.packaging,
+        paymentTerms: quoteForm.paymentTerms,
+        validity: quoteForm.validity || null,
         status: 'Sent',
-        lineItems: quotationItems,
-      };
-
-      const response = await bulkQuotationApi.create(payload);
-      
-      if (response.success && response.data) {
-        const newQuotation = transformBulkQuotation(response.data);
-        setBulkQuotations([newQuotation, ...bulkQuotations]);
-        
-        setShowQuoteModal(false);
-        setSelectedClient(null);
-        toast(`✉️ Quotation sent to ${selectedClient.name}!`);
-      }
-    } catch (error) {
-      console.error('Failed to add bulk quotation:', error);
-      toast(`❌ Failed to send quotation: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
+      });
+      setQuotations(prev => [res.data, ...prev]);
+      setShowQuoteModal(false);
+      setQuoteForm({ clientId: '', packaging: 'Standard Box', paymentTerms: 'Net 30', validity: '' });
+      setQuoteItems([{ item: '', sku: '', qty: 1, unitPrice: 0, discount: 0 }]);
+      toast('Quotation sent to client');
+      fetchAll();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setLoading(false); }
   };
 
   const handleAddDeliverySchedule = async () => {
-    if (!newDeliveryForm.quotationId || !newDeliveryForm.client || !newDeliveryForm.deliveryDate || !newDeliveryForm.slot) {
-      toast('❌ Please fill in all required fields');
-      return;
+    if (!newDeliveryForm.client || !newDeliveryForm.deliveryDate || !newDeliveryForm.slot) {
+      toast('Fill all required fields', 'error'); return;
     }
-
+    setLoading(true);
     try {
-      setLoading(true);
-      
-      const payload = {
-        quotationId: newDeliveryForm.quotationId,
-        client: newDeliveryForm.client,
+      const res = await bulkOrderApi.createSchedule({
+        quoteId: newDeliveryForm.quotationId || null,
+        clientName: newDeliveryForm.client,
         items: parseInt(newDeliveryForm.items) || 0,
         qty: parseInt(newDeliveryForm.qty) || 0,
-        deliveryDate: new Date(newDeliveryForm.deliveryDate),
+        deliveryDate: newDeliveryForm.deliveryDate,
         slot: newDeliveryForm.slot,
         warehouse: newDeliveryForm.warehouse,
         vehicle: newDeliveryForm.vehicle || 'Pending',
         status: newDeliveryForm.status,
-      };
-
-      const response = await deliveryScheduleApi.create(payload);
-      
-      if (response.success && response.data) {
-        const newSchedule = transformDeliverySchedule(response.data);
-        // Add to the beginning of the list so it appears first
-        setDeliverySchedules([newSchedule, ...deliverySchedules]);
-        
-        setShowDeliveryModal(false);
-        setNewDeliveryForm({
-          quotationId: '',
-          client: '',
-          items: '',
-          qty: '',
-          deliveryDate: '',
-          slot: '',
-          warehouse: 'WH-01',
-          vehicle: '',
-          status: 'Draft',
-        });
-        toast(`✅ Delivery scheduled successfully!`);
-      }
-    } catch (error) {
-      console.error('Failed to add delivery schedule:', error);
-      toast(`❌ Failed to schedule delivery: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
+      });
+      setSchedules(prev => [res.data, ...prev]);
+      setShowDeliveryModal(false);
+      setNewDeliveryForm({ quotationId: '', client: '', items: '', qty: '', deliveryDate: '', slot: '', warehouse: 'WH-01', vehicle: '', status: 'Draft' });
+      toast('Delivery scheduled');
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setLoading(false); }
   };
 
   return (
@@ -359,51 +195,59 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
 
       {activeTab === 0 && (
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          {loading ? <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8' }}>Loading...</div> : clients.length === 0 ? (
+            <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>No clients yet. Click "+ Add Client" to add one.</div>
+          ) : (
           <DataTable
             columns={[
-              { key: 'id', label: 'Client ID', render: v => <span className="font-semibold text-red-700">{v}</span> },
+              { key: 'clientId', label: 'Client ID', render: v => <span className="font-semibold text-red-700">{v}</span> },
               { key: 'name', label: 'Company', render: v => <span className="font-bold">{v}</span> },
               { key: 'contact', label: 'Contact' },
               { key: 'city', label: 'City' },
               { key: 'tier', label: 'Tier', render: v => (
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold" style={{ background: (tierColor[v] || '#6b7280') + '20', color: tierColor[v] || '#6b7280' }}>{v}</span>
               )},
-              { key: 'creditLimit', label: 'Credit Limit', render: v => <span className="font-semibold">{v}</span> },
-              { key: 'outstanding', label: 'Outstanding', render: v => <span className={`font-bold ${v === '₹0' ? 'text-green-600' : 'text-red-500'}`}>{v}</span> },
+              { key: 'creditLimit', label: 'Credit Limit', render: v => <span className="font-semibold">{fmtMoney(v)}</span> },
+              { key: 'outstanding', label: 'Outstanding', render: v => <span className={`font-bold ${!v || v === 0 ? 'text-green-600' : 'text-red-500'}`}>{fmtMoney(v)}</span> },
               { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
-              { key: 'id', label: 'Actions', render: () => (
+              { key: '_id', label: 'Actions', render: (_, row) => (
                 <div className="flex gap-1.5">
-                  <button onClick={() => alert('👁 Viewing client details...')} className={`${btnSm} border border-red-600 text-red-700 bg-transparent font-semibold cursor-pointer font-[inherit]`}>View</button>
-                  <button onClick={() => alert('📋 Creating quotation...')} className={`${btnSm} bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]`}>Quote</button>
+                  <button onClick={() => setViewClient(row)} className={`${btnSm} border border-red-600 text-red-700 bg-transparent font-semibold cursor-pointer font-[inherit]`}>View</button>
+                  <button onClick={() => { setQuoteForm(p => ({ ...p, clientId: row._id })); setShowQuoteModal(true); }} className={`${btnSm} bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]`}>Quote</button>
                 </div>
               )},
             ]}
-            data={corporateClients}
+            data={clients}
           />
+          )}
         </div>
       )}
 
       {activeTab === 1 && (
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          {loading ? <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8' }}>Loading...</div> : quotations.length === 0 ? (
+            <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>No quotations yet. Click "+ New Quotation" to create one.</div>
+          ) : (
           <DataTable
             columns={[
-              { key: 'id', label: 'Quote ID', render: v => <span className="font-semibold text-red-700">{v}</span> },
-              { key: 'client', label: 'Client', render: v => <span className="font-semibold">{v}</span> },
-              { key: 'items', label: 'SKUs' },
-              { key: 'qty', label: 'Total Qty', render: v => <span className="font-bold">{v.toLocaleString()}</span> },
-              { key: 'value', label: 'Value', render: v => <span className="font-bold text-red-700">{v}</span> },
+              { key: 'quoteId', label: 'Quote ID', render: v => <span className="font-semibold text-red-700">{v}</span> },
+              { key: 'clientName', label: 'Client', render: v => <span className="font-semibold">{v}</span> },
+              { key: 'items', label: 'SKUs', render: v => Array.isArray(v) ? v.length : v },
+              { key: 'grandTotal', label: 'Value', render: v => <span className="font-bold text-red-700">{fmtMoney(v)}</span> },
               { key: 'packaging', label: 'Packaging' },
-              { key: 'validity', label: 'Valid Till' },
+              { key: 'validity', label: 'Valid Till', render: v => v ? new Date(v).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—' },
               { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
-              { key: 'id', label: 'Actions', render: () => (
+              { key: '_id', label: 'Actions', render: (_, row) => (
                 <div className="flex gap-1.5">
-                  <button onClick={() => alert('👁 Viewing quotation...')} className={`${btnSm} border border-red-600 text-red-700 bg-transparent font-semibold cursor-pointer font-[inherit]`}>View</button>
-                  <button onClick={() => alert('📦 Converting to PO...')} className={`${btnSm} bg-gray-100 text-gray-800 font-semibold border-0 cursor-pointer font-[inherit]`}>Convert to PO</button>
+                  <button onClick={() => setViewQuote(row)} className={`${btnSm} border border-red-600 text-red-700 bg-transparent font-semibold cursor-pointer font-[inherit]`}>View</button>
+                  <button onClick={async () => { try { await bulkOrderApi.updateStatus(row._id, 'Converted'); fetchAll(); toast('Converted to PO'); } catch(e){ toast(e.message,'error'); } }} className={`${btnSm} bg-gray-100 text-gray-800 font-semibold border-0 cursor-pointer font-[inherit]`}>Convert to PO</button>
+                  <button onClick={async () => { if(window.confirm('Delete this quotation?')){ try { await bulkOrderApi.deleteQuotation(row._id); fetchAll(); toast('Deleted'); } catch(e){ toast(e.message,'error'); } } }} className={`${btnSm} bg-red-50 text-red-600 border border-red-200 font-semibold cursor-pointer font-[inherit]`}>Delete</button>
                 </div>
               )},
             ]}
-            data={bulkQuotations}
+            data={quotations}
           />
+          )}
         </div>
       )}
 
@@ -477,31 +321,30 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
           </div>
           <div className="overflow-x-auto rounded-xl border border-gray-200">
             <table className="w-full">
-              <thead><tr>{['Quote ID','Client','Items','Qty','Delivery Date','Slot','Warehouse','Vehicle','Status'].map(h => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+              <thead><tr>{['Schedule ID','Client','Items','Qty','Delivery Date','Slot','Warehouse','Vehicle','Status','Action'].map(h => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
               <tbody>
-                {deliverySchedules.length > 0 ? (
-                  deliverySchedules.map((r, i) => (
-                    <tr key={i} className={trCls}>
-                      <td className={`${tdCls} font-semibold text-red-700`}>{r.quotationId}</td>
-                      <td className={`${tdCls} font-semibold`}>{r.client}</td>
-                      <td className={tdCls}>{r.items}</td>
-                      <td className={`${tdCls} font-bold`}>{r.qty.toLocaleString()}</td>
-                      <td className={tdCls}>{r.date}</td>
-                      <td className={tdCls}>{r.slot}</td>
-                      <td className={tdCls}>{r.wh}</td>
-                      <td className={`${tdCls} ${r.vehicle === 'Pending' ? 'text-amber-500 font-semibold' : 'font-mono text-xs'}`}>
-                        <div className="flex items-center gap-1.5">
-                          {r.vehicle === 'Pending' ? <FiX size={14} /> : <FiCheck size={14} className="text-green-600" />}
-                          {r.vehicle}
-                        </div>
-                      </td>
-                      <td className={tdCls}><StatusBadge status={r.status} type={r.status === 'Confirmed' ? 'success' : r.status === 'Pending' ? 'warning' : 'info'} /></td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr className={trCls}>
-                    <td colSpan="9" className={`${tdCls} text-center text-gray-400`}>No delivery schedules yet. Click "+ Schedule Delivery" to create one.</td>
+                {schedules.length > 0 ? schedules.map((r, i) => (
+                  <tr key={i} className={trCls}>
+                    <td className={`${tdCls} font-semibold text-red-700`}>{r.scheduleId}</td>
+                    <td className={`${tdCls} font-semibold`}>{r.clientName}</td>
+                    <td className={tdCls}>{r.items}</td>
+                    <td className={`${tdCls} font-bold`}>{(r.qty||0).toLocaleString()}</td>
+                    <td className={tdCls}>{r.deliveryDate ? new Date(r.deliveryDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) : '—'}</td>
+                    <td className={tdCls}>{r.slot}</td>
+                    <td className={tdCls}>{r.warehouse}</td>
+                    <td className={`${tdCls} ${r.vehicle === 'Pending' ? 'text-amber-500 font-semibold' : 'font-mono text-xs'}`}>
+                      <div className="flex items-center gap-1.5">
+                        {r.vehicle === 'Pending' ? <FiX size={14} /> : <FiCheck size={14} className="text-green-600" />}
+                        {r.vehicle}
+                      </div>
+                    </td>
+                    <td className={tdCls}><StatusBadge status={r.status} type={r.status === 'Confirmed' ? 'success' : r.status === 'Pending' ? 'warning' : 'info'} /></td>
+                    <td className={tdCls}>
+                      <button onClick={async () => { if(window.confirm('Delete schedule?')){ try { await bulkOrderApi.deleteSchedule(r._id); fetchAll(); toast('Deleted'); } catch(e){ toast(e.message,'error'); } } }} className={`${btnSm} bg-red-50 text-red-600 border border-red-200 font-semibold cursor-pointer font-[inherit]`}>Delete</button>
+                    </td>
                   </tr>
+                )) : (
+                  <tr className={trCls}><td colSpan="10" className={`${tdCls} text-center text-gray-400`}>No delivery schedules yet. Click "+ Schedule Delivery" to create one.</td></tr>
                 )}
               </tbody>
             </table>
@@ -532,40 +375,56 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
       <Modal open={showQuoteModal} onClose={() => setShowQuoteModal(false)} title="Generate Bulk Quotation" size="lg"
         footer={<>
           <button className={btnOutline} onClick={() => { setShowQuoteModal(false); toast('Quotation saved as draft'); }}>Save Draft</button>
-          <button className={btnPrimary} onClick={handleAddBulkQuotation}>Send Quotation</button>
+          <button className={btnPrimary} onClick={handleAddBulkQuotation} disabled={loading}>{loading ? 'Sending...' : 'Send Quotation'}</button>
         </>}>
         <div className="grid grid-cols-2 gap-4 mb-5">
           <div className={fieldCls}><label className={labelCls}>Corporate Client *</label>
-            <select className={selectCls} onChange={(e) => { const client = corporateClients.find(c => c.name === e.target.value); setSelectedClient(client); }}><option value="">Select a client</option>{corporateClients.filter(c => c.status === 'Active').map(c => <option key={c.id}>{c.name}</option>)}</select>
+            <select className={selectCls} value={quoteForm.clientId} onChange={e => setQuoteForm(p => ({ ...p, clientId: e.target.value }))}>
+              <option value="">Select a client</option>
+              {clients.filter(c => c.status === 'Active').map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+            </select>
           </div>
-          <div className={fieldCls}><label className={labelCls}>Validity Date</label><input type="date" className={inputCls} /></div>
+          <div className={fieldCls}><label className={labelCls}>Validity Date</label>
+            <input type="date" className={inputCls} value={quoteForm.validity} onChange={e => setQuoteForm(p => ({ ...p, validity: e.target.value }))} />
+          </div>
           <div className={fieldCls}><label className={labelCls}>Packaging Option</label>
-            <select className={selectCls}>{packagingOptions.map(p => <option key={p.id}>{p.name}</option>)}</select>
+            <select className={selectCls} value={quoteForm.packaging} onChange={e => setQuoteForm(p => ({ ...p, packaging: e.target.value }))}>
+              {packagingOptions.map(p => <option key={p.id}>{p.name}</option>)}
+            </select>
           </div>
           <div className={fieldCls}><label className={labelCls}>Payment Terms</label>
-            <select className={selectCls}><option>Net 30</option><option>Net 45</option><option>Net 60</option><option>Advance</option></select>
+            <select className={selectCls} value={quoteForm.paymentTerms} onChange={e => setQuoteForm(p => ({ ...p, paymentTerms: e.target.value }))}>
+              <option>Net 30</option><option>Net 45</option><option>Net 60</option><option>Advance</option>
+            </select>
           </div>
         </div>
-        <div className="font-bold text-[13px] text-gray-800 mb-2.5">Line Items</div>
+        <div className="flex justify-between items-center mb-2.5">
+          <div className="font-bold text-[13px] text-gray-800">Line Items</div>
+          <button onClick={() => setQuoteItems(p => [...p, { item: '', sku: '', qty: 1, unitPrice: 0, discount: 0 }])} className={`${btnSm} border border-red-600 text-red-700 bg-transparent font-semibold cursor-pointer font-[inherit]`}>+ Add Row</button>
+        </div>
         <div className="overflow-x-auto rounded-xl border border-gray-200 mb-4">
           <table className="w-full">
-            <thead><tr>{['Item','SKU','Qty','Unit Price (₹)','Discount %','Total (₹)'].map(h => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+            <thead><tr>{['Item','SKU','Qty','Unit Price (₹)','Discount %','Total (₹)',''].map(h => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
             <tbody>
-              {quotationItems.map((item, i) => (
-                <tr key={i} className={trCls}>
-                  <td className={`${tdCls} font-semibold`}>{item.item}</td>
-                  <td className={`${tdCls} font-mono text-xs text-red-700`}>{item.sku}</td>
-                  <td className={tdCls}><input type="number" className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 font-[inherit]" defaultValue={item.qty} /></td>
-                  <td className={tdCls}><input type="number" className="w-24 px-2 py-1.5 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 font-[inherit]" defaultValue={item.unitPrice} /></td>
-                  <td className={tdCls}><input type="number" className="w-16 px-2 py-1.5 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 font-[inherit]" defaultValue={item.discount} /></td>
-                  <td className={`${tdCls} font-bold`}>₹{item.total.toLocaleString()}</td>
-                </tr>
-              ))}
+              {quoteItems.map((item, i) => {
+                const rowTotal = Math.round((parseFloat(item.qty)||0)*(parseFloat(item.unitPrice)||0)*(1-(parseFloat(item.discount)||0)/100));
+                return (
+                  <tr key={i} className={trCls}>
+                    <td className={tdCls}><input className="w-32 px-2 py-1.5 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 font-[inherit]" placeholder="Item name" value={item.item} onChange={e => setQuoteItems(p => p.map((it,idx) => idx===i ? {...it, item: e.target.value} : it))} /></td>
+                    <td className={tdCls}><input className="w-24 px-2 py-1.5 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 font-[inherit]" placeholder="SKU" value={item.sku} onChange={e => setQuoteItems(p => p.map((it,idx) => idx===i ? {...it, sku: e.target.value} : it))} /></td>
+                    <td className={tdCls}><input type="number" className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 font-[inherit]" value={item.qty} onChange={e => setQuoteItems(p => p.map((it,idx) => idx===i ? {...it, qty: e.target.value} : it))} /></td>
+                    <td className={tdCls}><input type="number" className="w-24 px-2 py-1.5 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 font-[inherit]" value={item.unitPrice} onChange={e => setQuoteItems(p => p.map((it,idx) => idx===i ? {...it, unitPrice: e.target.value} : it))} /></td>
+                    <td className={tdCls}><input type="number" className="w-16 px-2 py-1.5 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 font-[inherit]" value={item.discount} onChange={e => setQuoteItems(p => p.map((it,idx) => idx===i ? {...it, discount: e.target.value} : it))} /></td>
+                    <td className={`${tdCls} font-bold`}>₹{rowTotal.toLocaleString()}</td>
+                    <td className={tdCls}><button onClick={() => setQuoteItems(p => p.filter((_,idx) => idx!==i))} disabled={quoteItems.length===1} style={{ background:'none', border:'none', cursor: quoteItems.length===1 ? 'not-allowed':'pointer', color:'#ef4444', fontSize:16, padding:4 }}>×</button></td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
         <div className="bg-gray-50 rounded-lg p-4 max-w-[300px] ml-auto">
-          <div className="flex justify-between mb-2 text-[13px]"><span className="text-gray-600">Subtotal</span><span className="font-semibold text-gray-800">₹{subtotal.toLocaleString()}</span></div>
+          <div className="flex justify-between mb-2 text-[13px]"><span className="text-gray-600">Subtotal</span><span className="font-semibold text-gray-800">₹{Math.round(subtotal).toLocaleString()}</span></div>
           <div className="flex justify-between mb-2 text-[13px]"><span className="text-gray-600">GST (18%)</span><span className="font-semibold text-gray-800">₹{gst.toLocaleString()}</span></div>
           <div className="flex justify-between pt-2 border-t border-gray-200 text-[15px] font-extrabold text-red-700"><span>Grand Total</span><span>₹{grand.toLocaleString()}</span></div>
         </div>
@@ -580,21 +439,23 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
         <div className="grid grid-cols-2 gap-4">
           <div className={fieldCls}><label className={labelCls}>Quotation ID *</label>
             <select className={selectCls} value={newDeliveryForm.quotationId} onChange={(e) => {
-              const quotation = bulkQuotations.find(q => q.id === e.target.value);
+              const quotation = quotations.find(q => q._id === e.target.value);
               if (quotation) {
                 setNewDeliveryForm({
-                  ...newDeliveryForm, 
-                  quotationId: e.target.value, 
-                  client: quotation.client, 
-                  items: quotation.items.toString(), 
-                  qty: quotation.qty.toString()
+                  ...newDeliveryForm,
+                  quotationId: e.target.value,
+                  client: quotation.clientName,
+                  items: Array.isArray(quotation.items) ? quotation.items.length.toString() : '',
+                  qty: '',
                 });
+              } else {
+                setNewDeliveryForm({ ...newDeliveryForm, quotationId: e.target.value });
               }
             }}>
               <option value="">Select a quotation</option>
-              {bulkQuotations.map(q => (
-                <option key={q.id} value={q.id}>
-                  {q.id} - {q.client} ({q.qty.toLocaleString()} units)
+              {quotations.map(q => (
+                <option key={q._id} value={q._id}>
+                  {q.quoteId} - {q.clientName}
                 </option>
               ))}
             </select>
@@ -638,6 +499,93 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
             </select>
           </div>
         </div>
+      </Modal>
+
+      {/* View Client Modal */}
+      <Modal open={!!viewClient} onClose={() => setViewClient(null)} title={viewClient?.name || 'Client Details'} size="lg"
+        footer={<button className={btnPrimary} onClick={() => setViewClient(null)}>Close</button>}>
+        {viewClient && (
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '14px 20px', marginBottom: 20 }}>
+              {[['Client ID', viewClient.clientId], ['Company', viewClient.name], ['Contact', viewClient.contact],
+                ['Phone', viewClient.phone], ['Email', viewClient.email], ['City', viewClient.city],
+                ['Tier', viewClient.tier], ['Credit Limit', fmtMoney(viewClient.creditLimit)],
+                ['Outstanding', fmtMoney(viewClient.outstanding)], ['Status', viewClient.status],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 4, textTransform: 'uppercase' }}>{label}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>
+                    {label === 'Tier' ? <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: (tierColor[value]||'#6b7280')+'20', color: tierColor[value]||'#6b7280' }}>{value}</span>
+                    : label === 'Status' ? <StatusBadge status={value} />
+                    : value || '—'}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ background: '#f8fafc', borderRadius: 10, padding: 14, border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 10 }}>RECENT QUOTATIONS</div>
+              {quotations.filter(q => q.clientId?._id === viewClient._id || q.clientId === viewClient._id).length === 0
+                ? <div style={{ fontSize: 13, color: '#94a3b8' }}>No quotations for this client yet.</div>
+                : quotations.filter(q => q.clientId?._id === viewClient._id || q.clientId === viewClient._id).map((q, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
+                    <div>
+                      <span style={{ fontWeight: 700, color: '#c0392b', fontSize: 13 }}>{q.quoteId}</span>
+                      <span style={{ fontSize: 12, color: '#64748b', marginLeft: 10 }}>{fmtMoney(q.grandTotal)}</span>
+                    </div>
+                    <StatusBadge status={q.status} />
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* View Quote Modal */}
+      <Modal open={!!viewQuote} onClose={() => setViewQuote(null)} title={`Quotation: ${viewQuote?.quoteId || ''}`} size="lg"
+        footer={<button className={btnPrimary} onClick={() => setViewQuote(null)}>Close</button>}>
+        {viewQuote && (
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '14px 20px', marginBottom: 20 }}>
+              {[['Quote ID', viewQuote.quoteId], ['Client', viewQuote.clientName], ['Packaging', viewQuote.packaging],
+                ['Payment Terms', viewQuote.paymentTerms], ['Grand Total', fmtMoney(viewQuote.grandTotal)],
+                ['Valid Till', viewQuote.validity ? new Date(viewQuote.validity).toLocaleDateString('en-IN') : '—'],
+                ['Status', viewQuote.status],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 4, textTransform: 'uppercase' }}>{label}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>
+                    {label === 'Status' ? <StatusBadge status={value} /> : value || '—'}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {Array.isArray(viewQuote.items) && viewQuote.items.length > 0 && (
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 10 }}>LINE ITEMS</div>
+                <div style={{ overflowX: 'auto', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead><tr style={{ background: '#f8fafc' }}>
+                      {['Item','SKU','Qty','Unit Price','Discount','Total'].map(h => <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>{h}</th>)}
+                    </tr></thead>
+                    <tbody>
+                      {viewQuote.items.map((it, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '10px 12px', fontWeight: 600 }}>{it.item}</td>
+                          <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontSize: 11, color: '#ef4444' }}>{it.sku || '—'}</td>
+                          <td style={{ padding: '10px 12px' }}>{it.qty}</td>
+                          <td style={{ padding: '10px 12px' }}>₹{(it.unitPrice||0).toLocaleString()}</td>
+                          <td style={{ padding: '10px 12px' }}>{it.discount || 0}%</td>
+                          <td style={{ padding: '10px 12px', fontWeight: 700, color: '#c0392b' }}>₹{(it.total||0).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   );

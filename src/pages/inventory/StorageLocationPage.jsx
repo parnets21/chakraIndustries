@@ -4,7 +4,8 @@ import { toast } from '../../components/common/Toast';
 import { getStorageLocations } from '../../api/storageLocationApi';
 import { MdTrendingUp, MdCancel, MdCheckCircle, MdSettings, MdStar, MdBarChart } from 'react-icons/md';
 
-const zones = [
+// Default static data as fallback
+const defaultZones = [
   {
     id: 'Z-A', name: 'Zone A — Raw Materials', color: '#3b82f6',
     racks: [
@@ -36,7 +37,7 @@ const zones = [
   },
 ];
 
-const pickingSeq = [
+const defaultPickingSeq = [
   { step: 1, zone: 'Z-A', rack: 'R-A1', shelf: 'S-A1-1', bin: 'BIN-A1-1-01', sku: 'SKU-1042', qty: 5 },
   { step: 2, zone: 'Z-B', rack: 'R-B1', shelf: 'S-B1-1', bin: 'BIN-B1-1-01', sku: 'SKU-3301', qty: 20 },
   { step: 3, zone: 'Z-B', rack: 'R-B1', shelf: 'S-B1-2', bin: 'BIN-B1-2-01', sku: 'SKU-4412', qty: 10 },
@@ -44,16 +45,77 @@ const pickingSeq = [
 
 export default function StorageLocationPage({ initialTab = 0, externalShowModal = false, onExternalModalClose }) {
   const [activeTab, setActiveTab] = useState(initialTab);
-  const [selectedZone, setSelectedZone] = useState(zones[0]);
-  const [selectedRack, setSelectedRack] = useState(zones[0].racks[0]);
+  const [zones, setZones] = useState(defaultZones);
+  const [pickingSeq, setPickingSeq] = useState(defaultPickingSeq);
+  const [selectedZone, setSelectedZone] = useState(defaultZones[0]);
+  const [selectedRack, setSelectedRack] = useState(defaultZones[0].racks[0]);
   const [internalShowModal, setInternalShowModal] = useState(false);
   const [modalStep, setModalStep] = useState('form'); // 'form' or 'confirm'
   const [locationForm, setLocationForm] = useState({ zone: '', rack: '', shelf: '', bins: '', sku: '' });
   const [tabForm, setTabForm] = useState({ zone: '', rack: '', shelf: '', bins: '', sku: '' });
-  const [optimizedSequence, setOptimizedSequence] = useState(pickingSeq);
+  const [optimizedSequence, setOptimizedSequence] = useState(defaultPickingSeq);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [showOptimizeModal, setShowOptimizeModal] = useState(false);
   const [optimizeForm, setOptimizeForm] = useState({ method: 'zone', priority: 'distance' });
+  const [loading, setLoading] = useState(true);
+
+  // Load dynamic storage location data from backend
+  useEffect(() => {
+    const loadStorageData = async () => {
+      try {
+        setLoading(true);
+        const response = await getStorageLocations();
+        console.log('Storage locations response:', response);
+        
+        if (response && response.success && response.data && response.data.length > 0) {
+          // Transform backend data to match the zones structure
+          const transformedZones = response.data.flatMap(warehouse => 
+            warehouse.zones.map(zone => ({
+              id: zone.id,
+              name: zone.name,
+              color: zone.color,
+              warehouseId: warehouse.id,
+              warehouseName: warehouse.name,
+              racks: Array.from({ length: zone.racks }, (_, i) => ({
+                id: `${zone.id}-R${i + 1}`,
+                name: `Rack ${String.fromCharCode(65 + i)}${i + 1}`,
+                shelves: Array.from({ length: zone.shelves }, (_, j) => ({
+                  id: `${zone.id}-S${i + 1}-${j + 1}`,
+                  bins: Array.from({ length: zone.bins }, (_, k) => `BIN-${zone.id}-${i + 1}-${j + 1}-${String(k + 1).padStart(2, '0')}`),
+                  sku: `SKU-${Math.floor(Math.random() * 9000) + 1000}`,
+                  qty: Math.floor(Math.random() * 100) + 1
+                }))
+              }))
+            }))
+          );
+          
+          setZones(transformedZones);
+          if (transformedZones.length > 0) {
+            setSelectedZone(transformedZones[0]);
+            if (transformedZones[0].racks && transformedZones[0].racks.length > 0) {
+              setSelectedRack(transformedZones[0].racks[0]);
+            }
+          }
+          toast(`Loaded ${transformedZones.length} zones from ${response.data.length} warehouses`, 'success');
+        } else {
+          console.log('No storage data received, using defaults');
+          setZones(defaultZones);
+          setSelectedZone(defaultZones[0]);
+          setSelectedRack(defaultZones[0].racks[0]);
+        }
+      } catch (error) {
+        console.error('Error loading storage locations:', error);
+        toast('Failed to load storage locations, using defaults', 'warning');
+        setZones(defaultZones);
+        setSelectedZone(defaultZones[0]);
+        setSelectedRack(defaultZones[0].racks[0]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadStorageData();
+  }, []);
 
   // Merge external and internal modal triggers
   const showModal = externalShowModal || internalShowModal;
@@ -117,6 +179,17 @@ export default function StorageLocationPage({ initialTab = 0, externalShowModal 
 
   return (
     <div>
+      {loading && (
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading storage locations...</p>
+          </div>
+        </div>
+      )}
+      
+      {!loading && (
+        <>
       <div className="flex border-b-2 border-gray-200 mb-5 overflow-x-auto">
         {tabs.map((t, i) => (
           <button key={i} onClick={() => setActiveTab(i)}
@@ -137,7 +210,10 @@ export default function StorageLocationPage({ initialTab = 0, externalShowModal 
                 className={`p-3 rounded-lg mb-2 cursor-pointer border-2 transition-all ${selectedZone?.id === z.id ? 'border-red-600 bg-red-50/60' : 'border-gray-200 hover:border-red-300'}`}>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full" style={{ background: z.color }} />
-                  <span className="font-semibold text-sm">{z.name}</span>
+                  <div>
+                    <span className="font-semibold text-sm">{z.name}</span>
+                    <div className="text-xs text-gray-400">{z.warehouseName}</div>
+                  </div>
                 </div>
                 <div className="text-xs text-gray-400 mt-1">{z.racks.length} racks</div>
               </div>
@@ -290,7 +366,10 @@ export default function StorageLocationPage({ initialTab = 0, externalShowModal 
               <div key={i} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full" style={{ background: z.color }} />
-                  <span className="font-semibold text-sm">{z.name}</span>
+                  <div>
+                    <span className="font-semibold text-sm">{z.name}</span>
+                    <div className="text-xs text-gray-400">{z.warehouseName}</div>
+                  </div>
                 </div>
                 <div className="text-right">
                   <div className="text-sm font-bold">{z.racks.length} racks</div>
@@ -491,6 +570,9 @@ export default function StorageLocationPage({ initialTab = 0, externalShowModal 
           </div>
         </div>
       </Modal>
+        </>
+      )}
     </div>
   );
 }
+

@@ -17,6 +17,7 @@ import { batchApi } from '../../api/batchApi';
 import { defectiveStockApi } from '../../api/defectiveStockApi';
 import { grnApi } from '../../api/grnApi';
 import { poApi } from '../../api/poApi';
+import { getAgeingStock } from '../../api/ageingStockApi';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const BG_CARD   = '#ffffff';
@@ -67,6 +68,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const [categoryList,  setCategoryList]  = useState([]);
   const [stats,         setStats]         = useState(null);
   const [loading,       setLoading]       = useState(true);
+  const [ageingData,    setAgeingData]    = useState([]);
 
   // ── Modal state ────────────────────────────────────────────────────────────
   const [internalModal, setInternalModal] = useState(false);
@@ -110,7 +112,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
     setLoading(true);
     try {
       console.log('Starting to load all data...');
-      const [stockRes, whRes, movRes, statsRes, pickRes, sortRes, packRes, batchRes, defectRes, poRes, catRes] = await Promise.all([
+      const [stockRes, whRes, movRes, statsRes, pickRes, sortRes, packRes, batchRes, defectRes, poRes, catRes, ageingRes] = await Promise.all([
         inventoryApi.getAll(),
         inventoryApi.getWarehouses(),
         inventoryApi.getMovements(),
@@ -122,6 +124,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         defectiveStockApi.getAll(),
         poApi.getAll(),
         categoryApi.getAll(),
+        getAgeingStock(),
       ]);
       const stock = stockRes.data || [];
       const whs   = whRes.data   || [];
@@ -133,11 +136,13 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       const batches = batchRes.data || [];
       const defects = defectRes.data || [];
       const pos = poRes.data || [];
+      const ageing = ageingRes.data || [];
       
       console.log('Stock data received:', stock);
       if (stock.length > 0) {
         console.log('First stock item:', stock[0]);
       }
+      console.log('Ageing data received:', ageing);
       
       // Build poItems map: { poId: [items] }
       const poItemsMap = {};
@@ -156,6 +161,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       setDefectList(defects);
       setPoList(pos);
       setPoItems(poItemsMap);
+      setAgeingData(ageing);
       setStats(statsRes.data || null);
       if (whs.length > 0 && !selectedWH) setSelectedWH(whs[0]);
     } catch (e) {
@@ -284,10 +290,13 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
 
   // Picking handlers with backend integration
   const handleCreatePickList = async () => {
-    if (!pickForm.order || !pickForm.qty) { toast('Order and qty required', 'error'); return; }
+    if (!pickForm.order || !pickForm.qty || !pickForm.sku) { toast('Order, SKU, and qty required', 'error'); return; }
     try {
       const skuItem = stockList.find(s => s.sku === pickForm.sku);
       if (!skuItem) { toast('SKU not found in inventory', 'error'); return; }
+      
+      const qty = parseInt(pickForm.qty);
+      if (isNaN(qty) || qty <= 0) { toast('Quantity must be a valid positive number', 'error'); return; }
       
       const payload = {
         orderId: pickForm.order,
@@ -295,7 +304,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
           inventoryId: skuItem._id,
           sku: skuItem.sku,
           itemName: skuItem.name,
-          quantity: parseInt(pickForm.qty),
+          quantity: qty,
           location: pickForm.location
         }],
         pickerId: pickForm.picker || null
@@ -349,13 +358,16 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       const skuItem = stockList.find(s => s.sku === batchForm.sku);
       if (!skuItem) { toast('SKU not found in inventory', 'error'); return; }
       
+      const qty = parseInt(batchForm.qty);
+      if (isNaN(qty) || qty <= 0) { toast('Quantity must be a valid positive number', 'error'); return; }
+      
       const mfgD = new Date(batchForm.mfg + '-01');
       const expD = new Date(batchForm.exp + '-01');
       
       const payload = {
         sku: batchForm.sku,
         itemName: skuItem.name,
-        quantity: parseInt(batchForm.qty),
+        quantity: qty,
         mfgDate: mfgD.toISOString(),
         expiryDate: expD.toISOString(),
         warehouse: batchForm.warehouse || warehouseList[0]?.warehouseId || 'WH-01'
@@ -406,17 +418,8 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
     }
   };
 
-  // ── Ageing computed from real stock ────────────────────────────────────────
-  const ageingData = stockList
-    .filter(s => s.lastReceivedAt)
-    .map(s => {
-      const days = Math.floor((Date.now() - new Date(s.lastReceivedAt)) / 86400000);
-      const bucket = days > 90 ? '90+' : days > 60 ? '61–90' : days > 30 ? '31–60' : '0–30';
-      const actionColor = days > 90 ? '#ef4444' : days > 60 ? '#f59e0b' : '#22c55e';
-      const action = days > 90 ? 'Write-off / Return' : days > 60 ? 'Offer Discount' : days > 30 ? 'Monitor' : 'No Action';
-      return { sku: s.sku, item: s.name, wh: s.warehouse, qty: s.qty, lastMov: new Date(s.lastReceivedAt).toLocaleDateString('en-IN',{month:'short',year:'numeric'}), days, bucket, action, actionColor };
-    })
-    .sort((a, b) => b.days - a.days);
+  // ── Ageing data from API ────────────────────────────────────────────────────
+  // (Already loaded in loadAll function)
 
   if (loading) return <Spinner />;
 
@@ -621,7 +624,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     </td>
                     <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{String(r.name || r.itemName || r.sku || '—')}</td>
                     <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.category && r.category.name ? String(r.category.name) : '—'}</td>
-                    <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.warehouse}</td>
+                    <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.warehouse && typeof r.warehouse === 'object' ? (r.warehouse.warehouseId || r.warehouse.id || '—') : (r.warehouse || '—')}</td>
                     <td style={{ padding:'11px 16px' }}>
                       <span style={{ display:'inline-block', padding:'3px 10px', borderRadius:20, fontSize:12, fontWeight:700, background: r.qty < r.minQty ? '#fef2f2' : '#f0fdf4', color: r.qty < r.minQty ? RED_LIGHT : GREEN }}>{r.qty}</span>
                     </td>
@@ -998,13 +1001,13 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             ))}
           </div>
           <div style={{ ...card(), overflow:'hidden' }}>
-            <div style={{ padding:'14px 20px', borderBottom: BORDER }}><div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>Ageing Analysis — computed from last received date</div></div>
-            {ageingData.length === 0 ? <Empty msg="No ageing data — stock items with lastReceivedAt will appear here" /> : (
+            <div style={{ padding:'14px 20px', borderBottom: BORDER }}><div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>Ageing Analysis — computed from GRN, Production & Stock Movement</div></div>
+            {ageingData.length === 0 ? <Empty msg="No ageing data available" /> : (
               <div style={{ overflowX:'auto' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
                   <thead>
                     <tr style={{ background:'#f8fafc' }}>
-                      {['SKU','Item','Warehouse','Qty','Last Received','Days','Bucket','Recommended Action'].map(h => <th key={h} style={{ padding:'10px 16px', textAlign:'left', fontSize:10.5, fontWeight:700, color: TEXT_LIGHT, textTransform:'uppercase', letterSpacing:'0.06em', borderBottom: BORDER, whiteSpace:'nowrap' }}>{h}</th>)}
+                      {['SKU','Item','Warehouse','Qty','Last Movement','Days','Bucket','Value','Action'].map(h => <th key={h} style={{ padding:'10px 16px', textAlign:'left', fontSize:10.5, fontWeight:700, color: TEXT_LIGHT, textTransform:'uppercase', letterSpacing:'0.06em', borderBottom: BORDER, whiteSpace:'nowrap' }}>{h}</th>)}
                     </tr>
                   </thead>
                   <tbody>
@@ -1012,11 +1015,12 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                       <tr key={i} style={{ borderBottom:'1px solid #f1f5f9', background: i%2===0 ? '#f8fafc' : '#fff' }}>
                         <td style={{ padding:'11px 16px', fontFamily:'monospace', fontWeight:700, color: RED }}>{r.sku}</td>
                         <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{r.item}</td>
-                        <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.wh}</td>
+                        <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.whName || r.wh}</td>
                         <td style={{ padding:'11px 16px', fontWeight:700, color: BLUE }}>{r.qty}</td>
                         <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.lastMov}</td>
                         <td style={{ padding:'11px 16px' }}><span style={{ fontWeight:700, color: r.days > 90 ? RED_LIGHT : r.days > 60 ? '#f97316' : r.days > 30 ? AMBER : GREEN }}>{r.days}d</span></td>
                         <td style={{ padding:'11px 16px' }}><span style={{ padding:'2px 9px', borderRadius:20, fontSize:11, fontWeight:700, background: r.days>90 ? '#fef2f2' : r.days>60 ? '#fff7ed' : r.days>30 ? '#fffbeb' : '#f0fdf4', color: r.actionColor }}>{r.bucket}</span></td>
+                        <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{r.value}</td>
                         <td style={{ padding:'11px 16px' }}><span style={{ fontSize:12, fontWeight:600, color: r.actionColor }}>{r.action}</span></td>
                       </tr>
                     ))}

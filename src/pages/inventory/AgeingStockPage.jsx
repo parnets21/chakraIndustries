@@ -11,37 +11,25 @@ export default function AgeingStockPage() {
   const fetchAgeingData = async () => {
     try {
       setLoading(true);
-      console.log('Fetching ageing stock data from /inventory-data/ageing...');
+      console.log('Fetching ageing stock data...');
       const response = await getAgeingStock();
-      console.log('Full ageing stock response:', response);
-      console.log('Response type:', typeof response);
-      console.log('Response keys:', response ? Object.keys(response) : 'null');
+      console.log('Ageing stock response:', response);
       
-      if (response && response.success) {
-        const data = response.data || [];
-        console.log('Ageing data items count:', data.length);
-        console.log('First item sample:', data[0]);
-        setAgeingData(data);
-        if (data.length === 0) {
-          toast('No ageing stock data available - ensure inventory items have lastMovementDate', 'info');
+      if (response && response.success && Array.isArray(response.data)) {
+        setAgeingData(response.data);
+        if (response.data.length === 0) {
+          toast('No ageing stock data available', 'info');
         } else {
-          toast(`Loaded ${data.length} ageing stock items`, 'success');
+          toast(`Loaded ${response.data.length} ageing stock items`, 'success');
         }
       } else {
-        console.error('Response not successful:', response);
-        console.error('Expected success: true, got:', response?.success);
-        toast('Failed to load ageing data - check console for details', 'warning');
+        console.error('Invalid response format:', response);
+        toast('Failed to load ageing data', 'warning');
         setAgeingData([]);
       }
     } catch (error) {
       console.error('Error loading ageing stock data:', error);
-      console.error('Error details:', {
-        message: error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data
-      });
-      toast('Error loading ageing stock data: ' + (error.message || 'Unknown error'), 'error');
+      toast('Error loading ageing stock data', 'error');
       setAgeingData([]);
     } finally {
       setLoading(false);
@@ -97,7 +85,7 @@ export default function AgeingStockPage() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <div className="text-sm font-bold text-gray-800">Ageing Stock Analysis</div>
-            <div className="text-xs text-gray-400 mt-0.5">Items grouped by days since manufacture</div>
+            <div className="text-xs text-gray-400 mt-0.5">Items grouped by days since GRN/Manufacture/Last Movement</div>
           </div>
           <div className="flex gap-2 items-center">
             <button
@@ -133,7 +121,7 @@ export default function AgeingStockPage() {
             <table className="w-full">
               <thead>
                 <tr className="bg-gray-50">
-                  {['SKU', 'Item', 'Warehouse', 'Qty', 'Days Old', 'Bucket', 'Value', 'Action'].map(h => (
+                  {['SKU', 'Item', 'Warehouse', 'Qty', 'Last Movement', 'Days Old', 'Bucket', 'Value', 'Action'].map(h => (
                     <th key={h} className="px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">
                       {h}
                     </th>
@@ -145,9 +133,10 @@ export default function AgeingStockPage() {
                   <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                     <td className="px-4 py-3 font-mono text-sm font-semibold text-red-700">{row.sku}</td>
                     <td className="px-4 py-3 text-sm">{row.item}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{row.wh}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{row.whName || row.wh}</td>
                     <td className="px-4 py-3 text-sm font-bold">{row.qty}</td>
-                    <td className="px-4 py-3 text-sm font-bold text-gray-800">{row.days}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{row.lastMov}</td>
+                    <td className="px-4 py-3 text-sm font-bold text-gray-800">{row.days}d</td>
                     <td className="px-4 py-3">
                       <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${
                         row.bucket === '0–30' ? 'bg-green-100 text-green-800' :

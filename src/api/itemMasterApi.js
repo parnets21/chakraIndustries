@@ -1,10 +1,15 @@
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+<<<<<<< HEAD
+=======
+
+>>>>>>> af8ef2846f5f1892074a94335e4576de854ddc62
 const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
 const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
 const handle = async (res) => { const d = await res.json(); if (!res.ok) throw new Error(d.message || 'Request failed'); return d; };
 const q = (p = {}) => { const s = new URLSearchParams(p).toString(); return s ? '?' + s : ''; };
 
 export const itemMasterApi = {
+<<<<<<< HEAD
   getAll:      (params = {}) => fetch(`${BASE}/item-master${q(params)}`,          { headers: authHeaders() }).then(handle),
   getStats:    ()            => fetch(`${BASE}/item-master/stats`,                 { headers: authHeaders() }).then(handle),
   getDropdown: ()            => fetch(`${BASE}/item-master/dropdown`,              { headers: authHeaders() }).then(handle),
@@ -14,4 +19,22 @@ export const itemMasterApi = {
   create:      (body)        => fetch(`${BASE}/item-master`,                       { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   update:      (id, body)    => fetch(`${BASE}/item-master/${id}`,                 { method: 'PUT',    headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   delete:      (id)          => fetch(`${BASE}/item-master/${id}`,                 { method: 'DELETE', headers: authHeaders() }).then(handle),
+=======
+  // CRUD Operations
+  getAll: (params = {}) => fetch(`${BASE}/item-master${q(params)}`, { headers: authHeaders() }).then(handle),
+  getById: (id) => fetch(`${BASE}/item-master/${id}`, { headers: authHeaders() }).then(handle),
+  getBySku: (sku) => fetch(`${BASE}/item-master/sku/${sku}`, { headers: authHeaders() }).then(handle),
+  create: (body) => fetch(`${BASE}/item-master`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  update: (id, body) => fetch(`${BASE}/item-master/${id}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  delete: (id) => fetch(`${BASE}/item-master/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
+
+  // Search & Filter
+  search: (q) => fetch(`${BASE}/item-master/search${q({ q })}`, { headers: authHeaders() }).then(handle),
+  
+  // Dropdown - Get items for dropdown (minimal data)
+  getDropdown: () => fetch(`${BASE}/item-master/dropdown`, { headers: authHeaders() }).then(handle),
+  
+  // Stats
+  getStats: () => fetch(`${BASE}/item-master/stats`, { headers: authHeaders() }).then(handle),
+>>>>>>> af8ef2846f5f1892074a94335e4576de854ddc62
 };

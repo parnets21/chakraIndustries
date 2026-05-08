@@ -25,4 +25,7 @@ export const inventoryApi = {
   getMovements:    (params = {}) => fetch(`${BASE}/inventory/movements${q(params)}`, { headers: authHeaders() }).then(handle),
   createMovement:  (body)        => fetch(`${BASE}/inventory/movements`,             { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   deleteMovement:  (id)          => fetch(`${BASE}/inventory/movements/${id}`,       { method: 'DELETE', headers: authHeaders() }).then(handle),
+
+  // ── GRN to Inventory Conversion ────────────────────────────────────────────
+  convertGRNToInventory: (grnId) => fetch(`${BASE}/inventory/convert-grn/${grnId}`, { method: 'POST', headers: authHeaders() }).then(handle),
 };

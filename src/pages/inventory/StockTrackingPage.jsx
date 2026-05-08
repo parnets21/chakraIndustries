@@ -192,6 +192,7 @@ export default function StockTrackingPage() {
                     <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#6b7280' }}>Damaged</th>
                     <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#6b7280' }}>Expired</th>
                     <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#6b7280' }}>Total</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#6b7280' }}>GRN Reference</th>
                     <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#6b7280' }}>Status</th>
                   </tr>
                 </thead>
@@ -214,6 +215,20 @@ export default function StockTrackingPage() {
                         <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#ef4444' }}>{item.damaged || 0}</td>
                         <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#8b5cf6' }}>{item.expired || 0}</td>
                         <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: '#1f2937' }}>{item.total || 0}</td>
+                        <td style={{ padding: '12px 16px', fontSize: 12 }}>
+                          {item.grnId ? (
+                            <a href={`#/procurement/grn/${item.grnId}`} style={{
+                              color: '#3b82f6', textDecoration: 'none', fontWeight: 600, fontFamily: 'monospace',
+                              cursor: 'pointer', padding: '3px 8px', borderRadius: 6,
+                              background: '#eff6ff', border: '1px solid #bfdbfe',
+                              display: 'inline-block',
+                            }}>
+                              {item.grnId}
+                            </a>
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontSize: 11 }}>—</span>
+                          )}
+                        </td>
                         <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                           <span style={{
                             display: 'inline-block', padding: '4px 8px', borderRadius: 4,

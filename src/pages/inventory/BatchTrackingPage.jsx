@@ -151,6 +151,7 @@ export default function BatchTrackingPage() {
                     <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#6b7280' }}>Mfg Date</th>
                     <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#6b7280' }}>Expiry Date</th>
                     <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#6b7280' }}>Days Left</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#6b7280' }}>GRN Reference</th>
                     <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#6b7280' }}>Status</th>
                     <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#6b7280' }}>Action</th>
                   </tr>
@@ -193,6 +194,20 @@ export default function BatchTrackingPage() {
                           <td style={{ padding: '12px 16px', fontSize: 13, color: '#4b5563' }}>{new Date(batch.expiryDate).toLocaleDateString()}</td>
                           <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: 13, fontWeight: 600, color: expiryStatus.color }}>
                             {daysLeft < 0 ? 'Expired' : `${daysLeft}d`}
+                          </td>
+                          <td style={{ padding: '12px 16px', fontSize: 12 }}>
+                            {batch.grnId ? (
+                              <a href={`#/procurement/grn/${batch.grnId}`} style={{
+                                color: '#3b82f6', textDecoration: 'none', fontWeight: 600, fontFamily: 'monospace',
+                                cursor: 'pointer', padding: '3px 8px', borderRadius: 6,
+                                background: '#eff6ff', border: '1px solid #bfdbfe',
+                                display: 'inline-block',
+                              }}>
+                                {batch.grnId}
+                              </a>
+                            ) : (
+                              <span style={{ color: '#94a3b8', fontSize: 11 }}>—</span>
+                            )}
                           </td>
                           <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                             <span style={{

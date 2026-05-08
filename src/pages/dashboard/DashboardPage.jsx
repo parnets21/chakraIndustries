@@ -13,6 +13,7 @@ import { rfqApi } from '../../api/rfqApi';
 import { qualityCheckApi } from '../../api/qualityCheckApi';
 import { vendorApi } from '../../api/vendorApi';
 import { inventoryApi } from '../../api/inventoryApi';
+import { inventoryFlowApi } from '../../api/inventoryFlowApi';
 import { MdProductionQuantityLimits } from 'react-icons/md';
 import { GiReturnArrow } from 'react-icons/gi';
 
@@ -70,11 +71,12 @@ export default function DashboardPage() {
   const [recentPOs, setRecentPOs]         = useState([]);
   const [pendingApprovals, setPendingApprovals] = useState([]);
   const [lowStock, setLowStock]           = useState([]);
+  const [flowData, setFlowData]           = useState(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [prRes, poRes, grnRes, approvalRes, qcRes, vendorRes, invRes, appListRes] = await Promise.allSettled([
+      const [prRes, poRes, grnRes, approvalRes, qcRes, vendorRes, invRes, appListRes, flowRes] = await Promise.allSettled([
         prApi.getAll(),
         poApi.getAll(),
         grnApi.getAll(),
@@ -83,6 +85,7 @@ export default function DashboardPage() {
         vendorApi.getAll(),
         inventoryApi.getAll(),
         approvalApi.getAll({ status: 'Pending' }),
+        inventoryFlowApi.getDashboard(),
       ]);
 
       if (prRes.status === 'fulfilled') {
@@ -110,6 +113,7 @@ export default function DashboardPage() {
         setLowStock(items.filter(i => i.status === 'Critical' || (i.minQty > 0 && i.qty < i.minQty)).slice(0, 4));
       }
       if (appListRes.status === 'fulfilled') setPendingApprovals((appListRes.value.data || []).slice(0, 4));
+      if (flowRes.status === 'fulfilled') setFlowData(flowRes.value.data || null);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, []);
@@ -320,6 +324,46 @@ export default function DashboardPage() {
           </Card>
         </div>
 
+        {/* ── Inventory Flow Section ── */}
+        {flowData && (
+          <Card>
+            <CardHead
+              title="Inventory Flow Pipeline"
+              sub="GRN → Inventory Increase → Sales → Inventory Decrease → Production → Returns → Final Stock"
+            />
+            <div style={{ padding:'0 18px 18px' }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                gap: 12,
+              }}>
+                {[
+                  { label: 'GRN Received', value: flowData.grnStats?.today || 0, icon: '📦', color: '#3b82f6' },
+                  { label: 'Inventory ↑', value: flowData.flowTimeline?.grnReceived || 0, icon: '⬆️', color: '#22c55e' },
+                  { label: 'Sales ↓', value: flowData.flowTimeline?.salesOutward || 0, icon: '📉', color: '#ef4444' },
+                  { label: 'Production', value: flowData.flowTimeline?.productionUsage || 0, icon: '🏭', color: '#f59e0b' },
+                  { label: 'Returns ↑', value: flowData.flowTimeline?.returnsInward || 0, icon: '↩️', color: '#a855f7' },
+                  { label: 'Final Stock', value: flowData.inventoryStats?.availableQuantity || 0, icon: '📊', color: '#06b6d4' },
+                ].map((item, i) => (
+                  <div key={i} style={{
+                    background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                    border: `2px solid ${item.color}`,
+                    borderRadius: 12,
+                    padding: 14,
+                    textAlign: 'center',
+                  }}>
+                    <div style={{ fontSize: 24, marginBottom: 6 }}>{item.icon}</div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: item.color, letterSpacing: '-0.3px' }}>
+                      {loading ? '—' : item.value}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 4, fontWeight: 600 }}>{item.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+        )}
+
         {/* ── Operational Alerts ── */}
         <div className="db-alerts">
           {alerts.map((a, i) => (
@@ -339,6 +383,56 @@ export default function DashboardPage() {
             </Card>
           ))}
         </div>
+
+        {/* ── Warehouse Breakdown ── */}
+        {flowData && Object.keys(flowData.warehouseBreakdown || {}).length > 0 && (
+          <Card>
+            <CardHead
+              title="Warehouse Stock Distribution"
+              sub="Inventory levels by warehouse"
+            />
+            <div style={{ padding:'0 18px 14px' }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: 12,
+              }}>
+                {Object.entries(flowData.warehouseBreakdown).map(([whName, data], i) => (
+                  <div key={i} style={{
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 10,
+                    padding: 12,
+                  }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>{whName}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                        <span style={{ color: '#64748b' }}>Items:</span>
+                        <span style={{ fontWeight: 600, color: '#1e293b' }}>{data.items}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                        <span style={{ color: '#64748b' }}>Total Qty:</span>
+                        <span style={{ fontWeight: 600, color: '#1e293b' }}>{data.totalQty}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                        <span style={{ color: '#64748b' }}>Available:</span>
+                        <span style={{ fontWeight: 600, color: '#22c55e' }}>{data.availableQty}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                        <span style={{ color: '#64748b' }}>Reserved:</span>
+                        <span style={{ fontWeight: 600, color: '#f59e0b' }}>{data.reservedQty}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, paddingTop: 6, borderTop: '1px solid #e2e8f0' }}>
+                        <span style={{ color: '#64748b' }}>Value:</span>
+                        <span style={{ fontWeight: 700, color: '#ef4444' }}>{fmt(data.value)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+        )}
 
         {/* ── Bottom: Recent POs + Side panels ── */}
         <div className="db-bottom">

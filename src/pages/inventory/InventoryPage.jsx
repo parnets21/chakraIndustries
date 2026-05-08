@@ -1,13 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import StatusBadge from '../../components/common/StatusBadge';
 import BarChart from '../../components/charts/BarChart';
 import Modal from '../../components/common/Modal';
 import StorageLocationPage from './StorageLocationPage';
 import PincodeStockPage from './PincodeStockPage';
-import { MdWarehouse, MdLocationOn, MdFileDownload as MdDownload, MdSwapHoriz, MdCheckCircle, MdWarning, MdArrowForward } from 'react-icons/md';
+import { MdWarehouse, MdLocationOn, MdFileDownload as MdDownload, MdSwapHoriz, MdCheckCircle, MdWarning, MdArrowForward, MdOpenInNew } from 'react-icons/md';
 import { toast } from '../../components/common/Toast';
 import { inventoryApi } from '../../api/inventoryApi';
+import { categoryApi } from '../../api/categoryApi';
+import { pickingApi } from '../../api/pickingApi';
+import { sortingApi } from '../../api/sortingApi';
+import { packingApi } from '../../api/packingApi';
+import { batchApi } from '../../api/batchApi';
+import { defectiveStockApi } from '../../api/defectiveStockApi';
+import { grnApi } from '../../api/grnApi';
+import { poApi } from '../../api/poApi';
+import { getAgeingStock } from '../../api/ageingStockApi';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const BG_CARD = '#ffffff';
@@ -48,14 +58,23 @@ function Empty({ msg = 'No data found' }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function InventoryPage({ initialTab = 0, externalShowModal = false, onExternalModalClose }) {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(initialTab);
 
   // ── Shared data ────────────────────────────────────────────────────────────
   const [stockList, setStockList] = useState([]);
   const [warehouseList, setWarehouseList] = useState([]);
+<<<<<<< HEAD
   const [movementList, setMovementList] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+=======
+  const [movementList,  setMovementList]  = useState([]);
+  const [categoryList,  setCategoryList]  = useState([]);
+  const [stats,         setStats]         = useState(null);
+  const [loading,       setLoading]       = useState(true);
+  const [ageingData,    setAgeingData]    = useState([]);
+>>>>>>> af8ef2846f5f1892074a94335e4576de854ddc62
 
   // ── Modal state ────────────────────────────────────────────────────────────
   const [internalModal, setInternalModal] = useState(false);
@@ -63,10 +82,17 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const closeModal = () => { setInternalModal(false); onExternalModalClose?.(); };
 
   // ── Forms ──────────────────────────────────────────────────────────────────
+<<<<<<< HEAD
   const [stockForm, setStockForm] = useState({ sku: '', name: '', qty: '', minQty: '', warehouse: '', unit: 'Nos', remarks: '' });
   const [whForm, setWhForm] = useState({ warehouseId: '', name: '', location: '', manager: '', capacity: '', phone: '', type: 'Raw Material', address: '' });
   const [nextWhId, setNextWhId] = useState('');
   const [movForm, setMovForm] = useState({ type: 'Inward', sku: '', from: 'Supplier', to: '', qty: '', ref: '' });
+=======
+  const [stockForm,  setStockForm]  = useState({ sku:'', name:'', qty:'', minQty:'', warehouse:'', unit:'Nos', category:'', batch:'', remarks:'' });
+  const [whForm,     setWhForm]     = useState({ warehouseId:'', name:'', location:'', manager:'', capacity:'', phone:'', type:'Raw Material', address:'' });
+  const [nextWhId,   setNextWhId]   = useState('');
+  const [movForm,    setMovForm]    = useState({ type:'Inward', sku:'', from:'Supplier', to:'', qty:'', ref:'' });
+>>>>>>> af8ef2846f5f1892074a94335e4576de854ddc62
   const [adjustItem, setAdjustItem] = useState(null);
   const [adjustQty, setAdjustQty] = useState('');
   const [moveItem, setMoveItem] = useState(null);
@@ -76,8 +102,16 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const [stockFilter, setStockFilter] = useState('All');
   const [whFilter, setWhFilter] = useState('All');
   const [stockSearch, setStockSearch] = useState('');
+<<<<<<< HEAD
   const [movTab, setMovTab] = useState('Inward');
   const [selectedWH, setSelectedWH] = useState(null);
+=======
+  const [movTab,      setMovTab]      = useState('Inward');
+  const [selectedWH,  setSelectedWH]  = useState(null);
+  const [grnList,     setGrnList]     = useState([]);
+  const [poList,      setPoList]      = useState([]);
+  const [poItems,     setPoItems]     = useState({});
+>>>>>>> af8ef2846f5f1892074a94335e4576de854ddc62
 
   // ── Local-only tabs (no backend yet) ──────────────────────────────────────
   const [pickList, setPickList] = useState([]);
@@ -95,26 +129,71 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [stockRes, whRes, movRes, statsRes] = await Promise.all([
+      console.log('Starting to load all data...');
+      const [stockRes, whRes, movRes, statsRes, pickRes, sortRes, packRes, batchRes, defectRes, poRes, catRes, ageingRes] = await Promise.all([
         inventoryApi.getAll(),
         inventoryApi.getWarehouses(),
         inventoryApi.getMovements(),
         inventoryApi.getStats(),
+        pickingApi.getAll(),
+        sortingApi.getAll(),
+        packingApi.getAll(),
+        batchApi.getAll(),
+        defectiveStockApi.getAll(),
+        poApi.getAll(),
+        categoryApi.getAll(),
+        getAgeingStock(),
       ]);
       const stock = stockRes.data || [];
+<<<<<<< HEAD
       const whs = whRes.data || [];
       const movs = movRes.data || [];
+=======
+      const whs   = whRes.data   || [];
+      const movs  = movRes.data  || [];
+      const cats  = catRes.data  || [];
+      const picks = pickRes.data || [];
+      const sorts = sortRes.data || [];
+      const packs = packRes.data || [];
+      const batches = batchRes.data || [];
+      const defects = defectRes.data || [];
+      const pos = poRes.data || [];
+      const ageing = ageingRes.data || [];
+      
+      console.log('Stock data received:', stock);
+      if (stock.length > 0) {
+        console.log('First stock item:', stock[0]);
+      }
+      console.log('Ageing data received:', ageing);
+      
+      // Build poItems map: { poId: [items] }
+      const poItemsMap = {};
+      pos.forEach(po => {
+        poItemsMap[po._id || po.id] = po.items || [];
+      });
+      
+>>>>>>> af8ef2846f5f1892074a94335e4576de854ddc62
       setStockList(stock);
       setWarehouseList(whs);
       setMovementList(movs);
+      setCategoryList(cats);
+      setPickList(picks);
+      setSortList(sorts);
+      setPackList(packs);
+      setBatchList(batches);
+      setDefectList(defects);
+      setPoList(pos);
+      setPoItems(poItemsMap);
+      setAgeingData(ageing);
       setStats(statsRes.data || null);
       if (whs.length > 0 && !selectedWH) setSelectedWH(whs[0]);
     } catch (e) {
-      toast('Failed to load inventory data', 'error');
+      console.error('Error loading data:', e);
+      toast('Failed to load data', 'error');
     } finally {
       setLoading(false);
     }
-  }, []); // eslint-disable-line
+  }, []);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
@@ -138,11 +217,31 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleAddStock = async () => {
-    if (!stockForm.sku || !stockForm.name || !stockForm.qty) { toast('SKU, name and qty are required', 'error'); return; }
+    if (!stockForm.sku || !stockForm.name || !stockForm.qty) { 
+      toast('SKU, name and qty are required', 'error'); 
+      return; 
+    }
     try {
-      await inventoryApi.create({ ...stockForm, warehouse: stockForm.warehouse || warehouseList[0]?.warehouseId || 'WH-01' });
+      const payload = {
+        sku: stockForm.sku,
+        name: stockForm.name,
+        qty: stockForm.qty,
+        minQty: stockForm.minQty || 0,
+        warehouse: stockForm.warehouse || warehouseList[0]?.warehouseId || 'WH-01',
+        unit: stockForm.unit || 'Nos',
+        category: stockForm.category || '',
+        batch: stockForm.batch || ''
+      };
+      
+      console.log('Sending payload to backend:', payload);
+      
+      await inventoryApi.create(payload);
       toast(`Stock entry added — ${stockForm.sku}`);
+<<<<<<< HEAD
       setStockForm({ sku: '', name: '', qty: '', minQty: '', warehouse: '', unit: 'Nos', remarks: '' });
+=======
+      setStockForm({ sku:'', name:'', qty:'', minQty:'', warehouse:'', unit:'Nos', category:'', batch:'', remarks:'' });
+>>>>>>> af8ef2846f5f1892074a94335e4576de854ddc62
       closeModal(); loadAll();
     } catch (e) { toast(e.message || 'Failed to add stock', 'error'); }
   };
@@ -239,6 +338,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
     toast(`${filename} downloaded`);
   };
 
+<<<<<<< HEAD
   // Local-only handlers (pick/sort/batch/defect — no backend yet)
   const handleCreatePickList = () => {
     if (!pickForm.order || !pickForm.qty) { toast('Order and qty required', 'error'); return; }
@@ -285,6 +385,140 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       return { sku: s.sku, item: s.name, wh: s.warehouse, qty: s.qty, lastMov: new Date(s.lastReceivedAt).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }), days, bucket, action, actionColor };
     })
     .sort((a, b) => b.days - a.days);
+=======
+  // Picking handlers with backend integration
+  const handleCreatePickList = async () => {
+    if (!pickForm.order || !pickForm.qty || !pickForm.sku) { toast('Order, SKU, and qty required', 'error'); return; }
+    try {
+      const skuItem = stockList.find(s => s.sku === pickForm.sku);
+      if (!skuItem) { toast('SKU not found in inventory', 'error'); return; }
+      
+      const qty = parseInt(pickForm.qty);
+      if (isNaN(qty) || qty <= 0) { toast('Quantity must be a valid positive number', 'error'); return; }
+      
+      const payload = {
+        orderId: pickForm.order,
+        items: [{
+          inventoryId: skuItem._id,
+          sku: skuItem.sku,
+          itemName: skuItem.name,
+          quantity: qty,
+          location: pickForm.location
+        }],
+        pickerId: pickForm.picker || null
+      };
+      
+      await pickingApi.create(payload);
+      toast('Pick list created successfully');
+      setPickForm({ order:'', sku:'', location:'', qty:'', picker:'' });
+      closeModal();
+      loadAll();
+    } catch (e) {
+      toast(e.message || 'Failed to create pick list', 'error');
+    }
+  };
+  const handleCreateSortJob = async () => {
+    if (!sortForm.order || !sortForm.qty || !sortForm.sku) { toast('Order, SKU, and qty required', 'error'); return; }
+    try {
+      const skuItem = stockList.find(s => s.sku === sortForm.sku);
+      if (!skuItem) { toast('SKU not found in inventory', 'error'); return; }
+      
+      // Create sorting job
+      const sortPayload = {
+        orderId: sortForm.order,
+        sku: sortForm.sku,
+        itemName: skuItem.name,
+        quantity: parseInt(sortForm.qty),
+        grade: sortForm.grade
+      };
+      await sortingApi.create(sortPayload);
+      
+      // Create packing job
+      const packPayload = {
+        orderId: sortForm.order,
+        items: 1,
+        weight: sortForm.weight || '0',
+        boxType: sortForm.boxType
+      };
+      await packingApi.create(packPayload);
+      
+      toast('Sort/Pack job created successfully');
+      setSortForm({ order:'', sku:'', qty:'', grade:'Grade A', boxType:'Standard Box', weight:'' });
+      closeModal();
+      loadAll();
+    } catch (e) {
+      toast(e.message || 'Failed to create sort/pack job', 'error');
+    }
+  };
+  const handleAddBatch = async () => {
+    if (!batchForm.batch || !batchForm.qty || !batchForm.mfg || !batchForm.exp || !batchForm.sku) { toast('All fields required', 'error'); return; }
+    try {
+      const skuItem = stockList.find(s => s.sku === batchForm.sku);
+      if (!skuItem) { toast('SKU not found in inventory', 'error'); return; }
+      
+      const qty = parseInt(batchForm.qty);
+      if (isNaN(qty) || qty <= 0) { toast('Quantity must be a valid positive number', 'error'); return; }
+      
+      const mfgD = new Date(batchForm.mfg + '-01');
+      const expD = new Date(batchForm.exp + '-01');
+      
+      const payload = {
+        sku: batchForm.sku,
+        itemName: skuItem.name,
+        quantity: qty,
+        mfgDate: mfgD.toISOString(),
+        expiryDate: expD.toISOString(),
+        warehouse: batchForm.warehouse || warehouseList[0]?.warehouseId || 'WH-01'
+      };
+      
+      await batchApi.create(payload);
+      toast('Batch added successfully');
+      setBatchForm({ batch:'', sku:'', qty:'', warehouse:'', mfg:'', exp:'' });
+      closeModal();
+      loadAll();
+    } catch (e) {
+      toast(e.message || 'Failed to add batch', 'error');
+    }
+  };
+  const handleLogDefect = async () => {
+    if (!defectForm.sku || !defectForm.qty || defectForm.qty === '0') { 
+      toast('SKU and qty required', 'error'); 
+      return; 
+    }
+    try {
+      const skuItem = stockList.find(s => s.sku === defectForm.sku);
+      if (!skuItem) { toast('SKU not found in inventory', 'error'); return; }
+      
+      const qty = parseInt(defectForm.qty);
+      if (isNaN(qty) || qty <= 0) {
+        toast('Quantity must be a valid number greater than 0', 'error');
+        return;
+      }
+      
+      const payload = {
+        sku: defectForm.sku,
+        itemName: skuItem.name,
+        quantity: qty,
+        defectType: defectForm.type || 'Other',
+        source: defectForm.source || 'GRN Inspection',
+        stage: defectForm.stage || 'QC Hold',
+        warehouse: defectForm.warehouse || 'WH-01',
+        remarks: defectForm.remarks || ''
+      };
+      
+      await defectiveStockApi.create(payload);
+      toast('Defect logged successfully');
+      setDefectForm({ sku:'', qty:'', type:'Dimensional', source:'GRN Inspection', stage:'QC Hold', warehouse:'', remarks:'' });
+      closeModal();
+      loadAll();
+    } catch (e) {
+      toast(e.message || 'Failed to log defect', 'error');
+    }
+  };
+
+  // ── Ageing data from API ────────────────────────────────────────────────────
+  // (Already loaded in loadAll function)
+>>>>>>> af8ef2846f5f1892074a94335e4576de854ddc62
 
   if (loading) return <Spinner />;
 
@@ -470,9 +704,15 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
+<<<<<<< HEAD
                 <tr style={{ background: '#f8fafc' }}>
                   {['SKU', 'Item Name', 'Warehouse', 'Qty', 'Min Qty', 'Batch / GRN', 'Status', 'Actions'].map(h => (
                     <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 10.5, fontWeight: 700, color: TEXT_LIGHT, textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: BORDER, whiteSpace: 'nowrap' }}>{h}</th>
+=======
+                <tr style={{ background:'#f8fafc' }}>
+                  {['SKU','Item Name','Category','Warehouse','Qty','Min Qty','Status','Actions'].map(h => (
+                    <th key={h} style={{ padding:'10px 16px', textAlign:'left', fontSize:10.5, fontWeight:700, color: TEXT_LIGHT, textTransform:'uppercase', letterSpacing:'0.06em', borderBottom: BORDER, whiteSpace:'nowrap' }}>{h}</th>
+>>>>>>> af8ef2846f5f1892074a94335e4576de854ddc62
                   ))}
                 </tr>
               </thead>
@@ -487,6 +727,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                         <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: RED }}>{r.sku}</span>
                       </div>
                     </td>
+<<<<<<< HEAD
                     <td style={{ padding: '11px 16px', fontWeight: 600, color: TEXT_DARK }}>{r.name}</td>
                     <td style={{ padding: '11px 16px', color: TEXT_MID }}>{r.warehouse}</td>
                     <td style={{ padding: '11px 16px' }}>
@@ -500,6 +741,21 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                         <button onClick={() => { setAdjustItem(r); setAdjustQty(String(r.qty)); }} style={{ padding: '4px 10px', borderRadius: RADIUS_SM, fontSize: 11, fontWeight: 600, border: `1px solid ${RED}`, color: RED, background: 'transparent', cursor: 'pointer', fontFamily: 'inherit' }}>✏ Adjust</button>
                         <button onClick={() => { setMoveItem(r); setMoveToWH(''); }} style={{ padding: '4px 10px', borderRadius: RADIUS_SM, fontSize: 11, fontWeight: 600, border: '1px solid #e2e8f0', color: TEXT_MID, background: '#f8fafc', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}><MdSwapHoriz size={14} /> Move</button>
                         <button onClick={() => handleDeleteStock(r._id, r.sku)} style={{ padding: '4px 10px', borderRadius: RADIUS_SM, fontSize: 11, fontWeight: 600, border: '1px solid #fecaca', color: RED_LIGHT, background: '#fef2f2', cursor: 'pointer', fontFamily: 'inherit' }}>✕</button>
+=======
+                    <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{String(r.name || r.itemName || r.sku || '—')}</td>
+                    <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.category && r.category.name ? String(r.category.name) : '—'}</td>
+                    <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.warehouse && typeof r.warehouse === 'object' ? (r.warehouse.warehouseId || r.warehouse.id || '—') : (r.warehouse || '—')}</td>
+                    <td style={{ padding:'11px 16px' }}>
+                      <span style={{ display:'inline-block', padding:'3px 10px', borderRadius:20, fontSize:12, fontWeight:700, background: r.qty < r.minQty ? '#fef2f2' : '#f0fdf4', color: r.qty < r.minQty ? RED_LIGHT : GREEN }}>{r.qty}</span>
+                    </td>
+                    <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.minQty}</td>
+                    <td style={{ padding:'11px 16px' }}><StatusBadge status={r.status} /></td>
+                    <td style={{ padding:'11px 16px' }}>
+                      <div style={{ display:'flex', gap:6 }}>
+                        <button onClick={() => { setAdjustItem(r); setAdjustQty(String(r.qty)); }} style={{ padding:'4px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600, border:`1px solid ${RED}`, color: RED, background:'transparent', cursor:'pointer', fontFamily:'inherit' }}>✏ Adjust</button>
+                        <button onClick={() => { setMoveItem(r); setMoveToWH(''); }} style={{ padding:'4px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600, border:'1px solid #e2e8f0', color: TEXT_MID, background:'#f8fafc', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:4 }}><MdSwapHoriz size={14} /> Move</button>
+                        <button onClick={() => handleDeleteStock(r._id, r.sku)} style={{ padding:'4px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600, border:'1px solid #fecaca', color: RED_LIGHT, background:'#fef2f2', cursor:'pointer', fontFamily:'inherit' }}>✕</button>
+>>>>>>> af8ef2846f5f1892074a94335e4576de854ddc62
                       </div>
                     </td>
                   </tr>
@@ -691,6 +947,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                   <span style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{col.label}</span>
                   <span style={{ background: 'rgba(255,255,255,0.3)', color: '#fff', borderRadius: 12, padding: '1px 9px', fontSize: 12, fontWeight: 700 }}>{col.items.length}</span>
                 </div>
+<<<<<<< HEAD
                 <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {col.items.length === 0 && <div style={{ textAlign: 'center', padding: '24px 0', color: TEXT_LIGHT, fontSize: 12 }}>No items</div>}
                   {col.items.map((p, pi) => (
@@ -711,9 +968,61 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                       )}
                       {p.status === 'Pending' && (
                         <button onClick={() => setPickList(prev => prev.map(x => x.id === p.id ? { ...x, status: 'In Progress' } : x))} style={{ marginTop: 10, width: '100%', padding: '6px', borderRadius: 8, background: BLUE, color: '#fff', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>▶ Start Picking</button>
+=======
+                <div style={{ padding:12, display:'flex', flexDirection:'column', gap:10 }}>
+                  {col.items.length === 0 && <div style={{ textAlign:'center', padding:'24px 0', color: TEXT_LIGHT, fontSize:12 }}>No items</div>}
+                  {col.items.map((p, pi) => {
+                    // Map backend data to display format
+                    const displayItem = {
+                      _id: p._id || p.id,
+                      id: p.pickId || p.id,
+                      order: p.orderId || p.order,
+                      sku: p.items?.[0]?.sku || p.sku,
+                      item: p.items?.[0]?.itemName || p.item,
+                      qty: p.items?.[0]?.quantity || p.qty,
+                      loc: p.items?.[0]?.location || p.loc || '—',
+                      picker: p.picker?.name || p.picker || 'Unassigned',
+                      status: p.status
+                    };
+                    return (
+                    <div key={pi} style={{ background:'#fff', border: BORDER, borderRadius: RADIUS_SM+4, padding:'14px', boxShadow:'0 1px 4px rgba(15,23,42,0.05)' }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+                        <span style={{ fontSize:12, fontWeight:800, color: col.color }}>{displayItem.id}</span>
+                        <div style={{ width:28, height:28, borderRadius:'50%', background:col.color+'22', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, color: col.color }}>{(displayItem.picker||'?').slice(0,2).toUpperCase()}</div>
+                      </div>
+                      <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK, marginBottom:4 }}>{displayItem.item}</div>
+                      <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginBottom:2 }}>Order: {displayItem.order}</div>
+                      <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginBottom:2 }}>SKU: <span style={{ fontFamily:'monospace', color: RED }}>{displayItem.sku}</span></div>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:8 }}>
+                        <span style={{ fontSize:11.5, color: TEXT_MID }}>📍 {displayItem.loc}</span>
+                        <span style={{ background:col.color+'18', color:col.color, borderRadius:12, padding:'2px 9px', fontSize:11, fontWeight:700 }}>Qty: {displayItem.qty}</span>
+                      </div>
+                      {displayItem.status === 'In Progress' && (
+                        <button onClick={async () => {
+                          try {
+                            await pickingApi.updateStatus(displayItem._id, { status: 'Completed' });
+                            toast('Pick list marked as completed');
+                            loadAll();
+                          } catch (e) {
+                            toast(e.message || 'Failed to update status', 'error');
+                          }
+                        }} style={{ marginTop:10, width:'100%', padding:'6px', borderRadius:8, background: GREEN, color:'#fff', border:'none', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>✓ Mark Complete</button>
+                      )}
+                      {displayItem.status === 'Pending' && (
+                        <button onClick={async () => {
+                          try {
+                            await pickingApi.updateStatus(displayItem._id, { status: 'In Progress' });
+                            toast('Picking started');
+                            loadAll();
+                          } catch (e) {
+                            toast(e.message || 'Failed to update status', 'error');
+                          }
+                        }} style={{ marginTop:10, width:'100%', padding:'6px', borderRadius:8, background: BLUE, color:'#fff', border:'none', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>▶ Start Picking</button>
+>>>>>>> af8ef2846f5f1892074a94335e4576de854ddc62
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}
@@ -729,6 +1038,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             {sortList.length === 0 ? <Empty msg="No sort jobs yet" /> : sortList.map((s, i) => (
               <div key={i} style={{ padding: '14px 20px', borderBottom: i < sortList.length - 1 ? BORDER : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
+<<<<<<< HEAD
                   <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK }}>{s.item}</div>
                   <div style={{ fontSize: 11.5, color: TEXT_LIGHT }}>{s.id} · {s.sku} · {s.grade}</div>
                 </div>
@@ -736,6 +1046,23 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                   <span style={{ fontSize: 12, fontWeight: 700, color: BLUE }}>{s.qty} units</span>
                   <StatusBadge status={s.status} />
                   {s.status !== 'Sorted' && <button onClick={() => setSortList(p => p.map(x => x.id === s.id ? { ...x, status: 'Sorted' } : x))} style={{ padding: '3px 10px', borderRadius: 8, background: GREEN, color: '#fff', border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>✓ Done</button>}
+=======
+                  <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>{s.itemName || s.item}</div>
+                  <div style={{ fontSize:11.5, color: TEXT_LIGHT }}>{s.sortId || s.id} · {s.sku} · {s.grade}</div>
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontSize:12, fontWeight:700, color: BLUE }}>{s.quantity || s.qty} units</span>
+                  <StatusBadge status={s.status} />
+                  {s.status !== 'Sorted' && <button onClick={async () => {
+                    try {
+                      await sortingApi.update(s._id, { status: 'Sorted' });
+                      toast('Sorting job marked as sorted');
+                      loadAll();
+                    } catch (e) {
+                      toast(e.message || 'Failed to update status', 'error');
+                    }
+                  }} style={{ padding:'3px 10px', borderRadius:8, background: GREEN, color:'#fff', border:'none', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>✓ Done</button>}
+>>>>>>> af8ef2846f5f1892074a94335e4576de854ddc62
                 </div>
               </div>
             ))}
@@ -745,12 +1072,29 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             {packList.length === 0 ? <Empty msg="No pack jobs yet" /> : packList.map((p, i) => (
               <div key={i} style={{ padding: '14px 20px', borderBottom: i < packList.length - 1 ? BORDER : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
+<<<<<<< HEAD
                   <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK }}>{p.id}</div>
                   <div style={{ fontSize: 11.5, color: TEXT_LIGHT }}>Order: {p.order} · {p.type} · {p.weight}</div>
+=======
+                  <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>{p.packId || p.id}</div>
+                  <div style={{ fontSize:11.5, color: TEXT_LIGHT }}>Order: {p.orderId || p.order} · {p.boxType || p.type} · {p.weight}</div>
+>>>>>>> af8ef2846f5f1892074a94335e4576de854ddc62
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <StatusBadge status={p.status} />
+<<<<<<< HEAD
                   {p.status !== 'Packed' && <button onClick={() => setPackList(prev => prev.map(x => x.id === p.id ? { ...x, status: 'Packed' } : x))} style={{ padding: '3px 10px', borderRadius: 8, background: GREEN, color: '#fff', border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>✓ Packed</button>}
+=======
+                  {p.status !== 'Packed' && <button onClick={async () => {
+                    try {
+                      await packingApi.update(p._id, { status: 'Packed' });
+                      toast('Packing job marked as packed');
+                      loadAll();
+                    } catch (e) {
+                      toast(e.message || 'Failed to update status', 'error');
+                    }
+                  }} style={{ padding:'3px 10px', borderRadius:8, background: GREEN, color:'#fff', border:'none', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>✓ Packed</button>}
+>>>>>>> af8ef2846f5f1892074a94335e4576de854ddc62
                 </div>
               </div>
             ))}
@@ -771,6 +1115,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                   </tr>
                 </thead>
                 <tbody>
+<<<<<<< HEAD
                   {batchList.map((b, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#f8fafc' : '#fff' }}>
                       <td style={{ padding: '11px 16px', fontFamily: 'monospace', fontWeight: 700, color: RED }}>{b.batch}</td>
@@ -786,11 +1131,33 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                             <div style={{ height: '100%', width: `${b.shelfPct}%`, background: b.shelfPct < 20 ? RED_LIGHT : b.shelfPct < 50 ? AMBER : GREEN, borderRadius: 3 }} />
                           </div>
                           <span style={{ fontSize: 11, fontWeight: 700, color: b.shelfPct < 20 ? RED_LIGHT : TEXT_MID }}>{b.shelfPct}%</span>
+=======
+                  {batchList.map((b, i) => {
+                    const mfgDate = b.mfgDate ? new Date(b.mfgDate).toLocaleDateString('en-IN', {month:'short', year:'numeric'}) : b.mfg;
+                    const expDate = b.expiryDate ? new Date(b.expiryDate).toLocaleDateString('en-IN', {month:'short', year:'numeric'}) : b.exp;
+                    const shelfPct = b.shelfLifePercentage || b.shelfPct || 0;
+                    return (
+                    <tr key={i} style={{ borderBottom:'1px solid #f1f5f9', background: i%2===0 ? '#f8fafc' : '#fff' }}>
+                      <td style={{ padding:'11px 16px', fontFamily:'monospace', fontWeight:700, color: RED }}>{b.batchNo || b.batch}</td>
+                      <td style={{ padding:'11px 16px', fontFamily:'monospace', fontSize:12, color: TEXT_MID }}>{b.sku}</td>
+                      <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{b.itemName || b.item}</td>
+                      <td style={{ padding:'11px 16px', fontWeight:700, color: BLUE }}>{b.quantity || b.qty}</td>
+                      <td style={{ padding:'11px 16px', color: TEXT_MID }}>{mfgDate}</td>
+                      <td style={{ padding:'11px 16px', color: TEXT_MID }}>{expDate}</td>
+                      <td style={{ padding:'11px 16px', color: TEXT_MID }}>{b.warehouse || b.wh}</td>
+                      <td style={{ padding:'11px 16px' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                          <div style={{ flex:1, height:6, background:'#f1f5f9', borderRadius:3, overflow:'hidden', minWidth:60 }}>
+                            <div style={{ height:'100%', width:`${shelfPct}%`, background: shelfPct < 20 ? RED_LIGHT : shelfPct < 50 ? AMBER : GREEN, borderRadius:3 }} />
+                          </div>
+                          <span style={{ fontSize:11, fontWeight:700, color: shelfPct < 20 ? RED_LIGHT : TEXT_MID }}>{shelfPct}%</span>
+>>>>>>> af8ef2846f5f1892074a94335e4576de854ddc62
                         </div>
                       </td>
                       <td style={{ padding: '11px 16px' }}><StatusBadge status={b.status} /></td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -801,6 +1168,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       {/* ══ TAB 7 — Ageing Stock ═════════════════════════════════════════════ */}
       {activeTab === 7 && (
         <div>
+<<<<<<< HEAD
           <div style={{ ...card(), overflow: 'hidden' }}>
             <div style={{ padding: '14px 20px', borderBottom: BORDER }}><div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK }}>Ageing Analysis — computed from last received date</div></div>
             {ageingData.length === 0 ? <Empty msg="No ageing data — stock items with lastReceivedAt will appear here" /> : (
@@ -809,10 +1177,34 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                   <thead>
                     <tr style={{ background: '#f8fafc' }}>
                       {['SKU', 'Item', 'Warehouse', 'Qty', 'Last Received', 'Days', 'Bucket', 'Recommended Action'].map(h => <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 10.5, fontWeight: 700, color: TEXT_LIGHT, textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: BORDER, whiteSpace: 'nowrap' }}>{h}</th>)}
+=======
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:16 }}>
+            {[
+              { label:'0–30 Days',  value: ageingData.filter(a=>a.bucket==='0–30').length,  color: GREEN     },
+              { label:'31–60 Days', value: ageingData.filter(a=>a.bucket==='31–60').length, color: AMBER     },
+              { label:'61–90 Days', value: ageingData.filter(a=>a.bucket==='61–90').length, color: '#f97316' },
+              { label:'90+ Days',   value: ageingData.filter(a=>a.bucket==='90+').length,   color: RED_LIGHT },
+            ].map((k, i) => (
+              <div key={i} style={{ ...card(), padding:'18px 20px' }}>
+                <div style={{ fontSize:24, fontWeight:900, color:k.color }}>{k.value}</div>
+                <div style={{ fontSize:11.5, color:TEXT_LIGHT, marginTop:4 }}>{k.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ ...card(), overflow:'hidden' }}>
+            <div style={{ padding:'14px 20px', borderBottom: BORDER }}><div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>Ageing Analysis — computed from GRN, Production & Stock Movement</div></div>
+            {ageingData.length === 0 ? <Empty msg="No ageing data available" /> : (
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+                  <thead>
+                    <tr style={{ background:'#f8fafc' }}>
+                      {['SKU','Item','Warehouse','Qty','Last Movement','Days','Bucket','Value','Action'].map(h => <th key={h} style={{ padding:'10px 16px', textAlign:'left', fontSize:10.5, fontWeight:700, color: TEXT_LIGHT, textTransform:'uppercase', letterSpacing:'0.06em', borderBottom: BORDER, whiteSpace:'nowrap' }}>{h}</th>)}
+>>>>>>> af8ef2846f5f1892074a94335e4576de854ddc62
                     </tr>
                   </thead>
                   <tbody>
                     {ageingData.map((r, i) => (
+<<<<<<< HEAD
                       <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#f8fafc' : '#fff' }}>
                         <td style={{ padding: '11px 16px', fontFamily: 'monospace', fontWeight: 700, color: RED }}>{r.sku}</td>
                         <td style={{ padding: '11px 16px', fontWeight: 600, color: TEXT_DARK }}>{r.item}</td>
@@ -822,6 +1214,18 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                         <td style={{ padding: '11px 16px' }}><span style={{ fontWeight: 700, color: r.days > 90 ? RED_LIGHT : r.days > 60 ? '#f97316' : r.days > 30 ? AMBER : GREEN }}>{r.days}d</span></td>
                         <td style={{ padding: '11px 16px' }}><span style={{ padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: r.days > 90 ? '#fef2f2' : r.days > 60 ? '#fff7ed' : r.days > 30 ? '#fffbeb' : '#f0fdf4', color: r.actionColor }}>{r.bucket}</span></td>
                         <td style={{ padding: '11px 16px' }}><span style={{ fontSize: 12, fontWeight: 600, color: r.actionColor }}>{r.action}</span></td>
+=======
+                      <tr key={i} style={{ borderBottom:'1px solid #f1f5f9', background: i%2===0 ? '#f8fafc' : '#fff' }}>
+                        <td style={{ padding:'11px 16px', fontFamily:'monospace', fontWeight:700, color: RED }}>{r.sku}</td>
+                        <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{r.item}</td>
+                        <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.whName || r.wh}</td>
+                        <td style={{ padding:'11px 16px', fontWeight:700, color: BLUE }}>{r.qty}</td>
+                        <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.lastMov}</td>
+                        <td style={{ padding:'11px 16px' }}><span style={{ fontWeight:700, color: r.days > 90 ? RED_LIGHT : r.days > 60 ? '#f97316' : r.days > 30 ? AMBER : GREEN }}>{r.days}d</span></td>
+                        <td style={{ padding:'11px 16px' }}><span style={{ padding:'2px 9px', borderRadius:20, fontSize:11, fontWeight:700, background: r.days>90 ? '#fef2f2' : r.days>60 ? '#fff7ed' : r.days>30 ? '#fffbeb' : '#f0fdf4', color: r.actionColor }}>{r.bucket}</span></td>
+                        <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{r.value}</td>
+                        <td style={{ padding:'11px 16px' }}><span style={{ fontSize:12, fontWeight:600, color: r.actionColor }}>{r.action}</span></td>
+>>>>>>> af8ef2846f5f1892074a94335e4576de854ddc62
                       </tr>
                     ))}
                   </tbody>
@@ -846,6 +1250,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     </tr>
                   </thead>
                   <tbody>
+<<<<<<< HEAD
                     {defectList.map((d, i) => (
                       <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                         <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontWeight: 700, color: RED_LIGHT }}>{d.id}</td>
@@ -859,10 +1264,36 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                         <td style={{ padding: '10px 14px' }}>
                           <div style={{ display: 'flex', gap: 4 }}>
                             {['Repair', 'Scrap'].map(a => <button key={a} onClick={() => setDefectList(p => p.map(x => x.id === d.id ? { ...x, stage: a === 'Scrap' ? 'Disposed' : 'Repair' } : x))} style={{ padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, border: '1px solid #e2e8f0', color: TEXT_MID, background: '#f8fafc', cursor: 'pointer', fontFamily: 'inherit' }}>{a}</button>)}
+=======
+                    {defectList.map((d, i) => {
+                      const createdDate = d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-IN', {day:'2-digit', month:'short'}) : d.date;
+                      return (
+                      <tr key={i} style={{ borderBottom:'1px solid #f1f5f9' }}>
+                        <td style={{ padding:'10px 14px', fontFamily:'monospace', fontWeight:700, color: RED_LIGHT }}>{d.defectId || d.id}</td>
+                        <td style={{ padding:'10px 14px', fontFamily:'monospace', fontSize:12, color: RED }}>{d.sku}</td>
+                        <td style={{ padding:'10px 14px', fontWeight:600, color: TEXT_DARK }}>{d.itemName || d.item}</td>
+                        <td style={{ padding:'10px 14px', fontWeight:700, color: RED_LIGHT }}>{d.quantity || d.qty}</td>
+                        <td style={{ padding:'10px 14px', color: TEXT_MID }}>{d.defectType || d.type}</td>
+                        <td style={{ padding:'10px 14px', color: TEXT_MID }}>{d.source}</td>
+                        <td style={{ padding:'10px 14px', color: TEXT_MID }}>{createdDate}</td>
+                        <td style={{ padding:'10px 14px' }}><StatusBadge status={d.stage} /></td>
+                        <td style={{ padding:'10px 14px' }}>
+                          <div style={{ display:'flex', gap:4 }}>
+                            {['Approved for Return','Returned'].map(a => <button key={a} onClick={async () => {
+                              try {
+                                await defectiveStockApi.update(d._id, { stage: a });
+                                toast(`Defect status updated to ${a}`);
+                                loadAll();
+                              } catch (e) {
+                                toast(e.message || 'Failed to update status', 'error');
+                              }
+                            }} style={{ padding:'3px 8px', borderRadius:6, fontSize:11, fontWeight:600, border:'1px solid #e2e8f0', color: TEXT_MID, background:'#f8fafc', cursor:'pointer', fontFamily:'inherit' }}>{a}</button>)}
+>>>>>>> af8ef2846f5f1892074a94335e4576de854ddc62
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -892,6 +1323,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       {(activeTab === 0 || activeTab === 1) && (
         <Modal open={showModal} onClose={closeModal} title="Add Stock Entry" size="lg"
           footer={<><button style={btnOutline} onClick={closeModal}>Cancel</button><button style={btnPrimary} onClick={handleAddStock}>Add Stock</button></>}>
+<<<<<<< HEAD
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             {[{ label: 'SKU *', key: 'sku', placeholder: 'e.g. SKU-1042' }, { label: 'Item Name *', key: 'name', placeholder: 'Item description' }, { label: 'Quantity *', key: 'qty', placeholder: '0', type: 'number' }, { label: 'Min Qty (reorder level)', key: 'minQty', placeholder: '0', type: 'number' }, { label: 'Unit', key: 'unit', placeholder: 'Nos / Kg / Ltr' }].map(f => (
               <div key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -902,6 +1334,111 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Warehouse</label>
               <select value={stockForm.warehouse} onChange={e => setStockForm(p => ({ ...p, warehouse: e.target.value }))} style={inp}>
+=======
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+            {/* SKU - from PO items */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>SKU * (from PO)</label>
+              <select value={`${stockForm.poId ? Object.keys(poItems).findIndex(id => id === stockForm.poId) : ''}|${stockForm.poId || ''}`} onChange={e => {
+                const selectedValue = e.target.value;
+                if (!selectedValue || selectedValue === '|') {
+                  setStockForm(p => ({...p, sku: '', name: '', vendor: '', poId: ''}));
+                  return;
+                }
+                
+                const [itemIdx, poId] = selectedValue.split('|');
+                // Find PO and item details
+                const selectedPo = poList.find(po => po._id === poId);
+                const poItemsArray = selectedPo?.items || [];
+                const selectedPoItem = poItemsArray[parseInt(itemIdx)];
+                
+                // Extract vendor name from populated vendor object
+                let vendorName = '';
+                if (selectedPo?.vendor) {
+                  if (typeof selectedPo.vendor === 'object' && selectedPo.vendor.companyName) {
+                    vendorName = selectedPo.vendor.companyName;
+                  } else if (typeof selectedPo.vendor === 'string') {
+                    vendorName = selectedPo.vendor;
+                  }
+                }
+                
+                // Get item name - use the item's name field
+                const itemName = selectedPoItem?.name || `Item-${parseInt(itemIdx) + 1}`;
+                
+                console.log('Selected PO Item:', selectedPoItem);
+                console.log('Item Name to be saved:', itemName);
+                
+                // Generate SKU from PO ID (without item index suffix)
+                const generatedSku = selectedPo?.poId || `SKU-${parseInt(itemIdx) + 1}`;
+                
+                setStockForm(p => ({
+                  ...p, 
+                  sku: generatedSku, 
+                  name: itemName,
+                  vendor: vendorName || '',
+                  poId: poId
+                }));
+              }} style={inp}>
+                <option value="">— Select SKU from PO —</option>
+                {poList.map(po => 
+                  po.items && po.items.map((item, idx) => (
+                    <option key={`${po._id}-${idx}`} value={`${idx}|${po._id}`}>
+                      SKU-{idx + 1} (PO: {po.poId || po.id})
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+            
+            {/* Item Name - auto-populated from SKU with Vendor */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Item Name * (Auto)</label>
+              <input type="text" placeholder="Auto-populated from SKU" value={stockForm.vendor || stockForm.name} readOnly style={{ ...inp, background:'#f8fafc', color:TEXT_MID }} />
+            </div>
+            
+            {/* Quantity */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Quantity *</label>
+              <input type="number" placeholder="0" value={stockForm.qty} onChange={e => setStockForm(p=>({...p,qty:e.target.value}))} style={inp} />
+            </div>
+            
+            {/* Min Qty */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Min Qty (reorder level)</label>
+              <input type="number" placeholder="0" value={stockForm.minQty} onChange={e => setStockForm(p=>({...p,minQty:e.target.value}))} style={inp} />
+            </div>
+            
+            {/* Unit */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Unit</label>
+              <select value={stockForm.unit} onChange={e => setStockForm(p=>({...p,unit:e.target.value}))} style={{ ...inp, cursor:'pointer' }}>
+                <option value="Nos">Nos</option>
+                <option value="Kg">Kg</option>
+                <option value="Ltr">Ltr</option>
+                <option value="Meter">Meter</option>
+                <option value="Box">Box</option>
+                <option value="Pack">Pack</option>
+                <option value="Carton">Carton</option>
+                <option value="Bag">Bag</option>
+                <option value="Drum">Drum</option>
+                <option value="Pallet">Pallet</option>
+              </select>
+            </div>
+            
+            {/* Category */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Category</label>
+              <select value={stockForm.category} onChange={e => setStockForm(p=>({...p,category:e.target.value}))} style={inp}>
+                <option value="">— Select Category —</option>
+                {categoryList.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+              </select>
+            </div>
+            
+            {/* Warehouse */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Warehouse</label>
+              <select value={stockForm.warehouse} onChange={e => setStockForm(p=>({...p,warehouse:e.target.value}))} style={inp}>
+>>>>>>> af8ef2846f5f1892074a94335e4576de854ddc62
                 <option value="">— Select Warehouse —</option>
                 {warehouseList.map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} — {w.name}</option>)}
               </select>

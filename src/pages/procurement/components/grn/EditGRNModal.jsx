@@ -62,7 +62,7 @@ export default function EditGRNModal({ open, onClose, grn, onSave }) {
     onClose();
   };
 
-  if (!grn) return null;
+  if (!grn || !grn._id) return null;
 
   return (
     <Modal open={open} onClose={onClose} title={`Edit GRN — ${grn?.id}`} size="lg"

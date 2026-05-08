@@ -125,7 +125,7 @@ export default function CompareQuotesModal({ open, onClose, rfq, onRefresh }) {
   const [poError, setPoError]               = useState('');
   const [poSuccess, setPoSuccess]           = useState('');
 
-  if (!rfq) return null;
+  if (!rfq || !rfq._id) return null;
 
   const quotations = rfq.quotations || [];
   const vendors    = rfq.vendors    || [];
@@ -169,7 +169,7 @@ export default function CompareQuotesModal({ open, onClose, rfq, onRefresh }) {
 
   return (
     <>
-      <Modal open={open} onClose={onClose} title={`Quotations — ${rfq.rfqId}`} size="xl"
+      <Modal open={open} onClose={onClose} title={`Quotations — ${rfq.rfqId || 'RFQ'}`} size="xl"
         footer={<button className="btn btn-outline" onClick={onClose}>Close</button>}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

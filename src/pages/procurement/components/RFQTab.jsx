@@ -29,9 +29,15 @@ export default function RFQTab({ externalShowCreate, onExternalClose, onSaved })
 
   const handleClose = () => { onExternalClose?.(); };
 
+  const handleCompare = (rfq) => {
+    if (rfq && rfq._id) {
+      setCompareRFQ(rfq);
+    }
+  };
+
   return (
     <div>
-      <RFQList onCompare={(rfq) => setCompareRFQ(rfq)} refresh={refresh} />
+      <RFQList onCompare={handleCompare} refresh={refresh} />
 
       <CreateRFQModal open={externalShowCreate} onClose={handleClose} onSaved={handleSaved} />
 

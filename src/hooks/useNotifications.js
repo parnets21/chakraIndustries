@@ -10,7 +10,7 @@ export function useNotifications() {
   const prevCountRef                      = useRef(0);
   const [hasNew, setHasNew]               = useState(false);
 
-  const fetch = useCallback(async () => {
+  const fetch = useCallback(async (retries = 2) => {
     try {
       setLoading(true);
       const res = await notificationApi.getAll();
@@ -21,7 +21,12 @@ export function useNotifications() {
       prevCountRef.current = count;
       setUnreadCount(count);
     } catch (_) {
-      // silently fail — don't break the UI
+      // Retry once on connection failure (e.g. Render cold start)
+      if (retries > 0) {
+        setTimeout(() => fetch(retries - 1), 5000);
+        return;
+      }
+      // silently fail after retries — don't break the UI
     } finally {
       setLoading(false);
     }

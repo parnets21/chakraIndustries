@@ -1,94 +1,135 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import * as XLSX from 'xlsx';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
-import { MdDeleteOutline, MdAdd, MdDownload } from 'react-icons/md';
+import { MdDeleteOutline, MdAdd, MdDownload, MdRefresh } from 'react-icons/md';
 import { toast } from '../../components/common/Toast';
+import { salesOrderApi } from '../../api/salesOrderApi';
 
 const inp = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]';
-
-const initialOrders = [
-  { id: 'ORD-2024-089', customer: 'Tata Motors Ltd', items: 12, value: '₹2,84,000', status: 'Processing', date: '14 Apr', priority: 'High' },
-  { id: 'ORD-2024-088', customer: 'Mahindra & Mahindra', items: 8, value: '₹1,56,000', status: 'Delivered', date: '13 Apr', priority: 'Normal' },
-  { id: 'ORD-2024-087', customer: 'Bajaj Auto', items: 24, value: '₹4,12,000', status: 'Pending', date: '13 Apr', priority: 'Urgent' },
-];
-
 const emptyForm = { customer: '', date: '', priority: 'Normal', status: 'Pending', items: '', value: '', remarks: '' };
 
+function Spinner() {
+  return (
+    <div style={{ display:'flex', justifyContent:'center', padding:40 }}>
+      <div style={{ width:32, height:32, border:'3px solid #f1f5f9', borderTop:'3px solid #c0392b', borderRadius:'50%', animation:'spin 0.7s linear infinite' }} />
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+}
+
 export default function OrdersPage() {
-  const [orders, setOrders] = useState(initialOrders);
-  const [showModal, setShowModal] = useState(false);
+  const [orders, setOrders]           = useState([]);
+  const [stats, setStats]             = useState({ total:0, pending:0, processing:0, delivered:0 });
+  const [loading, setLoading]         = useState(false);
+  const [showModal, setShowModal]     = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [editOrder, setEditOrder] = useState(null);
+  const [editOrder, setEditOrder]     = useState(null);
   const [deleteOrder, setDeleteOrder] = useState(null);
-  const [search, setSearch] = useState('');
+  const [saving, setSaving]           = useState(false);
+  const [search, setSearch]           = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm]               = useState(emptyForm);
 
-  const filtered = orders
-    .filter(o => statusFilter === 'All' || o.status === statusFilter)
-    .filter(o => !search || o.id.toLowerCase().includes(search.toLowerCase()) || o.customer.toLowerCase().includes(search.toLowerCase()));
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (statusFilter !== 'All') params.status = statusFilter;
+      if (search) params.search = search;
+      const [listRes, statsRes] = await Promise.all([
+        salesOrderApi.getAll(params),
+        salesOrderApi.getStats(),
+      ]);
+      setOrders(listRes.data || []);
+      setStats(statsRes.data || {});
+    } catch (e) { toast(e.message || 'Failed to load orders', 'error'); }
+    finally { setLoading(false); }
+  }, [statusFilter, search]);
 
-  const handleFormChange = (field, value) => {
-    setForm(prev => ({ ...prev, [field]: value }));
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const handleFormChange = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
+
+  const handleCreate = async () => {
+    if (!form.customer) { toast('Customer name required', 'error'); return; }
+    if (!form.items)    { toast('Items required', 'error'); return; }
+    if (!form.value)    { toast('Value required', 'error'); return; }
+    setSaving(true);
+    try {
+      await salesOrderApi.create(form);
+      toast('Order created');
+      setForm(emptyForm); setShowModal(false); fetchAll();
+    } catch (e) { toast(e.message || 'Failed to create order', 'error'); }
+    finally { setSaving(false); }
   };
 
-  const handleCreate = () => {
-    if (!form.customer) { toast('Customer name required'); return; }
-    if (!form.items) { toast('Items required'); return; }
-    if (!form.value) { toast('Value required'); return; }
-    
-    const newId = `ORD-${new Date().getFullYear()}-${String(orders.length + 90).padStart(3, '0')}`;
-    const newOrder = {
-      id: newId,
-      customer: form.customer,
-      items: parseInt(form.items) || 0,
-      value: form.value,
-      status: form.status,
-      date: form.date ? new Date(form.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
-      priority: form.priority,
-    };
-    setOrders(prev => [newOrder, ...prev]);
-    setForm(emptyForm);
-    setShowModal(false);
-    toast(`Order ${newId} created`);
-  };
-
-  const handleEdit = () => {
+  const handleEdit = async () => {
     if (!editOrder) return;
-    if (!form.customer) { toast('Customer name required'); return; }
-    setOrders(prev => prev.map(o => o.id === editOrder.id ? { ...o, customer: form.customer, priority: form.priority, status: form.status, items: parseInt(form.items) || o.items, value: form.value || o.value } : o));
-    setEditOrder(null);
-    setForm(emptyForm);
-    toast(`Order ${editOrder.id} updated`);
+    if (!form.customer) { toast('Customer name required', 'error'); return; }
+    setSaving(true);
+    try {
+      await salesOrderApi.update(editOrder._id, form);
+      toast(`Order ${editOrder.orderId} updated`);
+      setEditOrder(null); setForm(emptyForm); fetchAll();
+    } catch (e) { toast(e.message || 'Failed to update order', 'error'); }
+    finally { setSaving(false); }
   };
 
   const openEdit = (row) => {
     setEditOrder(row);
-    setForm({ customer: row.customer, date: '', priority: row.priority, status: row.status, items: String(row.items), value: row.value, remarks: '' });
+    setForm({ customer: row.customer, date: '', priority: row.priority, status: row.status, items: String(row.items), value: String(row.value), remarks: row.remarks || '' });
   };
 
-  const confirmDelete = () => {
-    const id = deleteOrder.id;
-    setOrders(prev => prev.filter(o => o.id !== id));
-    setDeleteOrder(null);
-    toast(`Order ${id} deleted`);
+  const confirmDelete = async () => {
+    if (!deleteOrder) return;
+    try {
+      await salesOrderApi.delete(deleteOrder._id);
+      toast(`Order ${deleteOrder.orderId} deleted`);
+      setDeleteOrder(null); fetchAll();
+    } catch (e) { toast(e.message || 'Failed to delete', 'error'); }
   };
 
   const handleExport = () => {
-    const csv = ['ID,Customer,Items,Value,Status,Priority,Date', ...orders.map(o => `${o.id},${o.customer},${o.items},${o.value},${o.status},${o.priority},${o.date}`)].join('\n');
+    if (!orders.length) { toast('No orders to export', 'warning'); return; }
+    const rows = orders.map(o => ({
+      'Order ID':  o.orderId,
+      'Customer':  o.customer,
+      'Items':     o.items,
+      'Value (₹)': o.value,
+      'Priority':  o.priority,
+      'Status':    o.status,
+      'Date':      new Date(o.orderDate).toLocaleDateString('en-IN'),
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [{ wch:16 },{ wch:28 },{ wch:8 },{ wch:14 },{ wch:10 },{ wch:14 },{ wch:12 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Orders');
+    const summaryRows = [
+      { Metric:'Total Orders',  Value: stats.total },
+      { Metric:'Pending',       Value: stats.pending },
+      { Metric:'Processing',    Value: stats.processing },
+      { Metric:'Delivered',     Value: stats.delivered },
+      { Metric:'Exported On',   Value: new Date().toLocaleString('en-IN') },
+    ];
+    const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+    const wbOut = XLSX.write(wb, { bookType:'xlsx', type:'array' });
+    const blob = new Blob([wbOut], { type:'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    a.download = 'orders.csv';
-    a.click();
-    toast('Orders exported');
+    a.href = url; a.download = `Orders_${new Date().toISOString().slice(0,10)}.xlsx`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast(`Exported ${orders.length} orders`);
   };
 
   const kpis = [
-    { label: 'Total Orders', value: orders.length, color: '#3b82f6' },
-    { label: 'Processing', value: orders.filter(o => o.status === 'Processing').length, color: '#f59e0b' },
-    { label: 'Delivered', value: orders.filter(o => o.status === 'Delivered').length, color: '#10b981' },
-    { label: 'Pending', value: orders.filter(o => o.status === 'Pending').length, color: '#ef4444' },
+    { label:'Total Orders',  value: stats.total || 0,      color:'#3b82f6' },
+    { label:'Processing',    value: stats.processing || 0, color:'#f59e0b' },
+    { label:'Delivered',     value: stats.delivered || 0,  color:'#10b981' },
+    { label:'Pending',       value: stats.pending || 0,    color:'#ef4444' },
   ];
 
   const FormBody = () => (
@@ -101,23 +142,15 @@ export default function OrdersPage() {
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-gray-600">Priority</label>
           <select className={inp} value={form.priority} onChange={e => handleFormChange('priority', e.target.value)}>
-            <option value="Low">Low</option>
-            <option value="Normal">Normal</option>
-            <option value="High">High</option>
-            <option value="Urgent">Urgent</option>
+            {['Low','Normal','High','Urgent'].map(p => <option key={p}>{p}</option>)}
           </select>
         </div>
       </div>
-
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-gray-600">Order Status</label>
           <select className={inp} value={form.status} onChange={e => handleFormChange('status', e.target.value)}>
-            <option value="Pending">Pending</option>
-            <option value="Processing">Processing</option>
-            <option value="Shipped">Shipped</option>
-            <option value="Delivered">Delivered</option>
-            <option value="Cancelled">Cancelled</option>
+            {['Pending','Processing','Shipped','Delivered','Cancelled'].map(s => <option key={s}>{s}</option>)}
           </select>
         </div>
         <div className="flex flex-col gap-1.5">
@@ -125,18 +158,16 @@ export default function OrdersPage() {
           <input type="number" autoComplete="off" className={inp} placeholder="e.g. 12" value={form.items} onChange={e => handleFormChange('items', e.target.value)} />
         </div>
       </div>
-
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-gray-600">Order Date</label>
           <input type="date" className={inp} value={form.date} onChange={e => handleFormChange('date', e.target.value)} />
         </div>
         <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-gray-600">Order Value *</label>
-          <input type="text" autoComplete="off" className={inp} placeholder="e.g. ₹2,84,000" value={form.value} onChange={e => handleFormChange('value', e.target.value)} />
+          <label className="text-xs font-semibold text-gray-600">Order Value (₹) *</label>
+          <input type="number" autoComplete="off" className={inp} placeholder="e.g. 284000" value={form.value} onChange={e => handleFormChange('value', e.target.value)} />
         </div>
       </div>
-
       <div className="flex flex-col gap-1.5">
         <label className="text-xs font-semibold text-gray-600">Remarks</label>
         <textarea autoComplete="off" className={inp} placeholder="Add notes..." value={form.remarks} onChange={e => handleFormChange('remarks', e.target.value)} rows="3" />
@@ -146,67 +177,111 @@ export default function OrdersPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', flex: 1 }}>
-          <input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" style={{ minWidth: 220 }} />
-          {['All', 'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'].map(s => (
-            <button key={s} onClick={() => setStatusFilter(s)} className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all cursor-pointer font-[inherit] ${statusFilter === s ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-600 border-gray-200 hover:border-red-400'}`}>{s}</button>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, marginBottom:20, flexWrap:'wrap' }}>
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap', flex:1 }}>
+          <input placeholder="Search orders..." value={search} onChange={e => setSearch(e.target.value)}
+            className="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]"
+            style={{ minWidth:220 }} />
+          {['All','Pending','Processing','Shipped','Delivered','Cancelled'].map(s => (
+            <button key={s} onClick={() => setStatusFilter(s)}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all cursor-pointer font-[inherit] ${statusFilter===s ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-600 border-gray-200 hover:border-red-400'}`}>
+              {s}
+            </button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={handleExport} className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-red-600 text-red-700 bg-white rounded-xl text-sm font-semibold cursor-pointer font-[inherit] hover:bg-red-50 transition-all shadow-sm"><MdDownload size={16} />Export</button>
-          <button onClick={() => { setForm(emptyForm); setShowModal(true); }} className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-br from-red-500 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md cursor-pointer font-[inherit] border-0 hover:shadow-lg hover:-translate-y-0.5 transition-all"><MdAdd size={18} />New Order</button>
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={fetchAll} className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-600 bg-white rounded-xl text-sm font-semibold cursor-pointer font-[inherit] hover:bg-gray-50 transition-all">
+            <MdRefresh size={16} />
+          </button>
+          <button onClick={handleExport} className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-red-600 text-red-700 bg-white rounded-xl text-sm font-semibold cursor-pointer font-[inherit] hover:bg-red-50 transition-all shadow-sm">
+            <MdDownload size={16} />Export
+          </button>
+          <button onClick={() => { setForm(emptyForm); setShowModal(true); }}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-br from-red-500 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md cursor-pointer font-[inherit] border-0 hover:shadow-lg hover:-translate-y-0.5 transition-all">
+            <MdAdd size={18} />New Order
+          </button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         {kpis.map((k, i) => (
           <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
-            <div className="text-2xl font-black tracking-tight" style={{ color: k.color }}>{k.value}</div>
+            <div className="text-2xl font-black tracking-tight" style={{ color:k.color }}>{k.value}</div>
             <div className="text-xs text-gray-500 font-medium mt-1">{k.label}</div>
           </div>
         ))}
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-        <DataTable columns={[
-          { key: 'id', label: 'Order ID', render: v => <span className="font-semibold text-red-700">{v}</span> },
-          { key: 'customer', label: 'Customer', render: v => <span className="font-semibold">{v}</span> },
-          { key: 'items', label: 'Items' },
-          { key: 'value', label: 'Value', render: v => <span className="font-bold">{v}</span> },
-          { key: 'priority', label: 'Priority', render: v => <StatusBadge status={v} type={v === 'Urgent' ? 'danger' : v === 'High' ? 'warning' : v === 'Low' ? 'gray' : 'info'} /> },
-          { key: 'date', label: 'Date' },
-          { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
-          { key: 'id', label: 'Actions', render: (_, row) => (
-            <div className="flex gap-1.5">
-              <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]" onClick={() => setSelectedOrder(row)}>View</button>
-              <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gray-100 text-gray-800 font-semibold cursor-pointer font-[inherit] border-0 hover:bg-gray-200 transition-all" onClick={() => openEdit(row)}>Edit</button>
-              <button className="inline-flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-lg bg-red-50 text-red-600 font-semibold cursor-pointer font-[inherit] border border-red-200 hover:bg-red-600 hover:text-white transition-all" title="Delete" onClick={() => setDeleteOrder(row)}><MdDeleteOutline size={15} /></button>
-            </div>
-          )},
-        ]} data={filtered} />
-        {filtered.length === 0 && <div className="text-center py-10 text-gray-400 text-sm">No orders found</div>}
+        {loading ? <Spinner /> : (
+          <>
+            <DataTable columns={[
+              { key:'orderId',   label:'Order ID',  render: v => <span className="font-semibold text-red-700">{v}</span> },
+              { key:'customer',  label:'Customer',  render: v => <span className="font-semibold">{v}</span> },
+              { key:'items',     label:'Items' },
+              { key:'value',     label:'Value (₹)', render: v => <span className="font-bold">₹{Number(v).toLocaleString('en-IN')}</span> },
+              { key:'priority',  label:'Priority',  render: v => <StatusBadge status={v} type={v==='Urgent'?'danger':v==='High'?'warning':v==='Low'?'gray':'info'} /> },
+              { key:'orderDate', label:'Date',       render: v => new Date(v).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) },
+              { key:'status',    label:'Status',    render: v => <StatusBadge status={v} /> },
+              { key:'_id',       label:'Actions',   render: (_, row) => (
+                <div className="flex gap-1.5">
+                  <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]" onClick={() => setSelectedOrder(row)}>View</button>
+                  <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gray-100 text-gray-800 font-semibold cursor-pointer font-[inherit] border-0 hover:bg-gray-200 transition-all" onClick={() => openEdit(row)}>Edit</button>
+                  <button className="inline-flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-lg bg-red-50 text-red-600 font-semibold cursor-pointer font-[inherit] border border-red-200 hover:bg-red-600 hover:text-white transition-all" onClick={() => setDeleteOrder(row)}><MdDeleteOutline size={15} /></button>
+                </div>
+              )},
+            ]} data={orders} />
+            {orders.length === 0 && <div className="text-center py-10 text-gray-400 text-sm">No orders found. Click "+ New Order" to create one.</div>}
+          </>
+        )}
       </div>
 
-      <Modal open={!!deleteOrder} onClose={() => setDeleteOrder(null)} title="Delete Order" footer={<><button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold cursor-pointer font-[inherit]" onClick={() => setDeleteOrder(null)}>Cancel</button><button className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-semibold cursor-pointer font-[inherit] border-0" onClick={confirmDelete}>Delete</button></>}>
-        <p className="text-sm text-gray-700">Delete order <strong>{deleteOrder?.id}</strong>?</p>
+      {/* Delete Modal */}
+      <Modal isOpen={!!deleteOrder} onClose={() => setDeleteOrder(null)} title="Delete Order">
+        <p className="text-sm text-gray-700 mb-4">Delete order <strong>{deleteOrder?.orderId}</strong> for <strong>{deleteOrder?.customer}</strong>? This cannot be undone.</p>
+        <div className="flex gap-2 justify-end">
+          <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold cursor-pointer font-[inherit]" onClick={() => setDeleteOrder(null)}>Cancel</button>
+          <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-semibold cursor-pointer font-[inherit] border-0" onClick={confirmDelete}>Delete</button>
+        </div>
       </Modal>
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Create New Order" footer={<><button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Cancel</button><button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-500 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md border-0 cursor-pointer font-[inherit]" onClick={handleCreate}>Create Order</button></>}>
+      {/* Create Modal */}
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Create New Order">
         <FormBody />
+        <div className="flex gap-2 justify-end mt-4">
+          <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold cursor-pointer font-[inherit]" onClick={() => setShowModal(false)}>Cancel</button>
+          <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-500 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md border-0 cursor-pointer font-[inherit]" onClick={handleCreate} disabled={saving}>{saving ? 'Creating...' : 'Create Order'}</button>
+        </div>
       </Modal>
 
-      <Modal open={!!editOrder} onClose={() => { setEditOrder(null); setForm(emptyForm); }} title={`Edit Order — ${editOrder?.id}`} footer={<><button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold cursor-pointer font-[inherit]" onClick={() => { setEditOrder(null); setForm(emptyForm); }}>Cancel</button><button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-500 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md border-0 cursor-pointer font-[inherit]" onClick={handleEdit}>Save Changes</button></>}>
+      {/* Edit Modal */}
+      <Modal isOpen={!!editOrder} onClose={() => { setEditOrder(null); setForm(emptyForm); }} title={`Edit Order — ${editOrder?.orderId}`}>
         <FormBody />
+        <div className="flex gap-2 justify-end mt-4">
+          <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold cursor-pointer font-[inherit]" onClick={() => { setEditOrder(null); setForm(emptyForm); }}>Cancel</button>
+          <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-500 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md border-0 cursor-pointer font-[inherit]" onClick={handleEdit} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</button>
+        </div>
       </Modal>
 
-      <Modal open={!!selectedOrder} onClose={() => setSelectedOrder(null)} title={`Order — ${selectedOrder?.id || ''}`} footer={<button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-500 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md border-0 cursor-pointer font-[inherit]" onClick={() => setSelectedOrder(null)}>Close</button>}>
-        {selectedOrder && [['Customer', selectedOrder.customer], ['Order Date', selectedOrder.date], ['Items', selectedOrder.items], ['Value', selectedOrder.value], ['Priority', selectedOrder.priority], ['Status', selectedOrder.status]].map(([k, v]) => (
+      {/* View Modal */}
+      <Modal isOpen={!!selectedOrder} onClose={() => setSelectedOrder(null)} title={`Order — ${selectedOrder?.orderId || ''}`}>
+        {selectedOrder && [
+          ['Customer',   selectedOrder.customer],
+          ['Order Date', new Date(selectedOrder.orderDate).toLocaleDateString('en-IN')],
+          ['Items',      selectedOrder.items],
+          ['Value',      `₹${Number(selectedOrder.value).toLocaleString('en-IN')}`],
+          ['Priority',   selectedOrder.priority],
+          ['Status',     selectedOrder.status],
+          ['Remarks',    selectedOrder.remarks || '—'],
+        ].map(([k, v]) => (
           <div key={k} className="flex justify-between py-2 border-b border-gray-200 text-sm last:border-0">
             <span className="text-gray-500">{k}</span>
             <span className="font-semibold">{v}</span>
           </div>
         ))}
+        <div className="flex justify-end mt-4">
+          <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-500 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md border-0 cursor-pointer font-[inherit]" onClick={() => setSelectedOrder(null)}>Close</button>
+        </div>
       </Modal>
     </div>
   );

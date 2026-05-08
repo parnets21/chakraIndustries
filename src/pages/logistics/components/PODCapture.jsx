@@ -273,8 +273,9 @@ export default function PODCapture() {
               <div className="form-group">
                 <label className="form-label">Recipient Phone</label>
                 <input type="tel" className="form-input" value={podData.recipientPhone}
-                  onChange={e => setPodData({ ...podData, recipientPhone: e.target.value })}
-                  placeholder="Phone number" />
+                  onChange={e => setPodData({ ...podData, recipientPhone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                  maxLength={10}
+                  placeholder="10-digit number" />
               </div>
             </div>
 

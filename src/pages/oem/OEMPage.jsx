@@ -1,80 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import BarChart from '../../components/charts/BarChart';
 import Modal from '../../components/common/Modal';
 import { toast } from '../../components/common/Toast';
+import { getBOMs } from '../../api/bomApi';
+import { createWorkOrder, getWorkOrders } from '../../api/productionApi';
 
 const brands = ['Tata Motors', 'Mahindra', 'Bajaj Auto'];
 
-const bomTrees = {
-  'BOM-TM-001': [
-    { level: 0, item: 'Engine Seal Kit',       qty: 1,  unit: 'Set',  type: 'Finished' },
-    { level: 1, item: '├─ Front Crankshaft Seal', qty: 1, unit: 'Nos', type: 'Raw' },
-    { level: 1, item: '├─ Rear Crankshaft Seal',  qty: 1, unit: 'Nos', type: 'Raw' },
-    { level: 1, item: '├─ Valve Stem Seal Set',   qty: 8, unit: 'Nos', type: 'Raw' },
-    { level: 1, item: '├─ Oil Pan Gasket',         qty: 1, unit: 'Nos', type: 'Raw' },
-    { level: 1, item: '├─ Head Gasket',            qty: 1, unit: 'Nos', type: 'Sub-Assembly' },
-    { level: 2, item: '│  ├─ MLS Layer Sheet',     qty: 3, unit: 'Nos', type: 'Raw' },
-    { level: 2, item: '│  └─ Fire Ring',           qty: 4, unit: 'Nos', type: 'Raw' },
-    { level: 1, item: '├─ Timing Cover Seal',      qty: 1, unit: 'Nos', type: 'Raw' },
-    { level: 1, item: '└─ O-Ring Kit',             qty: 1, unit: 'Set', type: 'Raw' },
-  ],
-  'BOM-TM-002': [
-    { level: 0, item: 'Gearbox Gasket Set',     qty: 1, unit: 'Set',  type: 'Finished' },
-    { level: 1, item: '├─ Input Shaft Seal',    qty: 1, unit: 'Nos',  type: 'Raw' },
-    { level: 1, item: '├─ Output Shaft Seal',   qty: 1, unit: 'Nos',  type: 'Raw' },
-    { level: 1, item: '├─ Gearbox Cover Gasket',qty: 1, unit: 'Nos',  type: 'Raw' },
-    { level: 1, item: '└─ Drain Plug Washer',   qty: 2, unit: 'Nos',  type: 'Raw' },
-  ],
-  'BOM-MH-001': [
-    { level: 0, item: 'Clutch Assembly',          qty: 1,  unit: 'Set',  type: 'Finished' },
-    { level: 1, item: '├─ Clutch Plate',          qty: 1,  unit: 'Nos',  type: 'Sub-Assembly' },
-    { level: 2, item: '│  ├─ Friction Disc',      qty: 1,  unit: 'Nos',  type: 'Raw' },
-    { level: 2, item: '│  └─ Steel Plate',        qty: 1,  unit: 'Nos',  type: 'Raw' },
-    { level: 1, item: '├─ Pressure Plate',        qty: 1,  unit: 'Nos',  type: 'Raw' },
-    { level: 1, item: '├─ Release Bearing',       qty: 1,  unit: 'Nos',  type: 'Raw' },
-    { level: 1, item: '├─ Clutch Spring Set',     qty: 6,  unit: 'Nos',  type: 'Raw' },
-    { level: 1, item: '└─ Pilot Bearing',         qty: 1,  unit: 'Nos',  type: 'Raw' },
-  ],
-  'BOM-BJ-001': [
-    { level: 0, item: 'Piston Kit 2-Wheeler',   qty: 1, unit: 'Set',  type: 'Finished' },
-    { level: 1, item: '├─ Piston',              qty: 1, unit: 'Nos',  type: 'Raw' },
-    { level: 1, item: '├─ Piston Ring Set',     qty: 1, unit: 'Set',  type: 'Sub-Assembly' },
-    { level: 2, item: '│  ├─ Top Compression Ring', qty: 1, unit: 'Nos', type: 'Raw' },
-    { level: 2, item: '│  ├─ 2nd Compression Ring', qty: 1, unit: 'Nos', type: 'Raw' },
-    { level: 2, item: '│  └─ Oil Control Ring',     qty: 1, unit: 'Nos', type: 'Raw' },
-    { level: 1, item: '└─ Gudgeon Pin',         qty: 1, unit: 'Nos',  type: 'Raw' },
-  ],
-};
-
-const brandData = {
-  'Tata Motors': {
-    color: '#c0392b',
-    bom: [
-      { id: 'BOM-TM-001', product: 'Engine Seal Kit',    components: 12, status: 'Active' },
-      { id: 'BOM-TM-002', product: 'Gearbox Gasket Set', components: 8,  status: 'Active' },
-    ],
-    production: [
-      { wo: 'WO-TM-041', product: 'Engine Seal Kit',    qty: 500, produced: 480, status: 'Completed'   },
-      { wo: 'WO-TM-042', product: 'Gearbox Gasket Set', qty: 300, produced: 210, status: 'In-Progress' },
-    ],
-    billing: 'Per Unit', monthlyTarget: 800, achieved: 690,
-    chartData: [{ label: 'Jan', value: 620 }, { label: 'Feb', value: 680 }, { label: 'Mar', value: 710 }, { label: 'Apr', value: 690 }],
-  },
-  'Mahindra': {
-    color: '#8e44ad',
-    bom: [{ id: 'BOM-MH-001', product: 'Clutch Assembly', components: 18, status: 'Active' }],
-    production: [{ wo: 'WO-MH-021', product: 'Clutch Assembly', qty: 200, produced: 200, status: 'Completed' }],
-    billing: 'Lump Sum', monthlyTarget: 200, achieved: 200,
-    chartData: [{ label: 'Jan', value: 180 }, { label: 'Feb', value: 195 }, { label: 'Mar', value: 200 }, { label: 'Apr', value: 200 }],
-  },
-  'Bajaj Auto': {
-    color: '#27ae60',
-    bom: [{ id: 'BOM-BJ-001', product: 'Piston Kit 2-Wheeler', components: 6, status: 'Active' }],
-    production: [{ wo: 'WO-BJ-031', product: 'Piston Kit 2-Wheeler', qty: 1000, produced: 850, status: 'In-Progress' }],
-    billing: 'Per Unit', monthlyTarget: 1000, achieved: 850,
-    chartData: [{ label: 'Jan', value: 920 }, { label: 'Feb', value: 980 }, { label: 'Mar', value: 1000 }, { label: 'Apr', value: 850 }],
-  },
+const brandColors = {
+  'Tata Motors': '#c0392b',
+  'Mahindra': '#8e44ad',
+  'Bajaj Auto': '#27ae60',
 };
 
 const innerTabs = ['BOM', 'Production', 'Billing'];
@@ -90,19 +27,144 @@ export default function OEMPage() {
   const [showBOMModal, setShowBOMModal]     = useState(false);
   const [selectedBOM, setSelectedBOM]       = useState(null);
   const [showWOModal, setShowWOModal]       = useState(false);
+  const [bomList, setBomList]               = useState([]);
+  const [workOrders, setWorkOrders]         = useState([]);
+  const [loading, setLoading]               = useState(false);
+  const [woForm, setWoForm]                 = useState({
+    product: '',
+    targetQuantity: '',
+    startDate: '',
+    endDate: '',
+    shift: 'General',
+    priority: 'Normal',
+    remarks: '',
+    bomId: ''
+  });
+  const [woId, setWoId] = useState('');
 
-  const data = brandData[activeBrand];
+  const color = brandColors[activeBrand];
 
+  // Fetch BOMs and Work Orders on mount and brand change
+  useEffect(() => {
+    fetchBOMs();
+    fetchWorkOrders();
+  }, [activeBrand]);
+
+  const fetchBOMs = async () => {
+    try {
+      setLoading(true);
+      const res = await getBOMs();
+      const boms = res.data || [];
+      setBomList(boms);
+    } catch (error) {
+      toast(`Error loading BOMs: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchWorkOrders = async () => {
+    try {
+      const res = await getWorkOrders();
+      setWorkOrders(res.data || []);
+    } catch (error) {
+      console.error('Error loading work orders:', error);
+    }
+  };
+
+  // Filter BOMs by brand (using projectId prefix)
+  const getBOMsByBrand = () => {
+    return bomList.filter(bom => {
+      const bomBrand = bom.projectId?.split('-')[0] || '';
+      const brandCode = activeBrand.split(' ')[0].substring(0, 2).toUpperCase();
+      return bomBrand === brandCode;
+    });
+  };
+
+  // Filter work orders by brand
+  const getWOsByBrand = () => {
+    return workOrders.filter(wo => {
+      const woBrand = wo.workOrderId?.split('-')[1] || '';
+      const brandCode = activeBrand.split(' ')[0].substring(0, 2).toUpperCase();
+      return woBrand === brandCode;
+    });
+  };
+
+  const filteredBOMs = getBOMsByBrand();
+  const filteredWOs = getWOsByBrand();
+
+  // Calculate KPIs
+  const monthlyTarget = filteredWOs.reduce((sum, wo) => sum + (wo.targetQuantity || 0), 0) || 1;
+  const achieved = filteredWOs.reduce((sum, wo) => sum + (wo.producedQuantity || 0), 0);
   const kpis = [
-    { label: 'Monthly Target',  value: data.monthlyTarget.toLocaleString() },
-    { label: 'Achieved',        value: data.achieved.toLocaleString() },
-    { label: 'Achievement %',   value: `${Math.round((data.achieved / data.monthlyTarget) * 100)}%` },
-    { label: 'Billing Type',    value: data.billing },
+    { label: 'Monthly Target', value: monthlyTarget.toLocaleString() },
+    { label: 'Achieved', value: achieved.toLocaleString() },
+    { label: 'Achievement %', value: `${Math.round((achieved / monthlyTarget) * 100)}%` },
+    { label: 'Billing Type', value: 'Per Unit' },
   ];
 
   const handleViewBOM = (bom) => {
     setSelectedBOM(bom);
     setShowBOMModal(true);
+  };
+
+  const handleProductChange = (e) => {
+    const selectedBomId = e.target.value;
+    const matchingBom = filteredBOMs.find(b => b._id === selectedBomId);
+    
+    if (matchingBom) {
+      setWoForm(prev => ({ 
+        ...prev, 
+        product: matchingBom.product,
+        bomId: matchingBom._id 
+      }));
+      
+      // Generate WO ID: BRAND-WO-YEAR-RANDOM
+      const year = new Date().getFullYear();
+      const randomNum = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+      const brandCode = activeBrand.split(' ')[0].substring(0, 2).toUpperCase();
+      setWoId(`${brandCode}-WO-${year}-${randomNum}`);
+    }
+  };
+
+  const handleCreateWorkOrder = async () => {
+    if (!woForm.product || !woForm.targetQuantity || !woForm.startDate) {
+      toast('Please fill all required fields');
+      return;
+    }
+
+    try {
+      const payload = {
+        workOrderId: woId,
+        bomId: woForm.bomId,
+        product: woForm.product,
+        targetQuantity: parseInt(woForm.targetQuantity),
+        startDate: woForm.startDate,
+        endDate: woForm.endDate,
+        shift: woForm.shift,
+        priority: woForm.priority,
+        remarks: woForm.remarks,
+        status: 'Pending'
+      };
+
+      await createWorkOrder(payload);
+      toast('Work order created successfully');
+      setShowWOModal(false);
+      setWoForm({
+        product: '',
+        targetQuantity: '',
+        startDate: '',
+        endDate: '',
+        shift: 'General',
+        priority: 'Normal',
+        remarks: '',
+        bomId: ''
+      });
+      setWoId('');
+      fetchWorkOrders();
+    } catch (error) {
+      toast(`Error creating work order: ${error.message}`);
+    }
   };
 
   return (
@@ -144,8 +206,8 @@ export default function OEMPage() {
           <button key={b} onClick={() => setActiveBrand(b)}
             className="px-6 py-2.5 rounded-xl border-2 font-bold text-sm cursor-pointer transition-all font-[inherit]"
             style={{
-              borderColor: activeBrand === b ? brandData[b].color : '#e2e8f0',
-              background:  activeBrand === b ? brandData[b].color : '#fff',
+              borderColor: activeBrand === b ? brandColors[b] : '#e2e8f0',
+              background:  activeBrand === b ? brandColors[b] : '#fff',
               color:       activeBrand === b ? '#fff' : '#1c2833',
             }}>
             {b}
@@ -171,7 +233,7 @@ export default function OEMPage() {
               padding:'7px 20px', borderRadius:9, border:'none', cursor:'pointer',
               fontSize:13, fontWeight:600, fontFamily:'inherit', transition:'all 0.15s',
               background: innerTab === t ? '#fff' : 'transparent',
-              color:      innerTab === t ? data.color : '#64748b',
+              color:      innerTab === t ? color : '#64748b',
               boxShadow:  innerTab === t ? '0 1px 6px rgba(0,0,0,0.1)' : 'none',
             }}>
             {t}
@@ -183,34 +245,42 @@ export default function OEMPage() {
       {innerTab === 'BOM' && (
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
           <div className="text-sm font-bold text-gray-800 mb-3.5">Bill of Materials — {activeBrand}</div>
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
-            <table className="w-full">
-              <thead>
-                <tr>
-                  {['BOM ID', 'Product', 'Components', 'Status', 'Actions'].map(h => (
-                    <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {data.bom.map((b, i) => (
-                  <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
-                    <td className="px-4 py-3 align-middle font-semibold text-red-700">{b.id}</td>
-                    <td className="px-4 py-3 align-middle font-semibold text-gray-800">{b.product}</td>
-                    <td className="px-4 py-3 align-middle text-gray-800">{b.components}</td>
-                    <td className="px-4 py-3 align-middle"><StatusBadge status={b.status} /></td>
-                    <td className="px-4 py-3 align-middle">
-                      <button
-                        onClick={() => handleViewBOM(b)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]">
-                        View BOM
-                      </button>
-                    </td>
+          {loading ? (
+            <div className="text-center py-8 text-gray-500">Loading BOMs...</div>
+          ) : filteredBOMs.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">No BOMs found for {activeBrand}</div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    {['Project ID', 'Product', 'Version', 'Type', 'Materials', 'Status', 'Actions'].map(h => (
+                      <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filteredBOMs.map((b, i) => (
+                    <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
+                      <td className="px-4 py-3 align-middle font-semibold text-red-700">{b.projectId}</td>
+                      <td className="px-4 py-3 align-middle font-semibold text-gray-800">{b.product}</td>
+                      <td className="px-4 py-3 align-middle text-gray-800">{b.version}</td>
+                      <td className="px-4 py-3 align-middle text-gray-800">{b.type}</td>
+                      <td className="px-4 py-3 align-middle text-gray-800">{b.materials?.length || 0}</td>
+                      <td className="px-4 py-3 align-middle"><StatusBadge status={b.status} /></td>
+                      <td className="px-4 py-3 align-middle">
+                        <button
+                          onClick={() => handleViewBOM(b)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-red-600 text-red-700 bg-transparent font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]">
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -218,35 +288,39 @@ export default function OEMPage() {
       {innerTab === 'Production' && (
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
           <div className="text-sm font-bold text-gray-800 mb-3.5">Production — {activeBrand}</div>
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
-            <table className="w-full">
-              <thead>
-                <tr>
-                  {['WO ID', 'Product', 'Target', 'Produced', 'Progress', 'Status'].map(h => (
-                    <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {data.production.map((p, i) => (
-                  <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
-                    <td className="px-4 py-3 align-middle font-semibold text-red-700">{p.wo}</td>
-                    <td className="px-4 py-3 align-middle font-semibold text-gray-800">{p.product}</td>
-                    <td className="px-4 py-3 align-middle text-gray-800">{p.qty}</td>
-                    <td className="px-4 py-3 align-middle font-bold text-gray-800">{p.produced}</td>
-                    <td className="px-4 py-3 align-middle min-w-[140px]">
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-1">
-                        <div className="h-full rounded-full transition-all duration-500"
-                          style={{ width:`${(p.produced/p.qty)*100}%`, background: data.color }} />
-                      </div>
-                      <span className="text-[11px] text-gray-500">{Math.round((p.produced/p.qty)*100)}%</span>
-                    </td>
-                    <td className="px-4 py-3 align-middle"><StatusBadge status={p.status} /></td>
+          {filteredWOs.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">No work orders for {activeBrand}</div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    {['WO ID', 'Product', 'Target', 'Produced', 'Progress', 'Status'].map(h => (
+                      <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filteredWOs.map((p, i) => (
+                    <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
+                      <td className="px-4 py-3 align-middle font-semibold text-red-700">{p.workOrderId}</td>
+                      <td className="px-4 py-3 align-middle font-semibold text-gray-800">{p.product}</td>
+                      <td className="px-4 py-3 align-middle text-gray-800">{p.targetQuantity}</td>
+                      <td className="px-4 py-3 align-middle font-bold text-gray-800">{p.producedQuantity || 0}</td>
+                      <td className="px-4 py-3 align-middle min-w-[140px]">
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-1">
+                          <div className="h-full rounded-full transition-all duration-500"
+                            style={{ width:`${((p.producedQuantity || 0)/(p.targetQuantity || 1))*100}%`, background: color }} />
+                        </div>
+                        <span className="text-[11px] text-gray-500">{Math.round(((p.producedQuantity || 0)/(p.targetQuantity || 1))*100)}%</span>
+                      </td>
+                      <td className="px-4 py-3 align-middle"><StatusBadge status={p.status} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -255,11 +329,16 @@ export default function OEMPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
             <div className="text-sm font-bold text-gray-800 mb-3">Monthly Production Trend</div>
-            <BarChart data={data.chartData} color={data.color} height={160} />
+            <BarChart data={[
+              { label: 'Jan', value: 620 },
+              { label: 'Feb', value: 680 },
+              { label: 'Mar', value: 710 },
+              { label: 'Apr', value: achieved }
+            ]} color={color} height={160} />
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
             <div className="text-sm font-bold text-gray-800 mb-4">Billing Configuration</div>
-            {[['Billing Type', data.billing], ['Rate per Unit', '₹1,200'], ['GST Rate', '18%'], ['Payment Terms', 'Net 30']].map(([k, v]) => (
+            {[['Billing Type', 'Per Unit'], ['Rate per Unit', '₹1,200'], ['GST Rate', '18%'], ['Payment Terms', 'Net 30']].map(([k, v]) => (
               <div key={k} className="flex justify-between py-2.5 border-b border-gray-200 text-sm last:border-0">
                 <span className="text-gray-500">{k}</span>
                 <span className="font-bold">{v}</span>
@@ -274,7 +353,7 @@ export default function OEMPage() {
       )}
 
       {/* ══════════════════════════════════════════════════════
-          BOM Tree Modal
+          BOM Details Modal
       ══════════════════════════════════════════════════════ */}
       <Modal
         open={showBOMModal}
@@ -288,7 +367,7 @@ export default function OEMPage() {
           <div>
             {/* Header info */}
             <div className="grid grid-cols-3 gap-3 mb-5">
-              {[['BOM ID', selectedBOM.id], ['Components', selectedBOM.components], ['Status', selectedBOM.status]].map(([k, v]) => (
+              {[['Project ID', selectedBOM.projectId], ['Version', selectedBOM.version], ['Status', selectedBOM.status]].map(([k, v]) => (
                 <div key={k} className="bg-gray-50 rounded-xl p-3">
                   <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mb-1">{k}</div>
                   <div className="text-sm font-bold text-gray-800">{v}</div>
@@ -296,39 +375,38 @@ export default function OEMPage() {
               ))}
             </div>
 
-            {/* BOM Tree */}
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Component Tree</div>
+            {/* Materials Table */}
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Materials</div>
             <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
               <table className="w-full">
                 <thead>
                   <tr>
-                    {['Component', 'Qty', 'Unit', 'Type'].map(h => (
+                    {['Material', 'SKU', 'Qty', 'Unit', 'Cost Price', 'Total Cost'].map(h => (
                       <th key={h} className="bg-gray-100 px-4 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {(bomTrees[selectedBOM.id] || []).map((row, i) => (
+                  {(selectedBOM.materials || []).map((mat, i) => (
                     <tr key={i} className="border-b border-gray-100 last:border-0">
-                      <td className="px-4 py-2.5 align-middle">
-                        <span className="font-mono text-xs" style={{
-                          color: row.level === 0 ? data.color : row.level === 1 ? '#1c2833' : '#718096',
-                          fontWeight: row.level === 0 ? 700 : 400,
-                        }}>{row.item}</span>
-                      </td>
-                      <td className="px-4 py-2.5 align-middle text-xs font-bold text-gray-700">{row.qty}</td>
-                      <td className="px-4 py-2.5 align-middle text-xs text-gray-500">{row.unit}</td>
-                      <td className="px-4 py-2.5 align-middle">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          row.type === 'Finished'     ? 'bg-green-100 text-green-700' :
-                          row.type === 'Sub-Assembly' ? 'bg-blue-100 text-blue-700'  :
-                                                        'bg-gray-100 text-gray-600'
-                        }`}>{row.type}</span>
-                      </td>
+                      <td className="px-4 py-2.5 align-middle text-xs font-semibold text-gray-800">{mat.materialName}</td>
+                      <td className="px-4 py-2.5 align-middle text-xs text-gray-600">{mat.sku}</td>
+                      <td className="px-4 py-2.5 align-middle text-xs font-bold text-gray-700">{mat.quantity}</td>
+                      <td className="px-4 py-2.5 align-middle text-xs text-gray-500">{mat.unit}</td>
+                      <td className="px-4 py-2.5 align-middle text-xs text-gray-600">₹{mat.costPrice?.toFixed(2) || '0.00'}</td>
+                      <td className="px-4 py-2.5 align-middle text-xs font-bold text-gray-800">₹{mat.totalCost?.toFixed(2) || '0.00'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Total Cost */}
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-semibold text-gray-700">Total Material Cost</span>
+                <span className="text-lg font-bold text-blue-700">₹{selectedBOM.totalMaterialCost?.toFixed(2) || '0.00'}</span>
+              </div>
             </div>
           </div>
         )}

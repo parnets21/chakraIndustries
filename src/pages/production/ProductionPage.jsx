@@ -1,16 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import BarChart from '../../components/charts/BarChart';
 import Modal from '../../components/common/Modal';
 import { toast } from '../../components/common/Toast';
+import CreateWorkOrderModal from './components/CreateWorkOrderModal';
+import CreateBOMModal from './components/CreateBOMModal';
 
 const tabList = ['BOM', 'Work Orders', 'Production Planning', 'Production Scheduling', 'Production Tracking', 'Efficiency', 'Wastage'];
-const bom = [
-  { id: 'BOM-001', product: 'Engine Assembly A', components: 14, version: 'v2.1', status: 'Active' },
-  { id: 'BOM-002', product: 'Gearbox Unit B', components: 22, version: 'v1.4', status: 'Active' },
-  { id: 'BOM-003', product: 'Clutch Assembly C', components: 8, version: 'v3.0', status: 'Active' },
-];
 const bomTree = [
   { level: 0, item: 'Engine Assembly A', qty: 1, unit: 'Set', type: 'Finished' },
   { level: 1, item: '├─ Cylinder Block', qty: 1, unit: 'Nos', type: 'Sub-Assembly' },
@@ -22,11 +19,6 @@ const bomTree = [
   { level: 1, item: '└─ Valve Train', qty: 1, unit: 'Set', type: 'Sub-Assembly' },
   { level: 2, item: '   ├─ Valve Spring Set', qty: 8, unit: 'Nos', type: 'Raw' },
   { level: 2, item: '   └─ Timing Chain Kit', qty: 1, unit: 'Set', type: 'Raw' },
-];
-const workOrders = [
-  { id: 'WO-0891', product: 'Engine Assembly A', qty: 50, produced: 50, status: 'Completed', startDate: '10 Apr', endDate: '14 Apr', shift: 'Morning' },
-  { id: 'WO-0892', product: 'Gearbox Unit B', qty: 30, produced: 18, status: 'In-Progress', startDate: '12 Apr', endDate: '16 Apr', shift: 'General' },
-  { id: 'WO-0893', product: 'Clutch Assembly C', qty: 80, produced: 0, status: 'Pending', startDate: '15 Apr', endDate: '18 Apr', shift: 'Night' },
 ];
 const wastageData = [
   { label: 'Mon', value: 12, color: '#e74c3c' }, { label: 'Tue', value: 8, color: '#e74c3c' },
@@ -44,40 +36,84 @@ const btnO = 'inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 t
 
 export default function ProductionPage({ initialTab = 0 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
-  const [selectedBOM, setSelectedBOM] = useState('BOM-001');
+  const [selectedBOM, setSelectedBOM] = useState(null);
   const [showWOModal, setShowWOModal] = useState(false);
   const [showBOMModal, setShowBOMModal] = useState(false);
-  const [bomList, setBomList] = useState(bom);
-  const [woList, setWoList] = useState(workOrders);
-  const [woForm, setWoForm] = useState({ product: 'Engine Assembly A', qty: '', shift: 'Morning', startDate: '', endDate: '', bom: 'BOM-001', priority: 'Normal', remarks: '' });
+  const [bomList, setBomList] = useState([]);
+  const [woList, setWoList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState(null);
   const [bomForm, setBomForm] = useState({ product: '', version: 'v1.0', type: 'Finished Good', uom: 'Set', description: '' });
 
-  const handleCreateWO = () => {
-    if (!woForm.qty || !woForm.startDate) { toast('Please fill required fields', 'error'); return; }
-    const newWO = { id: `WO-${String(woList.length + 892).padStart(4, '0')}`, product: woForm.product, qty: parseInt(woForm.qty), produced: 0, status: 'Pending', startDate: new Date(woForm.startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }), endDate: woForm.endDate ? new Date(woForm.endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—', shift: woForm.shift };
-    setWoList(prev => [...prev, newWO]);
-    setWoForm({ product: 'Engine Assembly A', qty: '', shift: 'Morning', startDate: '', endDate: '', bom: 'BOM-001', priority: 'Normal', remarks: '' });
-    setShowWOModal(false);
-    toast(`Work Order ${newWO.id} created`);
+  // Fetch data on mount
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(false);
+      // Mock data
+      const mockBOMs = [
+        { _id: '1', product: 'Engine Assembly A', version: 'v1.0', type: 'Finished Good', components: [{ itemName: 'Piston Ring', qty: 4 }], status: 'Active' },
+        { _id: '2', product: 'Gearbox Unit B', version: 'v1.0', type: 'Finished Good', components: [{ itemName: 'Gear Set', qty: 2 }], status: 'Active' },
+      ];
+      const mockWOs = [
+        { _id: 'wo1', product: 'Engine Assembly A', qty: 200, produced: 150, shift: 'Morning', startDate: new Date('2026-05-01'), endDate: new Date('2026-05-10'), status: 'In-Progress' },
+        { _id: 'wo2', product: 'Gearbox Unit B', qty: 120, produced: 90, shift: 'General', startDate: new Date('2026-05-02'), endDate: new Date('2026-05-12'), status: 'In-Progress' },
+      ];
+      const mockStats = { totalWorkOrders: 5, completedWorkOrders: 2, inProgressWorkOrders: 2, scheduledWorkOrders: 1, totalBOMs: 2 };
+      
+      setBomList(mockBOMs);
+      setWoList(mockWOs);
+      setStats(mockStats);
+      
+      if (mockBOMs.length > 0) {
+        setSelectedBOM(mockBOMs[0]._id);
+      }
+    } catch (error) {
+      toast(error.message || 'Failed to fetch data', 'error');
+    }
   };
 
-  const handleCreateBOM = () => {
+  const handleWorkOrderSaved = () => {
+    fetchData();
+  };
+
+  const handleCreateBOM = async () => {
     if (!bomForm.product) { toast('Product name is required', 'error'); return; }
-    const newBOM = { id: `BOM-${String(bomList.length + 4).padStart(3, '0')}`, product: bomForm.product, components: 0, version: bomForm.version, status: 'Active' };
-    setBomList(prev => [...prev, newBOM]);
-    setBomForm({ product: '', version: 'v1.0', type: 'Finished Good', uom: 'Set', description: '' });
-    setShowBOMModal(false);
-    toast(`BOM ${newBOM.id} created`);
+    try {
+      const newBOM = {
+        _id: `bom${bomList.length + 1}`,
+        product: bomForm.product,
+        version: bomForm.version,
+        type: bomForm.type,
+        uom: bomForm.uom,
+        description: bomForm.description,
+        components: [],
+        status: 'Active'
+      };
+      setBomList(prev => [...prev, newBOM]);
+      setBomForm({ product: '', version: 'v1.0', type: 'Finished Good', uom: 'Set', description: '' });
+      setShowBOMModal(false);
+      toast(`BOM created successfully`);
+    } catch (error) {
+      toast(error.message || 'Failed to create BOM', 'error');
+    }
   };
 
-  const handleUpdateWOProgress = (id) => {
-    setWoList(prev => prev.map(w => {
-      if (w.id !== id) return w;
-      const increment = Math.min(w.qty - w.produced, Math.ceil(w.qty * 0.1));
-      const newProduced = w.produced + increment;
-      return { ...w, produced: newProduced, status: newProduced >= w.qty ? 'Completed' : 'In-Progress' };
-    }));
-    toast(`Progress updated for ${id}`);
+  const handleUpdateWOProgress = async (id) => {
+    try {
+      const wo = woList.find(w => w._id === id);
+      if (!wo) return;
+      const increment = Math.min(wo.qty - wo.produced, Math.ceil(wo.qty * 0.1));
+      const newProduced = wo.produced + increment;
+      
+      setWoList(prev => prev.map(w => w._id === id ? { ...w, produced: newProduced } : w));
+      toast(`Progress updated for ${id}`);
+    } catch (error) {
+      toast(error.message || 'Failed to update progress', 'error');
+    }
   };
 
   const primaryBtn = {
@@ -111,22 +147,28 @@ export default function ProductionPage({ initialTab = 0 }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
             <div className="text-sm font-bold text-gray-800 mb-3">BOM List</div>
-            {bomList.map(b => (
-              <div key={b.id} onClick={() => setSelectedBOM(b.id)}
-                className="p-3 rounded-lg mb-2 cursor-pointer transition-all"
-                style={{ border: `2px solid ${selectedBOM === b.id ? '#c0392b' : '#e2e8f0'}`, background: selectedBOM === b.id ? '#fdf5f5' : '#fff' }}>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <div className="font-bold text-sm">{b.product}</div>
-                    <div className="text-[11px] text-gray-400">{b.id} · {b.version} · {b.components} components</div>
+            {loading ? (
+              <div className="text-center py-4 text-gray-400">Loading BOMs...</div>
+            ) : bomList.length === 0 ? (
+              <div className="text-center py-4 text-gray-400">No BOMs found</div>
+            ) : (
+              bomList.map(b => (
+                <div key={b._id} onClick={() => setSelectedBOM(b._id)}
+                  className="p-3 rounded-lg mb-2 cursor-pointer transition-all"
+                  style={{ border: `2px solid ${selectedBOM === b._id ? '#c0392b' : '#e2e8f0'}`, background: selectedBOM === b._id ? '#fdf5f5' : '#fff' }}>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <div className="font-bold text-sm">{b.product}</div>
+                      <div className="text-[11px] text-gray-400">{b._id.slice(-6)} · {b.version} · {b.components?.length || 0} components</div>
+                    </div>
+                    <StatusBadge status={b.status} />
                   </div>
-                  <StatusBadge status={b.status} />
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <div className="text-sm font-bold text-gray-800 mb-3">BOM Tree — Engine Assembly A</div>
+            <div className="text-sm font-bold text-gray-800 mb-3">BOM Tree — {bomList.find(b => b._id === selectedBOM)?.product || 'Select BOM'}</div>
             <div className="font-mono text-xs">
               {bomTree.map((row, i) => (
                 <div key={i} className="py-1.5 border-b border-gray-50 flex justify-between items-center">
@@ -144,19 +186,23 @@ export default function ProductionPage({ initialTab = 0 }) {
 
       {activeTab === 1 && (
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <DataTable
-            columns={[
-              { key: 'id', label: 'WO ID', render: v => <span className="font-semibold text-red-600">{v}</span> },
-              { key: 'product', label: 'Product', render: v => <span className="font-semibold">{v}</span> },
-              { key: 'qty', label: 'Target Qty' },
-              { key: 'produced', label: 'Produced', render: (v, row) => <span className="font-bold" style={{ color: v >= row.qty ? '#27ae60' : '#f39c12' }}>{v}</span> },
-              { key: 'shift', label: 'Shift' },
-              { key: 'startDate', label: 'Start' },
-              { key: 'endDate', label: 'End' },
-              { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
-            ]}
-            data={woList}
-          />
+          {loading ? (
+            <div className="text-center py-8 text-gray-400">Loading work orders...</div>
+          ) : (
+            <DataTable
+              columns={[
+                { key: '_id', label: 'WO ID', render: v => <span className="font-semibold text-red-600">{v.slice(-6)}</span> },
+                { key: 'product', label: 'Product', render: v => <span className="font-semibold">{v}</span> },
+                { key: 'qty', label: 'Target Qty' },
+                { key: 'produced', label: 'Produced', render: (v, row) => <span className="font-bold" style={{ color: v >= row.qty ? '#27ae60' : '#f39c12' }}>{v}</span> },
+                { key: 'shift', label: 'Shift' },
+                { key: 'startDate', label: 'Start', render: v => new Date(v).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) },
+                { key: 'endDate', label: 'End', render: v => v ? new Date(v).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—' },
+                { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
+              ]}
+              data={woList}
+            />
+          )}
         </div>
       )}
 
@@ -238,25 +284,31 @@ export default function ProductionPage({ initialTab = 0 }) {
 
       {activeTab === 4 && (
         <div className="flex flex-col gap-4">
-          {woList.filter(w => w.status === 'In-Progress').map(wo => (
-            <div key={wo.id} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-              <div className="flex justify-between items-center mb-3">
-                <div>
-                  <div className="font-bold text-[15px]">{wo.product}</div>
-                  <div className="text-xs text-gray-400">{wo.id} · {wo.shift} Shift</div>
+          {loading ? (
+            <div className="text-center py-8 text-gray-400">Loading production tracking...</div>
+          ) : woList.filter(w => w.status === 'In-Progress').length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 text-center text-gray-400">No in-progress work orders</div>
+          ) : (
+            woList.filter(w => w.status === 'In-Progress').map(wo => (
+              <div key={wo._id} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+                <div className="flex justify-between items-center mb-3">
+                  <div>
+                    <div className="font-bold text-[15px]">{wo.product}</div>
+                    <div className="text-xs text-gray-400">{wo._id.slice(-6)} · {wo.shift} Shift</div>
+                  </div>
+                  <StatusBadge status={wo.status} />
                 </div>
-                <StatusBadge status={wo.status} />
+                <div className="flex justify-between text-xs mb-1.5">
+                  <span>Progress: <strong>{wo.produced}/{wo.qty}</strong></span>
+                  <span className="font-bold" style={{ color: '#c0392b' }}>{Math.round((wo.produced / wo.qty) * 100)}%</span>
+                </div>
+                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(wo.produced / wo.qty) * 100}%`, background: '#c0392b' }} />
+                </div>
+                <button onClick={() => handleUpdateWOProgress(wo._id)} className="mt-3 w-full py-2 rounded-xl text-sm font-semibold bg-red-600 text-white border-0 cursor-pointer font-[inherit] hover:bg-red-700 transition-all">+ Update Progress</button>
               </div>
-              <div className="flex justify-between text-xs mb-1.5">
-                <span>Progress: <strong>{wo.produced}/{wo.qty}</strong></span>
-                <span className="font-bold" style={{ color: '#c0392b' }}>{Math.round((wo.produced / wo.qty) * 100)}%</span>
-              </div>
-              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(wo.produced / wo.qty) * 100}%`, background: '#c0392b' }} />
-              </div>
-              <button onClick={() => handleUpdateWOProgress(wo.id)} className="mt-3 w-full py-2 rounded-xl text-sm font-semibold bg-red-600 text-white border-0 cursor-pointer font-[inherit] hover:bg-red-700 transition-all">+ Update Progress</button>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       )}
 
@@ -273,10 +325,10 @@ export default function ProductionPage({ initialTab = 0 }) {
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
             <div className="text-sm font-bold text-gray-800 mb-3.5">Efficiency by Work Order</div>
-            {workOrders.map((wo, i) => {
+            {woList.map((wo, i) => {
               const eff = wo.qty > 0 ? Math.round((wo.produced / wo.qty) * 100) : 0;
               return (
-                <div key={i} className={`py-3 ${i < workOrders.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                <div key={i} className={`py-3 ${i < woList.length - 1 ? 'border-b border-gray-100' : ''}`}>
                   <div className="flex justify-between text-sm mb-1.5">
                     <span className="font-semibold">{wo.product}</span>
                     <span className="font-extrabold" style={{ color: eff >= 90 ? '#27ae60' : eff >= 50 ? '#f39c12' : '#ef4444' }}>{eff}%</span>
@@ -306,31 +358,17 @@ export default function ProductionPage({ initialTab = 0 }) {
         </div>
       )}
 
-      <Modal open={showWOModal} onClose={() => setShowWOModal(false)} title="Create Work Order"
-        footer={<><button className={btnO} onClick={() => setShowWOModal(false)}>Cancel</button><button className={btnP} onClick={handleCreateWO}>Create Work Order</button></>}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Work Order ID</label><input className={inp} placeholder="Auto-generated" disabled /></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Product *</label><select className={inp} value={woForm.product} onChange={e => setWoForm(p=>({...p,product:e.target.value}))}><option>Engine Assembly A</option><option>Gearbox Unit B</option><option>Clutch Assembly C</option></select></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Target Quantity *</label><input type="number" className={inp} placeholder="0" value={woForm.qty} onChange={e => setWoForm(p=>({...p,qty:e.target.value}))} /></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Shift</label><select className={inp} value={woForm.shift} onChange={e => setWoForm(p=>({...p,shift:e.target.value}))}><option>Morning</option><option>General</option><option>Night</option></select></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Start Date *</label><input type="date" className={inp} value={woForm.startDate} onChange={e => setWoForm(p=>({...p,startDate:e.target.value}))} /></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">End Date *</label><input type="date" className={inp} value={woForm.endDate} onChange={e => setWoForm(p=>({...p,endDate:e.target.value}))} /></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">BOM Reference</label><select className={inp} value={woForm.bom} onChange={e => setWoForm(p=>({...p,bom:e.target.value}))}><option>BOM-001 — Engine Assembly A</option><option>BOM-002 — Gearbox Unit B</option></select></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Priority</label><select className={inp} value={woForm.priority} onChange={e => setWoForm(p=>({...p,priority:e.target.value}))}><option>Normal</option><option>High</option><option>Urgent</option></select></div>
-        </div>
-        <div className="flex flex-col gap-1.5 mt-1"><label className="text-xs font-semibold text-gray-600">Remarks</label><textarea className={`${inp} resize-y min-h-[80px]`} placeholder="Additional instructions..." value={woForm.remarks} onChange={e => setWoForm(p=>({...p,remarks:e.target.value}))} /></div>
-      </Modal>
+      <CreateWorkOrderModal 
+        open={showWOModal} 
+        onClose={() => setShowWOModal(false)} 
+        onSaved={handleWorkOrderSaved}
+      />
 
-      <Modal open={showBOMModal} onClose={() => setShowBOMModal(false)} title="Create New BOM"
-        footer={<><button className={btnO} onClick={() => setShowBOMModal(false)}>Cancel</button><button className={btnP} onClick={handleCreateBOM}>Save BOM</button></>}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Product Name *</label><input className={inp} placeholder="e.g. Engine Assembly D" value={bomForm.product} onChange={e => setBomForm(p=>({...p,product:e.target.value}))} /></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Version</label><input className={inp} placeholder="v1.0" value={bomForm.version} onChange={e => setBomForm(p=>({...p,version:e.target.value}))} /></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Product Type</label><select className={inp} value={bomForm.type} onChange={e => setBomForm(p=>({...p,type:e.target.value}))}><option>Finished Good</option><option>Sub-Assembly</option><option>Semi-Finished</option></select></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Unit of Measure</label><input className={inp} placeholder="e.g. Set" value={bomForm.uom} onChange={e => setBomForm(p=>({...p,uom:e.target.value}))} /></div>
-        </div>
-        <div className="flex flex-col gap-1.5 mt-1"><label className="text-xs font-semibold text-gray-600">Description</label><textarea className={`${inp} resize-y min-h-[80px]`} placeholder="BOM description..." value={bomForm.description} onChange={e => setBomForm(p=>({...p,description:e.target.value}))} /></div>
-      </Modal>
+      <CreateBOMModal 
+        open={showBOMModal} 
+        onClose={() => setShowBOMModal(false)} 
+        onSaved={handleWorkOrderSaved}
+      />
     </div>
   );
 }

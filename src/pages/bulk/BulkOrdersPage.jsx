@@ -5,6 +5,7 @@ import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
 import { toast } from '../../components/common/Toast';
 import { bulkOrderApi } from '../../api/bulkOrderApi';
+import { logisticsApi } from '../../api/logisticsApi';
 
 const packagingOptions = [
   { id: 'PKG-01', name: 'Standard Box', description: 'Plain corrugated box with product label', moq: 100, extraCost: '₹0', leadTime: '0 days', icon: FiBox },
@@ -36,6 +37,7 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
   const [clients, setClients] = useState([]);
   const [quotations, setQuotations] = useState([]);
   const [schedules, setSchedules] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
   const [stats, setStats] = useState({ activeClients: 0, activeQuotes: 0, approvedQuotes: 0, pipeline: 0 });
   const [selectedClient, setSelectedClient] = useState(null);
   const [viewClient, setViewClient] = useState(null);
@@ -50,16 +52,18 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [clientsRes, quotesRes, schedulesRes, statsRes] = await Promise.allSettled([
+      const [clientsRes, quotesRes, schedulesRes, statsRes, vehiclesRes] = await Promise.allSettled([
         bulkOrderApi.getClients(),
         bulkOrderApi.getQuotations(),
         bulkOrderApi.getSchedules(),
         bulkOrderApi.getStats(),
+        logisticsApi.getVehicles({ status: 'Available' }),
       ]);
       if (clientsRes.status === 'fulfilled') setClients(clientsRes.value.data || []);
       if (quotesRes.status === 'fulfilled') setQuotations(quotesRes.value.data || []);
       if (schedulesRes.status === 'fulfilled') setSchedules(schedulesRes.value.data || []);
       if (statsRes.status === 'fulfilled') setStats(statsRes.value.data || {});
+      if (vehiclesRes.status === 'fulfilled') setVehicles(vehiclesRes.value.data || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, []);
@@ -232,7 +236,7 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
             columns={[
               { key: 'quoteId', label: 'Quote ID', render: v => <span className="font-semibold text-red-700">{v}</span> },
               { key: 'clientName', label: 'Client', render: v => <span className="font-semibold">{v}</span> },
-              { key: 'items', label: 'SKUs', render: v => Array.isArray(v) ? v.length : v },
+              { key: 'items', label: 'SKU', render: v => Array.isArray(v) ? v.length : v },
               { key: 'grandTotal', label: 'Value', render: v => <span className="font-bold text-red-700">{fmtMoney(v)}</span> },
               { key: 'packaging', label: 'Packaging' },
               { key: 'validity', label: 'Valid Till', render: v => v ? new Date(v).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—' },
@@ -361,7 +365,7 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
         <div className="grid grid-cols-2 gap-4">
           <div className={fieldCls}><label className={labelCls}>Company Name *</label><input className={inputCls} placeholder="e.g. Maruti Suzuki" value={newClientForm.name} onChange={(e) => setNewClientForm({...newClientForm, name: e.target.value})} /></div>
           <div className={fieldCls}><label className={labelCls}>Contact Person *</label><input className={inputCls} placeholder="Name" value={newClientForm.contact} onChange={(e) => setNewClientForm({...newClientForm, contact: e.target.value})} /></div>
-          <div className={fieldCls}><label className={labelCls}>Phone</label><input className={inputCls} placeholder="10-digit number" value={newClientForm.phone} onChange={(e) => setNewClientForm({...newClientForm, phone: e.target.value})} /></div>
+          <div className={fieldCls}><label className={labelCls}>Phone</label><input className={inputCls} type="tel" placeholder="10-digit number" maxLength={10} value={newClientForm.phone} onChange={(e) => setNewClientForm({...newClientForm, phone: e.target.value.replace(/\D/g, '').slice(0, 10)})} /></div>
           <div className={fieldCls}><label className={labelCls}>Email</label><input type="email" className={inputCls} placeholder="email@company.com" value={newClientForm.email} onChange={(e) => setNewClientForm({...newClientForm, email: e.target.value})} /></div>
           <div className={fieldCls}><label className={labelCls}>City</label><input className={inputCls} placeholder="City" value={newClientForm.city} onChange={(e) => setNewClientForm({...newClientForm, city: e.target.value})} /></div>
           <div className={fieldCls}><label className={labelCls}>Client Tier</label><select className={selectCls} value={newClientForm.tier} onChange={(e) => setNewClientForm({...newClientForm, tier: e.target.value})}><option>Silver</option><option>Gold</option><option>Platinum</option></select></div>
@@ -441,12 +445,15 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
             <select className={selectCls} value={newDeliveryForm.quotationId} onChange={(e) => {
               const quotation = quotations.find(q => q._id === e.target.value);
               if (quotation) {
+                const totalQty = Array.isArray(quotation.items) 
+                  ? quotation.items.reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0)
+                  : 0;
                 setNewDeliveryForm({
                   ...newDeliveryForm,
                   quotationId: e.target.value,
                   client: quotation.clientName,
                   items: Array.isArray(quotation.items) ? quotation.items.length.toString() : '',
-                  qty: '',
+                  qty: totalQty.toString(),
                 });
               } else {
                 setNewDeliveryForm({ ...newDeliveryForm, quotationId: e.target.value });

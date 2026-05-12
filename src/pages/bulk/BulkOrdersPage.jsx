@@ -1,20 +1,24 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiBox, FiTruck, FiPackage, FiGift, FiCheck, FiX } from 'react-icons/fi';
+import { FiBox, FiTruck, FiPackage, FiGift, FiCheck, FiX, FiBriefcase } from 'react-icons/fi';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
 import { toast } from '../../components/common/Toast';
 import { bulkOrderApi } from '../../api/bulkOrderApi';
 import { logisticsApi } from '../../api/logisticsApi';
+import { inventoryApi } from '../../api/inventoryApi';
+import { packagingApi } from '../../api/packagingApi';
+import { corporateClientApi } from '../../api/corporateClientApi';
 
-const packagingOptions = [
+const tierColor = { Platinum: '#8b5cf6', Gold: '#f59e0b', Silver: '#6b7280' };
+
+// Default packaging options (fallback if API fails)
+const defaultPackagingOptions = [
   { id: 'PKG-01', name: 'Standard Box', description: 'Plain corrugated box with product label', moq: 100, extraCost: '₹0', leadTime: '0 days', icon: FiBox },
   { id: 'PKG-02', name: 'Custom Branded', description: 'Client logo & branding on box', moq: 500, extraCost: '₹12/unit', leadTime: '5 days', icon: FiPackage },
   { id: 'PKG-03', name: 'Bulk Loose', description: 'No individual packaging, bulk pallet', moq: 1000, extraCost: '-₹5/unit', leadTime: '0 days', icon: FiTruck },
   { id: 'PKG-04', name: 'Premium Gift Box', description: 'Premium finish with foam insert', moq: 200, extraCost: '₹45/unit', leadTime: '7 days', icon: FiGift },
 ];
-
-const tierColor = { Platinum: '#8b5cf6', Gold: '#f59e0b', Silver: '#6b7280' };
 
 const inputCls = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]";
 const selectCls = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]";
@@ -35,9 +39,12 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
   const [selectedPkg, setSelectedPkg] = useState('PKG-02');
   const [loading, setLoading] = useState(false);
   const [clients, setClients] = useState([]);
+  const [corporateClients, setCorporateClients] = useState([]);
   const [quotations, setQuotations] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [vehicles, setVehicles] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
+  const [packagingOptions, setPackagingOptions] = useState(defaultPackagingOptions);
   const [stats, setStats] = useState({ activeClients: 0, activeQuotes: 0, approvedQuotes: 0, pipeline: 0 });
   const [selectedClient, setSelectedClient] = useState(null);
   const [viewClient, setViewClient] = useState(null);
@@ -52,18 +59,31 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [clientsRes, quotesRes, schedulesRes, statsRes, vehiclesRes] = await Promise.allSettled([
+      const [clientsRes, corporateClientsRes, quotesRes, schedulesRes, statsRes, vehiclesRes, warehousesRes, packagingRes] = await Promise.allSettled([
         bulkOrderApi.getClients(),
+        corporateClientApi.getAll({ status: 'Active' }),
         bulkOrderApi.getQuotations(),
         bulkOrderApi.getSchedules(),
         bulkOrderApi.getStats(),
         logisticsApi.getVehicles({ status: 'Available' }),
+        inventoryApi.getWarehouses(),
+        packagingApi.getAll(),
       ]);
       if (clientsRes.status === 'fulfilled') setClients(clientsRes.value.data || []);
+      if (corporateClientsRes.status === 'fulfilled') setCorporateClients(corporateClientsRes.value.data || []);
       if (quotesRes.status === 'fulfilled') setQuotations(quotesRes.value.data || []);
       if (schedulesRes.status === 'fulfilled') setSchedules(schedulesRes.value.data || []);
       if (statsRes.status === 'fulfilled') setStats(statsRes.value.data || {});
       if (vehiclesRes.status === 'fulfilled') setVehicles(vehiclesRes.value.data || []);
+      if (warehousesRes.status === 'fulfilled') setWarehouses(warehousesRes.value.data || []);
+      if (packagingRes.status === 'fulfilled' && packagingRes.value.data) {
+        // Map backend packaging data to include icons
+        const packagingWithIcons = packagingRes.value.data.map(pkg => ({
+          ...pkg,
+          icon: pkg.type === 'Premium' ? FiGift : pkg.type === 'Bulk' ? FiTruck : pkg.type === 'Custom' ? FiPackage : FiBox,
+        }));
+        setPackagingOptions(packagingWithIcons);
+      }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, []);
@@ -490,9 +510,18 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
           </div>
           <div className={fieldCls}><label className={labelCls}>Warehouse</label>
             <select className={selectCls} value={newDeliveryForm.warehouse} onChange={(e) => setNewDeliveryForm({...newDeliveryForm, warehouse: e.target.value})}>
-              <option value="WH-01">WH-01 (Mumbai)</option>
-              <option value="WH-02">WH-02 (Pune)</option>
-              <option value="WH-03">WH-03 (Delhi)</option>
+              <option value="">Select a warehouse</option>
+              {warehouses.length > 0 ? warehouses.map(w => (
+                <option key={w._id} value={w.warehouseId || w.id}>
+                  {w.warehouseId || w.id} ({w.name} - {w.location})
+                </option>
+              )) : (
+                <>
+                  <option value="WH-01">WH-01 (Mumbai)</option>
+                  <option value="WH-02">WH-02 (Pune)</option>
+                  <option value="WH-03">WH-03 (Delhi)</option>
+                </>
+              )}
             </select>
           </div>
           <div className={fieldCls}><label className={labelCls}>Vehicle Number</label>

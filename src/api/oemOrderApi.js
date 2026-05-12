@@ -1,105 +1,31 @@
-import axios from 'axios';
+const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
+const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
+const handle = async (res) => { const d = await res.json(); if (!res.ok) throw new Error(d.message || 'Request failed'); return d; };
+const q = (p = {}) => { const s = new URLSearchParams(p).toString(); return s ? '?' + s : ''; };
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
-// Create OEM Order
-export const createOEMOrder = async (data) => {
-  try {
-    const response = await axios.post(`${API_BASE_URL}/oem-orders`, data);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-};
-
-// Get all OEM Orders
-export const getOEMOrders = async (filters = {}) => {
-  try {
-    const params = new URLSearchParams(filters).toString();
-    const response = await axios.get(`${API_BASE_URL}/oem-orders${params ? `?${params}` : ''}`);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-};
-
-// Get OEM Order by ID
-export const getOEMOrderById = async (id) => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/oem-orders/${id}`);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-};
-
-// Validate Inventory
-export const validateInventory = async (id) => {
-  try {
-    const response = await axios.post(`${API_BASE_URL}/oem-orders/${id}/validate-inventory`);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-};
-
-// Reserve Materials
-export const reserveMaterials = async (id) => {
-  try {
-    const response = await axios.post(`${API_BASE_URL}/oem-orders/${id}/reserve-materials`);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-};
-
-// Update OEM Order Status
-export const updateOEMOrderStatus = async (id, status) => {
-  try {
-    const response = await axios.put(`${API_BASE_URL}/oem-orders/${id}/status`, { status });
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-};
-
-// Get OEM Order Summary
-export const getOEMOrderSummary = async () => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/oem-orders/summary/all`);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-};
-
-
-// Get Workflow Status
-export const getOEMWorkflowStatus = async (id) => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/oem-orders/${id}/workflow-status`);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-};
-
-// Complete OEM Workflow
-export const completeOEMWorkflow = async (id) => {
-  try {
-    const response = await axios.post(`${API_BASE_URL}/oem-orders/${id}/complete-workflow`);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-};
-
-// Trigger Auto Workflows
-export const triggerAutoWorkflows = async (id, workflow) => {
-  try {
-    const response = await axios.post(`${API_BASE_URL}/oem-orders/${id}/trigger-workflow`, { workflow });
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
+export const oemOrderApi = {
+  // Get all OEM orders
+  getAll:           (params)        => fetch(`${BASE}/oem-orders${q(params)}`,              { headers: authHeaders() }).then(handle),
+  
+  // Get OEM orders by brand
+  getByBrand:       (brandId, params) => fetch(`${BASE}/oem-orders/brand/${brandId}${q(params)}`, { headers: authHeaders() }).then(handle),
+  
+  // Get OEM order by ID
+  getById:          (id)            => fetch(`${BASE}/oem-orders/${id}`,                    { headers: authHeaders() }).then(handle),
+  
+  // Create OEM order
+  create:           (body)          => fetch(`${BASE}/oem-orders`,                         { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  
+  // Update OEM order
+  update:           (id, body)      => fetch(`${BASE}/oem-orders/${id}`,                   { method: 'PUT',    headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  
+  // Update order status
+  updateStatus:     (id, status)    => fetch(`${BASE}/oem-orders/${id}/status`,            { method: 'PUT',    headers: authHeaders(), body: JSON.stringify({ status }) }).then(handle),
+  
+  // Delete OEM order
+  delete:           (id)            => fetch(`${BASE}/oem-orders/${id}`,                   { method: 'DELETE', headers: authHeaders() }).then(handle),
+  
+  // Get OEM order stats
+  getStats:         (params)        => fetch(`${BASE}/oem-orders/stats/dashboard${q(params)}`, { headers: authHeaders() }).then(handle),
 };

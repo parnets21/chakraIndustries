@@ -59,7 +59,7 @@ export function AuthProvider({ children }) {
     };
   }, [user, resetTimer]);
 
-  const login = async (email, password, remember = false) => {
+  const login = async (email, password, remember = true) => {
     const res = await fetch(`${BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -67,13 +67,20 @@ export function AuthProvider({ children }) {
     });
 
     const data = await res.json();
+    console.log('Login response:', data); // Debug log
     if (!data.success) throw new Error(data.message || 'Invalid email or password');
 
     const { token, user: userData } = data;
-    const storage = remember ? localStorage : sessionStorage;
-
-    storage.setItem('chakra_token', token);
-    storage.setItem('chakra_user', JSON.stringify(userData));
+    console.log('Token received:', token ? 'Yes' : 'No'); // Debug log
+    
+    if (!token) {
+      throw new Error('No token received from server');
+    }
+    
+    // Always use localStorage for persistence across page refreshes
+    localStorage.setItem('chakra_token', token);
+    localStorage.setItem('chakra_user', JSON.stringify(userData));
+    console.log('Token stored in localStorage'); // Debug log
     setUser(userData);
     return userData;
   };

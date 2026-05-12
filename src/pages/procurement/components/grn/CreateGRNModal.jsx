@@ -77,7 +77,7 @@ export default function CreateGRNModal({ open, onClose, onSaved }) {
         grnStatus: 'Received',
         remarks: remarks.trim(),
         items: items.map(it => ({
-          name: it.name,
+          itemName: it.name,
           orderedQty: it.ordered,
           receivedQty: parseInt(it.received) || 0,
           unit: it.unit || 'Nos',

@@ -1,64 +1,34 @@
-import axios from 'axios';
+const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
+const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
+const handle = async (res) => { const d = await res.json(); if (!res.ok) throw new Error(d.message || 'Request failed'); return d; };
+const q = (p = {}) => { const s = new URLSearchParams(p).toString(); return s ? '?' + s : ''; };
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
-// Create Invoice
-export const createInvoice = async (data) => {
-  try {
-    const response = await axios.post(`${API_BASE_URL}/oem-invoices`, data);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-};
-
-// Get all Invoices
-export const getInvoices = async (filters = {}) => {
-  try {
-    const params = new URLSearchParams(filters).toString();
-    const response = await axios.get(`${API_BASE_URL}/oem-invoices${params ? `?${params}` : ''}`);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-};
-
-// Get Invoice by ID
-export const getInvoiceById = async (id) => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/oem-invoices/${id}`);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-};
-
-// Record Payment
-export const recordPayment = async (id, data) => {
-  try {
-    const response = await axios.post(`${API_BASE_URL}/oem-invoices/${id}/payment`, data);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-};
-
-// Sync to Tally
-export const syncToTally = async (id, tallyDocumentId) => {
-  try {
-    const response = await axios.post(`${API_BASE_URL}/oem-invoices/${id}/sync-tally`, { tallyDocumentId });
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-};
-
-// Get Invoice Summary
-export const getInvoiceSummary = async () => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/oem-invoices/summary/all`);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
+export const oemInvoiceApi = {
+  // Get all OEM invoices
+  getAll:           (params)        => fetch(`${BASE}/oem-invoices${q(params)}`,           { headers: authHeaders() }).then(handle),
+  
+  // Get OEM invoices by brand
+  getByBrand:       (brandId, params) => fetch(`${BASE}/oem-invoices/brand/${brandId}${q(params)}`, { headers: authHeaders() }).then(handle),
+  
+  // Get OEM invoice by ID
+  getById:          (id)            => fetch(`${BASE}/oem-invoices/${id}`,                 { headers: authHeaders() }).then(handle),
+  
+  // Create OEM invoice
+  create:           (body)          => fetch(`${BASE}/oem-invoices`,                       { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  
+  // Update OEM invoice
+  update:           (id, body)      => fetch(`${BASE}/oem-invoices/${id}`,                 { method: 'PUT',    headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  
+  // Update payment status
+  updatePaymentStatus: (id, status) => fetch(`${BASE}/oem-invoices/${id}/payment-status`,  { method: 'PUT',    headers: authHeaders(), body: JSON.stringify({ paymentStatus: status }) }).then(handle),
+  
+  // Record payment
+  recordPayment:    (id, body)      => fetch(`${BASE}/oem-invoices/${id}/payment`,        { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  
+  // Delete OEM invoice
+  delete:           (id)            => fetch(`${BASE}/oem-invoices/${id}`,                 { method: 'DELETE', headers: authHeaders() }).then(handle),
+  
+  // Get invoice stats
+  getStats:         (params)        => fetch(`${BASE}/oem-invoices/stats/dashboard${q(params)}`, { headers: authHeaders() }).then(handle),
 };

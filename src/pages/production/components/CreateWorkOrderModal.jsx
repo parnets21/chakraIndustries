@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Modal from '../../../components/common/Modal';
 import { createWorkOrder } from '../../../api/productionApi';
 import { getOEMOrders, getOEMOrderById } from '../../../api/oemOrderApi';
+import { bomApi } from '../../../api/bomApi';
 import { toast } from '../../../components/common/Toast';
 
 const inp = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]';
@@ -25,13 +26,50 @@ export default function CreateWorkOrderModal({ open, onClose, onSaved }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [fetchingDetails, setFetchingDetails] = useState(false);
+  const [bomList, setBomList] = useState([]);
+  const [filteredBomList, setFilteredBomList] = useState([]);
+  const [selectedBomDetails, setSelectedBomDetails] = useState(null);
+  const [loadingBomDetails, setLoadingBomDetails] = useState(false);
+  const [bomSearchTerm, setBomSearchTerm] = useState('');
 
-  // Fetch OEM Orders on modal open
+  // Fetch OEM Orders and BOMs on modal open
   useEffect(() => {
     if (open) {
       fetchOEMOrders();
+      fetchBOMs();
+      setBomSearchTerm('');
     }
   }, [open]);
+
+  // Filter BOMs based on search term
+  useEffect(() => {
+    if (!bomSearchTerm.trim()) {
+      setFilteredBomList(bomList);
+    } else {
+      const term = bomSearchTerm.toLowerCase();
+      const filtered = bomList.filter(bom => 
+        (bom.bomId || '').toLowerCase().includes(term) ||
+        (bom.product || '').toLowerCase().includes(term) ||
+        (bom.productCode || '').toLowerCase().includes(term)
+      );
+      setFilteredBomList(filtered);
+    }
+  }, [bomSearchTerm, bomList]);
+
+  const fetchBOMs = async () => {
+    try {
+      const response = await bomApi.getAll({ status: 'Active' });
+      const boms = response.data || [];
+      // Sort by product name for better UX
+      const sorted = boms.sort((a, b) => (a.product || '').localeCompare(b.product || ''));
+      setBomList(sorted);
+      setFilteredBomList(sorted);
+      console.log('BOMs fetched:', sorted.length, 'items');
+    } catch (error) {
+      console.error('Error fetching BOMs:', error);
+      toast('Failed to load BOMs', 'error');
+    }
+  };
 
   const fetchOEMOrders = async () => {
     try {
@@ -53,6 +91,7 @@ export default function CreateWorkOrderModal({ open, onClose, onSaved }) {
     if (!selectedOEMId) {
       setSelectedOEM(null);
       setForm(prev => ({ ...prev, product: '', qty: '', bom: '' }));
+      setSelectedBomDetails(null);
       setWoId('');
       return;
     }
@@ -66,12 +105,28 @@ export default function CreateWorkOrderModal({ open, onClose, onSaved }) {
       console.log('Full OEM Order data:', matchingOEM);
       
       setSelectedOEM(matchingOEM);
+      const bomId = matchingOEM.bomId?._id || matchingOEM.bomId;
       setForm(prev => ({ 
         ...prev, 
         product: matchingOEM.product,
         qty: matchingOEM.quantity,
-        bom: matchingOEM.bomId?._id || matchingOEM.bomId
+        bom: bomId || ''
       }));
+      
+      // If BOM is linked, fetch its details
+      if (bomId) {
+        try {
+          setLoadingBomDetails(true);
+          const bomResponse = await bomApi.getById(bomId);
+          console.log('Auto-loaded BOM details:', bomResponse.data);
+          setSelectedBomDetails(bomResponse.data);
+        } catch (bomError) {
+          console.error('Error fetching BOM details:', bomError);
+          setSelectedBomDetails(null);
+        } finally {
+          setLoadingBomDetails(false);
+        }
+      }
       
       // Generate WO ID
       generateWOId();
@@ -80,6 +135,7 @@ export default function CreateWorkOrderModal({ open, onClose, onSaved }) {
       toast('Failed to fetch OEM order details', 'error');
       setSelectedOEM(null);
       setForm(prev => ({ ...prev, product: '', qty: '', bom: '' }));
+      setSelectedBomDetails(null);
       setWoId('');
     } finally {
       setFetchingDetails(false);
@@ -92,9 +148,38 @@ export default function CreateWorkOrderModal({ open, onClose, onSaved }) {
     setWoId(`WO-${year}-${randomNum}`);
   };
 
+  const handleBomChange = async (e) => {
+    const selectedBomId = e.target.value;
+    
+    setForm(prev => ({ ...prev, bom: selectedBomId }));
+    
+    if (!selectedBomId) {
+      setSelectedBomDetails(null);
+      return;
+    }
+
+    try {
+      setLoadingBomDetails(true);
+      const response = await bomApi.getById(selectedBomId);
+      console.log('BOM Details loaded:', response.data);
+      setSelectedBomDetails(response.data);
+    } catch (error) {
+      console.error('Error fetching BOM details:', error);
+      toast('Failed to load BOM details', 'error');
+      setSelectedBomDetails(null);
+    } finally {
+      setLoadingBomDetails(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!form.product || !form.qty || !form.startDate) {
-      toast('Please fill all required fields', 'error');
+      toast('Please fill all required fields: Product, Quantity, and Start Date', 'error');
+      return;
+    }
+
+    if (!woId) {
+      toast('Work Order ID not generated. Please try again.', 'error');
       return;
     }
 
@@ -102,16 +187,18 @@ export default function CreateWorkOrderModal({ open, onClose, onSaved }) {
       setSaving(true);
       const payload = {
         woId,
-        product: form.product,
+        product: form.product.trim(),
         qty: parseInt(form.qty),
-        shift: form.shift,
+        shift: form.shift || 'General',
         startDate: form.startDate,
         endDate: form.endDate || form.startDate,
-        bom: form.bom,
-        priority: form.priority,
-        remarks: form.remarks
+        bomId: form.bom || null,
+        priority: form.priority || 'Normal',
+        remarks: form.remarks || ''
       };
 
+      console.log('Submitting Work Order payload:', payload);
+      
       await createWorkOrder(payload);
       toast(`Work Order ${woId} created successfully`, 'success');
       
@@ -128,10 +215,12 @@ export default function CreateWorkOrderModal({ open, onClose, onSaved }) {
       });
       setWoId('');
       setSelectedOEM(null);
+      setSelectedBomDetails(null);
       
       onSaved?.();
       onClose();
     } catch (error) {
+      console.error('Error creating work order:', error);
       toast(error.message || 'Failed to create work order', 'error');
     } finally {
       setSaving(false);
@@ -244,6 +333,40 @@ export default function CreateWorkOrderModal({ open, onClose, onSaved }) {
             <option>Urgent</option>
           </select>
         </div>
+
+        {/* Link BOM */}
+        <div className="flex flex-col gap-1.5 md:col-span-2">
+          <label className="text-xs font-semibold text-gray-600">Link BOM (Dynamic) — {filteredBomList.length} Available</label>
+          
+          {/* BOM Search Filter */}
+          <input 
+            type="text"
+            className={inp}
+            placeholder="Search BOM by ID, Product, or Code..."
+            value={bomSearchTerm}
+            onChange={e => setBomSearchTerm(e.target.value)}
+          />
+          
+          {/* BOM Dropdown */}
+          <select 
+            className={inp} 
+            value={form.bom} 
+            onChange={handleBomChange}
+            disabled={loadingBomDetails || filteredBomList.length === 0}
+            size={Math.min(5, filteredBomList.length + 1)}
+          >
+            <option value="">— Select BOM (optional) —</option>
+            {filteredBomList.map(bom => (
+              <option key={bom._id} value={bom._id}>
+                {bom.bomId} — {bom.product} {bom.productCode ? `(${bom.productCode})` : ''} v{bom.version}
+              </option>
+            ))}
+          </select>
+          
+          {loadingBomDetails && <span className="text-xs text-blue-600 animate-pulse">⏳ Loading BOM details...</span>}
+          {filteredBomList.length === 0 && bomSearchTerm && <span className="text-xs text-orange-600">No BOMs match your search</span>}
+          {bomList.length === 0 && !bomSearchTerm && <span className="text-xs text-red-600">No active BOMs available</span>}
+        </div>
       </div>
 
       {/* Remarks */}
@@ -256,6 +379,87 @@ export default function CreateWorkOrderModal({ open, onClose, onSaved }) {
           onChange={e => setForm(p => ({ ...p, remarks: e.target.value }))}
         />
       </div>
+
+      {/* BOM Details Display */}
+      {selectedBomDetails && (
+        <div className="mt-6 pt-6 border-t-2 border-blue-300 bg-blue-50 rounded-lg p-4">
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-gray-800">
+                📋 BOM: {selectedBomDetails.bomId} — {selectedBomDetails.product}
+              </h3>
+              <span className="text-xs font-semibold px-2 py-1 bg-green-100 text-green-700 rounded">
+                v{selectedBomDetails.version}
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs mb-4">
+              <div className="bg-white p-2 rounded border border-blue-200">
+                <span className="text-gray-600 block text-xs">Material Cost</span>
+                <span className="font-bold text-blue-700">₹{(selectedBomDetails.materialCost || 0).toLocaleString()}</span>
+              </div>
+              <div className="bg-white p-2 rounded border border-green-200">
+                <span className="text-gray-600 block text-xs">Total Cost</span>
+                <span className="font-bold text-green-700">₹{(selectedBomDetails.totalCost || 0).toLocaleString()}</span>
+              </div>
+              <div className="bg-white p-2 rounded border border-purple-200">
+                <span className="text-gray-600 block text-xs">Components</span>
+                <span className="font-bold text-purple-700">{selectedBomDetails.components?.length || 0}</span>
+              </div>
+              <div className="bg-white p-2 rounded border border-orange-200">
+                <span className="text-gray-600 block text-xs">Status</span>
+                <span className={`font-bold ${selectedBomDetails.status === 'Active' ? 'text-green-700' : 'text-orange-700'}`}>
+                  {selectedBomDetails.status}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {selectedBomDetails.components && selectedBomDetails.components.length > 0 ? (
+            <div className="overflow-x-auto border border-gray-200 rounded-lg">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-100 border-b border-gray-200">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-semibold text-gray-700">Item</th>
+                    <th className="px-3 py-2 text-left font-semibold text-gray-700">Code</th>
+                    <th className="px-3 py-2 text-center font-semibold text-gray-700">Qty</th>
+                    <th className="px-3 py-2 text-center font-semibold text-gray-700">Unit</th>
+                    <th className="px-3 py-2 text-center font-semibold text-gray-700">Type</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-700">Unit Cost</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-700">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedBomDetails.components.map((comp, idx) => (
+                    <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="px-3 py-2 font-semibold text-gray-800">{comp.itemName}</td>
+                      <td className="px-3 py-2 text-gray-600 font-mono text-xs">{comp.itemCode || '—'}</td>
+                      <td className="px-3 py-2 text-center font-semibold">{comp.qty}</td>
+                      <td className="px-3 py-2 text-center text-gray-600">{comp.unit}</td>
+                      <td className="px-3 py-2 text-center">
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                          comp.type === 'Raw' ? 'bg-yellow-100 text-yellow-700' :
+                          comp.type === 'Sub-Assembly' ? 'bg-blue-100 text-blue-700' :
+                          comp.type === 'Packing' ? 'bg-green-100 text-green-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {comp.type}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold">₹{(comp.unitCost || 0).toLocaleString()}</td>
+                      <td className="px-3 py-2 text-right font-bold text-green-700">₹{((comp.qty || 0) * (comp.unitCost || 0)).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+              {loadingBomDetails ? 'Loading BOM components...' : 'No components found in this BOM'}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* BOM Materials Display */}
       {selectedOEM && (

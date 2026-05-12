@@ -1,17 +1,19 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+﻿﻿import React, { useState, useEffect, useCallback } from 'react';
 import * as XLSX from 'xlsx';
-import BarChart from '../../components/charts/BarChart';
 import Modal from '../../components/common/Modal';
 import { MdDownload, MdAdd, MdBusiness, MdSwapHoriz } from 'react-icons/md';
 import { toast } from '../../components/common/Toast';
 import { oemApi } from '../../api/oemApi';
+import { oemOrderApi } from '../../api/oemOrderApi';
+import { oemInvoiceApi } from '../../api/oemInvoiceApi';
+import { oemFinishedGoodsApi } from '../../api/oemFinishedGoodsApi';
 import { workOrderApi, bomApi } from '../../api/bomApi';
 
 const inp = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]';
 const btnP = 'inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]';
 const btnO = 'inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]';
 
-const EMPTY_BRAND = { name:'', code:'', color:'#c0392b', billingType:'Per Unit', ratePerUnit:'', gstRate:18, paymentTerms:'Net 30', monthlyTarget:'', contactPerson:'', contactEmail:'', contactPhone:'', notes:'' };
+const EMPTY_BRAND = { name:'', code:'', color:'#c0392b', billingType:'Per Unit', ratePerUnit:'', gstRate:18, paymentTerms:'Net 30', monthlyTarget:'', contactPerson:'', contactEmail:'', contactPhone:'', notes:'', status:'Active' };
 const EMPTY_PROD  = { productName:'', oemSku:'', oemPartNo:'', unitPrice:'', leadTimeDays:'', warrantyMonths:'', minOrderQty:1, uom:'Set', bom:'', preferredRegions:'', autoSelectPriority:0, notes:'', status:'Active' };
 const EMPTY_WO    = { product:'', qty:'', shift:'General', priority:'Normal', startDate:'', endDate:'', remarks:'' };
 
@@ -25,7 +27,7 @@ function Badge({ label, color='#64748b' }) {
   return <span style={{padding:'2px 9px',borderRadius:20,fontSize:11,fontWeight:700,background:color+'18',color}}>{label}</span>;
 }
 
-const INNER_TABS = ['Products', 'Work Orders', 'Billing'];
+const INNER_TABS = ['Products', 'Work Orders', 'Orders', 'Invoices', 'Finished Goods', 'Billing'];
 const COLORS = ['#c0392b','#8e44ad','#27ae60','#2563eb','#d97706','#0891b2','#be185d'];
 
 export default function OEMPage() {
@@ -33,6 +35,9 @@ export default function OEMPage() {
   const [activeBrand, setActiveBrand] = useState(null);
   const [products, setProducts]       = useState([]);
   const [wos, setWos]                 = useState([]);
+  const [orders, setOrders]           = useState([]);
+  const [invoices, setInvoices]       = useState([]);
+  const [finishedGoods, setFinishedGoods] = useState([]);
   const [bomList, setBomList]         = useState([]);
   const [stats, setStats]             = useState(null);
   const [innerTab, setInnerTab]       = useState('Products');
@@ -49,6 +54,8 @@ export default function OEMPage() {
   const [showAutoSelect, setShowAutoSelect]   = useState(false);
   const [autoQuery, setAutoQuery]             = useState({ productName:'', region:'' });
   const [autoResult, setAutoResult]           = useState(null);
+  const [expandedProduct, setExpandedProduct] = useState(null);
+  const [bomDetails, setBomDetails]           = useState(null);
 
   // Forms
   const [brandForm, setBrandForm] = useState(EMPTY_BRAND);
@@ -80,12 +87,18 @@ export default function OEMPage() {
   const loadBrandData = useCallback(async (brand) => {
     if (!brand) return;
     try {
-      const [pRes, wRes] = await Promise.all([
+      const [pRes, wRes, oRes, iRes, fRes] = await Promise.all([
         oemApi.getProductsByBrand(brand._id),
         oemApi.getWOsByBrand(brand._id),
+        oemOrderApi.getByBrand(brand._id),
+        oemInvoiceApi.getByBrand(brand._id),
+        oemFinishedGoodsApi.getByBrand(brand._id),
       ]);
       setProducts(pRes.data || []);
       setWos(wRes.data || []);
+      setOrders(oRes.data || []);
+      setInvoices(iRes.data || []);
+      setFinishedGoods(fRes.data || []);
     } catch (e) { toast(e.message || 'Failed to load brand data', 'error'); }
   }, []);
 
@@ -133,7 +146,7 @@ export default function OEMPage() {
   const handleCreateWO = async () => {
     if (!woForm.product.trim()) { toast('Product is required', 'error'); return; }
     if (!woForm.qty || parseInt(woForm.qty) < 1) { toast('Quantity must be at least 1', 'error'); return; }
-    if (!woForm.startDate) { toast('Start date is required', 'error'); return; }
+    if (!woForm.startDate || woForm.startDate.trim() === '') { toast('Start date is required', 'error'); return; }
     try {
       const prod = products.find(p => p.productName === woForm.product);
       await workOrderApi.create({ ...woForm, qty: parseInt(woForm.qty), oemBrand: activeBrand._id, oemProduct: prod?._id||undefined, bomId: prod?.bom?._id||undefined });
@@ -157,6 +170,25 @@ export default function OEMPage() {
     catch (e) { toast(e.message || 'Failed to delete work order', 'error'); }
   };
 
+  // OEM Orders, Invoices, Finished Goods handlers
+  const handleDeleteOrder = async (order) => {
+    if (!window.confirm(`Delete OEM Order ${order.oemOrderId}?`)) return;
+    try { await oemOrderApi.delete(order._id); toast('OEM order deleted'); loadBrandData(activeBrand); }
+    catch (e) { toast(e.message || 'Failed to delete order', 'error'); }
+  };
+
+  const handleDeleteInvoice = async (invoice) => {
+    if (!window.confirm(`Delete Invoice ${invoice.invoiceNumber}?`)) return;
+    try { await oemInvoiceApi.delete(invoice._id); toast('Invoice deleted'); loadBrandData(activeBrand); }
+    catch (e) { toast(e.message || 'Failed to delete invoice', 'error'); }
+  };
+
+  const handleDeleteFinishedGoods = async (fg) => {
+    if (!window.confirm(`Delete Finished Goods ${fg.finishedGoodsId}?`)) return;
+    try { await oemFinishedGoodsApi.delete(fg._id); toast('Finished goods deleted'); loadBrandData(activeBrand); }
+    catch (e) { toast(e.message || 'Failed to delete finished goods', 'error'); }
+  };
+
   //  Auto-select 
   const handleAutoSelect = async () => {
     if (!autoQuery.productName.trim()) { toast('Enter a product name', 'error'); return; }
@@ -164,6 +196,23 @@ export default function OEMPage() {
       const res = await oemApi.autoSelect(autoQuery);
       setAutoResult(res);
     } catch (e) { toast(e.message || 'Auto-select failed', 'error'); }
+  };
+
+  const handleExpandProduct = async (product) => {
+    if (expandedProduct?._id === product._id) {
+      setExpandedProduct(null);
+      setBomDetails(null);
+      return;
+    }
+    if (!product.bom) {
+      toast('No BOM linked to this product', 'info');
+      return;
+    }
+    try {
+      const res = await bomApi.getById(product.bom._id || product.bom);
+      setBomDetails(res.data);
+      setExpandedProduct(product);
+    } catch (e) { toast(e.message || 'Failed to load BOM', 'error'); }
   };
 
   //  Export 
@@ -189,64 +238,7 @@ export default function OEMPage() {
   const target     = activeBrand?.monthlyTarget || 0;
   const achPct     = target > 0 ? Math.round((achieved/target)*100) : 0;
 
-  const handleProductChange = (e) => {
-    const selectedBomId = e.target.value;
-    const matchingBom = filteredBOMs.find(b => b._id === selectedBomId);
-    
-    if (matchingBom) {
-      setWoForm(prev => ({ 
-        ...prev, 
-        product: matchingBom.product,
-        bomId: matchingBom._id 
-      }));
-      
-      // Generate WO ID: BRAND-WO-YEAR-RANDOM
-      const year = new Date().getFullYear();
-      const randomNum = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
-      const brandCode = activeBrand.split(' ')[0].substring(0, 2).toUpperCase();
-      setWoId(`${brandCode}-WO-${year}-${randomNum}`);
-    }
-  };
 
-  const handleCreateWorkOrder = async () => {
-    if (!woForm.product || !woForm.targetQuantity || !woForm.startDate) {
-      toast('Please fill all required fields');
-      return;
-    }
-
-    try {
-      const payload = {
-        workOrderId: woId,
-        bomId: woForm.bomId,
-        product: woForm.product,
-        targetQuantity: parseInt(woForm.targetQuantity),
-        startDate: woForm.startDate,
-        endDate: woForm.endDate,
-        shift: woForm.shift,
-        priority: woForm.priority,
-        remarks: woForm.remarks,
-        status: 'Pending'
-      };
-
-      await createWorkOrder(payload);
-      toast('Work order created successfully');
-      setShowWOModal(false);
-      setWoForm({
-        product: '',
-        targetQuantity: '',
-        startDate: '',
-        endDate: '',
-        shift: 'General',
-        priority: 'Normal',
-        remarks: '',
-        bomId: ''
-      });
-      setWoId('');
-      fetchWorkOrders();
-    } catch (error) {
-      toast(`Error creating work order: ${error.message}`);
-    }
-  };
 
   return (
     <div>
@@ -277,7 +269,7 @@ export default function OEMPage() {
           <MdBusiness size={40} color="#e2e8f0" style={{margin:'0 auto 12px'}}/>
           <div style={{fontSize:15,fontWeight:700,color:'#1e293b',marginBottom:6}}>No OEM Brands yet</div>
           <div style={{fontSize:13,color:'#94a3b8',marginBottom:16}}>Click "Add OEM Brand" to get started</div>
-          <button onClick={openAddBrand} style={{padding:'8px 20px',borderRadius:10,background:'linear-gradient(135deg,#ef4444,#b91c1c)',color:'#fff',border:'none',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>+ Add OEM Brand</button>
+ 
         </div>
       ) : (
         <>
@@ -338,23 +330,76 @@ export default function OEMPage() {
                         <thead><tr style={{background:'#f8fafc'}}>{['Product','OEM SKU','Part No','Unit Price','Lead Time','Warranty','BOM','Regions','Status','Actions'].map(h=><th key={h} style={{padding:'9px 14px',textAlign:'left',fontSize:10.5,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.05em',borderBottom:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>
                         <tbody>
                           {products.map((p,i)=>(
-                            <tr key={p._id} style={{borderBottom:'1px solid #f1f5f9',background:i%2===0?'#fff':'#fafafa'}}>
-                              <td style={{padding:'10px 14px',fontWeight:700,color:'#1e293b'}}>{p.productName}</td>
-                              <td style={{padding:'10px 14px',fontFamily:'monospace',fontSize:11.5,color:'#c0392b'}}>{p.oemSku||'—'}</td>
-                              <td style={{padding:'10px 14px',fontFamily:'monospace',fontSize:11.5,color:'#64748b'}}>{p.oemPartNo||'—'}</td>
-                              <td style={{padding:'10px 14px',fontWeight:700}}>₹{(p.unitPrice||0).toLocaleString()}</td>
-                              <td style={{padding:'10px 14px',color:'#64748b'}}>{p.leadTimeDays||0}d</td>
-                              <td style={{padding:'10px 14px',color:'#64748b'}}>{p.warrantyMonths||0}m</td>
-                              <td style={{padding:'10px 14px',fontSize:11.5,color:'#2563eb'}}>{p.bom?.bomId||'—'}</td>
-                              <td style={{padding:'10px 14px',fontSize:11,color:'#64748b'}}>{(p.preferredRegions||[]).join(', ')||'All'}</td>
-                              <td style={{padding:'10px 14px'}}><Badge label={p.status} color={p.status==='Active'?'#16a34a':p.status==='Discontinued'?'#ef4444':'#94a3b8'}/></td>
-                              <td style={{padding:'10px 14px'}}>
-                                <div style={{display:'flex',gap:5}}>
-                                  <button onClick={()=>openEditProd(p)} style={{padding:'3px 9px',borderRadius:6,fontSize:11,fontWeight:600,border:'1px solid #e2e8f0',color:'#64748b',background:'#f8fafc',cursor:'pointer',fontFamily:'inherit'}}>Edit</button>
-                                  <button onClick={()=>handleDeleteProd(p)} style={{padding:'3px 9px',borderRadius:6,fontSize:11,fontWeight:600,border:'1px solid #fecaca',color:'#ef4444',background:'#fef2f2',cursor:'pointer',fontFamily:'inherit'}}>Remove</button>
-                                </div>
-                              </td>
-                            </tr>
+                            <React.Fragment key={p._id}>
+                              <tr style={{borderBottom:'1px solid #f1f5f9',background:i%2===0?'#fff':'#fafafa',cursor:p.bom?'pointer':'default'}} onClick={()=>p.bom&&handleExpandProduct(p)}>
+                                <td style={{padding:'10px 14px',fontWeight:700,color:'#1e293b',display:'flex',alignItems:'center',gap:6}}>
+                                  {p.bom && <span style={{fontSize:14,color:expandedProduct?._id===p._id?'#c0392b':'#94a3b8'}}>▶</span>}
+                                  {p.productName}
+                                </td>
+                                <td style={{padding:'10px 14px',fontFamily:'monospace',fontSize:11.5,color:'#c0392b'}}>{p.oemSku||'—'}</td>
+                                <td style={{padding:'10px 14px',fontFamily:'monospace',fontSize:11.5,color:'#64748b'}}>{p.oemPartNo||'—'}</td>
+                                <td style={{padding:'10px 14px',fontWeight:700}}>₹{(p.unitPrice||0).toLocaleString()}</td>
+                                <td style={{padding:'10px 14px',color:'#64748b'}}>{p.leadTimeDays||0}d</td>
+                                <td style={{padding:'10px 14px',color:'#64748b'}}>{p.warrantyMonths||0}m</td>
+                                <td style={{padding:'10px 14px',fontSize:11.5,color:'#2563eb',fontWeight:600}}>{p.bom?.bomId||'—'}</td>
+                                <td style={{padding:'10px 14px',fontSize:11,color:'#64748b'}}>{(p.preferredRegions||[]).join(', ')||'All'}</td>
+                                <td style={{padding:'10px 14px'}}><Badge label={p.status} color={p.status==='Active'?'#16a34a':p.status==='Discontinued'?'#ef4444':'#94a3b8'}/></td>
+                                <td style={{padding:'10px 14px'}} onClick={e=>e.stopPropagation()}>
+                                  <div style={{display:'flex',gap:5}}>
+                                    <button onClick={()=>openEditProd(p)} style={{padding:'3px 9px',borderRadius:6,fontSize:11,fontWeight:600,border:'1px solid #e2e8f0',color:'#64748b',background:'#f8fafc',cursor:'pointer',fontFamily:'inherit'}}>Edit</button>
+                                    <button onClick={()=>handleDeleteProd(p)} style={{padding:'3px 9px',borderRadius:6,fontSize:11,fontWeight:600,border:'1px solid #fecaca',color:'#ef4444',background:'#fef2f2',cursor:'pointer',fontFamily:'inherit'}}>Remove</button>
+                                  </div>
+                                </td>
+                              </tr>
+                              {expandedProduct?._id === p._id && bomDetails && (
+                                <tr style={{background:'#f0fdf4',borderBottom:'1px solid #e2e8f0'}}>
+                                  <td colSpan="10" style={{padding:'16px 20px'}}>
+                                    <div style={{marginBottom:12}}>
+                                      <div style={{fontSize:12,fontWeight:700,color:'#1e293b',marginBottom:8}}>
+                                        BOM: {bomDetails.bomId} — {bomDetails.product} (v{bomDetails.version})
+                                      </div>
+                                      <div style={{fontSize:11,color:'#64748b',marginBottom:12}}>
+                                        Material Cost: ₹{bomDetails.materialCost?.toLocaleString()||0} | Total Cost: ₹{bomDetails.totalCost?.toLocaleString()||0}
+                                      </div>
+                                    </div>
+                                    <div style={{overflowX:'auto'}}>
+                                      <table style={{width:'100%',borderCollapse:'collapse',fontSize:11.5,background:'#fff',borderRadius:8,border:'1px solid #dcfce7'}}>
+                                        <thead>
+                                          <tr style={{background:'#ecfdf5'}}>
+                                            {['Item','Code','Qty','Unit','Type','Unit Cost','Total','Vendor/OEM','Alternates'].map(h=>(
+                                              <th key={h} style={{padding:'8px 12px',textAlign:'left',fontSize:10,fontWeight:700,color:'#16a34a',textTransform:'uppercase',letterSpacing:'0.05em',borderBottom:'1px solid #dcfce7',whiteSpace:'nowrap'}}>{h}</th>
+                                            ))}
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {bomDetails.components?.map((comp,ci)=>(
+                                            <tr key={ci} style={{borderBottom:'1px solid #f1f5f9',background:ci%2===0?'#fff':'#fafafa'}}>
+                                              <td style={{padding:'8px 12px',fontWeight:600,color:'#1e293b'}}>{comp.itemName}</td>
+                                              <td style={{padding:'8px 12px',fontFamily:'monospace',fontSize:10.5,color:'#64748b'}}>{comp.itemCode||'—'}</td>
+                                              <td style={{padding:'8px 12px',fontWeight:700}}>{comp.qty}</td>
+                                              <td style={{padding:'8px 12px',color:'#64748b'}}>{comp.unit}</td>
+                                              <td style={{padding:'8px 12px',fontSize:10}}>
+                                                <span style={{padding:'2px 8px',borderRadius:4,background:comp.type==='Raw'?'#fef3c7':comp.type==='Sub-Assembly'?'#dbeafe':'#f3e8ff',color:comp.type==='Raw'?'#92400e':comp.type==='Sub-Assembly'?'#1e40af':'#6b21a8',fontSize:9,fontWeight:600}}>
+                                                  {comp.type}
+                                                </span>
+                                              </td>
+                                              <td style={{padding:'8px 12px',fontWeight:600}}>₹{(comp.unitCost||0).toLocaleString()}</td>
+                                              <td style={{padding:'8px 12px',fontWeight:700,color:'#16a34a'}}>₹{((comp.qty||0)*(comp.unitCost||0)).toLocaleString()}</td>
+                                              <td style={{padding:'8px 12px',fontSize:10,color:'#2563eb'}}>
+                                                {comp.vendorId?'Vendor':comp.oemBrand?'OEM':'—'}
+                                              </td>
+                                              <td style={{padding:'8px 12px',fontSize:10}}>
+                                                {comp.alternates?.length>0?`${comp.alternates.length} alt.`:'—'}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
                           ))}
                         </tbody>
                       </table>
@@ -402,6 +447,111 @@ export default function OEMPage() {
                               </tr>
                             );
                           })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/*  OEM Orders Tab  */}
+              {innerTab==='Orders' && (
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div style={{padding:'14px 20px',borderBottom:'1px solid #e2e8f0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                    <div style={{fontSize:13,fontWeight:700,color:'#1e293b'}}>OEM Orders — {activeBrand.name}</div>
+                    <span style={{fontSize:11.5,color:'#94a3b8'}}>{orders.length} orders</span>
+                  </div>
+                  {orders.length===0 ? <Empty msg="No OEM orders yet." /> : (
+                    <div style={{overflowX:'auto'}}>
+                      <table style={{width:'100%',borderCollapse:'collapse',fontSize:12.5}}>
+                        <thead><tr style={{background:'#f8fafc'}}>{['Order ID','Product','Qty','Status','Inv Status','Prod Status','Est Cost','Actions'].map(h=><th key={h} style={{padding:'9px 14px',textAlign:'left',fontSize:10.5,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.05em',borderBottom:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>
+                        <tbody>
+                          {orders.map((o,i)=>(
+                            <tr key={o._id} style={{borderBottom:'1px solid #f1f5f9',background:i%2===0?'#fff':'#fafafa'}}>
+                              <td style={{padding:'10px 14px',fontWeight:700,color:'#c0392b',fontFamily:'monospace'}}>{o.oemOrderId}</td>
+                              <td style={{padding:'10px 14px',fontWeight:600,color:'#1e293b'}}>{o.product}</td>
+                              <td style={{padding:'10px 14px',fontWeight:700}}>{o.quantity}</td>
+                              <td style={{padding:'10px 14px'}}><Badge label={o.status} color={o.status==='Completed'?'#16a34a':o.status==='In-Production'?'#2563eb':'#d97706'}/></td>
+                              <td style={{padding:'10px 14px'}}><Badge label={o.inventoryStatus} color={o.inventoryStatus==='Validated'?'#16a34a':'#94a3b8'}/></td>
+                              <td style={{padding:'10px 14px'}}><Badge label={o.productionStatus} color={o.productionStatus==='Completed'?'#16a34a':o.productionStatus==='In-Progress'?'#2563eb':'#d97706'}/></td>
+                              <td style={{padding:'10px 14px',fontWeight:700}}>₹{(o.estimatedCost||0).toLocaleString()}</td>
+                              <td style={{padding:'10px 14px'}} onClick={e=>e.stopPropagation()}>
+                                <div style={{display:'flex',gap:5}}>
+                                  <button onClick={()=>handleDeleteOrder(o)} style={{padding:'3px 9px',borderRadius:6,fontSize:11,fontWeight:600,border:'1px solid #fecaca',color:'#ef4444',background:'#fef2f2',cursor:'pointer',fontFamily:'inherit'}}>Delete</button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/*  OEM Invoices Tab  */}
+              {innerTab==='Invoices' && (
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div style={{padding:'14px 20px',borderBottom:'1px solid #e2e8f0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                    <div style={{fontSize:13,fontWeight:700,color:'#1e293b'}}>OEM Invoices — {activeBrand.name}</div>
+                    <span style={{fontSize:11.5,color:'#94a3b8'}}>{invoices.length} invoices</span>
+                  </div>
+                  {invoices.length===0 ? <Empty msg="No OEM invoices yet." /> : (
+                    <div style={{overflowX:'auto'}}>
+                      <table style={{width:'100%',borderCollapse:'collapse',fontSize:12.5}}>
+                        <thead><tr style={{background:'#f8fafc'}}>{['Invoice #','Amount','Tax','Total','Payment Status','Paid','Pending','Actions'].map(h=><th key={h} style={{padding:'9px 14px',textAlign:'left',fontSize:10.5,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.05em',borderBottom:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>
+                        <tbody>
+                          {invoices.map((inv,i)=>(
+                            <tr key={inv._id} style={{borderBottom:'1px solid #f1f5f9',background:i%2===0?'#fff':'#fafafa'}}>
+                              <td style={{padding:'10px 14px',fontWeight:700,color:'#c0392b',fontFamily:'monospace'}}>{inv.invoiceNumber}</td>
+                              <td style={{padding:'10px 14px',fontWeight:700}}>₹{(inv.subtotal||0).toLocaleString()}</td>
+                              <td style={{padding:'10px 14px',color:'#64748b'}}>₹{(inv.taxAmount||0).toLocaleString()}</td>
+                              <td style={{padding:'10px 14px',fontWeight:700,color:'#1e293b'}}>₹{(inv.totalAmount||0).toLocaleString()}</td>
+                              <td style={{padding:'10px 14px'}}><Badge label={inv.paymentStatus} color={inv.paymentStatus==='Paid'?'#16a34a':inv.paymentStatus==='Partial'?'#d97706':'#ef4444'}/></td>
+                              <td style={{padding:'10px 14px',fontWeight:700,color:'#16a34a'}}>₹{(inv.amountPaid||0).toLocaleString()}</td>
+                              <td style={{padding:'10px 14px',fontWeight:700,color:'#ef4444'}}>₹{((inv.totalAmount||0)-(inv.amountPaid||0)).toLocaleString()}</td>
+                              <td style={{padding:'10px 14px'}} onClick={e=>e.stopPropagation()}>
+                                <div style={{display:'flex',gap:5}}>
+                                  <button onClick={()=>handleDeleteInvoice(inv)} style={{padding:'3px 9px',borderRadius:6,fontSize:11,fontWeight:600,border:'1px solid #fecaca',color:'#ef4444',background:'#fef2f2',cursor:'pointer',fontFamily:'inherit'}}>Delete</button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/*  Finished Goods Tab  */}
+              {innerTab==='Finished Goods' && (
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div style={{padding:'14px 20px',borderBottom:'1px solid #e2e8f0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                    <div style={{fontSize:13,fontWeight:700,color:'#1e293b'}}>Finished Goods — {activeBrand.name}</div>
+                    <span style={{fontSize:11.5,color:'#94a3b8'}}>{finishedGoods.length} batches</span>
+                  </div>
+                  {finishedGoods.length===0 ? <Empty msg="No finished goods yet." /> : (
+                    <div style={{overflowX:'auto'}}>
+                      <table style={{width:'100%',borderCollapse:'collapse',fontSize:12.5}}>
+                        <thead><tr style={{background:'#f8fafc'}}>{['FG ID','Batch #','Product','Qty','QC Status','Status','Dispatch','Actions'].map(h=><th key={h} style={{padding:'9px 14px',textAlign:'left',fontSize:10.5,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.05em',borderBottom:'1px solid #e2e8f0',whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>
+                        <tbody>
+                          {finishedGoods.map((fg,i)=>(
+                            <tr key={fg._id} style={{borderBottom:'1px solid #f1f5f9',background:i%2===0?'#fff':'#fafafa'}}>
+                              <td style={{padding:'10px 14px',fontWeight:700,color:'#c0392b',fontFamily:'monospace'}}>{fg.finishedGoodsId}</td>
+                              <td style={{padding:'10px 14px',fontFamily:'monospace',fontSize:11.5,color:'#64748b'}}>{fg.batchNumber}</td>
+                              <td style={{padding:'10px 14px',fontWeight:600,color:'#1e293b'}}>{fg.product}</td>
+                              <td style={{padding:'10px 14px',fontWeight:700}}>{fg.quantity}</td>
+                              <td style={{padding:'10px 14px'}}><Badge label={fg.qcStatus} color={fg.qcStatus==='Passed'?'#16a34a':fg.qcStatus==='Failed'?'#ef4444':'#d97706'}/></td>
+                              <td style={{padding:'10px 14px'}}><Badge label={fg.status} color={fg.status==='Dispatch-Ready'?'#2563eb':fg.status==='Dispatched'?'#16a34a':'#94a3b8'}/></td>
+                              <td style={{padding:'10px 14px',fontSize:11,color:'#64748b'}}>{fg.trackingNumber||'—'}</td>
+                              <td style={{padding:'10px 14px'}} onClick={e=>e.stopPropagation()}>
+                                <div style={{display:'flex',gap:5}}>
+                                  <button onClick={()=>handleDeleteFinishedGoods(fg)} style={{padding:'3px 9px',borderRadius:6,fontSize:11,fontWeight:600,border:'1px solid #fecaca',color:'#ef4444',background:'#fef2f2',cursor:'pointer',fontFamily:'inherit'}}>Delete</button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>

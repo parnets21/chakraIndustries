@@ -11,12 +11,12 @@ const handle = async (res) => {
 
 export const getBOMs = (params = {}) => {
   const q = new URLSearchParams(params).toString();
-  return fetch(`${BASE}/production/boms${q ? '?' + q : ''}`, { headers: authHeaders() }).then(handle);
+  return fetch(`${BASE}/bom${q ? '?' + q : ''}`, { headers: authHeaders() }).then(handle);
 };
 
 export const getWorkOrders = (params = {}) => {
   const q = new URLSearchParams(params).toString();
-  return fetch(`${BASE}/production/work-orders${q ? '?' + q : ''}`, { headers: authHeaders() }).then(handle);
+  return fetch(`${BASE}/workorders${q ? '?' + q : ''}`, { headers: authHeaders() }).then(handle);
 };
 
 export const getProductionStats = () => {
@@ -24,20 +24,20 @@ export const getProductionStats = () => {
 };
 
 export const createWorkOrder = (body) => {
-  return fetch(`${BASE}/production/work-orders`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle);
+  return fetch(`${BASE}/workorders`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle);
 };
 
 export const createBOM = (body) => {
-  return fetch(`${BASE}/production/boms`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle);
+  return fetch(`${BASE}/bom`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle);
 };
 
 export const updateWorkOrderProgress = (id, produced) => {
-  return fetch(`${BASE}/production/work-orders/${id}/progress`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify({ produced }) }).then(handle);
+  return fetch(`${BASE}/workorders/${id}/progress`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ produced }) }).then(handle);
 };
 
 // New BOM & Inventory Integration APIs
 export const calculateMaterialRequirements = (bomId, productionQty) => {
-  return fetch(`${BASE}/production/work-orders/calculate-requirements`, {
+  return fetch(`${BASE}/workorders/calculate-requirements`, {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ bomId, productionQty })
@@ -45,15 +45,15 @@ export const calculateMaterialRequirements = (bomId, productionQty) => {
 };
 
 export const checkInventoryStatus = (woId) => {
-  return fetch(`${BASE}/production/work-orders/${woId}/inventory-check`, { headers: authHeaders() }).then(handle);
+  return fetch(`${BASE}/workorders/${woId}/inventory-check`, { headers: authHeaders() }).then(handle);
 };
 
 export const approveWorkOrder = (woId) => {
-  return fetch(`${BASE}/production/work-orders/${woId}/approve`, { method: 'POST', headers: authHeaders() }).then(handle);
+  return fetch(`${BASE}/workorders/${woId}/approve`, { method: 'POST', headers: authHeaders() }).then(handle);
 };
 
 export const rejectWorkOrder = (woId, reason) => {
-  return fetch(`${BASE}/production/work-orders/${woId}/reject`, {
+  return fetch(`${BASE}/workorders/${woId}/reject`, {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ reason })
@@ -61,7 +61,7 @@ export const rejectWorkOrder = (woId, reason) => {
 };
 
 export const completeWorkOrder = (woId, actualProduced) => {
-  return fetch(`${BASE}/production/work-orders/${woId}/complete`, {
+  return fetch(`${BASE}/workorders/${woId}/complete`, {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ actualProduced })

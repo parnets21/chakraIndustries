@@ -12,6 +12,7 @@ export default function BulkPOUpload({ onSuccess }) {
   const [parseError, setParseError]   = useState('');
   const [uploading, setUploading]     = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
+  const [preview, setPreview]         = useState([]);
 
   // ── Parse file using SheetJS (handles both CSV and XLSX) ──
   const parseFile = (selectedFile) => {

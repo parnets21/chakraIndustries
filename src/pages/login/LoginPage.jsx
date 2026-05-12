@@ -15,7 +15,6 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
-  const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -28,7 +27,7 @@ export default function LoginPage() {
     }
     setLoading(true);
     try {
-      await login(email.trim(), password, remember);
+      await login(email.trim(), password);
       navigate('/dashboard', { replace: true });
     } catch (err) {
       setError(err.message || 'Invalid email or password');
@@ -608,15 +607,6 @@ export default function LoginPage() {
 
               {/* Options */}
               <div className="form-options">
-                <label className="checkbox-wrapper">
-                  <input
-                    type="checkbox"
-                    className="checkbox-input"
-                    checked={remember}
-                    onChange={(e) => setRemember(e.target.checked)}
-                  />
-                  <span className="checkbox-label">Remember me</span>
-                </label>
                 <Link to="/forgot-password" className="forgot-link">
                   Forgot password?
                   <MdArrowForward size={16} />

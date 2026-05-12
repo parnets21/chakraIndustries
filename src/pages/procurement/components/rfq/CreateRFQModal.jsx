@@ -156,11 +156,27 @@ export default function CreateRFQModal({ open, onClose, onSaved }) {
                 <select style={inp} value={form.linkedPR} onChange={e => {
                   const prId = e.target.value;
                   const pr = prs.find(p => p._id === prId);
+                  
+                  // Auto-populate items from PR
+                  const prItems = pr && pr.items ? pr.items.map(item => ({
+                    sku: '',
+                    name: item.name || '',
+                    qty: item.qty || '',
+                    unit: item.unit || 'Nos',
+                    spec: '',
+                    requiredDate: pr.requiredBy ? pr.requiredBy.split('T')[0] : '',
+                  })) : [{ ...emptyItem }];
+                  
                   setForm(f => ({
                     ...f,
                     linkedPR: prId,
                     title: f.title || (pr ? `RFQ for ${pr.prId} — ${pr.department}` : ''),
                   }));
+                  
+                  // Auto-populate items if PR is selected
+                  if (prId && pr) {
+                    setItems(prItems);
+                  }
                 }}
                   onFocus={e => e.target.style.borderColor = '#c0392b'} onBlur={e => e.target.style.borderColor = '#e2e8f0'}>
                   <option value="">— None —</option>
@@ -168,6 +184,12 @@ export default function CreateRFQModal({ open, onClose, onSaved }) {
                     <option key={p._id} value={p._id}>{p.prId} — {p.department}</option>
                   ))}
                 </select>
+                {form.linkedPR && (
+                  <div style={{ fontSize: 11, color: '#16a34a', marginTop: 6, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 4, height: 4, background: '#16a34a', borderRadius: '50%' }} />
+                    Items auto-populated from PR ({items.length} item{items.length !== 1 ? 's' : ''})
+                  </div>
+                )}
               </div>
               <div style={{ gridColumn: 'span 3' }}>
                 <label style={lbl}>RFQ Title *</label>

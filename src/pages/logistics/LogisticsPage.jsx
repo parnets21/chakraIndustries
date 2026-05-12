@@ -383,7 +383,7 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
       </div>
 
       {/* Add Vehicle Modal */}
-      <Modal
+      <Modal 
         open={showModal}
         onClose={() => { setShowModal(false); setForm(EMPTY_VEHICLE); }}
         title="Add New Vehicle"

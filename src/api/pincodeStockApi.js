@@ -1,27 +1,18 @@
-import axios from 'axios';
+const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const getToken = () =>
+  localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
 
 export const getPincodeStock = async () => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/inventory-data/pincode`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`
-      }
+    const res = await fetch(`${BASE}/inventory-data/pincode`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
     });
-    
-    // Ensure response has proper structure
-    if (!response.data) {
-      return { success: false, data: [] };
-    }
-    
-    const data = response.data;
+    const data = await res.json();
     console.log('Raw API response:', data);
-    
-    // Validate and sanitize response
     return {
       success: data.success === true,
-      data: Array.isArray(data.data) ? data.data : []
+      data: Array.isArray(data.data) ? data.data : [],
     };
   } catch (error) {
     console.error('Error fetching pincode stock:', error);

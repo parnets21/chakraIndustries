@@ -26,4 +26,7 @@ export const bulkOrderApi = {
   createSchedule:   (body)   => fetch(`${BASE}/bulk-orders/schedules`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   updateSchedule:   (id, body) => fetch(`${BASE}/bulk-orders/schedules/${id}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   deleteSchedule:   (id)     => fetch(`${BASE}/bulk-orders/schedules/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
+
+  // Convert to Dispatch
+  convertToDispatch: (id)   => fetch(`${BASE}/bulk-orders/quotations/${id}/convert-to-dispatch`, { method: 'POST', headers: authHeaders() }).then(handle),
 };

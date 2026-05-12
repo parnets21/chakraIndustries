@@ -13,4 +13,6 @@ export const invoiceApi = {
   update:       (id, body)    => fetch(`${BASE}/invoices/${id}`,                 { method: 'PUT',    headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   updateStatus: (id, status)  => fetch(`${BASE}/invoices/${id}/status`,          { method: 'PATCH',  headers: authHeaders(), body: JSON.stringify({ status }) }).then(handle),
   delete:       (id)          => fetch(`${BASE}/invoices/${id}`,                 { method: 'DELETE', headers: authHeaders() }).then(handle),
+  deleteAll:    ()            => fetch(`${BASE}/invoices/delete-all`,             { method: 'POST',   headers: authHeaders() }).then(handle),
+  sendEmail:    (id, body)    => fetch(`${BASE}/invoices/${id}/send-email`,       { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
 };

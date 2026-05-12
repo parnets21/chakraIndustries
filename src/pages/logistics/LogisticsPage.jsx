@@ -522,6 +522,7 @@ function TrackingTab() {
 function DCTab() {
   const [dispatches, setDispatches] = useState([]);
   const [loading, setLoading]       = useState(true);
+  const [regularizing, setRegularizing] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -535,23 +536,30 @@ function DCTab() {
   useEffect(() => { load(); }, [load]);
 
   const handleRegularize = async (id) => {
+    if (!window.confirm('Regularize this dispatch and create invoice?')) return;
+    setRegularizing(id);
     try {
-      await logisticsApi.updateDispatchStatus(id, { status: 'Delivered', event: 'Invoice Regularized' });
+      const r = await logisticsApi.regularize(id);
       toast('DC regularized successfully');
-      load();
-    } catch { toast('Failed to regularize', 'error'); }
+      // Update local state immediately
+      setDispatches(prev => prev.map(d => d._id === id ? { ...d, regularized: true, regularizedAt: r.data?.regularizedAt || new Date().toISOString() } : d));
+    } catch (e) { toast(e.message || 'Failed to regularize', 'error'); }
+    finally { setRegularizing(null); }
   };
 
-  const pending = dispatches.filter(d => d.status !== 'Delivered' && d.status !== 'Cancelled');
+  const pending = dispatches.filter(d => !d.regularized);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <div>
           <div className="text-sm font-bold text-gray-800">DC to Invoice Regularization</div>
-          <div className="text-xs text-gray-400 mt-0.5">Track dispatch challans and invoice status</div>
+          <div className="text-xs text-gray-400 mt-0.5">Track dispatch challans and convert to invoices</div>
         </div>
-        <StatusBadge status={`${pending.length} Pending`} type="warning" />
+        <div className="flex gap-2">
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">{pending.length} Pending</span>
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">{dispatches.filter(d => d.regularized).length} Regularized</span>
+        </div>
       </div>
       {loading ? <Spinner /> : (
         <DataTable
@@ -563,10 +571,35 @@ function DCTab() {
             { key: 'destination', label: 'Destination' },
             { key: 'value',      label: 'Value', render: v => <span className="font-bold">{fmtCur(v)}</span> },
             { key: 'status',     label: 'Status', render: v => <StatusBadge status={v} type={v === 'Delivered' ? 'success' : v === 'Cancelled' ? 'danger' : 'warning'} /> },
-            { key: '_id', label: 'Action', render: (id, row) => row.status === 'Delivered' ? (
-              <span className="text-green-600 text-xs font-semibold">✓ Done</span>
+            { key: 'regularized', label: 'Regularization', render: (v, row) => v ? (
+              <div>
+                <span className="px-2 py-1 text-[11px] rounded bg-green-100 text-green-800 font-semibold block">✓ Regularized</span>
+                {row.regularizedAt && <span className="text-[10px] text-gray-400 mt-0.5 block">{fmt(row.regularizedAt)}</span>}
+              </div>
             ) : (
-              <button onClick={() => handleRegularize(id)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">Regularize</button>
+              <span className="px-2 py-1 text-[11px] rounded bg-amber-100 text-amber-700 font-semibold">Pending</span>
+            )},
+            { key: '_id', label: 'Action', render: (id, row) => (
+              <div className="flex gap-1.5 flex-wrap items-center">
+                {row.regularized ? (
+                  <span className="text-green-600 text-xs font-semibold">✓ Done</span>
+                ) : row.status === 'Delivered' ? (
+                  <button
+                    onClick={() => handleRegularize(id)}
+                    disabled={regularizing === id}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit] disabled:opacity-60"
+                  >
+                    {regularizing === id ? 'Processing...' : 'Regularize → Invoice'}
+                  </button>
+                ) : (
+                  <span className="text-gray-400 text-xs">Awaiting Delivery</span>
+                )}
+                <button
+                  onClick={async () => { if(window.confirm('Delete this dispatch?')){ try { await logisticsApi.deleteDispatch(id); toast('Deleted'); load(); } catch(e){ toast(e.message,'error'); } } }}
+                  className="px-2 py-1 text-[11px] rounded-lg bg-red-50 text-red-600 border border-red-200 cursor-pointer font-[inherit]"
+                  title="Delete"
+                >🗑</button>
+              </div>
             )},
           ]}
           data={dispatches}
@@ -579,48 +612,111 @@ function DCTab() {
 // ── Tab 4: Pendency ───────────────────────────────────────────────────────────
 function PendencyTab() {
   const [dispatches, setDispatches] = useState([]);
-  const [loading, setLoading]       = useState(true);
+  const [loading, setLoading]       = useState(false);
+  const [summary, setSummary]       = useState(null);
+  const [loaded, setLoaded]         = useState(false);
 
-  useEffect(() => {
-    logisticsApi.getDispatches({ status: 'Pending' })
-      .then(r => setDispatches(r.data || []))
-      .catch(() => toast('Failed to load pendency', 'error'))
-      .finally(() => setLoading(false));
-  }, []);
+  const loadPendency = async () => {
+    setLoading(true);
+    try {
+      const r = await logisticsApi.getPendency();
+      setDispatches(r.data || []);
+      setSummary(r.summary || null);
+      setLoaded(true);
+    } catch { toast('Failed to load pendency report', 'error'); }
+    finally { setLoading(false); }
+  };
 
-  const totalPending = dispatches.length;
-  const oldest = dispatches.reduce((max, d) => {
-    const days = Math.floor((Date.now() - new Date(d.createdAt)) / 86400000);
-    return days > max ? days : max;
-  }, 0);
+  const urgencyColor = (ageDays) => {
+    if (ageDays > 14) return { bg: 'bg-red-50', text: 'text-red-600', badge: 'bg-red-100 text-red-700' };
+    if (ageDays > 7)  return { bg: 'bg-amber-50', text: 'text-amber-600', badge: 'bg-amber-100 text-amber-700' };
+    if (ageDays > 3)  return { bg: 'bg-yellow-50', text: 'text-yellow-600', badge: 'bg-yellow-100 text-yellow-700' };
+    return { bg: '', text: 'text-green-600', badge: 'bg-green-100 text-green-700' };
+  };
 
   return (
     <div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
-        <KpiCard label="Pending Dispatches"  value={totalPending} color="#ef4444" />
-        <KpiCard label="Oldest Pendency"     value={oldest > 0 ? `${oldest}d` : '—'} color="#8b5cf6" />
-        <KpiCard label="Total Pending Value" value={fmtCur(dispatches.reduce((s, d) => s + (d.value || 0), 0))} color="#f59e0b" />
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+        <KpiCard label="Total Pending"      value={summary?.total ?? dispatches.length}                                                    color="#ef4444" />
+        <KpiCard label="Overdue (>7 days)"  value={summary?.overdue ?? dispatches.filter(d => (d.ageDays || 0) > 7).length}               color="#f59e0b" />
+        <KpiCard label="Critical (>14 days)" value={summary?.critical ?? dispatches.filter(d => (d.ageDays || 0) > 14).length}            color="#dc2626" />
+        <KpiCard label="Value at Risk"      value={fmtCur(summary?.totalValue ?? dispatches.reduce((s, d) => s + (d.value || 0), 0))}     color="#8b5cf6" />
       </div>
+
       <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-        <div className="text-sm font-bold text-gray-800 mb-3.5">Pending Dispatches</div>
-        {loading ? <Spinner /> : dispatches.length === 0 ? (
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="text-sm font-bold text-gray-800">Pendency Report</div>
+            <div className="text-xs text-gray-400 mt-0.5">Dispatches pending delivery — color coded by age</div>
+          </div>
+          <button style={primaryBtn} onClick={loadPendency} disabled={loading}>
+            {loading ? 'Loading...' : 'Load Pendency Report'}
+          </button>
+        </div>
+
+        {/* Legend */}
+        <div className="flex gap-3 mb-4 flex-wrap">
+          {[
+            { label: 'Fresh (<3 days)',   color: 'bg-green-100 text-green-700' },
+            { label: 'Aging (3-7 days)',  color: 'bg-yellow-100 text-yellow-700' },
+            { label: 'Overdue (>7 days)', color: 'bg-amber-100 text-amber-700' },
+            { label: 'Critical (>14d)',   color: 'bg-red-100 text-red-700' },
+          ].map(({ label, color }) => (
+            <span key={label} className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${color}`}>{label}</span>
+          ))}
+        </div>
+
+        {!loaded ? (
+          <div className="text-center py-12 text-gray-400 text-sm">
+            <div className="text-3xl mb-3">📋</div>
+            Click "Load Pendency Report" to fetch live data
+          </div>
+        ) : loading ? <Spinner /> : dispatches.length === 0 ? (
           <div className="text-center py-8 text-gray-400 text-sm">No pending dispatches 🎉</div>
         ) : (
-          <DataTable
-            columns={[
-              { key: 'dispatchId', label: 'Dispatch ID', render: v => <span className="font-semibold text-red-700">{v}</span> },
-              { key: 'orderRef',   label: 'Order Ref' },
-              { key: 'customer',   label: 'Customer', render: v => <span className="font-semibold">{v}</span> },
-              { key: 'destination',label: 'Destination' },
-              { key: 'value',      label: 'Value', render: v => <span className="font-bold">{fmtCur(v)}</span> },
-              { key: 'createdAt',  label: 'Age', render: v => {
-                const days = Math.floor((Date.now() - new Date(v)) / 86400000);
-                return <span className={`font-bold ${days > 5 ? 'text-red-500' : days > 2 ? 'text-amber-500' : 'text-gray-500'}`}>{days}d</span>;
-              }},
-              { key: 'instructions', label: 'Notes', render: v => <span className="text-[11px] text-gray-500">{v || '—'}</span> },
-            ]}
-            data={dispatches}
-          />
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50">
+                  {['Dispatch ID', 'Customer', 'Destination', 'Value', 'Age (days)', 'Status', 'Urgency', 'Notes', 'Action'].map(h => (
+                    <th key={h} className="px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {dispatches.map((d, i) => {
+                  const age = d.ageDays ?? Math.floor((Date.now() - new Date(d.createdAt)) / 86400000);
+                  const colors = urgencyColor(age);
+                  return (
+                    <tr key={d._id || i} className={`border-b border-gray-50 last:border-0 ${colors.bg} transition-colors`}>
+                      <td className="px-4 py-3"><span className="font-semibold text-red-700">{d.dispatchId}</span></td>
+                      <td className="px-4 py-3 font-semibold">{d.customer}</td>
+                      <td className="px-4 py-3 text-gray-600">{d.destination || '—'}</td>
+                      <td className="px-4 py-3 font-bold">{fmtCur(d.value)}</td>
+                      <td className="px-4 py-3">
+                        <span className={`font-black text-lg ${colors.text}`}>{age}d</span>
+                      </td>
+                      <td className="px-4 py-3"><StatusBadge status={d.status} /></td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${colors.badge}`}>
+                          {age > 14 ? '🔴 Critical' : age > 7 ? '🟠 High' : age > 3 ? '🟡 Medium' : '🟢 Normal'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-[11px] text-gray-500">{d.instructions || '—'}</td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={async () => { if(window.confirm('Delete this dispatch?')){ try { await logisticsApi.deleteDispatch(d._id); toast('Deleted'); loadPendency(); } catch(e){ toast(e.message,'error'); } } }}
+                          className="px-2 py-1 text-[11px] rounded-lg bg-red-50 text-red-600 border border-red-200 cursor-pointer font-[inherit]"
+                          title="Delete"
+                        >🗑</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
@@ -637,6 +733,9 @@ function CourierTab() {
   const [podModal, setPodModal]     = useState(null); // shipment object
   const [podForm, setPodForm]       = useState({ receivedBy:'', deliveredAt:'' });
   const [podSaving, setPodSaving]   = useState(false);
+  const [trackModal, setTrackModal] = useState(null); // { awbNo, courier }
+  const [trackData, setTrackData]   = useState(null);
+  const [trackLoading, setTrackLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -694,6 +793,17 @@ function CourierTab() {
     finally { setPodSaving(false); }
   };
 
+  const handleTrack = async (awbNo, courier) => {
+    setTrackModal({ awbNo, courier });
+    setTrackData(null);
+    setTrackLoading(true);
+    try {
+      const r = await logisticsApi.trackCourier(awbNo, courier);
+      setTrackData(r.data);
+    } catch { toast('Failed to fetch tracking info', 'error'); }
+    finally { setTrackLoading(false); }
+  };
+
   return (
     <div>
       <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:16 }}>
@@ -726,7 +836,13 @@ function CourierTab() {
                 <button onClick={() => setPodModal(row)} className="px-2 py-1 text-[11px] rounded bg-amber-100 text-amber-800 border-0 cursor-pointer font-[inherit] font-semibold">⬆ Upload POD</button>
               )},
               { key: '_id', label: 'Actions', render: (id, row) => (
-                <div className="flex gap-1.5">
+                <div className="flex gap-1.5 flex-wrap">
+                  <button
+                    onClick={() => handleTrack(row.awbNo, row.courier)}
+                    className="px-2 py-1 text-[11px] rounded-lg bg-blue-50 text-blue-700 border border-blue-200 cursor-pointer font-[inherit] font-semibold"
+                  >
+                    📍 Track
+                  </button>
                   {row.status !== 'Delivered' && (
                     <select value={row.status} onChange={e => handleStatusUpdate(id, e.target.value)}
                       className="text-xs border border-gray-200 rounded-lg px-2 py-1 outline-none bg-white font-[inherit] cursor-pointer">
@@ -745,7 +861,6 @@ function CourierTab() {
           />
         )}
       </div>
-
       {/* Create Shipment Modal */}
       <Modal
         open={showModal}
@@ -760,8 +875,16 @@ function CourierTab() {
         }
       >
         <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-gray-600">Courier *</label>
+            <select className={inp} value={form.courier} onChange={e => setForm(f => ({ ...f, courier: e.target.value }))}>
+              <option value="">— Select Courier —</option>
+              {['Delhivery', 'BlueDart', 'India Post', 'DTDC', 'Ekart', 'FedEx'].map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
           {[
-            { label:'Courier *',      key:'courier',     placeholder:'e.g. BlueDart' },
             { label:'AWB No. *',      key:'awbNo',       placeholder:'Tracking number' },
             { label:'Order Ref *',    key:'orderRef',    placeholder:'e.g. ORD-2024-089' },
             { label:'Customer *',     key:'customer',    placeholder:'Customer name' },
@@ -825,6 +948,67 @@ function CourierTab() {
               </div>
             </div>
           </div>
+        )}
+      </Modal>
+
+      {/* Tracking Modal */}
+      <Modal
+        open={!!trackModal}
+        onClose={() => { setTrackModal(null); setTrackData(null); }}
+        title={`Track Shipment — ${trackModal?.awbNo || ''}`}
+        size="lg"
+        footer={
+          <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold cursor-pointer font-[inherit]" onClick={() => { setTrackModal(null); setTrackData(null); }}>Close</button>
+        }
+      >
+        {trackLoading ? (
+          <Spinner />
+        ) : trackData ? (
+          <div>
+            {/* Status Header */}
+            <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-xl mb-5">
+              <div className="text-3xl">📦</div>
+              <div className="flex-1">
+                <div className="font-bold text-gray-800">{trackData.courier} — {trackData.awbNo}</div>
+                <div className="text-sm text-blue-700 font-semibold mt-0.5">{trackData.status}</div>
+                {trackData.currentLocation && <div className="text-xs text-gray-500 mt-0.5">📍 {trackData.currentLocation}</div>}
+              </div>
+              {trackData.estimatedDelivery && (
+                <div className="text-right">
+                  <div className="text-[10px] text-gray-400 uppercase font-semibold">Est. Delivery</div>
+                  <div className="text-sm font-bold text-gray-800">{fmt(trackData.estimatedDelivery)}</div>
+                </div>
+              )}
+            </div>
+
+            {/* Timeline */}
+            {trackData.events && trackData.events.length > 0 && (
+              <div>
+                <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Tracking Timeline</div>
+                <div className="relative pl-6">
+                  <div className="absolute left-2.5 top-1.5 bottom-1.5 w-0.5 bg-gray-200 rounded" />
+                  {trackData.events.map((ev, i) => (
+                    <div key={i} className="relative mb-5 last:mb-0">
+                      <div className={`absolute -left-[17px] top-1 w-3 h-3 rounded-full ring-2 ring-offset-1 ${
+                        i === 0 ? 'bg-blue-500 ring-blue-500' : 'bg-gray-300 ring-gray-300'
+                      }`} />
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="text-sm font-semibold text-gray-800">{ev.description || ev.status}</div>
+                          {ev.location && <div className="text-xs text-gray-400 mt-0.5">📍 {ev.location}</div>}
+                        </div>
+                        <div className="text-[11px] text-gray-400 whitespace-nowrap ml-4">
+                          {ev.timestamp ? new Date(ev.timestamp).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—'}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-400 text-sm">No tracking data available</div>
         )}
       </Modal>
     </div>

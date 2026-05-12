@@ -24,4 +24,9 @@ export const logisticsApi = {
   updateShipment: (id, body) => fetch(`${BASE}/logistics/shipments/${id}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   markPOD:        (id, body) => fetch(`${BASE}/logistics/shipments/${id}/pod`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   deleteShipment: (id)     => fetch(`${BASE}/logistics/shipments/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
+
+  // Courier Tracking & Reports
+  trackCourier:   (awbNo, courier = '') => fetch(`${BASE}/logistics/track/${awbNo}${courier ? `?courier=${courier}` : ''}`, { headers: authHeaders() }).then(handle),
+  regularize:     (id)     => fetch(`${BASE}/logistics/dispatches/${id}/regularize`, { method: 'POST', headers: authHeaders() }).then(handle),
+  getPendency:    ()       => fetch(`${BASE}/logistics/pendency`, { headers: authHeaders() }).then(handle),
 };

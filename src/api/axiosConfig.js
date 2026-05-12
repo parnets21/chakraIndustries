@@ -1,5 +1,5 @@
 // Shared fetch helpers — mirrors the pattern used across the rest of the API layer
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const BASE = import.meta.env.VITE_API_URL || 'https://chakraindustries-backend.onrender.com/api';
 
 const getToken = () =>
   localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');

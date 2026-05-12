@@ -51,12 +51,16 @@ export default function InvoiceGeneratorPage() {
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const [search, setSearch] = useState('');
+  const searchRef = useRef(null);
 
-  const fetchAll = useCallback(async (p = 1) => {
+  const fetchAll = useCallback(async (p = 1, q = '') => {
     setLoading(true);
     try {
+      const params = { page: p, limit: PAGE_SIZE };
+      if (q.trim()) params.search = q.trim();
       const [listRes, statsRes] = await Promise.all([
-        invoiceApi.getAll({ page: p, limit: PAGE_SIZE }),
+        invoiceApi.getAll(params),
         invoiceApi.getStats(),
       ]);
       setInvoices(listRes.data || []);
@@ -70,7 +74,16 @@ export default function InvoiceGeneratorPage() {
     }
   }, []);
 
-  useEffect(() => { fetchAll(page); }, [fetchAll, page]);
+  // Debounce search — wait 400ms after user stops typing
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setPage(1);
+      fetchAll(1, search);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [search]); // eslint-disable-line
+
+  useEffect(() => { fetchAll(page, search); }, [fetchAll, page]); // eslint-disable-line
 
   // Close share dropdown when clicking outside
   useEffect(() => {
@@ -923,9 +936,38 @@ export default function InvoiceGeneratorPage() {
 
       {/* Invoice Table */}
       <div style={{ background: '#fff', borderRadius: 18, border: '1px solid #e8edf2', boxShadow: '0 2px 12px rgba(15,23,42,0.06)', overflow: 'hidden' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #e8edf2', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #e8edf2', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: TEXT_DARK }}>All Invoices</div>
-          <div style={{ fontSize: 12, color: TEXT_LIGHT }}>{totalCount} total</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Search bar */}
+            <div style={{ position: 'relative' }}>
+              <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: TEXT_LIGHT, fontSize: 14, pointerEvents: 'none' }}>🔍</span>
+              <input
+                ref={searchRef}
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by name, invoice no, PO..."
+                style={{
+                  paddingLeft: 32, paddingRight: search ? 32 : 12,
+                  paddingTop: 7, paddingBottom: 7,
+                  border: '1.5px solid #e2e8f0', borderRadius: 10,
+                  fontSize: 13, color: TEXT_DARK, background: '#f8fafc',
+                  outline: 'none', width: 260, fontFamily: 'inherit',
+                  transition: 'border-color 0.15s',
+                }}
+                onFocus={e => e.target.style.borderColor = RED}
+                onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: TEXT_LIGHT, fontSize: 16, lineHeight: 1, padding: 0 }}
+                >×</button>
+              )}
+            </div>
+            <div style={{ fontSize: 12, color: TEXT_LIGHT, whiteSpace: 'nowrap' }}>{totalCount} total</div>
+          </div>
         </div>
         {invoices.length === 0 ? (
           <div style={{ padding: '40px 20px', textAlign: 'center', color: TEXT_LIGHT }}>No invoices yet. Upload from Excel.</div>

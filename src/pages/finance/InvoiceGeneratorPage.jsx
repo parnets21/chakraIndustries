@@ -92,28 +92,26 @@ export default function InvoiceGeneratorPage() {
     return () => document.removeEventListener('click', close);
   }, []);
 
-  // ── Parse Orders Excel (the BI/vendor orders format) ─────────────────────
-  // Each row in the Excel = one invoice (one order line to one customer).
-  // UniqueId is the unique order identifier per row.
-  const parseOrdersExcel = (rows) => {
+  // ── Parse GRT Invoice Excel format ───────────────────────────────────────
+  // Format: Invoice No | Invoice Date | Bill To | Add1 | Add2 | GSTIN | PO NO | PO DATE |
+  //         Item Name | HSN | Qty | Unit Rate | Basic | cgst | sgst | igst | Total Value
+  // Rows are grouped by invoice — header fields only on first item row, blank on subsequent rows.
+  const parseGRTExcel = (rows) => {
     const valid = [];
     const errors = [];
 
-    // Normalize a row's keys — trim whitespace, handle case variations
-    // Also build a case-insensitive lookup helper
     const getField = (row, ...keys) => {
       for (const k of keys) {
-        // exact match first
-        if (row[k] !== undefined && row[k] !== '') return String(row[k]);
-        // case-insensitive match
+        if (row[k] !== undefined && row[k] !== null && row[k] !== '') return String(row[k]).trim();
         const lower = k.toLowerCase();
         const found = Object.keys(row).find(rk => rk.trim().toLowerCase() === lower);
-        if (found !== undefined && row[found] !== '') return String(row[found]);
+        if (found !== undefined && row[found] !== undefined && row[found] !== '') return String(row[found]).trim();
       }
       return '';
     };
 
-    // Helper: parse date from Excel serial number or string
+    const parseNum = (v) => parseFloat(String(v).replace(/,/g, '')) || 0;
+
     const parseDateField = (val) => {
       if (!val && val !== 0) return new Date().toISOString().split('T')[0];
       if (typeof val === 'number') {
@@ -124,120 +122,250 @@ export default function InvoiceGeneratorPage() {
       }
       const s = String(val).trim();
       if (!s) return new Date().toISOString().split('T')[0];
-      // MM/DD/YYYY
-      const m1 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-      if (m1) return `${m1[3]}-${m1[1].padStart(2,'0')}-${m1[2].padStart(2,'0')}`;
-      // DD-MM-YYYY
-      const m2 = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
-      if (m2) return `${m2[3]}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`;
+      const m1 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+      if (m1) {
+        const yr = m1[3].length === 2 ? '20' + m1[3] : m1[3];
+        return `${yr}-${m1[1].padStart(2,'0')}-${m1[2].padStart(2,'0')}`;
+      }
+      const m2 = s.match(/^(\d{1,2})[-.](\d{1,2})[-.](\d{2,4})$/);
+      if (m2) {
+        const yr = m2[3].length === 2 ? '20' + m2[3] : m2[3];
+        return `${yr}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`;
+      }
       return s;
     };
+
+    let currentInvoice = null;
 
     rows.forEach((row, idx) => {
       const rowNum = idx + 2;
 
-      const uniqueId    = getField(row, 'UniqueId', 'UniqueID', 'Unique Id', 'UNIQUEID').trim();
-      const po          = getField(row, 'PurchaseOrder', 'Purchase Order', 'PO', 'PURCHASEORDER').trim();
-      const productDesc = getField(row, 'ProductDescription', 'Product Description', 'PRODUCTDESCRIPTION').trim();
-      const productCode = getField(row, 'ProductCode', 'Product Code', 'BIPartNumber', 'BI Part Number', 'PRODUCTCODE').trim();
-      const shipToName  = getField(row, 'ShipToName', 'Ship To Name', 'SHIPTONAME').trim();
+      const invoiceNo  = getField(row, 'Invoice No', 'InvoiceNo', 'Invoice No.');
+      const billTo     = getField(row, 'Bill To', 'BillTo', 'Party Name');
+      const itemName   = getField(row, 'Item Name', 'ItemName', 'Description', 'Item');
+      const hsn        = getField(row, 'HSN', 'HSN Code', 'HSN/SAC');
 
-      // Validation
-      if (!uniqueId && !po) {
-        errors.push({ row: rowNum, field: 'UniqueId', message: 'Missing UniqueId and PurchaseOrder' });
-        return;
+      // New invoice starts when Invoice No is present
+      if (invoiceNo) {
+        // Save previous invoice
+        if (currentInvoice && currentInvoice.items.length > 0) {
+          valid.push(currentInvoice);
+        }
+
+        const add1 = getField(row, 'Add1', 'Address1', 'Address 1');
+        const add2 = getField(row, 'Add 2', 'Add2', 'Address2', 'Address 2');
+        const address = [add1, add2].filter(Boolean).join(', ');
+
+        currentInvoice = {
+          invoiceNo:        invoiceNo,
+          partyName:        billTo,
+          partyAddress:     address,
+          partyGST:         getField(row, 'GSTIN', 'GST', 'GST No', 'GSTIN No'),
+          partyEmail:       '',
+          partyPhone:       '',
+          invoiceDate:      parseDateField(getField(row, 'Invoice Date', 'InvoiceDate', 'Date')),
+          dueDate:          '',
+          purchaseOrderRef: getField(row, 'PO NO', 'PO No', 'PO Number', 'PO NO.'),
+          poDate:           parseDateField(getField(row, 'PO DATE', 'PO Date', 'PODate') || ''),
+          notes:            '',
+          terms:            'Payment due within 30 days.',
+          items:            [],
+        };
       }
-      if (!shipToName) {
-        errors.push({ row: rowNum, field: 'ShipToName', message: `Row ${rowNum}: Missing ShipToName` });
-        return;
-      }
-      if (!productDesc && !productCode) {
-        errors.push({ row: rowNum, field: 'ProductDescription', message: `Row ${rowNum}: Missing product description` });
-        return;
-      }
 
-      // Build full address
-      const addrParts = [
-        getField(row, 'ShipToAddress1', 'Ship To Address1'),
-        getField(row, 'ShipToAddress2', 'Ship To Address2'),
-        getField(row, 'ShipToAddress3', 'Ship To Address3'),
-        getField(row, 'ShipToAddress4', 'Ship To Address4'),
-        getField(row, 'City'),
-        getField(row, 'State'),
-        getField(row, 'Postal'),
-        getField(row, 'Country'),
-      ].map(v => v.trim()).filter(Boolean);
-      const address = addrParts.join(', ');
+      // Add item to current invoice
+      if (currentInvoice && itemName) {
+        const qty      = parseNum(getField(row, 'Qty', 'Quantity', 'QTY'));
+        const rate     = parseNum(getField(row, 'Unit Rate', 'UnitRate', 'Rate', 'Unit Price'));
+        const basic    = parseNum(getField(row, 'Basic', 'Taxable', 'Basic Amount'));
+        const cgst     = parseNum(getField(row, 'cgst', 'CGST', 'CGST Amount'));
+        const sgst     = parseNum(getField(row, 'sgst', 'SGST', 'SGST Amount'));
+        const igst     = parseNum(getField(row, 'igst', 'IGST', 'IGST Amount'));
+        const total    = parseNum(getField(row, 'Total Value', 'TotalValue', 'Total', 'Amount'));
 
-      // Phone/email — handle "(D)xxx (E)xxx" format
-      const rawPhone = getField(row, 'Phone').trim();
-      const phoneMatch = rawPhone.match(/\(D\)([^\s(]+)/);
-      const emailMatch = rawPhone.match(/\(E\)([^\s(]+)/);
-      const phone = phoneMatch
-        ? phoneMatch[1].replace(/\//g, '')
-        : rawPhone.replace(/[^0-9+]/g, '').slice(0, 15);
-      const emailFromPhone = emailMatch ? emailMatch[1] : '';
-      const email = (getField(row, 'Email') || emailFromPhone).trim();
+        // Compute tax rate from amounts
+        const taxAmt   = cgst + sgst + igst;
+        const taxRate  = basic > 0 ? Math.round((taxAmt / basic) * 100) : 0;
 
-      const qty  = parseFloat(getField(row, 'Quantity', 'Qty') || '1') || 1;
-      const rate = parseFloat(getField(row, 'UnitPrice', 'Unit Price', 'Rate') || '0') || 0;
-
-      valid.push({
-        partyName:    shipToName,
-        partyAddress: address,
-        partyGST:     '',
-        partyEmail:   email,
-        partyPhone:   phone,
-        // Individual address parts
-        partyCity:    getField(row, 'City').trim(),
-        partyState:   getField(row, 'State').trim(),
-        partyPostal:  getField(row, 'Postal').trim(),
-        partyCountry: getField(row, 'Country').trim(),
-
-        invoiceDate: parseDateField(getField(row, 'PODate', 'PO Date', 'InvoiceDate', 'Invoice Date') || ''),
-        dueDate:     '',
-
-        // ALL Excel columns
-        uniqueId:            getField(row, 'UniqueId', 'UniqueID', 'Unique Id').trim(),
-        purchaseOrderRef:    getField(row, 'PurchaseOrder', 'Purchase Order', 'PO').trim(),
-        poDate:              getField(row, 'PODate', 'PO Date').trim(),
-        lineNbr:             getField(row, 'LineNbr', 'Line Nbr', 'LineNumber').trim(),
-        biPartNumber:        getField(row, 'BIPartNumber', 'BI Part Number').trim(),
-        vendorCode:          getField(row, 'VendorCode', 'Vendor Code').trim(),
-        programNumber:       getField(row, 'ProgramNumber', 'Program Number').trim(),
-        accountNumber:       getField(row, 'AccountNumber', 'Account Number').trim(),
-        brandName:           getField(row, 'BrandName', 'Brand Name').trim(),
-        orderStatus:         getField(row, 'OrderStatus', 'Order Status').trim(),
-        biwpo:               getField(row, 'BIWPO').trim(),
-        dispatchDate:        getField(row, 'DispatchDate', 'Dispatch Date').trim(),
-        awb:                 getField(row, 'AWB').trim(),
-        courierName:         getField(row, 'CourierName', 'Courier Name').trim(),
-        vendorInvoiceNumber: getField(row, 'VendorInvoiceNumber', 'Vendor Invoice Number', 'VendorInvoiceNo').trim(),
-        poValue:             parseFloat(getField(row, 'PoValue', 'PO Value') || '0') || 0,
-        totalQuantity:       parseFloat(getField(row, 'TotalQuantity', 'Total Quantity') || '0') || 0,
-        totalPoValue:        parseFloat(getField(row, 'TotalPoValue', 'Total PO Value') || '0') || 0,
-        courierValue:        parseFloat(getField(row, 'CourierValue', 'Courier Value') || '0') || 0,
-        totalCourier:        parseFloat(getField(row, 'TotalCourier', 'Total Courier') || '0') || 0,
-        deliveryDate:        getField(row, 'DeliveryDate', 'Delivery Date').trim(),
-        weightKg:            parseFloat(getField(row, 'Weight (in Kg)', 'WeightKg', 'Weight') || '0') || 0,
-        modeOfTransport:     getField(row, 'Mode of Transportation', 'ModeOfTransportation', 'Mode').trim(),
-        lbh:                 getField(row, 'LBH').trim(),
-        totalFaceValue:      parseFloat(getField(row, 'TotalFaceValue', 'Total Face Value') || '0') || 0,
-        podSharedLink:       getField(row, 'PodSharedLink', 'POD Shared Link', 'Pod Shared Link').trim(),
-
-        notes: getField(row, 'Comments').trim(),
-        terms: 'Payment due within 30 days.',
-
-        items: [{
-          description: productDesc || productCode,
-          hsn:         productCode,
-          qty,
-          unit:        getField(row, 'UOM', 'Unit').trim() || 'EA',
-          rate,
+        currentInvoice.items.push({
+          description: itemName,
+          hsn:         hsn,
+          qty:         qty || 1,
+          unit:        getField(row, 'Unit', 'UOM') || 'Nos',
+          rate:        rate || (qty > 0 ? basic / qty : basic),
           discount:    0,
-          taxRate:     0,
-        }],
+          taxRate:     taxRate,
+          cgst,
+          sgst,
+          igst,
+          total,
+        });
+      } else if (!currentInvoice && itemName) {
+        errors.push({ row: rowNum, field: 'Invoice No', message: `Row ${rowNum}: Item found without invoice header` });
+      }
+    });
+
+    // Push last invoice
+    if (currentInvoice && currentInvoice.items.length > 0) {
+      valid.push(currentInvoice);
+    }
+
+    // Validate
+    valid.forEach((inv, i) => {
+      if (!inv.partyName) errors.push({ row: i + 1, field: 'Bill To', message: `Invoice ${inv.invoiceNo}: Missing Bill To` });
+    });
+
+    return { valid, errors };
+  };
+  // ── Parse Orders Excel ────────────────────────────────────────────────────
+  // Groups rows by PurchaseOrder — same PO = one invoice with multiple items.
+  const parseOrdersExcel = (rows) => {
+    const valid = [];
+    const errors = [];
+    const invoiceMap = {}; // key: PurchaseOrder → invoice object
+
+    const getField = (row, ...keys) => {
+      for (const k of keys) {
+        if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') return String(row[k]).trim();
+        const lower = k.toLowerCase();
+        const found = Object.keys(row).find(rk => rk.trim().toLowerCase() === lower);
+        if (found !== undefined && row[found] !== undefined && String(row[found]).trim() !== '') return String(row[found]).trim();
+      }
+      return '';
+    };
+
+    const parseDateField = (val) => {
+      if (!val && val !== 0) return new Date().toISOString().split('T')[0];
+      if (typeof val === 'number') {
+        try {
+          const d = XLSX.SSF.parse_date_code(val);
+          return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+        } catch { return new Date().toISOString().split('T')[0]; }
+      }
+      const s = String(val).trim();
+      if (!s) return new Date().toISOString().split('T')[0];
+      const m1 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+      if (m1) { const yr = m1[3].length === 2 ? '20'+m1[3] : m1[3]; return `${yr}-${m1[1].padStart(2,'0')}-${m1[2].padStart(2,'0')}`; }
+      const m2 = s.match(/^(\d{1,2})-(\d{1,2})-(\d{2,4})$/);
+      if (m2) { const yr = m2[3].length === 2 ? '20'+m2[3] : m2[3]; return `${yr}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`; }
+      return s;
+    };
+
+    const parseNum = (v) => parseFloat(String(v || '0').replace(/,/g, '')) || 0;
+
+    rows.forEach((row, idx) => {
+      const rowNum = idx + 2;
+
+      const po          = getField(row, 'PurchaseOrder', 'Purchase Order', 'PO');
+      const uniqueId    = getField(row, 'UniqueId', 'UniqueID', 'Unique Id');
+      const shipToName  = getField(row, 'ShipToName', 'Ship To Name');
+      const productDesc = getField(row, 'ProductDescription', 'Product Description');
+      const productCode = getField(row, 'ProductCode', 'Product Code', 'BIPartNumber', 'BI Part Number');
+
+      if (!po && !uniqueId) { errors.push({ row: rowNum, field: 'PurchaseOrder', message: 'Missing PO and UniqueId' }); return; }
+      if (!shipToName)      { errors.push({ row: rowNum, field: 'ShipToName',    message: `Row ${rowNum}: Missing ShipToName` }); return; }
+      if (!productDesc && !productCode) { errors.push({ row: rowNum, field: 'ProductDescription', message: `Row ${rowNum}: Missing product` }); return; }
+
+      // Tax values
+      const cgst = parseNum(getField(row, 'CGST', 'cgst'));
+      const sgst = parseNum(getField(row, 'SGST', 'sgst'));
+      const igst = parseNum(getField(row, 'IGST', 'igst'));
+      const qty  = parseNum(getField(row, 'Quantity', 'Qty')) || 1;
+      const rate = parseNum(getField(row, 'UnitPrice', 'Unit Price', 'Rate'));
+
+      // HSN from dedicated column
+      const hsnCode = getField(row, 'HSN Code', 'HSN', 'HSNCode', 'hsn') || productCode;
+
+      // Tax rate from amounts
+      const taxableBase = rate * qty;
+      const totalTaxAmt = cgst + sgst + igst;
+      const taxRate = taxableBase > 0 && totalTaxAmt > 0 ? Math.round((totalTaxAmt / taxableBase) * 100) : 0;
+
+      // Group key — use PurchaseOrder as the invoice grouping key
+      const groupKey = po || uniqueId;
+
+      if (!invoiceMap[groupKey]) {
+        // Build address
+        const addrParts = [
+          getField(row, 'ShipToAddress1', 'Ship To Address1'),
+          getField(row, 'ShipToAddress2', 'Ship To Address2'),
+          getField(row, 'ShipToAddress3', 'Ship To Address3'),
+          getField(row, 'ShipToAddress4', 'Ship To Address4'),
+          getField(row, 'City'),
+          getField(row, 'State'),
+          getField(row, 'Postal'),
+          getField(row, 'Country'),
+        ].filter(Boolean);
+
+        // Phone/email
+        const rawPhone = getField(row, 'Phone');
+        const phoneMatch = rawPhone.match(/\(D\)([^\s(]+)/);
+        const emailMatch = rawPhone.match(/\(E\)([^\s(]+)/);
+        const phone = phoneMatch ? phoneMatch[1].replace(/\//g,'') : rawPhone.replace(/[^0-9+]/g,'').slice(0,15);
+        const emailFromPhone = emailMatch ? emailMatch[1] : '';
+        const email = getField(row, 'Email') || emailFromPhone;
+
+        const billToName    = getField(row, 'Bill To', 'BillTo');
+        const billToAddress = getField(row, 'Bill To add', 'BillToAdd', 'BillToAddress');
+        const billToGST     = getField(row, 'GSTin', 'GSTIN', 'GST', 'GSTIn');
+
+        invoiceMap[groupKey] = {
+          partyName:    shipToName,
+          partyAddress: addrParts.join(', '),
+          partyGST:     billToGST,
+          partyEmail:   email,
+          partyPhone:   phone,
+          partyCity:    getField(row, 'City'),
+          partyState:   getField(row, 'State'),
+          partyPostal:  getField(row, 'Postal'),
+          partyCountry: getField(row, 'Country'),
+          billToName,
+          billToAddress,
+          billToGST,
+          invoiceDate:      parseDateField(getField(row, 'PODate', 'PO Date', 'InvoiceDate', 'Invoice Date')),
+          dueDate:          '',
+          purchaseOrderRef: po,
+          poDate:           getField(row, 'PODate', 'PO Date'),
+          uniqueId,
+          vendorCode:       getField(row, 'VendorCode', 'Vendor Code'),
+          accountNumber:    getField(row, 'AccountNumber', 'Account Number'),
+          programNumber:    getField(row, 'ProgramNumber', 'Program Number'),
+          brandName:        getField(row, 'BrandName', 'Brand Name'),
+          orderStatus:      getField(row, 'OrderStatus', 'Order Status'),
+          biwpo:            getField(row, 'BIWPO'),
+          dispatchDate:     getField(row, 'DispatchDate', 'Dispatch Date'),
+          awb:              getField(row, 'AWB'),
+          courierName:      getField(row, 'CourierName', 'Courier Name'),
+          vendorInvoiceNumber: getField(row, 'VendorInvoiceNumber', 'Vendor Invoice Number'),
+          deliveryDate:     getField(row, 'DeliveryDate', 'Delivery Date'),
+          weightKg:         parseNum(getField(row, 'Weight (in Kg)', 'WeightKg', 'Weight')),
+          modeOfTransport:  getField(row, 'Mode of Transportation', 'ModeOfTransportation', 'Mode'),
+          lbh:              getField(row, 'LBH'),
+          podSharedLink:    getField(row, 'PodSharedLink', 'POD Shared Link', 'Pod Shared Link'),
+          notes:            getField(row, 'Comments'),
+          terms:            'Payment due within 30 days.',
+          items:            [],
+        };
+      }
+
+      // Add this row's product as a line item
+      invoiceMap[groupKey].items.push({
+        description: productDesc || productCode,
+        hsn:         hsnCode,
+        qty,
+        unit:        getField(row, 'UOM', 'Unit') || 'EA',
+        rate,
+        discount:    0,
+        taxRate,
+        cgst,
+        sgst,
+        igst,
       });
+    });
+
+    // Convert map to array
+    Object.values(invoiceMap).forEach(inv => {
+      if (inv.items.length > 0) valid.push(inv);
     });
 
     return { valid, errors };
@@ -265,11 +393,12 @@ export default function InvoiceGeneratorPage() {
       }
 
       // Find the header row — it's the first row that contains known column names
-      const knownCols = ['uniqueid','purchaseorder','shiptoname','productdescription','vendorcode','bipartnumber'];
+      const knownColsOrders = ['uniqueid','purchaseorder','shiptoname','productdescription','vendorcode','bipartnumber'];
+      const knownColsGRT    = ['invoice no','bill to','item name','hsn','unit rate','total value'];
       let headerRowIdx = 0;
       for (let i = 0; i < Math.min(5, rawArrays.length); i++) {
         const rowLower = rawArrays[i].map(c => String(c).trim().toLowerCase());
-        if (knownCols.some(k => rowLower.includes(k))) {
+        if (knownColsOrders.some(k => rowLower.includes(k)) || knownColsGRT.some(k => rowLower.includes(k))) {
           headerRowIdx = i;
           break;
         }
@@ -302,14 +431,17 @@ export default function InvoiceGeneratorPage() {
         return;
       }
 
-      // Detect format: Orders format has known order columns
+      // Detect format
       const firstRow = rows[0];
-      const allKeys = Object.keys(firstRow).map(k => k.toLowerCase());
+      const allKeys = Object.keys(firstRow).map(k => k.toLowerCase().trim());
       const isOrdersFormat = allKeys.some(k => ['purchaseorder','uniqueid','shiptoname','bipartnumber','productdescription'].includes(k));
+      const isGRTFormat    = allKeys.some(k => ['invoice no','bill to','item name'].includes(k));
 
       let parsed;
       if (isOrdersFormat) {
         parsed = parseOrdersExcel(rows);
+      } else if (isGRTFormat) {
+        parsed = parseGRTExcel(rows);
       } else {
         // Legacy generic format
         const invoicesToCreate = [];
@@ -421,22 +553,49 @@ export default function InvoiceGeneratorPage() {
     // Compute per-item tax breakdown for HSN summary table
     const hsnMap = {};
     (inv.items || []).forEach(item => {
-      const key = item.hsn || '—';
+      const key        = item.hsn || '—';
       const taxableAmt = (item.qty || 0) * (item.rate || 0) * (1 - (item.discount || 0) / 100);
-      const cgstRate   = (item.taxRate || 0) / 2;
-      const sgstRate   = (item.taxRate || 0) / 2;
-      const cgstAmt    = taxableAmt * cgstRate / 100;
-      const sgstAmt    = taxableAmt * sgstRate / 100;
-      if (!hsnMap[key]) hsnMap[key] = { taxable: 0, cgstRate, sgstRate, cgst: 0, sgst: 0 };
+
+      // Use stored amounts from Excel if present, otherwise compute from taxRate
+      const storedCGST = item.cgst || 0;
+      const storedSGST = item.sgst || 0;
+      const storedIGST = item.igst || 0;
+
+      let cgstAmt, sgstAmt, igstAmt, cgstRate, sgstRate, igstRate;
+      if (storedIGST > 0) {
+        // Inter-state: IGST only
+        igstAmt  = storedIGST;
+        cgstAmt  = 0; sgstAmt = 0;
+        igstRate = taxableAmt > 0 ? Math.round((igstAmt / taxableAmt) * 100) : (item.taxRate || 0);
+        cgstRate = 0; sgstRate = 0;
+      } else if (storedCGST > 0 || storedSGST > 0) {
+        // Intra-state: CGST + SGST from stored values
+        cgstAmt  = storedCGST; sgstAmt = storedSGST; igstAmt = 0;
+        cgstRate = taxableAmt > 0 ? Math.round((cgstAmt / taxableAmt) * 100) : (item.taxRate || 0) / 2;
+        sgstRate = cgstRate; igstRate = 0;
+      } else {
+        // Compute from taxRate
+        const halfRate = (item.taxRate || 0) / 2;
+        cgstRate = halfRate; sgstRate = halfRate; igstRate = 0;
+        cgstAmt  = taxableAmt * cgstRate / 100;
+        sgstAmt  = taxableAmt * sgstRate / 100;
+        igstAmt  = 0;
+      }
+
+      if (!hsnMap[key]) hsnMap[key] = { taxable: 0, cgstRate, sgstRate, igstRate, cgst: 0, sgst: 0, igst: 0 };
       hsnMap[key].taxable += taxableAmt;
       hsnMap[key].cgst    += cgstAmt;
       hsnMap[key].sgst    += sgstAmt;
+      hsnMap[key].igst    += igstAmt;
     });
-    const hsnRows = Object.entries(hsnMap);
+    const hsnRows      = Object.entries(hsnMap);
     const totalTaxable = hsnRows.reduce((s, [, v]) => s + v.taxable, 0);
     const totalCGST    = hsnRows.reduce((s, [, v]) => s + v.cgst, 0);
     const totalSGST    = hsnRows.reduce((s, [, v]) => s + v.sgst, 0);
-    const totalTax     = totalCGST + totalSGST;
+    const totalIGST    = hsnRows.reduce((s, [, v]) => s + v.igst, 0);
+    const totalTax     = totalCGST + totalSGST + totalIGST;
+    const hasIGST      = totalIGST > 0;
+    const hasCGSTSGST  = totalCGST > 0 || totalSGST > 0;
 
     // Amount in words
     const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
@@ -546,11 +705,10 @@ export default function InvoiceGeneratorPage() {
       <img src="${CHAKRA_LOGO_B64}" alt="Chakra Industries" />
     </div>
     <div class="company-info">
-      <div class="company-name">Chakra Industries</div>
+      <div class="company-name">Sri Chakra Industries</div>
       <div class="company-detail">
-        ${inv.companyAddress || 'B-47, Industrial Area, Phase-2, Peenya, Bengaluru, Karnataka, 560058'}<br/>
-        ${inv.companyGST ? `GSTIN: ${inv.companyGST}` : 'GSTIN: 29AABCC1234D1ZK'}&nbsp;&nbsp;&nbsp;
-        PAN Number: AABCC1234D
+        ${inv.companyAddress || '#13/14, Azeez Sait Industrial Estate, Mysore Road, Nayandahalli, Bangalore - 560039'}<br/>
+        ${inv.companyGST ? `GSTIN: ${inv.companyGST}` : 'GSTIN: 29ABWFS0002M1ZR'}
       </div>
     </div>
     <div class="inv-box">
@@ -567,12 +725,11 @@ export default function InvoiceGeneratorPage() {
   <div class="party-grid">
     <div class="party-cell">
       <div class="party-label">Bill To</div>
-      <div class="party-name">${inv.partyName}</div>
+      <div class="party-name">${inv.billToName || inv.partyName}</div>
       <div class="party-line">
-        ${inv.partyAddress ? `Address: ${inv.partyAddress}<br/>` : ''}
-        ${inv.partyGST ? `GSTIN: ${inv.partyGST}&nbsp;&nbsp;&nbsp;Place of Supply: ${inv.partyState || 'Karnataka'}<br/>` : ''}
-        ${inv.partyPhone ? `Mobile: ${inv.partyPhone}&nbsp;&nbsp;&nbsp;` : ''}
-        ${inv.partyGST ? `PAN Number: ${inv.partyGST.substring(2,12)}` : ''}
+        ${inv.billToAddress ? `Address: ${inv.billToAddress}<br/>` : (inv.partyAddress ? `Address: ${inv.partyAddress}<br/>` : '')}
+        ${inv.billToGST || inv.partyGST ? `GSTIN: ${inv.billToGST || inv.partyGST}&nbsp;&nbsp;&nbsp;Place of Supply: ${inv.partyState || 'Karnataka'}<br/>` : ''}
+        ${inv.partyPhone ? `Mobile: ${inv.partyPhone}` : ''}
       </div>
     </div>
     <div class="party-cell">
@@ -609,7 +766,7 @@ export default function InvoiceGeneratorPage() {
         </tr>`).join('')}
 
         <!-- Tax rows -->
-        ${totalCGST > 0 ? `
+        ${hasCGSTSGST ? `
         <tr class="tax-row">
           <td colspan="5" style="text-align:right;padding-right:12px;">CGST @${hsnRows[0]?.[1]?.cgstRate || 0}%</td>
           <td class="r">₹ ${fmtNum(totalCGST)}</td>
@@ -617,6 +774,11 @@ export default function InvoiceGeneratorPage() {
         <tr class="tax-row">
           <td colspan="5" style="text-align:right;padding-right:12px;">SGST @${hsnRows[0]?.[1]?.sgstRate || 0}%</td>
           <td class="r">₹ ${fmtNum(totalSGST)}</td>
+        </tr>` : ''}
+        ${hasIGST ? `
+        <tr class="tax-row">
+          <td colspan="5" style="text-align:right;padding-right:12px;">IGST @${hsnRows[0]?.[1]?.igstRate || 0}%</td>
+          <td class="r">₹ ${fmtNum(totalIGST)}</td>
         </tr>` : ''}
 
         <!-- Total row -->
@@ -637,10 +799,8 @@ export default function InvoiceGeneratorPage() {
         <tr>
           <th>HSN/SAC</th>
           <th class="r">Taxable Value</th>
-          <th class="r">CGST Rate</th>
-          <th class="r">CGST Amount</th>
-          <th class="r">SGST Rate</th>
-          <th class="r">SGST Amount</th>
+          ${hasCGSTSGST ? `<th class="r">CGST Rate</th><th class="r">CGST Amount</th><th class="r">SGST Rate</th><th class="r">SGST Amount</th>` : ''}
+          ${hasIGST     ? `<th class="r">IGST Rate</th><th class="r">IGST Amount</th>` : ''}
           <th class="r">Total Tax Amount</th>
         </tr>
       </thead>
@@ -649,19 +809,15 @@ export default function InvoiceGeneratorPage() {
         <tr>
           <td>${hsn}</td>
           <td class="r">${fmtNum(v.taxable)}</td>
-          <td class="r">${v.cgstRate}%</td>
-          <td class="r">${fmtNum(v.cgst)}</td>
-          <td class="r">${v.sgstRate}%</td>
-          <td class="r">${fmtNum(v.sgst)}</td>
-          <td class="r">₹ ${fmtNum(v.cgst + v.sgst)}</td>
+          ${hasCGSTSGST ? `<td class="r">${v.cgstRate}%</td><td class="r">${fmtNum(v.cgst)}</td><td class="r">${v.sgstRate}%</td><td class="r">${fmtNum(v.sgst)}</td>` : ''}
+          ${hasIGST     ? `<td class="r">${v.igstRate}%</td><td class="r">${fmtNum(v.igst)}</td>` : ''}
+          <td class="r">₹ ${fmtNum(v.cgst + v.sgst + v.igst)}</td>
         </tr>`).join('')}
         <tr class="total-row">
           <td><strong>Total</strong></td>
           <td class="r">${fmtNum(totalTaxable)}</td>
-          <td></td>
-          <td class="r">${fmtNum(totalCGST)}</td>
-          <td></td>
-          <td class="r">${fmtNum(totalSGST)}</td>
+          ${hasCGSTSGST ? `<td></td><td class="r">${fmtNum(totalCGST)}</td><td></td><td class="r">${fmtNum(totalSGST)}</td>` : ''}
+          ${hasIGST     ? `<td></td><td class="r">${fmtNum(totalIGST)}</td>` : ''}
           <td class="r"><strong>₹ ${fmtNum(totalTax)}</strong></td>
         </tr>
       </tbody>
@@ -682,7 +838,7 @@ export default function InvoiceGeneratorPage() {
         <strong>Name:</strong> Chakra Industries Pvt. Ltd.<br/>
         <strong>IFSC Code:</strong> ${inv.bankIfsc || 'HDFC0002847'}<br/>
         <strong>Account No:</strong> ${inv.bankAccount || '50200081374926'}<br/>
-        <strong>Bank:</strong> ${inv.bankName || 'HDFC Bank, Peenya Branch, Bengaluru'}
+        <strong>Bank:</strong> ${inv.bankName || 'HDFC Bank, Nayandahalli Branch, Bangalore'}
       </div>
     </div>
     <div class="footer-cell">
@@ -879,7 +1035,70 @@ export default function InvoiceGeneratorPage() {
     setShareMenuInv(null);
   };
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading...</div>;
+  // ── Manual Invoice Creation ───────────────────────────────────────────────
+  const [showCreate, setShowCreate]   = useState(false);
+  const [saving, setSaving]           = useState(false);
+  const emptyItem = { description: '', hsn: '', qty: 1, unit: 'Nos', rate: 0, discount: 0, taxRate: 18 };
+  const [createForm, setCreateForm]   = useState({
+    partyName: '', partyAddress: '', partyGST: '', partyEmail: '', partyPhone: '',
+    invoiceDate: new Date().toISOString().slice(0, 10), dueDate: '',
+    purchaseOrderRef: '', poDate: '', notes: '', terms: 'Payment due within 30 days.',
+  });
+  const [createItems, setCreateItems] = useState([{ ...emptyItem }]);
+
+  const resetCreateForm = () => {
+    setCreateForm({
+      partyName: '', partyAddress: '', partyGST: '', partyEmail: '', partyPhone: '',
+      invoiceDate: new Date().toISOString().slice(0, 10), dueDate: '',
+      purchaseOrderRef: '', poDate: '', notes: '', terms: 'Payment due within 30 days.',
+    });
+    setCreateItems([{ ...emptyItem }]);
+  };
+
+  const updateCreateItem = (i, field, val) =>
+    setCreateItems(prev => prev.map((it, idx) => idx === i ? { ...it, [field]: val } : it));
+
+  const createItemSubtotal = createItems.reduce((s, it) => {
+    const base = (parseFloat(it.qty) || 0) * (parseFloat(it.rate) || 0);
+    const disc = base * ((parseFloat(it.discount) || 0) / 100);
+    return s + base - disc;
+  }, 0);
+  const createItemTax = createItems.reduce((s, it) => {
+    const base = (parseFloat(it.qty) || 0) * (parseFloat(it.rate) || 0);
+    const disc = base * ((parseFloat(it.discount) || 0) / 100);
+    const taxable = base - disc;
+    return s + taxable * ((parseFloat(it.taxRate) || 0) / 100);
+  }, 0);
+  const createGrandTotal = createItemSubtotal + createItemTax;
+
+  const handleCreateInvoice = async () => {
+    if (!createForm.partyName.trim()) { toast('Party name is required', 'error'); return; }
+    if (createItems.some(it => !it.description.trim())) { toast('Fill item description for all rows', 'error'); return; }
+    setSaving(true);
+    try {
+      await invoiceApi.create({
+        ...createForm,
+        items: createItems.map(it => ({
+          description: it.description.trim(),
+          hsn: it.hsn.trim(),
+          qty: parseFloat(it.qty) || 1,
+          unit: it.unit,
+          rate: parseFloat(it.rate) || 0,
+          discount: parseFloat(it.discount) || 0,
+          taxRate: parseFloat(it.taxRate) || 0,
+        })),
+      });
+      toast('Invoice created successfully', 'success');
+      setShowCreate(false);
+      resetCreateForm();
+      setPage(1);
+      await fetchAll(1);
+    } catch (e) {
+      toast(e.message || 'Failed to create invoice', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div style={{ padding: '20px 24px' }}>
@@ -1138,6 +1357,188 @@ export default function InvoiceGeneratorPage() {
           </div>
         )}
       </div>
+
+      {/* Create Invoice Modal */}
+      <Modal
+        open={showCreate}
+        onClose={() => { setShowCreate(false); resetCreateForm(); }}
+        title="New Invoice"
+        size="xl"
+        footer={
+          <>
+            <button onClick={() => { setShowCreate(false); resetCreateForm(); }} style={btnOutline}>Cancel</button>
+            <button onClick={handleCreateInvoice} disabled={saving} style={{ ...btnPrimary, opacity: saving ? 0.7 : 1 }}>
+              {saving ? 'Creating...' : 'Create Invoice'}
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          {/* ── Party Details ── */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 3, height: 14, background: RED, borderRadius: 2 }} /> Bill To
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              {[
+                ['Party Name *', 'partyName', 'text', 'Customer / Company name'],
+                ['GSTIN', 'partyGST', 'text', '29ABCDE1234F1Z5'],
+                ['Phone', 'partyPhone', 'text', '+91 98765 43210'],
+                ['Email', 'partyEmail', 'email', 'customer@email.com'],
+                ['Invoice Date *', 'invoiceDate', 'date', ''],
+                ['Due Date', 'dueDate', 'date', ''],
+                ['PO Number', 'purchaseOrderRef', 'text', 'PO-2024-001'],
+                ['PO Date', 'poDate', 'date', ''],
+              ].map(([label, key, type, ph]) => (
+                <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>{label}</label>
+                  <input type={type} placeholder={ph}
+                    value={createForm[key]}
+                    onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
+                    style={{ padding: '7px 10px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 12, outline: 'none', fontFamily: 'inherit', background: '#fff', color: '#1e293b' }}
+                    onFocus={e => e.target.style.borderColor = RED}
+                    onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                  />
+                </div>
+              ))}
+              <div style={{ gridColumn: 'span 3', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>Address</label>
+                <textarea rows={2} placeholder="#13/14, Street, City, State - PIN"
+                  value={createForm.partyAddress}
+                  onChange={e => setCreateForm(f => ({ ...f, partyAddress: e.target.value }))}
+                  style={{ padding: '7px 10px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 12, outline: 'none', fontFamily: 'inherit', background: '#fff', color: '#1e293b', resize: 'vertical' }}
+                  onFocus={e => e.target.style.borderColor = RED}
+                  onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* ── Items Table ── */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.8px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 3, height: 14, background: RED, borderRadius: 2 }} /> Items *
+              </div>
+              <button
+                onClick={() => setCreateItems(p => [...p, { ...emptyItem }])}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 7, border: `1.5px solid ${RED}`, background: '#fef2f2', color: RED, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                + Add Row
+              </button>
+            </div>
+            <div style={{ overflowX: 'auto', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 820 }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                    {['#', 'Description *', 'HSN', 'Qty', 'Unit', 'Rate (₹)', 'Disc %', 'Tax %', 'Amount (₹)', ''].map((h, i) => (
+                      <th key={i} style={{ padding: '8px 10px', textAlign: i >= 3 && i <= 8 ? 'right' : 'left', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {createItems.map((item, i) => {
+                    const base    = (parseFloat(item.qty) || 0) * (parseFloat(item.rate) || 0);
+                    const disc    = base * ((parseFloat(item.discount) || 0) / 100);
+                    const taxable = base - disc;
+                    const tax     = taxable * ((parseFloat(item.taxRate) || 0) / 100);
+                    const total   = taxable + tax;
+                    return (
+                      <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '6px 8px', color: '#94a3b8', fontWeight: 700, fontSize: 11, textAlign: 'center', width: 28 }}>{i + 1}</td>
+                        <td style={{ padding: '6px 8px', minWidth: 180 }}>
+                          <input style={{ width: '100%', padding: '6px 8px', border: '1.5px solid #e2e8f0', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'inherit' }}
+                            placeholder="Item description" value={item.description}
+                            onChange={e => updateCreateItem(i, 'description', e.target.value)}
+                            onFocus={e => e.target.style.borderColor = RED} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                        </td>
+                        <td style={{ padding: '6px 8px', width: 90 }}>
+                          <input style={{ width: '100%', padding: '6px 8px', border: '1.5px solid #e2e8f0', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'inherit' }}
+                            placeholder="73211110" value={item.hsn}
+                            onChange={e => updateCreateItem(i, 'hsn', e.target.value)}
+                            onFocus={e => e.target.style.borderColor = RED} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                        </td>
+                        <td style={{ padding: '6px 8px', width: 70 }}>
+                          <input type="number" style={{ width: '100%', padding: '6px 8px', border: '1.5px solid #e2e8f0', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'inherit', textAlign: 'right' }}
+                            value={item.qty} onChange={e => updateCreateItem(i, 'qty', e.target.value)}
+                            onFocus={e => e.target.style.borderColor = RED} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                        </td>
+                        <td style={{ padding: '6px 8px', width: 80 }}>
+                          <select style={{ width: '100%', padding: '6px 8px', border: '1.5px solid #e2e8f0', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'inherit' }}
+                            value={item.unit} onChange={e => updateCreateItem(i, 'unit', e.target.value)}>
+                            {['Nos', 'Pcs', 'Kg', 'Grams', 'Litre', 'ML', 'Metre', 'Set', 'Box', 'Carton', 'Dozen', 'EA'].map(u => <option key={u}>{u}</option>)}
+                          </select>
+                        </td>
+                        <td style={{ padding: '6px 8px', width: 100 }}>
+                          <input type="number" style={{ width: '100%', padding: '6px 8px', border: '1.5px solid #e2e8f0', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'inherit', textAlign: 'right' }}
+                            value={item.rate} onChange={e => updateCreateItem(i, 'rate', e.target.value)}
+                            onFocus={e => e.target.style.borderColor = RED} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                        </td>
+                        <td style={{ padding: '6px 8px', width: 70 }}>
+                          <input type="number" style={{ width: '100%', padding: '6px 8px', border: '1.5px solid #e2e8f0', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'inherit', textAlign: 'right' }}
+                            value={item.discount} onChange={e => updateCreateItem(i, 'discount', e.target.value)}
+                            onFocus={e => e.target.style.borderColor = RED} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                        </td>
+                        <td style={{ padding: '6px 8px', width: 70 }}>
+                          <input type="number" style={{ width: '100%', padding: '6px 8px', border: '1.5px solid #e2e8f0', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'inherit', textAlign: 'right' }}
+                            value={item.taxRate} onChange={e => updateCreateItem(i, 'taxRate', e.target.value)}
+                            onFocus={e => e.target.style.borderColor = RED} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                        </td>
+                        <td style={{ padding: '6px 8px', width: 100, textAlign: 'right', fontWeight: 700, color: '#1e293b', fontSize: 12 }}>
+                          ₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td style={{ padding: '6px 8px', width: 36, textAlign: 'center' }}>
+                          <button onClick={() => setCreateItems(p => p.filter((_, idx) => idx !== i))}
+                            disabled={createItems.length === 1}
+                            style={{ background: 'none', border: 'none', cursor: createItems.length === 1 ? 'not-allowed' : 'pointer', color: createItems.length === 1 ? '#cbd5e1' : '#ef4444', fontSize: 16, lineHeight: 1, padding: 2 }}>
+                            ×
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: '#f8fafc', borderTop: '2px solid #e2e8f0' }}>
+                    <td colSpan={8} style={{ padding: '8px 10px', textAlign: 'right', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
+                      Subtotal: ₹{createItemSubtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })} &nbsp;|&nbsp;
+                      Tax: ₹{createItemTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', fontSize: 14, fontWeight: 900, color: RED }}>
+                      ₹{createGrandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          {/* ── Notes ── */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>Notes</label>
+              <textarea rows={2} placeholder="Any special instructions..."
+                value={createForm.notes}
+                onChange={e => setCreateForm(f => ({ ...f, notes: e.target.value }))}
+                style={{ padding: '7px 10px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 12, outline: 'none', fontFamily: 'inherit', background: '#fff', color: '#1e293b', resize: 'vertical' }}
+                onFocus={e => e.target.style.borderColor = RED} onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>Terms</label>
+              <textarea rows={2}
+                value={createForm.terms}
+                onChange={e => setCreateForm(f => ({ ...f, terms: e.target.value }))}
+                style={{ padding: '7px 10px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 12, outline: 'none', fontFamily: 'inherit', background: '#fff', color: '#1e293b', resize: 'vertical' }}
+                onFocus={e => e.target.style.borderColor = RED} onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+              />
+            </div>
+          </div>
+
+        </div>
+      </Modal>
 
       {/* View Invoice Modal */}
       {selectedInvoice && (

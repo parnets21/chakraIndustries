@@ -29,4 +29,7 @@ export const bulkOrderApi = {
 
   // Convert to Dispatch
   convertToDispatch: (id)   => fetch(`${BASE}/bulk-orders/quotations/${id}/convert-to-dispatch`, { method: 'POST', headers: authHeaders() }).then(handle),
+
+  // Convert to Purchase Order
+  convertToPO: (id, vendorId) => fetch(`${BASE}/bulk-orders/quotations/${id}/convert-to-po`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ vendorId }) }).then(handle),
 };

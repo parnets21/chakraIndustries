@@ -250,7 +250,7 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
                       } catch(e){ toast(e.message,'error'); }
                     }} className={`${btnSm} bg-gradient-to-br from-green-500 to-green-700 text-white font-semibold border-0 cursor-pointer font-[inherit]`}>Convert to Dispatch</button>
                   )}
-                  <button onClick={async () => { try { await bulkOrderApi.updateStatus(row._id, 'Converted'); fetchAll(); toast('Converted to PO'); } catch(e){ toast(e.message,'error'); } }} className={`${btnSm} bg-gray-100 text-gray-800 font-semibold border-0 cursor-pointer font-[inherit]`}>Convert to PO</button>
+                  <button onClick={async () => { try { const r = await bulkOrderApi.convertToPO(row._id); fetchAll(); toast(`✅ PO ${r.data?.poId || ''} created`); } catch(e){ toast(e.message,'error'); } }} className={`${btnSm} bg-gray-100 text-gray-800 font-semibold border-0 cursor-pointer font-[inherit]`}>Convert to PO</button>
                   <button onClick={async () => { if(window.confirm('Delete this quotation?')){ try { await bulkOrderApi.deleteQuotation(row._id); fetchAll(); toast('Deleted'); } catch(e){ toast(e.message,'error'); } } }} className={`${btnSm} bg-red-50 text-red-600 border border-red-200 font-semibold cursor-pointer font-[inherit]`}>Delete</button>
                 </div>
               )},

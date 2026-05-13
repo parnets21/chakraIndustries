@@ -99,9 +99,31 @@ export default function CreditNoteTrackerEnhanced() {
     return days > 0 ? days : 0;
   };
 
-  const getDaysUntilDue = (dueDate) => {
-    const days = Math.floor((new Date(dueDate) - new Date()) / (1000 * 60 * 60 * 24));
-    return days;
+  const handleSave = async () => {
+    if (!formData.vendor || !formData.amount || !formData.dueDate) {
+      alert('Vendor, amount and due date are required');
+      return;
+    }
+    setSaving(true);
+    try {
+      await creditNoteApi.create({
+        party: formData.vendor,
+        amount: parseFloat(formData.amount),
+        reason: formData.reason,
+        description: formData.description,
+        dueDate: formData.dueDate,
+        priority: formData.priority,
+        remarks: formData.remarks,
+      });
+      setShowForm(false);
+      setFormData({ vendor: '', poId: '', amount: 0, reason: 'Quality Issue', description: '', dueDate: '', priority: 'medium', remarks: '' });
+      fetchCreditNotes();
+      fetchStats();
+    } catch (e) {
+      alert(`Error: ${e.message}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -264,22 +286,22 @@ export default function CreditNoteTrackerEnhanced() {
         footer={
           <>
             <button className="btn btn-outline" onClick={() => setShowForm(false)} disabled={saving}>Cancel</button>
-            <button className="btn btn-primary" onClick={() => setShowForm(false)} disabled={saving}>Save</button>
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
           </>
         }
       >
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div className="form-group">
             <label className="form-label">Vendor *</label>
-            <input type="text" className="form-input" placeholder="Select vendor" />
+            <input type="text" className="form-input" placeholder="Vendor name" value={formData.vendor} onChange={e => setFormData(p => ({ ...p, vendor: e.target.value }))} />
           </div>
           <div className="form-group">
             <label className="form-label">Amount (₹) *</label>
-            <input type="number" className="form-input" placeholder="0.00" />
+            <input type="number" className="form-input" placeholder="0.00" value={formData.amount || ''} onChange={e => setFormData(p => ({ ...p, amount: e.target.value }))} />
           </div>
           <div className="form-group">
             <label className="form-label">Reason *</label>
-            <select className="form-select">
+            <select className="form-select" value={formData.reason} onChange={e => setFormData(p => ({ ...p, reason: e.target.value }))}>
               <option>Quality Issue</option>
               <option>Price Adjustment</option>
               <option>Defective Goods</option>
@@ -290,15 +312,15 @@ export default function CreditNoteTrackerEnhanced() {
           </div>
           <div className="form-group">
             <label className="form-label">Due Date *</label>
-            <input type="date" className="form-input" />
+            <input type="date" className="form-input" value={formData.dueDate} onChange={e => setFormData(p => ({ ...p, dueDate: e.target.value }))} />
           </div>
           <div className="form-group">
             <label className="form-label">Priority</label>
-            <select className="form-select">
-              <option>low</option>
-              <option>medium</option>
-              <option>high</option>
-              <option>critical</option>
+            <select className="form-select" value={formData.priority} onChange={e => setFormData(p => ({ ...p, priority: e.target.value }))}>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
             </select>
           </div>
           <div className="form-group">
@@ -311,7 +333,7 @@ export default function CreditNoteTrackerEnhanced() {
           </div>
           <div className="form-group" style={{ gridColumn: 'span 2' }}>
             <label className="form-label">Description</label>
-            <textarea className="form-input" rows={2} placeholder="Details..." />
+            <textarea className="form-input" rows={2} placeholder="Details..." value={formData.description} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} />
           </div>
         </div>
       </Modal>

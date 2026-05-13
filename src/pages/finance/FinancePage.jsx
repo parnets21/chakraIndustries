@@ -3,6 +3,7 @@ import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
 import { toast } from '../../components/common/Toast';
+import CreditNoteTrackerEnhanced from './components/CreditNoteTrackerEnhanced';
 
 const tabs = ['Ledger', 'BRS', 'Payments', 'Credit / Debit Notes', 'Ledger Matching'];
 

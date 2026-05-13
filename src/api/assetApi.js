@@ -3,7 +3,7 @@ const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.ge
 const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
 
 // Set to true once you deploy the backend with asset routes
-const ASSET_API_DEPLOYED = false;
+const ASSET_API_DEPLOYED = true;
 
 const handle = async (res) => {
   const contentType = res.headers.get('content-type') || '';

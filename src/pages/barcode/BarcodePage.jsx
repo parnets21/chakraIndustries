@@ -3,7 +3,8 @@ import JsBarcode from 'jsbarcode';
 import StatusBadge from '../../components/common/StatusBadge';
 import { toast } from '../../components/common/Toast';
 import { inventoryApi } from '../../api/inventoryApi';
-import { itemMasterApi } from '../../api/itemMasterApi';
+import { pickingApi } from '../../api/pickingApi';
+import { logisticsApi } from '../../api/logisticsApi';
 
 const thCls = 'bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap';
 const tdCls = 'px-4 py-3 text-gray-800 align-middle text-sm';
@@ -248,8 +249,24 @@ function BarcodeScanner({ inventoryItems }) {
       } else if (action === 'Outward') {
         await inventoryApi.createMovement({ type:'Outward', inventoryId: scanned._id, quantity:1, from:'Warehouse', to:'Production/Dispatch', reference:`SCAN-${Date.now()}` });
         toast(`Outward movement recorded for ${scanned.sku}`);
-      } else {
-        toast(`${action} action for ${scanned.sku}`);
+      } else if (action === 'Transfer') {
+        await inventoryApi.createMovement({ type:'Transfer', inventoryId: scanned._id, quantity:1, from:'Warehouse', to:'Transfer Zone', reference:`SCAN-${Date.now()}` });
+        toast(`Transfer movement recorded for ${scanned.sku}`);
+      } else if (action === 'grn') {
+        // Log inward movement tagged as GRN receipt
+        await inventoryApi.createMovement({ type:'Inward', sku: scanned.sku, qty:1, from:'GRN Dock', to:'Warehouse', ref:`GRN-SCAN-${Date.now()}` });
+        toast(`GRN receipt recorded for ${scanned.sku}`, 'success');
+      } else if (action === 'picking') {
+        // Create a picking list entry for this SKU
+        await pickingApi.create({ items:[{ sku: scanned.sku, name: scanned.name, qty:1 }], status:'Pending', source:'Barcode Scan', ref:`PICK-SCAN-${Date.now()}` });
+        toast(`Picking list created for ${scanned.sku}`, 'success');
+      } else if (action === 'dispatch') {
+        // Log outward movement tagged as dispatch
+        await inventoryApi.createMovement({ type:'Outward', sku: scanned.sku, qty:1, from:'Warehouse', to:'Dispatch Bay', ref:`DSP-SCAN-${Date.now()}` });
+        toast(`Dispatch movement recorded for ${scanned.sku}`, 'success');
+      } else if (action === 'transfer') {
+        await inventoryApi.createMovement({ type:'Transfer', sku: scanned.sku, qty:1, from:'Warehouse', to:'Transfer Zone', ref:`TRF-SCAN-${Date.now()}` });
+        toast(`Stock transfer recorded for ${scanned.sku}`, 'success');
       }
     } catch (e) { toast(e.message || 'Action failed', 'error'); }
     finally { setActionLoading(''); }
@@ -359,14 +376,14 @@ function BarcodeScanner({ inventoryItems }) {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    { label:'📦 GRN Receipt',   cls:'bg-green-50 text-green-800'   },
-                    { label:'🔍 Picking',        cls:'bg-blue-50 text-blue-800'    },
-                    { label:'🚚 Dispatch',       cls:'bg-amber-50 text-amber-800'  },
-                    { label:'↔ Stock Transfer', cls:'bg-purple-50 text-purple-800' },
+                    { label:'📦 GRN Receipt',   cls:'bg-green-50 text-green-800',   action: 'grn'      },
+                    { label:'🔍 Picking',        cls:'bg-blue-50 text-blue-800',     action: 'picking'  },
+                    { label:'🚚 Dispatch',       cls:'bg-amber-50 text-amber-800',   action: 'dispatch' },
+                    { label:'↔ Stock Transfer', cls:'bg-purple-50 text-purple-800', action: 'transfer' },
                   ].map((a, i) => (
-                    <button key={i} onClick={() => toast(`${a.label} for ${scanned.sku}`)}
-                      className={`px-3 py-2 text-xs rounded-lg font-semibold border-0 cursor-pointer font-[inherit] ${a.cls}`}>
-                      {a.label}
+                    <button key={i} onClick={() => handleStockAction(a.action)} disabled={!!actionLoading}
+                      className={`px-3 py-2 text-xs rounded-lg font-semibold border-0 cursor-pointer font-[inherit] disabled:opacity-60 ${a.cls}`}>
+                      {actionLoading === a.action ? '...' : a.label}
                     </button>
                   ))}
                 </div>

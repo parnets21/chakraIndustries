@@ -185,7 +185,9 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
     .filter(r => whFilter === 'All' || r.warehouse === whFilter)
     .filter(r => !stockSearch || r.sku.toLowerCase().includes(stockSearch.toLowerCase()) || r.name.toLowerCase().includes(stockSearch.toLowerCase()));
 
-  const lowStockItems = stockList.filter(s => s.qty < s.minQty && s.qty > 0);
+  const lowStockItems = stockList.filter(s =>
+    s.status === 'Critical' || (s.minQty > 0 && s.qty < s.minQty && s.qty > 0)
+  );
 
   const chartData = (() => {
     if (!stats?.byWarehouse) return [{ label: 'Active', value: stats?.active || 0, color: '#c0392b' }, { label: 'Critical', value: stats?.critical || 0, color: '#f59e0b' }, { label: 'Dead', value: stats?.dead || 0, color: '#94a3b8' }];
@@ -549,7 +551,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                   <div>
                     {[
                       ...stockList.filter(s => s.status === 'Dead').map(s => ({ label: s.name, sku: s.sku, sub: 'Dead stock · 0 units', color: '#94a3b8', leftBar: '#94a3b8', bg: '#fafafa' })),
-                      ...lowStockItems.map(s => ({ label: s.name, sku: s.sku, sub: `${s.qty} units · min ${s.minQty}`, color: s.qty < s.minQty * 0.5 ? RED_LIGHT : AMBER, leftBar: s.qty < s.minQty * 0.5 ? RED_LIGHT : AMBER, bg: s.qty < s.minQty * 0.5 ? '#fff8f8' : '#fffdf5' })),
+                      ...lowStockItems.map(s => ({ label: s.name, sku: s.sku, sub: `${s.qty} units · min ${s.minQty || 0}`, color: (s.minQty > 0 && s.qty < s.minQty * 0.5) || s.status === 'Critical' ? RED_LIGHT : AMBER, leftBar: (s.minQty > 0 && s.qty < s.minQty * 0.5) || s.status === 'Critical' ? RED_LIGHT : AMBER, bg: (s.minQty > 0 && s.qty < s.minQty * 0.5) || s.status === 'Critical' ? '#fff8f8' : '#fffdf5' })),
                     ].slice(0, 7).map((a, i, arr) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: i < arr.length - 1 ? '1px solid #f8fafc' : 'none', background: a.bg, borderLeft: `3px solid ${a.leftBar}` }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -649,9 +651,9 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.category && r.category.name ? String(r.category.name) : '—'}</td>
                     <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.warehouse && typeof r.warehouse === 'object' ? (r.warehouse.warehouseId || r.warehouse.id || '—') : (r.warehouse || '—')}</td>
                     <td style={{ padding:'11px 16px' }}>
-                      <span style={{ display:'inline-block', padding:'3px 10px', borderRadius:20, fontSize:12, fontWeight:700, background: r.qty < r.minQty ? '#fef2f2' : '#f0fdf4', color: r.qty < r.minQty ? RED_LIGHT : GREEN }}>{r.qty}</span>
+                      <span style={{ display:'inline-block', padding:'3px 10px', borderRadius:20, fontSize:12, fontWeight:700, background: r.status === 'Critical' || (r.minQty > 0 && r.qty < r.minQty) ? '#fef2f2' : '#f0fdf4', color: r.status === 'Critical' || (r.minQty > 0 && r.qty < r.minQty) ? RED_LIGHT : GREEN }}>{r.qty}</span>
                     </td>
-                    <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.minQty}</td>
+                    <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.minQty || 0}</td>
                     <td style={{ padding:'11px 16px' }}><StatusBadge status={r.status} /></td>
                     <td style={{ padding:'11px 16px' }}>
                       <div style={{ display:'flex', gap:6 }}>
@@ -740,7 +742,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                             <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }} onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                               <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: RED }}>{r.sku}</td>
                               <td style={{ padding: '10px 14px', fontSize: 12.5, fontWeight: 600, color: TEXT_DARK }}>{r.name}</td>
-                              <td style={{ padding: '10px 14px' }}><span style={{ padding: '2px 9px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: r.qty < r.minQty ? '#fef2f2' : '#f0fdf4', color: r.qty < r.minQty ? RED_LIGHT : GREEN }}>{r.qty}</span></td>
+                              <td style={{ padding: '10px 14px' }}><span style={{ padding: '2px 9px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: r.status === 'Critical' || (r.minQty > 0 && r.qty < r.minQty) ? '#fef2f2' : '#f0fdf4', color: r.status === 'Critical' || (r.minQty > 0 && r.qty < r.minQty) ? RED_LIGHT : GREEN }}>{r.qty}</span></td>
                               <td style={{ padding: '10px 14px' }}><StatusBadge status={r.status} /></td>
                             </tr>
                           ))}

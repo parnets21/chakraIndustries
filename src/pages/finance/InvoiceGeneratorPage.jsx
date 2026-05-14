@@ -1117,6 +1117,12 @@ export default function InvoiceGeneratorPage() {
             style={{ display: 'none' }}
           />
           <button
+            onClick={() => setShowCreate(true)}
+            style={btnPrimary}
+          >
+            + Create Invoice
+          </button>
+          <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
             style={{ ...btnOutline, opacity: uploading ? 0.6 : 1 }}

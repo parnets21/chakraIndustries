@@ -1,41 +1,33 @@
-import axios from 'axios';
+// Shared fetch helpers — mirrors the pattern used across the rest of the API layer
+const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const getToken = () =>
+  localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
 
-// Create axios instance
-const axiosInstance = axios.create({
-  baseURL: API_BASE,
+export const authHeaders = () => ({
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${getToken()}`,
 });
 
-// Add request interceptor to include auth token
-axiosInstance.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
+const handle = async (res) => {
+  if (res.status === 401) {
+    localStorage.removeItem('chakra_token');
+    localStorage.removeItem('chakra_user');
+    sessionStorage.removeItem('chakra_token');
+    sessionStorage.removeItem('chakra_user');
+    window.location.href = '/login';
+    throw new Error('Unauthorized');
   }
-);
+  const d = await res.json();
+  if (!res.ok) throw new Error(d.message || 'Request failed');
+  return d;
+};
 
-// Add response interceptor to handle auth errors
-axiosInstance.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Clear auth data on 401
-      localStorage.removeItem('chakra_token');
-      localStorage.removeItem('chakra_user');
-      sessionStorage.removeItem('chakra_token');
-      sessionStorage.removeItem('chakra_user');
-      // Redirect to login
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
+export const api = {
+  get:    (path)        => fetch(`${BASE}${path}`,  { headers: authHeaders() }).then(handle),
+  post:   (path, body)  => fetch(`${BASE}${path}`,  { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  put:    (path, body)  => fetch(`${BASE}${path}`,  { method: 'PUT',    headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  delete: (path)        => fetch(`${BASE}${path}`,  { method: 'DELETE', headers: authHeaders() }).then(handle),
+};
 
-export default axiosInstance;
+export default api;

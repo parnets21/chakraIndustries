@@ -249,6 +249,7 @@ export const NAV_ITEMS = [
       { path: '/finance/notes',    label: 'Credit/Debit Notes',  page: 'finance' },
       { path: '/finance/matching', label: 'Ledger Matching',     page: 'finance' },
       { path: '/finance/cntracks', label: 'CN Tracking',         page: 'creditnotes' },
+      { path: '/finance/invoices', label: 'Invoice Generator',    page: 'finance' },
     ],
   },
   {

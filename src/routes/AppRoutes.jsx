@@ -17,6 +17,9 @@ import GRNPage                 from '../pages/procurement/GRNPage';
 import QualityCheckPage        from '../pages/procurement/QualityCheckPage';
 import ExcessPOMonitorPage     from '../pages/procurement/ExcessPOMonitorPage';
 
+// Vendor Portal (Public - No Auth Required)
+import VendorQuotationPage from '../pages/vendor/VendorQuotationPage';
+
 // Inventory
 import InventorySubPage from '../pages/inventory/InventorySubPage';
 
@@ -38,6 +41,7 @@ import MaterialReturnsPage from '../pages/returns/MaterialReturnsPage';
 // Finance
 import FinanceSubPage from '../pages/finance/FinanceSubPage';
 import CreditNoteTrackingPage from '../pages/finance/CreditNoteTrackingPage';
+import InvoiceGeneratorPage from '../pages/finance/InvoiceGeneratorPage';
 
 // Tally Integration
 import TallySubPage from '../pages/tally/TallySubPage';
@@ -68,6 +72,10 @@ export default function AppRoutes() {
   return (
     <Routes>
       <Route path="/login"     element={<LoginPage />} />
+      
+      {/* Public Vendor Portal - No Auth Required */}
+      <Route path="/vendor/quotation/:rfqId" element={<VendorQuotationPage />} />
+      
       <Route path="/"          element={<P element={<DashboardPage />} />} />
       <Route path="/dashboard" element={<P element={<DashboardPage />} />} />
 
@@ -144,6 +152,7 @@ export default function AppRoutes() {
       <Route path="/finance/notes"     element={<P element={<FinanceSubPage tab="notes" />} />} />
       <Route path="/finance/matching"  element={<P element={<FinanceSubPage tab="matching" />} />} />
       <Route path="/finance/cntracks"  element={<P element={<CreditNoteTrackingPage />} />} />
+      <Route path="/finance/invoices"  element={<P element={<InvoiceGeneratorPage />} />} />
 
       {/* Forecasting */}
       <Route path="/forecasting"            element={<Navigate to="/forecasting/demand" replace />} />

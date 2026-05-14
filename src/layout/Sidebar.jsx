@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   MdDashboard, MdShoppingCart, MdInventory2, MdPrecisionManufacturing,
@@ -30,7 +30,14 @@ const ROLE_COLORS = {
 function NavGroup({ item, showLabels, collapsed }) {
   const location = useLocation();
   const isAnyChildActive = item.children?.some(c => location.pathname.startsWith(c.path));
-  const [open, setOpen] = useState(isAnyChildActive);
+  // Finance group defaults open so Invoice Generator is always visible
+  const defaultOpen = isAnyChildActive || item.label === 'Finance';
+  const [open, setOpen] = useState(defaultOpen);
+
+  // Auto-open when navigating to a child route
+  useEffect(() => {
+    if (isAnyChildActive) setOpen(true);
+  }, [isAnyChildActive]);
   const Icon = ICON_MAP[item.icon];
 
   if (collapsed && !showLabels) {

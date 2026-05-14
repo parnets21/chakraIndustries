@@ -26,4 +26,11 @@ export const bulkOrderApi = {
   createSchedule:   (body)   => fetch(`${BASE}/bulk-orders/schedules`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   updateSchedule:   (id, body) => fetch(`${BASE}/bulk-orders/schedules/${id}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   deleteSchedule:   (id)     => fetch(`${BASE}/bulk-orders/schedules/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
+
+  // Bulk Orders (Complete Flow)
+  getAll:           (p = {}) => fetch(`${BASE}/bulk-orders${q(p)}`, { headers: authHeaders() }).then(handle),
+  getById:          (id)     => fetch(`${BASE}/bulk-orders/${id}`, { headers: authHeaders() }).then(handle),
+  create:           (body)   => fetch(`${BASE}/bulk-orders`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  update:           (id, body) => fetch(`${BASE}/bulk-orders/${id}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  delete:           (id)     => fetch(`${BASE}/bulk-orders/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
 };

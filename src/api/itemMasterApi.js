@@ -14,7 +14,7 @@ export const itemMasterApi = {
   delete: (id) => fetch(`${BASE}/item-master/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
 
   // Search & Filter
-  search: (q) => fetch(`${BASE}/item-master/search${q({ q })}`, { headers: authHeaders() }).then(handle),
+  search: (query) => fetch(`${BASE}/item-master/search?q=${encodeURIComponent(query)}`, { headers: authHeaders() }).then(handle),
   
   // Dropdown - Get items for dropdown (minimal data)
   getDropdown: () => fetch(`${BASE}/item-master/dropdown`, { headers: authHeaders() }).then(handle),

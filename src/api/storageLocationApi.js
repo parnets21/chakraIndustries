@@ -1,17 +1,13 @@
-import axios from 'axios';
+const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const getToken = () =>
+  localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
 
 export const getStorageLocations = async () => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/inventory-data/storage`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`
-      }
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching storage locations:', error);
-    throw error;
-  }
+  const res = await fetch(`${BASE}/inventory-data/storage`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Failed to fetch storage locations');
+  return data;
 };

@@ -4,8 +4,20 @@ import Modal from '../../components/common/Modal';
 import { materialReturnApi } from '../../api/materialReturnApi';
 import { toast } from '../../components/common/Toast';
 
-const STAGES = ['Initiated', 'In-transit', 'Received', 'QC', 'Closed'];
-const stageColor = { Initiated: '#6b7280', 'In-transit': '#3b82f6', Received: '#f59e0b', QC: '#8b5cf6', Closed: '#10b981' };
+const STAGES = ['Initiated', 'Approved', 'Transport_Pickup', 'In_Transit', 'Out_For_Delivery', 'Delivered', 'Warehouse_Queue', 'Received_At_Warehouse', 'QC_In_Progress', 'QC_Completed', 'Closed'];
+const stageColor = { 
+  Initiated: '#6b7280', 
+  Approved: '#059669',
+  Transport_Pickup: '#f59e0b', 
+  In_Transit: '#3b82f6',
+  Out_For_Delivery: '#8b5cf6',
+  Delivered: '#f59e0b',
+  Warehouse_Queue: '#3b82f6',
+  Received_At_Warehouse: '#10b981',
+  QC_In_Progress: '#8b5cf6',
+  QC_Completed: '#059669',
+  Closed: '#10b981'
+};
 
 export default function MaterialReturnsPage({ initialTab = 0 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -14,7 +26,19 @@ export default function MaterialReturnsPage({ initialTab = 0 }) {
   const [selected, setSelected]   = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [saving, setSaving]       = useState(false);
-  const [form, setForm] = useState({ supplierName: '', items: 1, value: '', reason: '', transport: '', awbNo: '' });
+  const [form, setForm] = useState({ 
+    supplierName: '', 
+    items: 1, 
+    value: '', 
+    reason: '', 
+    transport: '', 
+    awbNo: '',
+    invoiceNo: '',
+    productName: '',
+    returnQty: 1,
+    pickupAddress: '',
+    attachments: []
+  });
 
   const fetchAll = useCallback(async () => {
     try {
@@ -28,12 +52,35 @@ export default function MaterialReturnsPage({ initialTab = 0 }) {
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const handleCreate = async () => {
-    if (!form.supplierName || !form.reason) { toast('Supplier and reason are required', 'error'); return; }
+    if (!form.supplierName || !form.reason || !form.invoiceNo || !form.productName || !form.pickupAddress) { 
+      toast('Supplier, Invoice Number, Product Name, Pickup Address and reason are required', 'error'); 
+      return; 
+    }
     setSaving(true);
     try {
-      await materialReturnApi.create({ ...form, value: parseFloat(form.value) || 0, items: parseInt(form.items) || 1 });
+      const returnData = { 
+        ...form, 
+        value: parseFloat(form.value) || 0, 
+        items: parseInt(form.items) || 1,
+        returnQty: parseInt(form.returnQty) || 1,
+        expectedQty: parseInt(form.returnQty) || parseInt(form.items) || 1, // Set expected qty
+      };
+      
+      await materialReturnApi.create(returnData);
       setShowCreate(false);
-      setForm({ supplierName: '', items: 1, value: '', reason: '', transport: '', awbNo: '' });
+      setForm({ 
+        supplierName: '', 
+        items: 1, 
+        value: '', 
+        reason: '', 
+        transport: '', 
+        awbNo: '',
+        invoiceNo: '',
+        productName: '',
+        returnQty: 1,
+        pickupAddress: '',
+        attachments: []
+      });
       await fetchAll();
       toast('Material return created');
     } catch (e) { toast(e.message, 'error'); }
@@ -173,15 +220,49 @@ export default function MaterialReturnsPage({ initialTab = 0 }) {
           <button className="btn btn-primary" onClick={handleCreate} disabled={saving}>{saving ? 'Saving...' : 'Submit'}</button>
         </>}>
         <div className="grid grid-cols-2 gap-4">
-          {[['Supplier *', 'supplierName', 'text', 'Supplier name'], ['No. of Items', 'items', 'number', '1'], ['Return Value (₹)', 'value', 'number', '0'], ['Transport', 'transport', 'text', 'Courier name'], ['AWB / Tracking No.', 'awbNo', 'text', 'AWB number']].map(([label, key, type, ph]) => (
+          {[
+            ['Supplier *', 'supplierName', 'text', 'Supplier name'], 
+            ['Invoice Number *', 'invoiceNo', 'text', 'Invoice number'],
+            ['Product Name *', 'productName', 'text', 'Product name'], 
+            ['Return Qty', 'returnQty', 'number', '1'],
+            ['No. of Items', 'items', 'number', '1'], 
+            ['Return Value (₹)', 'value', 'number', '0'], 
+            ['Transport', 'transport', 'text', 'Courier name'], 
+            ['AWB / Tracking No.', 'awbNo', 'text', 'AWB number']
+          ].map(([label, key, type, ph]) => (
             <div key={key} className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-gray-600">{label}</label>
               <input type={type} className="form-input" placeholder={ph} value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))} />
             </div>
           ))}
           <div className="flex flex-col gap-1.5 col-span-2">
+            <label className="text-xs font-semibold text-gray-600">Pickup Address *</label>
+            <textarea className="form-input" rows={2} placeholder="Complete pickup address..." value={form.pickupAddress} onChange={e => setForm(p => ({ ...p, pickupAddress: e.target.value }))} />
+          </div>
+          <div className="flex flex-col gap-1.5 col-span-2">
             <label className="text-xs font-semibold text-gray-600">Reason *</label>
             <textarea className="form-input" rows={2} placeholder="Reason for return..." value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))} />
+          </div>
+          <div className="flex flex-col gap-1.5 col-span-2">
+            <label className="text-xs font-semibold text-gray-600">Attachments (Optional)</label>
+            <input 
+              type="file" 
+              className="form-input" 
+              multiple 
+              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+              onChange={e => setForm(p => ({ ...p, attachments: Array.from(e.target.files) }))} 
+            />
+            <div className="text-xs text-gray-500">Upload invoice, photos, or supporting documents (PDF, Images, Word docs)</div>
+            {form.attachments && form.attachments.length > 0 && (
+              <div className="mt-2">
+                <div className="text-xs font-semibold text-gray-600 mb-1">Selected Files:</div>
+                {form.attachments.map((file, index) => (
+                  <div key={index} className="text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded mb-1">
+                    {file.name} ({(file.size / 1024).toFixed(1)} KB)
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </Modal>

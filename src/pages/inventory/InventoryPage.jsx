@@ -6,6 +6,7 @@ import BarChart from '../../components/charts/BarChart';
 import Modal from '../../components/common/Modal';
 import StorageLocationPage from './StorageLocationPage';
 import PincodeStockPage from './PincodeStockPage';
+import WarehouseReceivePage from '../returns/WarehouseReceivePage';
 import { MdWarehouse, MdLocationOn, MdFileDownload as MdDownload, MdSwapHoriz, MdCheckCircle, MdWarning, MdArrowForward, MdOpenInNew } from 'react-icons/md';
 import { toast } from '../../components/common/Toast';
 import { inventoryApi } from '../../api/inventoryApi';
@@ -18,6 +19,7 @@ import { defectiveStockApi } from '../../api/defectiveStockApi';
 import { grnApi } from '../../api/grnApi';
 import { poApi } from '../../api/poApi';
 import { getAgeingStock } from '../../api/ageingStockApi';
+import { materialReturnApi } from '../../api/materialReturnApi';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const BG_CARD = '#ffffff';
@@ -69,6 +71,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const [stats,         setStats]         = useState(null);
   const [loading,       setLoading]       = useState(true);
   const [ageingData,    setAgeingData]    = useState([]);
+  const [returnRequests, setReturnRequests] = useState([]);
 
   // ── Modal state ────────────────────────────────────────────────────────────
   const [internalModal, setInternalModal] = useState(false);
@@ -112,7 +115,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
     setLoading(true);
     try {
       console.log('Starting to load all data...');
-      const [stockRes, whRes, movRes, statsRes, pickRes, sortRes, packRes, batchRes, defectRes, poRes, catRes, ageingRes] = await Promise.all([
+      const [stockRes, whRes, movRes, statsRes, pickRes, sortRes, packRes, batchRes, defectRes, poRes, catRes, ageingRes, returnRes] = await Promise.all([
         inventoryApi.getAll(),
         inventoryApi.getWarehouses(),
         inventoryApi.getMovements(),
@@ -125,6 +128,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         poApi.getAll(),
         categoryApi.getAll(),
         getAgeingStock(),
+        materialReturnApi.getWarehouseQueue().catch(() => ({ data: [] })) // Fallback if returns API fails
       ]);
       const stock = stockRes.data || [];
       const whs   = whRes.data   || [];
@@ -137,6 +141,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       const defects = defectRes.data || [];
       const pos = poRes.data || [];
       const ageing = ageingRes.data || [];
+      const returns = returnRes.data || [];
       
       console.log('Stock data received:', stock);
       if (stock.length > 0) {
@@ -162,6 +167,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       setPoList(pos);
       setPoItems(poItemsMap);
       setAgeingData(ageing);
+      setReturnRequests(returns);
       setStats(statsRes.data || null);
       if (whs.length > 0 && !selectedWH) setSelectedWH(whs[0]);
     } catch (e) {
@@ -1119,6 +1125,9 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
 
       {/* ══ TAB 10 — Pincode Stock ═══════════════════════════════════════════ */}
       {activeTab === 10 && <PincodeStockPage />}
+
+      {/* ══ TAB 11 — Returns ══════════════════════════════════════════════════ */}
+      {activeTab === 11 && <WarehouseReceivePage />}
 
       {/* ══ MODALS ═══════════════════════════════════════════════════════════ */}
 

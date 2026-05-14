@@ -1,13 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
-import StatusBadge from '../../components/common/StatusBadge';
 import Modal from '../../components/common/Modal';
 import { materialReturnApi } from '../../api/materialReturnApi';
+import { productsApi } from '../../api/productsApi';
 import { toast } from '../../components/common/Toast';
 
-const STAGES = ['Initiated', 'In-transit', 'Received', 'QC', 'Closed'];
+const STAGES = ['Initiated', 'Approved', 'Transport_Pickup', 'In_Transit', 'Out_For_Delivery', 'Delivered', 'Warehouse_Queue', 'Received_At_Warehouse', 'QC_In_Progress', 'QC_Completed', 'Closed'];
 const stageColor = {
-  Initiated: '#6b7280', 'In-transit': '#3b82f6',
-  Received: '#f59e0b', QC: '#8b5cf6', Closed: '#10b981',
+  Initiated: '#6b7280', 
+  Approved: '#059669',
+  Transport_Pickup: '#f59e0b', 
+  In_Transit: '#3b82f6',
+  Out_For_Delivery: '#8b5cf6',
+  Delivered: '#f59e0b',
+  Warehouse_Queue: '#3b82f6',
+  Received_At_Warehouse: '#10b981',
+  QC_In_Progress: '#8b5cf6',
+  QC_Completed: '#059669',
+  Closed: '#10b981'
 };
 
 const RETURN_TYPES = ['Defective', 'Wrong Item', 'Excess', 'Damaged in Transit', 'Quality Rejection'];
@@ -15,7 +24,12 @@ const RETURN_TYPES = ['Defective', 'Wrong Item', 'Excess', 'Damaged in Transit',
 const EMPTY_FORM = {
   supplierName: '', items: 1, value: '', reason: '',
   transport: '', awbNo: '', returnType: 'Defective',
-  orderRef: '', customer: '',
+  orderRef: '', customer: '', invoiceNo: '', productName: '',
+  returnQty: 1, pickupAddress: '', attachments: [],
+  // Supplier details
+  supplierPincode: '', supplierEmail: '', supplierGSTNo: '', supplierAddress: '',
+  // Product selection
+  selectedProduct: null, productSku: '', productSource: ''
 };
 
 const inp = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]';
@@ -33,6 +47,10 @@ export default function ReturnsPage({ initialTab = 0 }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [form, setForm]           = useState(EMPTY_FORM);
   const [loading, setLoading]     = useState(false);
+  const [products, setProducts]   = useState([]);
+  const [productSearch, setProductSearch] = useState('');
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(false);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -51,19 +69,91 @@ export default function ReturnsPage({ initialTab = 0 }) {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
+  // Fetch products when component mounts
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('.product-dropdown-container')) {
+        setShowProductDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchProducts = async () => {
+    setLoadingProducts(true);
+    try {
+      const response = await productsApi.getAllForReturns();
+      if (response.success) {
+        setProducts(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  const handleProductSearch = async (query) => {
+    setProductSearch(query);
+    if (query.length > 2) {
+      try {
+        const response = await productsApi.searchProducts(query);
+        if (response.success) {
+          setProducts(response.data);
+        }
+      } catch (error) {
+        console.error('Error searching products:', error);
+      }
+    } else if (query.length === 0) {
+      fetchProducts();
+    }
+  };
+
+  const handleProductSelect = (product) => {
+    setForm(prev => ({
+      ...prev,
+      selectedProduct: product,
+      productName: product.name,
+      productSku: product.sku,
+      productSource: product.source,
+      // Auto-fill supplier information from GRN/PO
+      supplierName: product.supplier || prev.supplierName,
+      supplierCode: product.supplierCode || prev.supplierCode,
+      // Auto-fill invoice information if available
+      invoiceNo: product.invoiceNo || prev.invoiceNo,
+      // Set return value based on product price
+      value: product.price || prev.value
+    }));
+    setProductSearch(product.name);
+    setShowProductDropdown(false);
+  };
+
   const handleCreate = async () => {
-    if (!form.supplierName || !form.reason) {
-      toast('Supplier and reason are required', 'error'); return;
+    if (!form.supplierName || !form.reason || !form.invoiceNo || !form.productName || !form.pickupAddress || !form.supplierEmail || !form.supplierPincode) {
+      toast('Required fields: Supplier Name, Email, Pincode, Invoice Number, Product Name, Pickup Address, and Reason', 'error'); 
+      return;
     }
     setSaving(true);
     try {
-      await materialReturnApi.create({
+      const returnData = {
         ...form,
         value: parseFloat(form.value) || 0,
         items: parseInt(form.items) || 1,
-      });
+        returnQty: parseInt(form.returnQty) || 1,
+        expectedQty: parseInt(form.returnQty) || parseInt(form.items) || 1, // Set expected qty
+      };
+      
+      await materialReturnApi.create(returnData);
       setShowCreate(false);
       setForm(EMPTY_FORM);
+      setProductSearch('');
+      setShowProductDropdown(false);
       await fetchAll();
       toast('Material return created successfully');
     } catch (e) { toast(e.message, 'error'); }
@@ -76,6 +166,19 @@ export default function ReturnsPage({ initialTab = 0 }) {
       setSelected(res.data);
       await fetchAll();
       toast(`Stage updated to ${stage}`);
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  const handleTrackingUpdate = async (id, awbNo, transport) => {
+    try {
+      const updateData = {};
+      if (awbNo) updateData.awbNo = awbNo;
+      if (transport) updateData.transport = transport;
+      
+      const res = await materialReturnApi.updateTracking(id, updateData);
+      setSelected(res.data);
+      await fetchAll();
+      toast('Tracking information updated');
     } catch (e) { toast(e.message, 'error'); }
   };
 
@@ -154,7 +257,7 @@ export default function ReturnsPage({ initialTab = 0 }) {
               <div className="overflow-x-auto rounded-xl border border-gray-200">
                 <table className="w-full">
                   <thead>
-                    <tr>{['MR ID', 'Supplier', 'Items', 'Value', 'Stage', 'Actions'].map(h => (
+                    <tr>{['MR ID', 'Invoice No', 'Product', 'Supplier', 'Email', 'Pincode', 'Stage', 'Actions'].map(h => (
                       <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
                     ))}</tr>
                   </thead>
@@ -163,9 +266,11 @@ export default function ReturnsPage({ initialTab = 0 }) {
                       <tr key={r._id} onClick={() => setSelected(r)}
                         className={`border-b border-gray-50 last:border-0 cursor-pointer transition-colors ${selected?._id === r._id ? 'bg-red-50/60' : 'hover:bg-red-50/40'}`}>
                         <td className="px-4 py-3 font-semibold text-red-700">{r.mrId}</td>
+                        <td className="px-4 py-3 font-mono text-[11px]">{r.invoiceNo || '—'}</td>
+                        <td className="px-4 py-3 font-semibold text-sm">{r.productName || '—'}</td>
                         <td className="px-4 py-3 font-semibold">{r.supplierName}</td>
-                        <td className="px-4 py-3">{r.items}</td>
-                        <td className="px-4 py-3 font-bold">₹{(r.value || 0).toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-3 text-xs">{r.supplierEmail || '—'}</td>
+                        <td className="px-4 py-3 text-xs">{r.supplierPincode || '—'}</td>
                         <td className="px-4 py-3">
                           <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white"
                             style={{ background: stageColor[r.stage] || '#6b7280' }}>{r.stage}</span>
@@ -191,10 +296,18 @@ export default function ReturnsPage({ initialTab = 0 }) {
                 {[
                   ['MR ID', selected.mrId],
                   ['Docket ID', selected.docketId],
+                  ['Invoice No.', selected.invoiceNo || '—'],
+                  ['Product Name', selected.productName || '—'],
                   ['Supplier', selected.supplierName],
+                  ['Supplier Email', selected.supplierEmail || '—'],
+                  ['Supplier Pincode', selected.supplierPincode || '—'],
+                  ['Supplier GST', selected.supplierGSTNo || '—'],
+                  ['Supplier Address', selected.supplierAddress || '—'],
+                  ['Return Qty', selected.returnQty || '—'],
                   ['Items', selected.items],
                   ['Value', `₹${(selected.value || 0).toLocaleString('en-IN')}`],
                   ['Reason', selected.reason],
+                  ['Pickup Address', selected.pickupAddress || '—'],
                   ['Transport', selected.transport || '—'],
                   ['AWB No.', selected.awbNo || '—'],
                   ['Credit Note', selected.creditNoteId || 'Not issued'],
@@ -208,14 +321,17 @@ export default function ReturnsPage({ initialTab = 0 }) {
               </div>
               {/* Stage advance button */}
               {stageIdx(selected.stage) < STAGES.length - 1 && (
-                <button onClick={() => handleStageUpdate(selected._id, STAGES[stageIdx(selected.stage) + 1])}
-                  style={{
-                    width: '100%', padding: '9px 0', borderRadius: 10, border: 'none', cursor: 'pointer',
-                    background: 'linear-gradient(135deg,#f59e0b,#d97706)', color: '#fff',
-                    fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-                  }}>
-                  → Move to {STAGES[stageIdx(selected.stage) + 1]}
-                </button>
+                <div className="space-y-2">
+                  <button onClick={() => handleStageUpdate(selected._id, STAGES[stageIdx(selected.stage) + 1])}
+                    style={{
+                      width: '100%', padding: '9px 0', borderRadius: 10, border: 'none', cursor: 'pointer',
+                      background: 'linear-gradient(135deg,#f59e0b,#d97706)', color: '#fff',
+                      fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+                    }}>
+                    → Move to {STAGES[stageIdx(selected.stage) + 1]}
+                  </button>
+
+                </div>
               )}
               {selected.stage === 'Closed' && (
                 <div style={{ padding: '10px 14px', background: '#f0fdf4', borderRadius: 10, border: '1px solid #bbf7d0', fontSize: 13, fontWeight: 600, color: '#16a34a', textAlign: 'center' }}>
@@ -237,7 +353,7 @@ export default function ReturnsPage({ initialTab = 0 }) {
             <div className="overflow-x-auto rounded-xl border border-gray-200">
               <table className="w-full">
                 <thead>
-                  <tr>{['Docket ID', 'MR ID', 'Supplier', 'Transport', 'AWB No.', 'Stage'].map(h => (
+                  <tr>{['Docket ID', 'MR ID', 'Invoice No', 'Product', 'Supplier', 'Return Qty', 'Email', 'Pincode', 'Stage'].map(h => (
                     <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
                   ))}</tr>
                 </thead>
@@ -247,9 +363,12 @@ export default function ReturnsPage({ initialTab = 0 }) {
                       className={`border-b border-gray-50 last:border-0 cursor-pointer transition-colors ${selected?._id === r._id ? 'bg-red-50/60' : 'hover:bg-red-50/40'}`}>
                       <td className="px-4 py-3 font-semibold text-red-700 font-mono text-[12px]">{r.docketId}</td>
                       <td className="px-4 py-3 font-semibold">{r.mrId}</td>
+                      <td className="px-4 py-3 font-mono text-[11px]">{r.invoiceNo || '—'}</td>
+                      <td className="px-4 py-3 font-semibold text-sm">{r.productName || '—'}</td>
                       <td className="px-4 py-3">{r.supplierName}</td>
-                      <td className="px-4 py-3">{r.transport || '—'}</td>
-                      <td className="px-4 py-3 font-mono text-[11px]">{r.awbNo || '—'}</td>
+                      <td className="px-4 py-3 font-semibold text-blue-600">{r.returnQty || r.items || '—'}</td>
+                      <td className="px-4 py-3 text-xs">{r.supplierEmail || '—'}</td>
+                      <td className="px-4 py-3 text-xs">{r.supplierPincode || '—'}</td>
                       <td className="px-4 py-3">
                         <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white"
                           style={{ background: stageColor[r.stage] || '#6b7280' }}>{r.stage}</span>
@@ -277,6 +396,14 @@ export default function ReturnsPage({ initialTab = 0 }) {
                     style={{ background: stageColor[r.stage] || '#6b7280' }}>{r.stage}</span>
                 </div>
                 <div className="text-xs text-gray-500">{r.supplierName} · ₹{(r.value || 0).toLocaleString('en-IN')}</div>
+                <div className="text-xs text-gray-400 mt-0.5">
+                  {r.supplierEmail && `Email: ${r.supplierEmail}`}
+                  {r.supplierPincode && ` · Pin: ${r.supplierPincode}`}
+                </div>
+                <div className="text-xs text-gray-400 mt-0.5">
+                  {r.invoiceNo && `Invoice: ${r.invoiceNo}`}
+                  {r.productName && ` · Product: ${r.productName}`}
+                </div>
               </div>
             ))}
           </div>
@@ -376,18 +503,186 @@ export default function ReturnsPage({ initialTab = 0 }) {
       )}
 
       {/* Create Return Modal */}
-      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="New Material Return"
+      <Modal open={showCreate} onClose={() => {
+        setShowCreate(false);
+        setForm(EMPTY_FORM);
+        setProductSearch('');
+        setShowProductDropdown(false);
+      }} title="New Material Return"
         footer={<>
-          <button className="btn btn-outline" onClick={() => setShowCreate(false)} disabled={saving}>Cancel</button>
+          <button className="btn btn-outline" onClick={() => {
+            setShowCreate(false);
+            setForm(EMPTY_FORM);
+            setProductSearch('');
+            setShowProductDropdown(false);
+          }} disabled={saving}>Cancel</button>
           <button className="btn btn-primary" onClick={handleCreate} disabled={saving}>{saving ? 'Saving...' : 'Submit Return'}</button>
         </>}>
         <div className="grid grid-cols-2 gap-4">
-          <div className={fld}><label className={lbl}>Supplier Name *</label>
-            <input className={inp} placeholder="Supplier name" value={form.supplierName} onChange={e => setForm(p => ({ ...p, supplierName: e.target.value }))} /></div>
+          {/* Supplier Details */}
+          <div className="col-span-2 bg-gray-50 rounded-lg p-4 mb-4">
+            <h3 className="text-sm font-bold text-gray-700 mb-3">Supplier Details</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className={fld}><label className={lbl}>Supplier Name *</label>
+                <input className={inp} placeholder="Supplier name" value={form.supplierName} onChange={e => setForm(p => ({ ...p, supplierName: e.target.value }))} /></div>
+              <div className={fld}><label className={lbl}>Email *</label>
+                <input type="email" className={inp} placeholder="supplier@email.com" value={form.supplierEmail} onChange={e => setForm(p => ({ ...p, supplierEmail: e.target.value }))} /></div>
+              <div className={fld}><label className={lbl}>Pincode *</label>
+                <input className={inp} placeholder="Pincode" value={form.supplierPincode} onChange={e => setForm(p => ({ ...p, supplierPincode: e.target.value }))} /></div>
+              <div className={fld}><label className={lbl}>GST Number</label>
+                <input className={inp} placeholder="GST number" value={form.supplierGSTNo} onChange={e => setForm(p => ({ ...p, supplierGSTNo: e.target.value }))} /></div>
+              <div className={`${fld} col-span-2`}><label className={lbl}>Address</label>
+                <textarea className={inp} rows={2} placeholder="Supplier address..." value={form.supplierAddress} onChange={e => setForm(p => ({ ...p, supplierAddress: e.target.value }))} /></div>
+            </div>
+          </div>
+
+          {/* Return Details */}
+          <div className={fld}><label className={lbl}>Invoice Number *</label>
+            <input className={inp} placeholder="Invoice number" value={form.invoiceNo} onChange={e => setForm(p => ({ ...p, invoiceNo: e.target.value }))} /></div>
+          
+          <div className={fld}>
+            <label className={lbl}>Product Name *</label>
+            <div className="relative product-dropdown-container">
+              <input 
+                className={inp} 
+                placeholder="Search and select product..." 
+                value={productSearch} 
+                onChange={e => {
+                  handleProductSearch(e.target.value);
+                  setShowProductDropdown(true);
+                }}
+                onFocus={() => setShowProductDropdown(true)}
+              />
+              {showProductDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-y-auto">
+                  {loadingProducts ? (
+                    <div className="p-3 text-center text-gray-500 text-sm">Loading products...</div>
+                  ) : products.length === 0 ? (
+                    <div className="p-3 text-center text-gray-500 text-sm">No products found</div>
+                  ) : (
+                    products.map((product, index) => (
+                      <div
+                        key={index}
+                        className="p-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0"
+                        onClick={() => handleProductSelect(product)}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="font-semibold text-sm text-gray-800">{product.name}</div>
+                          <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
+                            product.source === 'GRN' ? 'bg-green-100 text-green-700' :
+                            product.source === 'Purchase Order' ? 'bg-blue-100 text-blue-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {product.source}
+                          </span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                          <div>SKU: {product.sku || 'N/A'}</div>
+                          <div>Price: ₹{(product.price || 0).toLocaleString('en-IN')}</div>
+                          {product.supplier && <div>Supplier: {product.supplier}</div>}
+                          {product.unit && <div>Unit: {product.unit}</div>}
+                        </div>
+
+                        {/* GRN specific information */}
+                        {product.source === 'GRN' && (
+                          <div className="mt-2 p-2 bg-green-50 rounded text-xs">
+                            <div className="font-semibold text-green-700 mb-1">GRN Details:</div>
+                            <div className="grid grid-cols-2 gap-1 text-green-600">
+                              {product.grnId && <div>GRN ID: {product.grnId}</div>}
+                              {product.receivedQty && <div>Received: {product.receivedQty}</div>}
+                              {product.batchNo && <div>Batch: {product.batchNo}</div>}
+                              {product.invoiceNo && <div>Invoice: {product.invoiceNo}</div>}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* PO specific information */}
+                        {product.source === 'Purchase Order' && (
+                          <div className="mt-2 p-2 bg-blue-50 rounded text-xs">
+                            <div className="font-semibold text-blue-700 mb-1">PO Details:</div>
+                            <div className="grid grid-cols-2 gap-1 text-blue-600">
+                              {product.poId && <div>PO ID: {product.poId}</div>}
+                              {product.orderedQty && <div>Ordered: {product.orderedQty}</div>}
+                              {product.receivedQty && <div>Received: {product.receivedQty}</div>}
+                              {product.status && <div>Status: {product.status}</div>}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+            {form.selectedProduct && (
+              <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="text-sm font-bold text-blue-800">Selected Product Details</div>
+                  <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
+                    form.selectedProduct.source === 'GRN' ? 'bg-green-100 text-green-700' :
+                    form.selectedProduct.source === 'Purchase Order' ? 'bg-blue-100 text-blue-700' :
+                    'bg-gray-100 text-gray-700'
+                  }`}>
+                    {form.selectedProduct.source}
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-blue-600 font-semibold">Product:</span> {form.selectedProduct.name}
+                  </div>
+                  <div>
+                    <span className="text-blue-600 font-semibold">SKU:</span> {form.selectedProduct.sku || 'N/A'}
+                  </div>
+                  {form.selectedProduct.supplier && (
+                    <div>
+                      <span className="text-blue-600 font-semibold">Supplier:</span> {form.selectedProduct.supplier}
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-blue-600 font-semibold">Price:</span> ₹{(form.selectedProduct.price || 0).toLocaleString('en-IN')}
+                  </div>
+                </div>
+
+                {/* GRN specific details */}
+                {form.selectedProduct.source === 'GRN' && (
+                  <div className="mt-3 p-3 bg-green-50 rounded border border-green-200">
+                    <div className="text-xs font-bold text-green-700 mb-2">GRN Information:</div>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-green-600">
+                      {form.selectedProduct.grnId && <div>GRN ID: {form.selectedProduct.grnId}</div>}
+                      {form.selectedProduct.receivedQty && <div>Received Qty: {form.selectedProduct.receivedQty}</div>}
+                      {form.selectedProduct.batchNo && <div>Batch No: {form.selectedProduct.batchNo}</div>}
+                      {form.selectedProduct.invoiceNo && <div>Invoice No: {form.selectedProduct.invoiceNo}</div>}
+                      {form.selectedProduct.warehouseLocation && <div>Location: {form.selectedProduct.warehouseLocation}</div>}
+                      {form.selectedProduct.qualityStatus && <div>Quality: {form.selectedProduct.qualityStatus}</div>}
+                    </div>
+                  </div>
+                )}
+
+                {/* PO specific details */}
+                {form.selectedProduct.source === 'Purchase Order' && (
+                  <div className="mt-3 p-3 bg-blue-50 rounded border border-blue-200">
+                    <div className="text-xs font-bold text-blue-700 mb-2">Purchase Order Information:</div>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-blue-600">
+                      {form.selectedProduct.poId && <div>PO ID: {form.selectedProduct.poId}</div>}
+                      {form.selectedProduct.orderedQty && <div>Ordered Qty: {form.selectedProduct.orderedQty}</div>}
+                      {form.selectedProduct.receivedQty && <div>Received Qty: {form.selectedProduct.receivedQty}</div>}
+                      {form.selectedProduct.pendingQty && <div>Pending Qty: {form.selectedProduct.pendingQty}</div>}
+                      {form.selectedProduct.status && <div>Status: {form.selectedProduct.status}</div>}
+                      {form.selectedProduct.deliveryDate && <div>Delivery: {new Date(form.selectedProduct.deliveryDate).toLocaleDateString()}</div>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <div className={fld}><label className={lbl}>Return Type</label>
             <select className={inp} value={form.returnType} onChange={e => setForm(p => ({ ...p, returnType: e.target.value }))}>
               {RETURN_TYPES.map(t => <option key={t}>{t}</option>)}
             </select></div>
+          <div className={fld}><label className={lbl}>Return Qty</label>
+            <input type="number" className={inp} placeholder="1" value={form.returnQty} onChange={e => setForm(p => ({ ...p, returnQty: e.target.value }))} /></div>
           <div className={fld}><label className={lbl}>No. of Items</label>
             <input type="number" className={inp} placeholder="1" value={form.items} onChange={e => setForm(p => ({ ...p, items: e.target.value }))} /></div>
           <div className={fld}><label className={lbl}>Return Value (₹)</label>
@@ -396,8 +691,30 @@ export default function ReturnsPage({ initialTab = 0 }) {
             <input className={inp} placeholder="Courier name" value={form.transport} onChange={e => setForm(p => ({ ...p, transport: e.target.value }))} /></div>
           <div className={fld}><label className={lbl}>AWB / Tracking No.</label>
             <input className={inp} placeholder="AWB number" value={form.awbNo} onChange={e => setForm(p => ({ ...p, awbNo: e.target.value }))} /></div>
+          <div className={`${fld} col-span-2`}><label className={lbl}>Pickup Address *</label>
+            <textarea className={inp} rows={2} placeholder="Complete pickup address..." value={form.pickupAddress} onChange={e => setForm(p => ({ ...p, pickupAddress: e.target.value }))} /></div>
           <div className={`${fld} col-span-2`}><label className={lbl}>Reason *</label>
             <textarea className={inp} rows={2} placeholder="Reason for return..." value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))} /></div>
+          <div className={`${fld} col-span-2`}><label className={lbl}>Attachments (Optional)</label>
+            <input 
+              type="file" 
+              className={inp} 
+              multiple 
+              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+              onChange={e => setForm(p => ({ ...p, attachments: Array.from(e.target.files) }))} 
+            />
+            <div className="text-xs text-gray-500 mt-1">Upload invoice, photos, or supporting documents (PDF, Images, Word docs)</div>
+            {form.attachments && form.attachments.length > 0 && (
+              <div className="mt-2">
+                <div className="text-xs font-semibold text-gray-600 mb-1">Selected Files:</div>
+                {form.attachments.map((file, index) => (
+                  <div key={index} className="text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded mb-1">
+                    {file.name} ({(file.size / 1024).toFixed(1)} KB)
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </Modal>
 

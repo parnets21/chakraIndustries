@@ -4,6 +4,10 @@ import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
 import { toast } from '../../components/common/Toast';
 import { clientApi } from '../../api/clientApi';
+import { bulkOrderApi } from '../../api/bulkOrderApi';
+import { corporateClientApi } from '../../api/corporateClientApi';
+import { itemMasterApi } from '../../api/itemMasterApi';
+import DynamicDataFlowDashboard from '../../components/corporate/DynamicDataFlowDashboard';
 
 const initialClients = [
   { id: 'ESME-001', name: 'Precision Auto Parts Pvt Ltd', contact: 'Amit Patel', phone: '9876543210', email: 'amit@precisionauto.com', city: 'Bangalore', category: 'Manufacturing', creditLimit: '₹5,00,000', outstanding: '₹1,20,000', status: 'Active', gstNumber: '18AABCT1234H1Z0', address: 'Plot 123, Industrial Area, Bangalore' },
@@ -48,11 +52,26 @@ export default function ClientsESMEPage() {
   const [showClientModal, setShowClientModal] = useState(false);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [showDataFlowModal, setShowDataFlowModal] = useState(false);
   const [clients, setClients] = useState(initialClients);
   const [quotations, setQuotations] = useState(initialQuotations);
   const [selectedClient, setSelectedClient] = useState(null);
   const [selectedQuotation, setSelectedQuotation] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [itemMaster, setItemMaster] = useState([]);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [integrationStats, setIntegrationStats] = useState({
+    total: 0,
+    synced: 0,
+    pending: 0,
+    failed: 0
+  });
+  const [quotationForm, setQuotationForm] = useState({
+    validityDate: '',
+    packaging: 'Standard Box',
+    paymentTerms: 'Net 30',
+    notes: ''
+  });
   const [newClientForm, setNewClientForm] = useState({
     companyName: '',
     contactPerson: '',
@@ -72,34 +91,61 @@ export default function ClientsESMEPage() {
     contact: backendClient.contact,
     phone: backendClient.phone,
     email: backendClient.email,
-    city: backendClient.city,
-    category: backendClient.category,
+    city: backendClient.address?.city || backendClient.city,
+    category: backendClient.category || (backendClient.tier === 'Platinum' ? 'Manufacturing' : 'Trading'),
     creditLimit: typeof backendClient.creditLimit === 'number' ? `₹${backendClient.creditLimit.toLocaleString()}` : backendClient.creditLimit,
     outstanding: typeof backendClient.outstanding === 'number' ? `₹${backendClient.outstanding.toLocaleString()}` : backendClient.outstanding,
     status: backendClient.status,
     gstNumber: backendClient.gstNumber,
-    address: backendClient.address,
+    address: typeof backendClient.address === 'object' 
+      ? `${backendClient.address.street || ''}, ${backendClient.address.city || ''}, ${backendClient.address.state || ''} - ${backendClient.address.pincode || ''}`.replace(/^,\s*|,\s*$/g, '')
+      : backendClient.address,
+    tier: backendClient.tier,
+    integrationStatus: backendClient.integrationStatus,
+    tallySync: backendClient.tallySync,
+    availableCredit: backendClient.availableCredit
   });
 
-  // Fetch clients from backend on component mount
+  // Fetch clients and item master from backend on component mount
   useEffect(() => {
-    const fetchClients = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const response = await clientApi.getAll();
-        if (response.data && Array.isArray(response.data)) {
-          const transformedClients = response.data.map(transformClientData);
+        
+        // Fetch clients from corporate client API
+        const clientsResponse = await corporateClientApi.getAll();
+        if (clientsResponse.success && Array.isArray(clientsResponse.data)) {
+          const transformedClients = clientsResponse.data.map(transformClientData);
           setClients(transformedClients);
+          
+          // Calculate integration stats
+          const total = transformedClients.length;
+          const synced = transformedClients.filter(c => c.tallySync?.synced).length;
+          const failed = transformedClients.filter(c => c.tallySync?.syncStatus === 'Failed').length;
+          const pending = total - synced - failed;
+          setIntegrationStats({ total, synced, pending, failed });
+        }
+
+        // Fetch quotations from bulk order API
+        const quotationsResponse = await bulkOrderApi.getQuotations();
+        if (quotationsResponse.success && Array.isArray(quotationsResponse.data)) {
+          setQuotations(quotationsResponse.data);
+        }
+
+        // Fetch item master for quotation creation
+        const itemsResponse = await itemMasterApi.getAll();
+        if (itemsResponse.success && Array.isArray(itemsResponse.data)) {
+          setItemMaster(itemsResponse.data);
         }
       } catch (error) {
-        console.error('Failed to fetch clients:', error);
-        // Keep initial clients if API fails
+        console.error('Failed to fetch data:', error);
+        toast('❌ Failed to load data from server');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchClients();
+    fetchData();
   }, []);
 
   const subtotal = quotationItems.reduce((s, i) => s + i.total, 0);
@@ -109,9 +155,78 @@ export default function ClientsESMEPage() {
   const kpis = [
     { label: 'ESME Clients', value: clients.filter(c => c.status === 'Active').length, color: '#8b5cf6' },
     { label: 'Active Quotations', value: quotations.filter(q => q.status === 'Sent').length, color: '#f59e0b' },
-    { label: 'Approved Quotes', value: quotations.filter(q => q.status === 'Approved').length, color: '#10b981' },
-    { label: 'Total Pipeline', value: '₹43.90L', color: '#c0392b' },
+    { label: 'Tally Synced', value: integrationStats.synced, color: '#10b981' },
+    { label: 'Sync Pending', value: integrationStats.pending, color: '#ef4444' },
   ];
+
+  const handleSyncClient = async (clientId) => {
+    setLoading(true);
+    try {
+      const response = await corporateClientApi.syncWithTally(clientId);
+      if (response.success) {
+        toast(`✅ Client synced successfully with Tally!`);
+        // Refresh client data
+        const clientsResponse = await corporateClientApi.getAll();
+        if (clientsResponse.success) {
+          const transformedClients = clientsResponse.data.map(transformClientData);
+          setClients(transformedClients);
+        }
+      }
+    } catch (error) {
+      toast(`❌ Sync failed: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBulkSync = async () => {
+    setLoading(true);
+    try {
+      const response = await corporateClientApi.bulkSync();
+      if (response.success) {
+        toast(`✅ Bulk sync completed! ${response.data.totalClients} clients processed.`);
+        // Refresh client data
+        const clientsResponse = await corporateClientApi.getAll();
+        if (clientsResponse.success) {
+          const transformedClients = clientsResponse.data.map(transformClientData);
+          setClients(transformedClients);
+        }
+      }
+    } catch (error) {
+      toast(`❌ Bulk sync failed: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getIntegrationStatusBadge = (integrationStatus) => {
+    if (!integrationStatus) return <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-full">Not Integrated</span>;
+    
+    const modules = Object.keys(integrationStatus);
+    const integrated = Object.values(integrationStatus).filter(Boolean).length;
+    
+    if (integrated === modules.length) {
+      return <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Fully Integrated</span>;
+    } else if (integrated > 0) {
+      return <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">Partial ({integrated}/{modules.length})</span>;
+    } else {
+      return <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">Not Integrated</span>;
+    }
+  };
+
+  const getTallySyncBadge = (tallySync) => {
+    if (!tallySync) return <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-full">Pending</span>;
+    
+    switch (tallySync.syncStatus) {
+      case 'Success':
+        return <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Synced</span>;
+      case 'Failed':
+        return <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">Failed</span>;
+      case 'Pending':
+      default:
+        return <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">Pending</span>;
+    }
+  };
 
   const handleViewClient = (client) => {
     setSelectedClient(client);
@@ -124,7 +239,6 @@ export default function ClientsESMEPage() {
     setShowQuoteModal(true);
     toast(`📋 Creating quotation for ${client.name}`);
   };
-
   const handleAddClient = async () => {
     if (!newClientForm.companyName || !newClientForm.contactPerson) {
       toast('❌ Please fill in required fields');
@@ -135,22 +249,44 @@ export default function ClientsESMEPage() {
       setLoading(true);
       const clientName = newClientForm.companyName;
       
-      // Prepare payload for API
+      // Prepare enhanced payload for corporate client API with dynamic data flow
       const payload = {
         name: newClientForm.companyName,
         contact: newClientForm.contactPerson,
-        phone: newClientForm.phone || 'N/A',
-        email: newClientForm.email || 'N/A',
-        city: newClientForm.city || 'N/A',
-        category: newClientForm.category,
+        phone: newClientForm.phone || '9999999999',
+        email: newClientForm.email || 'noemail@company.com',
+        tier: newClientForm.category === 'Manufacturing' ? 'Gold' : 'Silver',
         creditLimit: newClientForm.creditLimit ? parseInt(newClientForm.creditLimit) : 0,
-        gstNumber: newClientForm.gstNumber || 'N/A',
-        address: newClientForm.address || 'N/A',
+        gstNumber: newClientForm.gstNumber || '',
+        panNumber: '', // Can be added to form later
+        paymentTerms: 'Net 30',
+        discountPercentage: 0,
         status: 'Active',
+        address: {
+          street: newClientForm.address || '',
+          city: newClientForm.city || 'Unknown',
+          state: '',
+          pincode: '',
+          country: 'India'
+        },
+        billingAddress: {
+          street: newClientForm.address || '',
+          city: newClientForm.city || 'Unknown',
+          state: '',
+          pincode: '',
+          country: 'India'
+        },
+        shippingAddress: {
+          street: newClientForm.address || '',
+          city: newClientForm.city || 'Unknown',
+          state: '',
+          pincode: '',
+          country: 'India'
+        }
       };
 
-      // Save to backend
-      const response = await clientApi.create(payload);
+      // Save to backend using corporate client API with dynamic data flow
+      const response = await corporateClientApi.create(payload);
       
       if (response.success && response.data) {
         // Transform the backend response to frontend format
@@ -171,7 +307,18 @@ export default function ClientsESMEPage() {
           gstNumber: '',
           address: '',
         });
-        toast(`✅ Client "${clientName}" added successfully!`);
+        
+        // Show dynamic data flow result
+        if (response.dataFlow) {
+          const integrations = Object.entries(response.dataFlow.integrations || {})
+            .filter(([_, status]) => status)
+            .map(([module, _]) => module)
+            .join(', ');
+          
+          toast(`✅ Client "${clientName}" added successfully! Integrated with: ${integrations}`);
+        } else {
+          toast(`✅ Client "${clientName}" added successfully!`);
+        }
       } else {
         toast(`❌ Failed to add client: Invalid response from server`);
       }
@@ -211,23 +358,57 @@ export default function ClientsESMEPage() {
       <h1 className="text-2xl font-bold mb-6">ESME Clients & Quotations</h1>
 
       {/* Action Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
-        {activeTab === 0 && <button onClick={() => { setSelectedClient(null); setShowClientModal(true); }} style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          padding: '8px 16px', borderRadius: 10,
-          background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
-          color: '#fff', border: 'none', cursor: 'pointer',
-          fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-          boxShadow: '0 3px 10px rgba(185,28,28,0.3)',
-        }}>+ Add Client</button>}
-        {activeTab === 1 && <button onClick={() => { setSelectedQuotation(null); setShowQuoteModal(true); }} style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          padding: '8px 16px', borderRadius: 10,
-          background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
-          color: '#fff', border: 'none', cursor: 'pointer',
-          fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-          boxShadow: '0 3px 10px rgba(185,28,28,0.3)',
-        }}>+ New Quotation</button>}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button 
+            onClick={() => setShowDataFlowModal(true)} 
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '8px 16px', borderRadius: 10,
+              background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)',
+              color: '#fff', border: 'none', cursor: 'pointer',
+              fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+              boxShadow: '0 3px 10px rgba(29,78,216,0.3)',
+            }}
+          >
+            📊 Data Flow Dashboard
+          </button>
+          {integrationStats.pending > 0 && (
+            <button 
+              onClick={handleBulkSync}
+              disabled={loading}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '8px 16px', borderRadius: 10,
+                background: 'linear-gradient(135deg,#10b981,#059669)',
+                color: '#fff', border: 'none', cursor: 'pointer',
+                fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+                boxShadow: '0 3px 10px rgba(5,150,105,0.3)',
+                opacity: loading ? 0.6 : 1
+              }}
+            >
+              {loading ? '⏳ Syncing...' : `🔄 Bulk Sync (${integrationStats.pending})`}
+            </button>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {activeTab === 0 && <button onClick={() => { setSelectedClient(null); setShowClientModal(true); }} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '8px 16px', borderRadius: 10,
+            background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
+            color: '#fff', border: 'none', cursor: 'pointer',
+            fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+            boxShadow: '0 3px 10px rgba(185,28,28,0.3)',
+          }}>+ Add Client</button>}
+          {activeTab === 1 && <button onClick={() => { setSelectedQuotation(null); setShowQuoteModal(true); }} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '8px 16px', borderRadius: 10,
+            background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
+            color: '#fff', border: 'none', cursor: 'pointer',
+            fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+            boxShadow: '0 3px 10px rgba(185,28,28,0.3)',
+          }}>+ New Quotation</button>}
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -242,9 +423,14 @@ export default function ClientsESMEPage() {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-5 border-b border-gray-200">
-        {['Clients', 'Quotations'].map((tab, i) => (
+        {['Clients', 'Quotations', 'Data Flow'].map((tab, i) => (
           <button key={i} onClick={() => setActiveTab(i)} className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ${activeTab === i ? 'border-red-600 text-red-700' : 'border-transparent text-gray-600 hover:text-gray-800'}`}>
             {tab}
+            {i === 2 && integrationStats.pending > 0 && (
+              <span className="ml-2 px-2 py-0.5 bg-red-100 text-red-800 text-xs rounded-full">
+                {integrationStats.pending}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -258,14 +444,33 @@ export default function ClientsESMEPage() {
               { key: 'name', label: 'Company', render: v => <span className="font-bold">{v}</span> },
               { key: 'contact', label: 'Contact' },
               { key: 'city', label: 'City' },
-              { key: 'category', label: 'Category' },
+              { key: 'tier', label: 'Tier', render: v => (
+                <span className={`px-2 py-1 text-xs rounded-full ${
+                  v === 'Platinum' ? 'bg-purple-100 text-purple-800' :
+                  v === 'Gold' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}>
+                  {v}
+                </span>
+              )},
               { key: 'creditLimit', label: 'Credit Limit', render: v => <span className="font-semibold">{v}</span> },
               { key: 'outstanding', label: 'Outstanding', render: v => <span className={`font-bold ${v === '₹0' ? 'text-green-600' : 'text-red-500'}`}>{v}</span> },
+              { key: 'integrationStatus', label: 'Integration', render: (_, row) => getIntegrationStatusBadge(row.integrationStatus) },
+              { key: 'tallySync', label: 'Tally Sync', render: (_, row) => getTallySyncBadge(row.tallySync) },
               { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
               { key: 'id', label: 'Actions', render: (_, row) => (
                 <div className="flex gap-1.5">
                   <button onClick={() => handleViewClient(row)} className={`${btnSm} border border-red-600 text-red-700 bg-transparent font-semibold cursor-pointer font-[inherit]`}>View</button>
                   <button onClick={() => handleQuoteClient(row)} className={`${btnSm} bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]`}>Quote</button>
+                  {(!row.tallySync?.synced || row.tallySync?.syncStatus === 'Failed') && (
+                    <button 
+                      onClick={() => handleSyncClient(row.id)} 
+                      disabled={loading}
+                      className={`${btnSm} bg-blue-600 text-white font-semibold border-0 cursor-pointer font-[inherit] disabled:opacity-50`}
+                    >
+                      Sync
+                    </button>
+                  )}
                 </div>
               )},
             ]}
@@ -299,7 +504,22 @@ export default function ClientsESMEPage() {
         </div>
       )}
 
-      {/* View Client Modal */}
+      {/* Data Flow Tab */}
+      {activeTab === 2 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <DynamicDataFlowDashboard />
+        </div>
+      )}
+
+      {/* Data Flow Modal */}
+      <Modal 
+        open={showDataFlowModal} 
+        onClose={() => setShowDataFlowModal(false)} 
+        title="Dynamic Data Flow Dashboard" 
+        size="xl"
+      >
+        <DynamicDataFlowDashboard />
+      </Modal>
       <Modal open={showViewModal && selectedClient && !selectedQuotation} onClose={() => { setShowViewModal(false); setSelectedClient(null); }} title={`Client Details - ${selectedClient?.name}`} size="lg">
         <div className="grid grid-cols-2 gap-6">
           <div>
@@ -330,8 +550,16 @@ export default function ClientsESMEPage() {
               <div className="text-sm text-gray-800 mt-1">{selectedClient?.city}</div>
             </div>
             <div className="mb-4">
-              <label className={labelCls}>Category</label>
-              <div className="text-sm text-gray-800 mt-1">{selectedClient?.category}</div>
+              <label className={labelCls}>Tier</label>
+              <div className="text-sm text-gray-800 mt-1">
+                <span className={`px-2 py-1 text-xs rounded-full ${
+                  selectedClient?.tier === 'Platinum' ? 'bg-purple-100 text-purple-800' :
+                  selectedClient?.tier === 'Gold' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}>
+                  {selectedClient?.tier || selectedClient?.category}
+                </span>
+              </div>
             </div>
             <div className="mb-4">
               <label className={labelCls}>GST Number</label>
@@ -353,6 +581,69 @@ export default function ClientsESMEPage() {
           <div className="col-span-2">
             <label className={labelCls}>Status</label>
             <div className="mt-1"><StatusBadge status={selectedClient?.status} /></div>
+          </div>
+          
+          {/* Integration Status Section */}
+          <div className="col-span-2 border-t pt-4">
+            <h4 className="text-md font-semibold text-gray-900 mb-3">Dynamic Data Flow Status</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>Integration Status</label>
+                <div className="mt-1">{getIntegrationStatusBadge(selectedClient?.integrationStatus)}</div>
+              </div>
+              <div>
+                <label className={labelCls}>Tally Sync Status</label>
+                <div className="mt-1">{getTallySyncBadge(selectedClient?.tallySync)}</div>
+              </div>
+              {selectedClient?.tallySync?.lastSyncAt && (
+                <div>
+                  <label className={labelCls}>Last Sync</label>
+                  <div className="text-sm text-gray-800 mt-1">
+                    {new Date(selectedClient.tallySync.lastSyncAt).toLocaleString('en-IN')}
+                  </div>
+                </div>
+              )}
+              {selectedClient?.availableCredit !== undefined && (
+                <div>
+                  <label className={labelCls}>Available Credit</label>
+                  <div className="text-sm font-bold text-green-600 mt-1">
+                    ₹{selectedClient.availableCredit?.toLocaleString()}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Module Integration Details */}
+            {selectedClient?.integrationStatus && (
+              <div className="mt-4">
+                <label className={labelCls}>Module Integration Details</label>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {Object.entries(selectedClient.integrationStatus).map(([module, status]) => (
+                    <span
+                      key={module}
+                      className={`px-3 py-1 text-xs rounded-full ${
+                        status ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      }`}
+                    >
+                      {module}: {status ? '✓' : '✗'}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Sync Action */}
+            {(!selectedClient?.tallySync?.synced || selectedClient?.tallySync?.syncStatus === 'Failed') && (
+              <div className="mt-4">
+                <button
+                  onClick={() => handleSyncClient(selectedClient.id)}
+                  disabled={loading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {loading ? 'Syncing...' : 'Sync with Tally'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </Modal>

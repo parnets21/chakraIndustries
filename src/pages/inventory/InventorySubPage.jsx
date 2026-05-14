@@ -20,6 +20,7 @@ const TAB_MAP = {
   defective:  8,
   storage:    9,
   pincode:    10,
+  returns:    11,
 };
 
 const PAGE_META = {
@@ -143,6 +144,16 @@ const PAGE_META = {
       { label: 'Total Units',     value: '855', icon: <MdInventory size={18} />,  color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)'  },
     ],
   },
+  returns: {
+    title: 'Warehouse Returns',
+    breadcrumb: 'Inventory › Returns',
+    kpis: [
+      { label: 'Pending Returns', value: '—', icon: <MdHourglassEmpty size={18} />, color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.25)'  },
+      { label: 'In Queue',        value: '—', icon: <MdWarehouse size={18} />,      color: '#2563eb', color2: '#3b82f6', glow: 'rgba(37,99,235,0.2)'   },
+      { label: 'Received Today',  value: '—', icon: <MdCheckBox size={18} />,       color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)'  },
+      { label: 'Total Returns',   value: '—', icon: <MdInventory2 size={18} />,     color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.25)'  },
+    ],
+  },
 };
 
 export default function InventorySubPage({ tab }) {
@@ -203,6 +214,29 @@ export default function InventorySubPage({ tab }) {
             { ...meta.kpis[1], value: String(todayMovs.filter(m => m.type === 'Outward').length) },
             { ...meta.kpis[2], value: String(movs.filter(m => m.type === 'Transfer').length) },
             { ...meta.kpis[3], value: String(movs.length) },
+          ]);
+        } else if (tab === 'returns') {
+          // Import materialReturnApi for returns data
+          const { materialReturnApi } = await import('../../api/materialReturnApi');
+          const [queueRes, statsRes] = await Promise.all([
+            materialReturnApi.getWarehouseQueue(),
+            materialReturnApi.getStats(),
+          ]);
+          if (cancelled) return;
+          
+          const queueItems = queueRes.data || [];
+          const stats = statsRes.data || {};
+          const today = new Date().toDateString();
+          const todayReceived = queueItems.filter(item => 
+            item.stage === 'Received_At_Warehouse' && 
+            new Date(item.receiveDate || item.updatedAt).toDateString() === today
+          ).length;
+          
+          setLiveKpis([
+            { ...meta.kpis[0], value: String(queueItems.filter(item => item.stage === 'Delivered' || item.stage === 'Warehouse_Queue').length) },
+            { ...meta.kpis[1], value: String(queueItems.length) },
+            { ...meta.kpis[2], value: String(todayReceived) },
+            { ...meta.kpis[3], value: String(stats.total || 0) },
           ]);
         }
       } catch {

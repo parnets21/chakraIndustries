@@ -10,6 +10,7 @@ export const invoiceApi = {
   getById:      (id)          => fetch(`${BASE}/invoices/${id}`,                 { headers: authHeaders() }).then(handle),
   create:       (body)        => fetch(`${BASE}/invoices`,                       { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   bulkUpload:   (body)        => fetch(`${BASE}/invoices/bulk-upload`,           { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  migrateTypes: ()            => fetch(`${BASE}/invoices/migrate-types`,         { method: 'POST',   headers: authHeaders() }).then(handle),
   update:       (id, body)    => fetch(`${BASE}/invoices/${id}`,                 { method: 'PUT',    headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   updateStatus: (id, status)  => fetch(`${BASE}/invoices/${id}/status`,          { method: 'PATCH',  headers: authHeaders(), body: JSON.stringify({ status }) }).then(handle),
   delete:       (id)          => fetch(`${BASE}/invoices/${id}`,                 { method: 'DELETE', headers: authHeaders() }).then(handle),

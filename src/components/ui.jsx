@@ -119,11 +119,15 @@ const typeMap = {
 };
 
 export function Badge({ status, type }) {
-  const key = status?.toLowerCase();
+  // Guard: if status is an object (e.g. accidentally passed a data item), extract label or stringify
+  const safeStatus = status && typeof status === 'object'
+    ? (status.label || status.name || status.value || JSON.stringify(status))
+    : status;
+  const key = safeStatus?.toString().toLowerCase();
   const [bg, text] = (type ? typeMap[type] : badgeMap[key]) || ['bg-gray-100', 'text-gray-600'];
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap ${bg} ${text}`}>
-      {status}
+      {safeStatus != null ? String(safeStatus) : '—'}
     </span>
   );
 }

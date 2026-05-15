@@ -253,7 +253,13 @@ export const NAV_ITEMS = [
       { path: '/finance/cntracks', label: 'CN Tracking',         page: 'creditnotes' },
     ],
   },
-  { path: '/finance/invoices', label: 'Invoice Generator', page: 'invoicegen', icon: 'MdReceipt' },
+  {
+    label: 'Invoice Generator', page: 'invoicegen', icon: 'MdReceipt',
+    children: [
+      { path: '/finance/invoices/single', label: 'Single Product',    page: 'invoicegen' },
+      { path: '/finance/invoices/multi',  label: 'Multiple Products', page: 'invoicegen' },
+    ],
+  },
   {
     label: 'Tally Integration', page: 'tally', icon: 'MdSync',
     children: [

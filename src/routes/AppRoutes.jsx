@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from '../auth/ProtectedRoute';
+import ErrorBoundary from '../components/common/ErrorBoundary';
 
 import LoginPage     from '../pages/login/LoginPage';
 import DashboardPage from '../pages/dashboard/DashboardPage';
@@ -93,17 +94,17 @@ export default function AppRoutes() {
 
       {/* Inventory */}
       <Route path="/inventory"             element={<Navigate to="/inventory/dashboard" replace />} />
-      <Route path="/inventory/dashboard"   element={<P element={<InventorySubPage tab="dashboard" />} />} />
-      <Route path="/inventory/stock"       element={<P element={<InventorySubPage tab="stock" />} />} />
-      <Route path="/inventory/warehouses"  element={<P element={<InventorySubPage tab="warehouses" />} />} />
-      <Route path="/inventory/movement"    element={<P element={<InventorySubPage tab="movement" />} />} />
-      <Route path="/inventory/picking"     element={<P element={<InventorySubPage tab="picking" />} />} />
-      <Route path="/inventory/packing"     element={<P element={<InventorySubPage tab="packing" />} />} />
-      <Route path="/inventory/batch"       element={<P element={<InventorySubPage tab="batch" />} />} />
-      <Route path="/inventory/ageing"      element={<P element={<InventorySubPage tab="ageing" />} />} />
-      <Route path="/inventory/defective"   element={<P element={<InventorySubPage tab="defective" />} />} />
-      <Route path="/inventory/storage"     element={<P element={<InventorySubPage tab="storage" />} />} />
-      <Route path="/inventory/pincode"     element={<P element={<InventorySubPage tab="pincode" />} />} />
+      <Route path="/inventory/dashboard"   element={<P element={<ErrorBoundary><InventorySubPage tab="dashboard" /></ErrorBoundary>} />} />
+      <Route path="/inventory/stock"       element={<P element={<ErrorBoundary><InventorySubPage tab="stock" /></ErrorBoundary>} />} />
+      <Route path="/inventory/warehouses"  element={<P element={<ErrorBoundary><InventorySubPage tab="warehouses" /></ErrorBoundary>} />} />
+      <Route path="/inventory/movement"    element={<P element={<ErrorBoundary><InventorySubPage tab="movement" /></ErrorBoundary>} />} />
+      <Route path="/inventory/picking"     element={<P element={<ErrorBoundary><InventorySubPage tab="picking" /></ErrorBoundary>} />} />
+      <Route path="/inventory/packing"     element={<P element={<ErrorBoundary><InventorySubPage tab="packing" /></ErrorBoundary>} />} />
+      <Route path="/inventory/batch"       element={<P element={<ErrorBoundary><InventorySubPage tab="batch" /></ErrorBoundary>} />} />
+      <Route path="/inventory/ageing"      element={<P element={<ErrorBoundary><InventorySubPage tab="ageing" /></ErrorBoundary>} />} />
+      <Route path="/inventory/defective"   element={<P element={<ErrorBoundary><InventorySubPage tab="defective" /></ErrorBoundary>} />} />
+      <Route path="/inventory/storage"     element={<P element={<ErrorBoundary><InventorySubPage tab="storage" /></ErrorBoundary>} />} />
+      <Route path="/inventory/pincode"     element={<P element={<ErrorBoundary><InventorySubPage tab="pincode" /></ErrorBoundary>} />} />
 
       {/* Production */}
       <Route path="/production"             element={<Navigate to="/production/bom" replace />} />
@@ -156,7 +157,9 @@ export default function AppRoutes() {
       <Route path="/finance/notes"     element={<P element={<FinanceSubPage tab="notes" />} />} />
       <Route path="/finance/matching"  element={<P element={<FinanceSubPage tab="matching" />} />} />
       <Route path="/finance/cntracks"  element={<P element={<CreditNoteTrackingPage />} />} />
-      <Route path="/finance/invoices"  element={<P element={<InvoiceGeneratorPage />} />} />
+      <Route path="/finance/invoices"         element={<Navigate to="/finance/invoices/single" replace />} />
+      <Route path="/finance/invoices/single"  element={<P element={<InvoiceGeneratorPage type="single" />} />} />
+      <Route path="/finance/invoices/multi"   element={<P element={<InvoiceGeneratorPage type="multi" />} />} />
 
       {/* Forecasting */}
       <Route path="/forecasting"            element={<Navigate to="/forecasting/demand" replace />} />

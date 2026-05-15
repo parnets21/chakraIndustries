@@ -110,38 +110,71 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const [batchForm, setBatchForm] = useState({ batch: '', sku: '', qty: '', warehouse: '', mfg: '', exp: '' });
   const [defectForm, setDefectForm] = useState({ sku: '', qty: '', type: 'Dimensional', source: 'GRN Inspection', stage: 'QC Hold', warehouse: '', remarks: '' });
 
-  // ── Load data ──────────────────────────────────────────────────────────────
+  // ── Load data with rate limiting ──────────────────────────────────────────
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
       console.log('Starting to load all data...');
-      const [stockRes, whRes, movRes, statsRes, pickRes, sortRes, packRes, batchRes, defectRes, poRes, catRes, ageingRes, returnRes] = await Promise.all([
+      
+      // Batch 1: Core inventory data (most important)
+      const [stockRes, whRes, statsRes] = await Promise.all([
         inventoryApi.getAll(),
         inventoryApi.getWarehouses(),
-        inventoryApi.getMovements(),
         inventoryApi.getStats(),
-        pickingApi.getAll(),
-        sortingApi.getAll(),
-        packingApi.getAll(),
-        batchApi.getAll(),
-        defectiveStockApi.getAll(),
-        poApi.getAll(),
+      ]);
+      
+      // Small delay to prevent rate limiting
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Batch 2: Movement and category data
+      const [movRes, catRes, ageingRes] = await Promise.all([
+        inventoryApi.getMovements(),
         categoryApi.getAll(),
         getAgeingStock(),
         materialReturnApi.getWarehouseQueue().catch(() => ({ data: [] })) // Fallback if returns API fails
       ]);
-      const stock = stockRes.data || [];
-      const whs   = whRes.data   || [];
-      const movs  = movRes.data  || [];
-      const cats  = catRes.data  || [];
-      const picks = pickRes.data || [];
-      const sorts = sortRes.data || [];
-      const packs = packRes.data || [];
+      
+      // Small delay to prevent rate limiting
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Batch 3: Operational data
+      const [pickRes, sortRes, packRes] = await Promise.all([
+        pickingApi.getAll(),
+        sortingApi.getAll(),
+        packingApi.getAll(),
+      ]);
+      
+      // Small delay to prevent rate limiting
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Batch 4: Additional data
+      const [batchRes, defectRes, poRes] = await Promise.all([
+        batchApi.getAll(),
+        defectiveStockApi.getAll(),
+        poApi.getAll(),
+      ]);
+      
+      // Sanitize stock items — flatten any populated object fields to primitives
+      const sanitizeStock = (items) => (items || []).map(item => ({
+        ...item,
+        name:      typeof item.name     === 'object' ? (item.name?.name || item.sku || '—')     : (item.name     || item.sku || '—'),
+        sku:       typeof item.sku      === 'object' ? (item.sku?.sku   || '—')                 : (item.sku      || '—'),
+        status:    typeof item.status   === 'object' ? (item.status?.status || 'Active')         : (item.status   || 'Active'),
+        warehouse: typeof item.warehouse === 'object' ? (item.warehouse?.warehouseId || item.warehouse?.id || '—') : (item.warehouse || '—'),
+        category:  item.category && typeof item.category === 'object' ? item.category : null,
+      }));
+
+      const stock   = sanitizeStock(stockRes.data);
+      const whs     = whRes.data   || [];
+      const movs    = movRes.data  || [];
+      const cats    = catRes.data  || [];
+      const picks   = pickRes.data || [];
+      const sorts   = sortRes.data || [];
+      const packs   = packRes.data || [];
       const batches = batchRes.data || [];
       const defects = defectRes.data || [];
-      const pos = poRes.data || [];
-      const ageing = ageingRes.data || [];
-      const returns = returnRes.data || [];
+      const pos     = poRes.data   || [];
+      const ageing  = ageingRes.data || [];
       
       console.log('Stock data received:', stock);
       if (stock.length > 0) {
@@ -172,7 +205,11 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       if (whs.length > 0 && !selectedWH) setSelectedWH(whs[0]);
     } catch (e) {
       console.error('Error loading data:', e);
-      toast('Failed to load data', 'error');
+      if (e.message && e.message.includes('429')) {
+        toast('Too many requests. Please wait a moment and try again.', 'error');
+      } else {
+        toast('Failed to load data', 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -189,13 +226,28 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const filteredStock = stockList
     .filter(r => stockFilter === 'All' || r.status === stockFilter)
     .filter(r => whFilter === 'All' || r.warehouse === whFilter)
-    .filter(r => !stockSearch || r.sku.toLowerCase().includes(stockSearch.toLowerCase()) || r.name.toLowerCase().includes(stockSearch.toLowerCase()));
+    .filter(r => {
+      if (!stockSearch) return true;
+      const sku  = typeof r.sku  === 'string' ? r.sku  : String(r.sku  || '');
+      const name = typeof r.name === 'string' ? r.name : String(r.name || '');
+      const q = stockSearch.toLowerCase();
+      return sku.toLowerCase().includes(q) || name.toLowerCase().includes(q);
+    });
 
-  const lowStockItems = stockList.filter(s => s.qty < s.minQty && s.qty > 0);
+  const lowStockItems = stockList.filter(s =>
+    s.status === 'Critical' || (s.minQty > 0 && s.qty < s.minQty && s.qty > 0)
+  );
 
   const chartData = (() => {
     if (!stats?.byWarehouse) return [{ label: 'Active', value: stats?.active || 0, color: '#c0392b' }, { label: 'Critical', value: stats?.critical || 0, color: '#f59e0b' }, { label: 'Dead', value: stats?.dead || 0, color: '#94a3b8' }];
-    return Object.entries(stats.byWarehouse).map(([id, d], i) => ({ label: id, value: d.qty, color: GRADIENTS[i % GRADIENTS.length].match(/#[a-f0-9]{6}/gi)?.[0] || RED }));
+    return Object.entries(stats.byWarehouse).map(([id, d], i) => {
+      const gradientColor = GRADIENTS[i % GRADIENTS.length].match(/#[a-f0-9]{6}/gi);
+      return { 
+        label: String(id), 
+        value: Number(d.qty) || 0, 
+        color: gradientColor?.[0] || RED 
+      };
+    });
   })();
 
   // ── Handlers ──────────────────────────────────────────────────────────────
@@ -450,6 +502,21 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   // ── Ageing data from API ────────────────────────────────────────────────────
   // (Already loaded in loadAll function)
 
+  // ── Debug: log data shapes to catch any objects being rendered ────────────
+  if (process.env.NODE_ENV !== 'production') {
+    if (stockList.length > 0) {
+      const s = stockList[0];
+      if (typeof s.name === 'object') console.error('[INV DEBUG] stockList[0].name is object:', s.name);
+      if (typeof s.sku === 'object')  console.error('[INV DEBUG] stockList[0].sku is object:', s.sku);
+      if (typeof s.status === 'object') console.error('[INV DEBUG] stockList[0].status is object:', s.status);
+    }
+    if (ageingData.length > 0) {
+      const a = ageingData[0];
+      if (typeof a.bucket === 'object') console.error('[INV DEBUG] ageingData[0].bucket is object:', a.bucket);
+      if (typeof a.value === 'object')  console.error('[INV DEBUG] ageingData[0].value is object:', a.value);
+    }
+  }
+
   if (loading) return <Spinner />;
 
   return (
@@ -492,7 +559,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                   <div style={{ display: 'flex', gap: 12 }}>
                     {[{ l: 'Active', color: GREEN }, { l: 'Critical', color: AMBER }, { l: 'Dead', color: '#94a3b8' }].map(x => (
                       <div key={x.l} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: TEXT_MID, fontWeight: 600 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: 2, background: x.color }} />{x.l}
+                        <div style={{ width: 8, height: 8, borderRadius: 2, background: x.color }} />{String(x.l)}
                       </div>
                     ))}
                   </div>
@@ -517,8 +584,8 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     <div key={mv._id || i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 22px', borderBottom: i < Math.min(movementList.length, 6) - 1 ? '1px solid #f8fafc' : 'none' }}>
                       <div style={{ width: 36, height: 36, borderRadius: 10, background: tc + '15', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, color: tc, fontWeight: 900, flexShrink: 0 }}>{ti}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{mv.name || mv.sku}</div>
-                        <div style={{ fontSize: 11, color: TEXT_LIGHT, marginTop: 2 }}>{mv.from} → {mv.to}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{String(mv.name || mv.sku || '—')}</div>
+                        <div style={{ fontSize: 11, color: TEXT_LIGHT, marginTop: 2 }}>{String(mv.from || '—')} → {String(mv.to || '—')}</div>
                       </div>
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
                         <div style={{ fontSize: 14, fontWeight: 800, color: tc }}>{mv.qty}</div>
@@ -554,8 +621,8 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 ) : (
                   <div>
                     {[
-                      ...stockList.filter(s => s.status === 'Dead').map(s => ({ label: s.name, sku: s.sku, sub: 'Dead stock · 0 units', color: '#94a3b8', leftBar: '#94a3b8', bg: '#fafafa' })),
-                      ...lowStockItems.map(s => ({ label: s.name, sku: s.sku, sub: `${s.qty} units · min ${s.minQty}`, color: s.qty < s.minQty * 0.5 ? RED_LIGHT : AMBER, leftBar: s.qty < s.minQty * 0.5 ? RED_LIGHT : AMBER, bg: s.qty < s.minQty * 0.5 ? '#fff8f8' : '#fffdf5' })),
+                      ...stockList.filter(s => s.status === 'Dead').map(s => ({ label: String(s.name || '—'), sku: String(s.sku || '—'), sub: 'Dead stock · 0 units', color: '#94a3b8', leftBar: '#94a3b8', bg: '#fafafa' })),
+                      ...lowStockItems.map(s => ({ label: String(s.name || '—'), sku: String(s.sku || '—'), sub: `${s.qty} units · min ${s.minQty || 0}`, color: (s.minQty > 0 && s.qty < s.minQty * 0.5) || s.status === 'Critical' ? RED_LIGHT : AMBER, leftBar: (s.minQty > 0 && s.qty < s.minQty * 0.5) || s.status === 'Critical' ? RED_LIGHT : AMBER, bg: (s.minQty > 0 && s.qty < s.minQty * 0.5) || s.status === 'Critical' ? '#fff8f8' : '#fffdf5' })),
                     ].slice(0, 7).map((a, i, arr) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: i < arr.length - 1 ? '1px solid #f8fafc' : 'none', background: a.bg, borderLeft: `3px solid ${a.leftBar}` }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -587,8 +654,8 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     <div key={i} style={{ padding: '14px 20px', borderBottom: i < warehouseList.length - 1 ? '1px solid #f8fafc' : 'none' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                         <div>
-                          <span style={{ fontSize: 12.5, fontWeight: 800, color: TEXT_DARK }}>{wh.warehouseId || wh.id}</span>
-                          <span style={{ fontSize: 11, color: TEXT_LIGHT, marginLeft: 7 }}>{wh.name}</span>
+                          <span style={{ fontSize: 12.5, fontWeight: 800, color: TEXT_DARK }}>{String(wh.warehouseId || wh.id || '—')}</span>
+                          <span style={{ fontSize: 11, color: TEXT_LIGHT, marginLeft: 7 }}>{String(wh.name || '—')}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ fontSize: 11, color: TEXT_LIGHT }}>{wh.skus ?? 0} SKUs</span>
@@ -648,16 +715,16 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     <td style={{ padding: '11px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                         <div style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: r.status === 'Critical' ? RED_LIGHT : r.status === 'Dead' ? '#94a3b8' : GREEN }} />
-                        <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: RED }}>{r.sku}</span>
+                        <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: RED }}>{String(r.sku || '—')}</span>
                       </div>
                     </td>
                     <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{String(r.name || r.itemName || r.sku || '—')}</td>
                     <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.category && r.category.name ? String(r.category.name) : '—'}</td>
                     <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.warehouse && typeof r.warehouse === 'object' ? (r.warehouse.warehouseId || r.warehouse.id || '—') : (r.warehouse || '—')}</td>
                     <td style={{ padding:'11px 16px' }}>
-                      <span style={{ display:'inline-block', padding:'3px 10px', borderRadius:20, fontSize:12, fontWeight:700, background: r.qty < r.minQty ? '#fef2f2' : '#f0fdf4', color: r.qty < r.minQty ? RED_LIGHT : GREEN }}>{r.qty}</span>
+                      <span style={{ display:'inline-block', padding:'3px 10px', borderRadius:20, fontSize:12, fontWeight:700, background: r.status === 'Critical' || (r.minQty > 0 && r.qty < r.minQty) ? '#fef2f2' : '#f0fdf4', color: r.status === 'Critical' || (r.minQty > 0 && r.qty < r.minQty) ? RED_LIGHT : GREEN }}>{r.qty}</span>
                     </td>
-                    <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.minQty}</td>
+                    <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.minQty || 0}</td>
                     <td style={{ padding:'11px 16px' }}><StatusBadge status={r.status} /></td>
                     <td style={{ padding:'11px 16px' }}>
                       <div style={{ display:'flex', gap:6 }}>
@@ -744,9 +811,9 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                         {whStock.length === 0 ? <tr><td colSpan={4} style={{ padding: '24px', textAlign: 'center', color: TEXT_LIGHT, fontSize: 13 }}>No stock in this warehouse</td></tr>
                           : whStock.map((r, i) => (
                             <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }} onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                              <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: RED }}>{r.sku}</td>
-                              <td style={{ padding: '10px 14px', fontSize: 12.5, fontWeight: 600, color: TEXT_DARK }}>{r.name}</td>
-                              <td style={{ padding: '10px 14px' }}><span style={{ padding: '2px 9px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: r.qty < r.minQty ? '#fef2f2' : '#f0fdf4', color: r.qty < r.minQty ? RED_LIGHT : GREEN }}>{r.qty}</span></td>
+                              <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: RED }}>{String(r.sku || '—')}</td>
+                              <td style={{ padding: '10px 14px', fontSize: 12.5, fontWeight: 600, color: TEXT_DARK }}>{String(r.name || '—')}</td>
+                              <td style={{ padding: '10px 14px' }}><span style={{ padding: '2px 9px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: r.status === 'Critical' || (r.minQty > 0 && r.qty < r.minQty) ? '#fef2f2' : '#f0fdf4', color: r.status === 'Critical' || (r.minQty > 0 && r.qty < r.minQty) ? RED_LIGHT : GREEN }}>{r.qty}</span></td>
                               <td style={{ padding: '10px 14px' }}><StatusBadge status={r.status} /></td>
                             </tr>
                           ))}
@@ -816,16 +883,16 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 <div key={mv._id || i} style={{ ...card(), padding: '16px 20px', borderLeft: `4px solid ${typeColor}`, display: 'flex', alignItems: 'center', gap: 20 }}>
                   <div style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0, background: typeColor + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: typeColor, fontWeight: 900 }}>{typeIcon}</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: TEXT_DARK }}>{mv.name || mv.sku}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: TEXT_DARK }}>{String(mv.name || mv.sku || '—')}</div>
                     <div style={{ display: 'flex', gap: 10, marginTop: 4, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 11.5, fontFamily: 'monospace', color: RED, fontWeight: 600 }}>{mv.sku}</span>
-                      <span style={{ fontSize: 11.5, color: TEXT_LIGHT }}>Ref: {mv.ref || '—'}</span>
-                      <span style={{ fontSize: 11.5, color: TEXT_LIGHT }}>{mv.movementId}</span>
+                      <span style={{ fontSize: 11.5, fontFamily: 'monospace', color: RED, fontWeight: 600 }}>{String(mv.sku || '—')}</span>
+                      <span style={{ fontSize: 11.5, color: TEXT_LIGHT }}>Ref: {String(mv.ref || '—')}</span>
+                      <span style={{ fontSize: 11.5, color: TEXT_LIGHT }}>{String(mv.movementId || '—')}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                      <span style={{ fontSize: 12, color: TEXT_MID, fontWeight: 600 }}>{mv.from}</span>
+                      <span style={{ fontSize: 12, color: TEXT_MID, fontWeight: 600 }}>{String(mv.from || '—')}</span>
                       <span style={{ fontSize: 14, color: typeColor }}>→</span>
-                      <span style={{ fontSize: 12, color: TEXT_MID, fontWeight: 600 }}>{mv.to}</span>
+                      <span style={{ fontSize: 12, color: TEXT_MID, fontWeight: 600 }}>{String(mv.to || '—')}</span>
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -1042,15 +1109,15 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                   <tbody>
                     {ageingData.map((r, i) => (
                       <tr key={i} style={{ borderBottom:'1px solid #f1f5f9', background: i%2===0 ? '#f8fafc' : '#fff' }}>
-                        <td style={{ padding:'11px 16px', fontFamily:'monospace', fontWeight:700, color: RED }}>{r.sku}</td>
-                        <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{r.item}</td>
-                        <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.whName || r.wh}</td>
+                        <td style={{ padding:'11px 16px', fontFamily:'monospace', fontWeight:700, color: RED }}>{String(r.sku || '—')}</td>
+                        <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{String(r.item || '—')}</td>
+                        <td style={{ padding:'11px 16px', color: TEXT_MID }}>{String(r.whName || r.wh || '—')}</td>
                         <td style={{ padding:'11px 16px', fontWeight:700, color: BLUE }}>{r.qty}</td>
-                        <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.lastMov}</td>
+                        <td style={{ padding:'11px 16px', color: TEXT_MID }}>{String(r.lastMov || '—')}</td>
                         <td style={{ padding:'11px 16px' }}><span style={{ fontWeight:700, color: r.days > 90 ? RED_LIGHT : r.days > 60 ? '#f97316' : r.days > 30 ? AMBER : GREEN }}>{r.days}d</span></td>
-                        <td style={{ padding:'11px 16px' }}><span style={{ padding:'2px 9px', borderRadius:20, fontSize:11, fontWeight:700, background: r.days>90 ? '#fef2f2' : r.days>60 ? '#fff7ed' : r.days>30 ? '#fffbeb' : '#f0fdf4', color: r.actionColor }}>{r.bucket}</span></td>
-                        <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{r.value}</td>
-                        <td style={{ padding:'11px 16px' }}><span style={{ fontSize:12, fontWeight:600, color: r.actionColor }}>{r.action}</span></td>
+                        <td style={{ padding:'11px 16px' }}><span style={{ padding:'2px 9px', borderRadius:20, fontSize:11, fontWeight:700, background: r.days>90 ? '#fef2f2' : r.days>60 ? '#fff7ed' : r.days>30 ? '#fffbeb' : '#f0fdf4', color: r.actionColor }}>{String(r.bucket || '—')}</span></td>
+                        <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{String(r.value || '—')}</td>
+                        <td style={{ padding:'11px 16px' }}><span style={{ fontSize:12, fontWeight:600, color: r.actionColor }}>{String(r.action || '—')}</span></td>
                       </tr>
                     ))}
                   </tbody>

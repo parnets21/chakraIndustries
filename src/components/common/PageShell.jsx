@@ -66,8 +66,8 @@ export function KpiStrip({ kpis }) {
               }}>{k.up ? '↑' : '↓'} {k.change}</span>
             )}
           </div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: k.color || '#0f172a', letterSpacing: '-0.5px', lineHeight: 1 }}>{k.value}</div>
-          <div style={{ fontSize: 11.5, color: '#64748b', fontWeight: 500, marginTop: 5 }}>{k.label}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: k.color || '#0f172a', letterSpacing: '-0.5px', lineHeight: 1 }}>{String(k.value || '—')}</div>
+          <div style={{ fontSize: 11.5, color: '#64748b', fontWeight: 500, marginTop: 5 }}>{String(k.label || '')}</div>
         </div>
       ))}
     </div>

@@ -71,10 +71,10 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
   const fetchAll = useCallback(async (p = 1, q = '') => {
     setLoading(true);
     try {
-      const params = { page: p, limit: PAGE_SIZE };
+      // limit=0 → backend returns ALL records; frontend handles pagination
+      const params = { limit: 0 };
       if (q.trim()) params.search = q.trim();
 
-      // Fetch ALL invoices and split on the frontend based on items.length
       const [allRes, statsRes] = await Promise.all([
         invoiceApi.getAll(params),
         invoiceApi.getStats(),
@@ -1504,24 +1504,37 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
         >
           {/* Summary bar */}
           <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+            {/* Total valid */}
             <div style={{ flex: 1, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
               <MdCheckCircle size={20} color="#22c55e" />
               <div>
                 <div style={{ fontSize: 20, fontWeight: 800, color: '#16a34a' }}>{uploadPreviewData.valid.length}</div>
-                <div style={{ fontSize: 11, color: '#15803d' }}>Valid invoices ready to create</div>
-                {uploadPreviewData.valid[0]?.uniqueId && (
-                  <div style={{ fontSize: 10, color: '#15803d', marginTop: 2 }}>
-                    ✓ UniqueId detected · ✓ PO Number detected · ✓ Brand detected
-                  </div>
-                )}
+                <div style={{ fontSize: 11, color: '#15803d' }}>Total valid invoices to create</div>
               </div>
             </div>
+            {/* Single-product split */}
+            <div style={{ flex: 1, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 16px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#15803d', marginBottom: 4 }}>🟢 Single Product</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#16a34a' }}>
+                {uploadPreviewData.valid.filter(inv => (inv.items?.length || 0) <= 1).length}
+              </div>
+              <div style={{ fontSize: 10, color: '#15803d', marginTop: 2 }}>→ Single Product Invoices section</div>
+            </div>
+            {/* Multi-product split */}
+            <div style={{ flex: 1, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '12px 16px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', marginBottom: 4 }}>🔵 Multiple Products</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#1d4ed8' }}>
+                {uploadPreviewData.valid.filter(inv => (inv.items?.length || 0) > 1).length}
+              </div>
+              <div style={{ fontSize: 10, color: '#1d4ed8', marginTop: 2 }}>→ Multiple Products Invoices section</div>
+            </div>
+            {/* Errors */}
             {uploadPreviewData.errors.length > 0 && (
               <div style={{ flex: 1, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
                 <MdError size={20} color="#ef4444" />
                 <div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: '#dc2626' }}>{uploadPreviewData.errors.length}</div>
-                  <div style={{ fontSize: 11, color: '#b91c1c' }}>Rows with errors (will be skipped)</div>
+                  <div style={{ fontSize: 11, color: '#b91c1c' }}>Rows with errors (skipped)</div>
                 </div>
               </div>
             )}
@@ -1551,7 +1564,7 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                   <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>
                     <tr>
-                      {['#', 'Unique ID', 'PO Number', 'PO Date', 'Ship To', 'City', 'State', 'Product', 'Brand', 'Qty', 'Dispatch Date', 'AWB', 'Courier', 'Order Status'].map(h => (
+                      {['#', 'Type', 'Unique ID', 'PO Number', 'PO Date', 'Ship To', 'City', 'State', 'Product(s)', 'Brand', 'Qty', 'Dispatch Date', 'AWB', 'Courier', 'Order Status'].map(h => (
                         <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: TEXT_LIGHT, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e8edf2', whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
@@ -1559,18 +1572,32 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
                   <tbody>
                     {uploadPreviewData.valid.map((inv, i) => {
                       const item = inv.items?.[0] || {};
+                      const isSingle = (inv.items?.length || 0) <= 1;
+                      const totalQty = inv.items?.reduce((s, it) => s + (Number(it.qty) || 0), 0) ?? 0;
                       return (
                         <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#fff' : '#f8fafc' }}>
                           <td style={{ padding: '7px 12px', color: TEXT_LIGHT, fontWeight: 700 }}>{i + 1}</td>
+                          <td style={{ padding: '7px 12px', whiteSpace: 'nowrap' }}>
+                            {isSingle
+                              ? <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}>Single</span>
+                              : <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>Multi ({inv.items?.length})</span>
+                            }
+                          </td>
                           <td style={{ padding: '7px 12px', fontFamily: 'monospace', fontSize: 11, color: TEXT_MID, whiteSpace: 'nowrap' }}>{inv.uniqueId || '—'}</td>
                           <td style={{ padding: '7px 12px', fontFamily: 'monospace', fontSize: 11, color: BLUE, whiteSpace: 'nowrap' }}>{inv.purchaseOrderRef || '—'}</td>
                           <td style={{ padding: '7px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.poDate || '—'}</td>
                           <td style={{ padding: '7px 12px', fontWeight: 600, color: TEXT_DARK, maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={inv.partyName}>{inv.partyName}</td>
                           <td style={{ padding: '7px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.partyCity || '—'}</td>
                           <td style={{ padding: '7px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.partyState || '—'}</td>
-                          <td style={{ padding: '7px 12px', color: TEXT_MID, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.description}>{item.description || '—'}</td>
+                          <td style={{ padding: '7px 12px', color: TEXT_MID, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                            title={inv.items?.map(it => it.description).join(', ')}>
+                            {item.description || '—'}
+                            {inv.items?.length > 1 && (
+                              <span style={{ marginLeft: 4, fontSize: 10, background: '#eff6ff', color: '#1d4ed8', borderRadius: 8, padding: '1px 5px', fontWeight: 700 }}>+{inv.items.length - 1}</span>
+                            )}
+                          </td>
                           <td style={{ padding: '7px 12px', color: TEXT_MID, whiteSpace: 'nowrap' }}>{inv.brandName || '—'}</td>
-                          <td style={{ padding: '7px 12px', color: TEXT_DARK, fontWeight: 600, textAlign: 'center' }}>{item.qty ?? '—'}</td>
+                          <td style={{ padding: '7px 12px', color: TEXT_DARK, fontWeight: 600, textAlign: 'center' }}>{totalQty || item.qty || '—'}</td>
                           <td style={{ padding: '7px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.dispatchDate || '—'}</td>
                           <td style={{ padding: '7px 12px', fontFamily: 'monospace', fontSize: 11, color: TEXT_MID, whiteSpace: 'nowrap' }}>{inv.awb || '—'}</td>
                           <td style={{ padding: '7px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.courierName || '—'}</td>

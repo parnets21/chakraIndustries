@@ -248,3 +248,34 @@ export function ProgressBar({ pct, color = '#c0392b', height = 7 }) {
     </div>
   );
 }
+// ── Default PageShell Wrapper ────────────────────────────────────────────────
+export default function PageShell({ 
+  title, 
+  subtitle, 
+  breadcrumb, 
+  action, 
+  children 
+}) {
+  return (
+    <div style={{ padding: '20px', minHeight: '100vh', background: '#f8fafc' }}>
+      {(title || subtitle) && (
+        <PageHeader 
+          title={title} 
+          breadcrumb={breadcrumb} 
+          action={action}
+        />
+      )}
+      {subtitle && (
+        <div style={{ 
+          fontSize: 14, 
+          color: '#64748b', 
+          marginBottom: 20,
+          marginTop: title ? -10 : 0 
+        }}>
+          {subtitle}
+        </div>
+      )}
+      <div>{children}</div>
+    </div>
+  );
+}

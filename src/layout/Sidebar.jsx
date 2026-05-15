@@ -4,7 +4,7 @@ import {
   MdDashboard, MdShoppingCart, MdInventory2, MdPrecisionManufacturing,
   MdStar, MdAssignment, MdLocalShipping, MdAssignmentReturn,
   MdAccountBalance, MdSync, MdTrendingUp, MdBarChart, MdBuild,
-  MdQrCode2, MdTask, MdSettings, MdBusinessCenter,
+  MdQrCode2, MdTask, MdSettings, MdBusinessCenter, MdReceipt,
   MdChevronLeft, MdChevronRight, MdClose, MdAdminPanelSettings,
   MdExpandMore, MdExpandLess,
 } from 'react-icons/md';
@@ -15,7 +15,7 @@ const ICON_MAP = {
   MdDashboard, MdShoppingCart, MdInventory2, MdPrecisionManufacturing,
   MdStar, MdAssignment, MdLocalShipping, MdAssignmentReturn,
   MdAccountBalance, MdSync, MdTrendingUp, MdBarChart, MdBuild,
-  MdQrCode2, MdTask, MdSettings, MdBusinessCenter,
+  MdQrCode2, MdTask, MdSettings, MdBusinessCenter, MdReceipt,
 };
 
 const ROLE_COLORS = {
@@ -30,8 +30,7 @@ const ROLE_COLORS = {
 function NavGroup({ item, showLabels, collapsed }) {
   const location = useLocation();
   const isAnyChildActive = item.children?.some(c => location.pathname.startsWith(c.path));
-  // Finance group defaults open so Invoice Generator is always visible
-  const defaultOpen = isAnyChildActive || item.label === 'Finance';
+  const defaultOpen = isAnyChildActive;
   const [open, setOpen] = useState(defaultOpen);
 
   // Auto-open when navigating to a child route

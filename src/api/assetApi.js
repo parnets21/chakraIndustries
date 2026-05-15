@@ -1,9 +1,9 @@
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const BASE = import.meta.env.VITE_API_URL || 'https://chakraindustries-backend.onrender.com/api';
 const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
 const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
 
 // Set to true once you deploy the backend with asset routes
-const ASSET_API_DEPLOYED = false;
+const ASSET_API_DEPLOYED = true;
 
 const handle = async (res) => {
   const contentType = res.headers.get('content-type') || '';

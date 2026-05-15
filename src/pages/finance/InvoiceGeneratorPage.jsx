@@ -3,7 +3,11 @@ import * as XLSX from 'xlsx';
 import Modal from '../../components/common/Modal';
 import { invoiceApi } from '../../api/invoiceApi';
 import { toast } from '../../components/common/Toast';
-import { MdUpload, MdDownload, MdPrint, MdAdd, MdDelete, MdVisibility } from 'react-icons/md';
+import { MdUpload, MdDownload, MdPrint, MdDelete, MdDeleteSweep, MdVisibility, MdWarning, MdCheckCircle, MdError, MdShare, MdContentCopy } from 'react-icons/md';
+import { FaWhatsapp, FaEnvelope } from 'react-icons/fa';
+import { CHAKRA_LOGO_B64 } from '../../assets/chakraLogoB64';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 // Design tokens
 const RED = '#c0392b';
@@ -31,37 +35,36 @@ const btnOutline = {
   fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
 };
 
-const inp = {
-  width: '100%', padding: '8px 12px',
-  border: '1px solid #e2e8f0', borderRadius: 8,
-  fontSize: 13, outline: 'none', background: '#fff',
-  color: TEXT_DARK, fontFamily: 'inherit',
-};
-
 export default function InvoiceGeneratorPage() {
   const [invoices, setInvoices] = useState([]);
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
   const [showView, setShowView] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [showUploadPreview, setShowUploadPreview] = useState(false);
+  const [uploadPreviewData, setUploadPreviewData] = useState(null);
   const fileInputRef = useRef(null);
 
-  // Form state for manual creation
-  const [form, setForm] = useState({
-    partyName: '', partyAddress: '', partyGST: '', partyEmail: '', partyPhone: '',
-    invoiceDate: new Date().toISOString().split('T')[0],
-    dueDate: '',
-    items: [{ description: '', hsn: '', qty: 1, unit: 'Nos', rate: 0, discount: 0, taxRate: 18 }],
-    notes: '', terms: 'Payment due within 30 days.',
-  });
+  // Pagination
+  const PAGE_SIZE = 20;
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const [search, setSearch] = useState('');
+  const searchRef = useRef(null);
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (p = 1, q = '') => {
     setLoading(true);
     try {
-      const [listRes, statsRes] = await Promise.all([invoiceApi.getAll(), invoiceApi.getStats()]);
+      const params = { page: p, limit: PAGE_SIZE };
+      if (q.trim()) params.search = q.trim();
+      const [listRes, statsRes] = await Promise.all([
+        invoiceApi.getAll(params),
+        invoiceApi.getStats(),
+      ]);
       setInvoices(listRes.data || []);
+      setTotalCount(listRes.total || 0);
       setStats(statsRes.data || {});
     } catch (e) {
       console.error(e);
@@ -71,115 +74,446 @@ export default function InvoiceGeneratorPage() {
     }
   }, []);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  // Debounce search — wait 400ms after user stops typing
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setPage(1);
+      fetchAll(1, search);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [search]); // eslint-disable-line
+
+  useEffect(() => { fetchAll(page, search); }, [fetchAll, page]); // eslint-disable-line
+
+  // Close share dropdown when clicking outside
+  useEffect(() => {
+    const close = () => setShareMenuInv(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, []);
+
+  // ── Parse GRT Invoice Excel format ───────────────────────────────────────
+  // Format: Invoice No | Invoice Date | Bill To | Add1 | Add2 | GSTIN | PO NO | PO DATE |
+  //         Item Name | HSN | Qty | Unit Rate | Basic | cgst | sgst | igst | Total Value
+  // Rows are grouped by invoice — header fields only on first item row, blank on subsequent rows.
+  const parseGRTExcel = (rows) => {
+    const valid = [];
+    const errors = [];
+
+    const getField = (row, ...keys) => {
+      for (const k of keys) {
+        if (row[k] !== undefined && row[k] !== null && row[k] !== '') return String(row[k]).trim();
+        const lower = k.toLowerCase();
+        const found = Object.keys(row).find(rk => rk.trim().toLowerCase() === lower);
+        if (found !== undefined && row[found] !== undefined && row[found] !== '') return String(row[found]).trim();
+      }
+      return '';
+    };
+
+    const parseNum = (v) => parseFloat(String(v).replace(/,/g, '')) || 0;
+
+    const parseDateField = (val) => {
+      if (!val && val !== 0) return new Date().toISOString().split('T')[0];
+      if (typeof val === 'number') {
+        try {
+          const d = XLSX.SSF.parse_date_code(val);
+          return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+        } catch { return new Date().toISOString().split('T')[0]; }
+      }
+      const s = String(val).trim();
+      if (!s) return new Date().toISOString().split('T')[0];
+      const m1 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+      if (m1) {
+        const yr = m1[3].length === 2 ? '20' + m1[3] : m1[3];
+        return `${yr}-${m1[1].padStart(2,'0')}-${m1[2].padStart(2,'0')}`;
+      }
+      const m2 = s.match(/^(\d{1,2})[-.](\d{1,2})[-.](\d{2,4})$/);
+      if (m2) {
+        const yr = m2[3].length === 2 ? '20' + m2[3] : m2[3];
+        return `${yr}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`;
+      }
+      return s;
+    };
+
+    let currentInvoice = null;
+
+    rows.forEach((row, idx) => {
+      const rowNum = idx + 2;
+
+      const invoiceNo  = getField(row, 'Invoice No', 'InvoiceNo', 'Invoice No.');
+      const billTo     = getField(row, 'Bill To', 'BillTo', 'Party Name');
+      const itemName   = getField(row, 'Item Name', 'ItemName', 'Description', 'Item');
+      const hsn        = getField(row, 'HSN', 'HSN Code', 'HSN/SAC');
+
+      // New invoice starts when Invoice No is present
+      if (invoiceNo) {
+        // Save previous invoice
+        if (currentInvoice && currentInvoice.items.length > 0) {
+          valid.push(currentInvoice);
+        }
+
+        const add1 = getField(row, 'Add1', 'Address1', 'Address 1');
+        const add2 = getField(row, 'Add 2', 'Add2', 'Address2', 'Address 2');
+        const address = [add1, add2].filter(Boolean).join(', ');
+
+        currentInvoice = {
+          invoiceNo:        invoiceNo,
+          partyName:        billTo,
+          partyAddress:     address,
+          partyGST:         getField(row, 'GSTIN', 'GST', 'GST No', 'GSTIN No'),
+          partyEmail:       '',
+          partyPhone:       '',
+          invoiceDate:      parseDateField(getField(row, 'Invoice Date', 'InvoiceDate', 'Date')),
+          dueDate:          '',
+          purchaseOrderRef: getField(row, 'PO NO', 'PO No', 'PO Number', 'PO NO.'),
+          poDate:           parseDateField(getField(row, 'PO DATE', 'PO Date', 'PODate') || ''),
+          notes:            '',
+          terms:            'Payment due within 30 days.',
+          items:            [],
+        };
+      }
+
+      // Add item to current invoice
+      if (currentInvoice && itemName) {
+        const qty      = parseNum(getField(row, 'Qty', 'Quantity', 'QTY'));
+        const rate     = parseNum(getField(row, 'Unit Rate', 'UnitRate', 'Rate', 'Unit Price'));
+        const basic    = parseNum(getField(row, 'Basic', 'Taxable', 'Basic Amount'));
+        const cgst     = parseNum(getField(row, 'cgst', 'CGST', 'CGST Amount'));
+        const sgst     = parseNum(getField(row, 'sgst', 'SGST', 'SGST Amount'));
+        const igst     = parseNum(getField(row, 'igst', 'IGST', 'IGST Amount'));
+        const total    = parseNum(getField(row, 'Total Value', 'TotalValue', 'Total', 'Amount'));
+
+        // Compute tax rate from amounts
+        const taxAmt   = cgst + sgst + igst;
+        const taxRate  = basic > 0 ? Math.round((taxAmt / basic) * 100) : 0;
+
+        currentInvoice.items.push({
+          description: itemName,
+          hsn:         hsn,
+          qty:         qty || 1,
+          unit:        getField(row, 'Unit', 'UOM') || 'Nos',
+          rate:        rate || (qty > 0 ? basic / qty : basic),
+          discount:    0,
+          taxRate:     taxRate,
+          cgst,
+          sgst,
+          igst,
+          total,
+        });
+      } else if (!currentInvoice && itemName) {
+        errors.push({ row: rowNum, field: 'Invoice No', message: `Row ${rowNum}: Item found without invoice header` });
+      }
+    });
+
+    // Push last invoice
+    if (currentInvoice && currentInvoice.items.length > 0) {
+      valid.push(currentInvoice);
+    }
+
+    // Validate
+    valid.forEach((inv, i) => {
+      if (!inv.partyName) errors.push({ row: i + 1, field: 'Bill To', message: `Invoice ${inv.invoiceNo}: Missing Bill To` });
+    });
+
+    return { valid, errors };
+  };
+  // ── Parse Orders Excel ────────────────────────────────────────────────────
+  // Groups rows by PurchaseOrder — same PO = one invoice with multiple items.
+  const parseOrdersExcel = (rows) => {
+    const valid = [];
+    const errors = [];
+    const invoiceMap = {}; // key: PurchaseOrder → invoice object
+
+    const getField = (row, ...keys) => {
+      for (const k of keys) {
+        if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') return String(row[k]).trim();
+        const lower = k.toLowerCase();
+        const found = Object.keys(row).find(rk => rk.trim().toLowerCase() === lower);
+        if (found !== undefined && row[found] !== undefined && String(row[found]).trim() !== '') return String(row[found]).trim();
+      }
+      return '';
+    };
+
+    const parseDateField = (val) => {
+      if (!val && val !== 0) return new Date().toISOString().split('T')[0];
+      if (typeof val === 'number') {
+        try {
+          const d = XLSX.SSF.parse_date_code(val);
+          return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+        } catch { return new Date().toISOString().split('T')[0]; }
+      }
+      const s = String(val).trim();
+      if (!s) return new Date().toISOString().split('T')[0];
+      const m1 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+      if (m1) { const yr = m1[3].length === 2 ? '20'+m1[3] : m1[3]; return `${yr}-${m1[1].padStart(2,'0')}-${m1[2].padStart(2,'0')}`; }
+      const m2 = s.match(/^(\d{1,2})-(\d{1,2})-(\d{2,4})$/);
+      if (m2) { const yr = m2[3].length === 2 ? '20'+m2[3] : m2[3]; return `${yr}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`; }
+      return s;
+    };
+
+    const parseNum = (v) => parseFloat(String(v || '0').replace(/,/g, '')) || 0;
+
+    rows.forEach((row, idx) => {
+      const rowNum = idx + 2;
+
+      const po          = getField(row, 'PurchaseOrder', 'Purchase Order', 'PO');
+      const uniqueId    = getField(row, 'UniqueId', 'UniqueID', 'Unique Id');
+      const shipToName  = getField(row, 'ShipToName', 'Ship To Name');
+      const productDesc = getField(row, 'ProductDescription', 'Product Description');
+      const productCode = getField(row, 'ProductCode', 'Product Code', 'BIPartNumber', 'BI Part Number');
+
+      if (!po && !uniqueId) { errors.push({ row: rowNum, field: 'PurchaseOrder', message: 'Missing PO and UniqueId' }); return; }
+      if (!shipToName)      { errors.push({ row: rowNum, field: 'ShipToName',    message: `Row ${rowNum}: Missing ShipToName` }); return; }
+      if (!productDesc && !productCode) { errors.push({ row: rowNum, field: 'ProductDescription', message: `Row ${rowNum}: Missing product` }); return; }
+
+      // Tax values
+      const cgst = parseNum(getField(row, 'CGST', 'cgst'));
+      const sgst = parseNum(getField(row, 'SGST', 'sgst'));
+      const igst = parseNum(getField(row, 'IGST', 'igst'));
+      const qty  = parseNum(getField(row, 'Quantity', 'Qty')) || 1;
+      const rate = parseNum(getField(row, 'UnitPrice', 'Unit Price', 'Rate'));
+
+      // HSN from dedicated column
+      const hsnCode = getField(row, 'HSN Code', 'HSN', 'HSNCode', 'hsn') || productCode;
+
+      // Tax rate from amounts
+      const taxableBase = rate * qty;
+      const totalTaxAmt = cgst + sgst + igst;
+      const taxRate = taxableBase > 0 && totalTaxAmt > 0 ? Math.round((totalTaxAmt / taxableBase) * 100) : 0;
+
+      // Group key — use PurchaseOrder as the invoice grouping key
+      const groupKey = po || uniqueId;
+
+      if (!invoiceMap[groupKey]) {
+        // Build address
+        const addrParts = [
+          getField(row, 'ShipToAddress1', 'Ship To Address1'),
+          getField(row, 'ShipToAddress2', 'Ship To Address2'),
+          getField(row, 'ShipToAddress3', 'Ship To Address3'),
+          getField(row, 'ShipToAddress4', 'Ship To Address4'),
+          getField(row, 'City'),
+          getField(row, 'State'),
+          getField(row, 'Postal'),
+          getField(row, 'Country'),
+        ].filter(Boolean);
+
+        // Phone/email
+        const rawPhone = getField(row, 'Phone');
+        const phoneMatch = rawPhone.match(/\(D\)([^\s(]+)/);
+        const emailMatch = rawPhone.match(/\(E\)([^\s(]+)/);
+        const phone = phoneMatch ? phoneMatch[1].replace(/\//g,'') : rawPhone.replace(/[^0-9+]/g,'').slice(0,15);
+        const emailFromPhone = emailMatch ? emailMatch[1] : '';
+        const email = getField(row, 'Email') || emailFromPhone;
+
+        const billToName    = getField(row, 'Bill To', 'BillTo');
+        const billToAddress = getField(row, 'Bill To add', 'BillToAdd', 'BillToAddress');
+        const billToGST     = getField(row, 'GSTin', 'GSTIN', 'GST', 'GSTIn');
+
+        invoiceMap[groupKey] = {
+          partyName:    shipToName,
+          partyAddress: addrParts.join(', '),
+          partyGST:     billToGST,
+          partyEmail:   email,
+          partyPhone:   phone,
+          partyCity:    getField(row, 'City'),
+          partyState:   getField(row, 'State'),
+          partyPostal:  getField(row, 'Postal'),
+          partyCountry: getField(row, 'Country'),
+          billToName,
+          billToAddress,
+          billToGST,
+          invoiceDate:      parseDateField(getField(row, 'PODate', 'PO Date', 'InvoiceDate', 'Invoice Date')),
+          dueDate:          '',
+          purchaseOrderRef: po,
+          poDate:           getField(row, 'PODate', 'PO Date'),
+          uniqueId,
+          vendorCode:       getField(row, 'VendorCode', 'Vendor Code'),
+          accountNumber:    getField(row, 'AccountNumber', 'Account Number'),
+          programNumber:    getField(row, 'ProgramNumber', 'Program Number'),
+          brandName:        getField(row, 'BrandName', 'Brand Name'),
+          orderStatus:      getField(row, 'OrderStatus', 'Order Status'),
+          biwpo:            getField(row, 'BIWPO'),
+          dispatchDate:     getField(row, 'DispatchDate', 'Dispatch Date'),
+          awb:              getField(row, 'AWB'),
+          courierName:      getField(row, 'CourierName', 'Courier Name'),
+          vendorInvoiceNumber: getField(row, 'VendorInvoiceNumber', 'Vendor Invoice Number'),
+          deliveryDate:     getField(row, 'DeliveryDate', 'Delivery Date'),
+          weightKg:         parseNum(getField(row, 'Weight (in Kg)', 'WeightKg', 'Weight')),
+          modeOfTransport:  getField(row, 'Mode of Transportation', 'ModeOfTransportation', 'Mode'),
+          lbh:              getField(row, 'LBH'),
+          podSharedLink:    getField(row, 'PodSharedLink', 'POD Shared Link', 'Pod Shared Link'),
+          notes:            getField(row, 'Comments'),
+          terms:            'Payment due within 30 days.',
+          items:            [],
+        };
+      }
+
+      // Add this row's product as a line item
+      invoiceMap[groupKey].items.push({
+        description: productDesc || productCode,
+        hsn:         hsnCode,
+        qty,
+        unit:        getField(row, 'UOM', 'Unit') || 'EA',
+        rate,
+        discount:    0,
+        taxRate,
+        cgst,
+        sgst,
+        igst,
+      });
+    });
+
+    // Convert map to array
+    Object.values(invoiceMap).forEach(inv => {
+      if (inv.items.length > 0) valid.push(inv);
+    });
+
+    return { valid, errors };
+  };
 
   // ── Excel Upload Handler ──────────────────────────────────────────────────
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setUploading(true);
     try {
       const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet);
+      const workbook = XLSX.read(data, { cellDates: false });
 
-      // Expected Excel format:
-      // PartyName | PartyAddress | PartyGST | InvoiceDate | DueDate | ItemDescription | HSN | Qty | Unit | Rate | Discount | TaxRate
-      const invoicesToCreate = [];
-      let currentInvoice = null;
+      // Find the "Orders" sheet or fall back to first sheet
+      const sheetName = workbook.SheetNames.find(n => /orders/i.test(n)) || workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      // Read as raw arrays to find the real header row (handles blank first column)
+      const rawArrays = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 
-      rows.forEach(row => {
-        if (row.PartyName && row.PartyName !== currentInvoice?.partyName) {
-          if (currentInvoice) invoicesToCreate.push(currentInvoice);
-          currentInvoice = {
-            partyName: row.PartyName || '',
-            partyAddress: row.PartyAddress || '',
-            partyGST: row.PartyGST || '',
-            partyEmail: row.PartyEmail || '',
-            partyPhone: row.PartyPhone || '',
-            invoiceDate: row.InvoiceDate || new Date().toISOString(),
-            dueDate: row.DueDate || '',
-            items: [],
-            notes: row.Notes || '',
-            terms: row.Terms || 'Payment due within 30 days.',
-          };
-        }
-        if (currentInvoice && row.ItemDescription) {
-          currentInvoice.items.push({
-            description: row.ItemDescription || '',
-            hsn: row.HSN || '',
-            qty: parseFloat(row.Qty) || 1,
-            unit: row.Unit || 'Nos',
-            rate: parseFloat(row.Rate) || 0,
-            discount: parseFloat(row.Discount) || 0,
-            taxRate: parseFloat(row.TaxRate) || 18,
-          });
-        }
-      });
-      if (currentInvoice) invoicesToCreate.push(currentInvoice);
-
-      if (!invoicesToCreate.length) {
-        toast('No valid invoices found in Excel', 'warning');
+      if (!rawArrays.length) {
+        toast('Excel file is empty or unreadable', 'error');
+        if (fileInputRef.current) fileInputRef.current.value = '';
         return;
       }
 
-      const res = await invoiceApi.bulkUpload({ invoices: invoicesToCreate });
-      toast(`${res.data.created} invoices created successfully`);
-      if (res.data.errors?.length) {
-        console.warn('Upload errors:', res.data.errors);
-        toast(`${res.data.errors.length} rows had errors`, 'warning');
+      // Find the header row — it's the first row that contains known column names
+      const knownColsOrders = ['uniqueid','purchaseorder','shiptoname','productdescription','vendorcode','bipartnumber'];
+      const knownColsGRT    = ['invoice no','bill to','item name','hsn','unit rate','total value'];
+      let headerRowIdx = 0;
+      for (let i = 0; i < Math.min(5, rawArrays.length); i++) {
+        const rowLower = rawArrays[i].map(c => String(c).trim().toLowerCase());
+        if (knownColsOrders.some(k => rowLower.includes(k)) || knownColsGRT.some(k => rowLower.includes(k))) {
+          headerRowIdx = i;
+          break;
+        }
       }
-      await fetchAll();
+
+      // Build header map: colIndex -> trimmed header name
+      const headers = rawArrays[headerRowIdx].map(h => String(h).trim());
+      console.log('[Invoice Upload] Sheet:', sheetName, '| Header row:', headerRowIdx);
+      console.log('[Invoice Upload] Headers:', headers);
+
+      // Convert data rows to objects using our clean headers
+      const rows = [];
+      for (let i = headerRowIdx + 1; i < rawArrays.length; i++) {
+        const arr = rawArrays[i];
+        // Skip completely empty rows
+        if (arr.every(c => c === '' || c === null || c === undefined)) continue;
+        const obj = {};
+        headers.forEach((h, idx) => {
+          if (h) obj[h] = arr[idx] !== undefined ? arr[idx] : '';
+        });
+        rows.push(obj);
+      }
+
+      console.log('[Invoice Upload] Data rows:', rows.length);
+      if (rows.length > 0) console.log('[Invoice Upload] First data row:', rows[0]);
+
+      if (!rows.length) {
+        toast('No data rows found in Excel', 'error');
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
+      // Detect format
+      const firstRow = rows[0];
+      const allKeys = Object.keys(firstRow).map(k => k.toLowerCase().trim());
+      const isOrdersFormat = allKeys.some(k => ['purchaseorder','uniqueid','shiptoname','bipartnumber','productdescription'].includes(k));
+      const isGRTFormat    = allKeys.some(k => ['invoice no','bill to','item name'].includes(k));
+
+      let parsed;
+      if (isOrdersFormat) {
+        parsed = parseOrdersExcel(rows);
+      } else if (isGRTFormat) {
+        parsed = parseGRTExcel(rows);
+      } else {
+        // Legacy generic format
+        const invoicesToCreate = [];
+        let currentInvoice = null;
+        rows.forEach(row => {
+          if (row.PartyName && row.PartyName !== currentInvoice?.partyName) {
+            if (currentInvoice) invoicesToCreate.push(currentInvoice);
+            currentInvoice = {
+              partyName: row.PartyName || '',
+              partyAddress: row.PartyAddress || '',
+              partyGST: row.PartyGST || '',
+              partyEmail: row.PartyEmail || '',
+              partyPhone: row.PartyPhone || '',
+              invoiceDate: row.InvoiceDate || new Date().toISOString().split('T')[0],
+              dueDate: row.DueDate || '',
+              items: [],
+              notes: row.Notes || '',
+              terms: row.Terms || 'Payment due within 30 days.',
+            };
+          }
+          if (currentInvoice && row.ItemDescription) {
+            currentInvoice.items.push({
+              description: row.ItemDescription || '',
+              hsn: row.HSN || '',
+              qty: parseFloat(row.Qty) || 1,
+              unit: row.Unit || 'Nos',
+              rate: parseFloat(row.Rate) || 0,
+              discount: parseFloat(row.Discount) || 0,
+              taxRate: parseFloat(row.TaxRate) || 18,
+            });
+          }
+        });
+        if (currentInvoice) invoicesToCreate.push(currentInvoice);
+        parsed = { valid: invoicesToCreate, errors: [] };
+      }
+
+      if (!parsed.valid.length && !parsed.errors.length) {
+        toast('No data found in Excel', 'warning');
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
+      // Show preview/validation modal before submitting
+      setUploadPreviewData(parsed);
+      setShowUploadPreview(true);
     } catch (e) {
       console.error(e);
-      toast(e.message || 'Failed to upload Excel', 'error');
+      toast(e.message || 'Failed to read Excel file', 'error');
     } finally {
-      setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  // ── Manual Invoice Creation ───────────────────────────────────────────────
-  const handleAddItem = () => {
-    setForm(f => ({
-      ...f,
-      items: [...f.items, { description: '', hsn: '', qty: 1, unit: 'Nos', rate: 0, discount: 0, taxRate: 18 }],
-    }));
-  };
-
-  const handleRemoveItem = (idx) => {
-    setForm(f => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
-  };
-
-  const handleItemChange = (idx, field, value) => {
-    setForm(f => {
-      const items = [...f.items];
-      items[idx] = { ...items[idx], [field]: value };
-      return { ...f, items };
-    });
-  };
-
-  const handleCreateInvoice = async () => {
-    if (!form.partyName || !form.items.length) {
-      toast('Party name and at least one item are required', 'error');
-      return;
-    }
+  // ── Confirm Upload after preview ─────────────────────────────────────────
+  const handleConfirmUpload = async () => {
+    if (!uploadPreviewData?.valid?.length) return;
+    setUploading(true);
     try {
-      await invoiceApi.create(form);
-      toast('Invoice created successfully');
-      setShowCreate(false);
-      setForm({
-        partyName: '', partyAddress: '', partyGST: '', partyEmail: '', partyPhone: '',
-        invoiceDate: new Date().toISOString().split('T')[0],
-        dueDate: '',
-        items: [{ description: '', hsn: '', qty: 1, unit: 'Nos', rate: 0, discount: 0, taxRate: 18 }],
-        notes: '', terms: 'Payment due within 30 days.',
-      });
-      await fetchAll();
+      const res = await invoiceApi.bulkUpload({ invoices: uploadPreviewData.valid });
+      toast(`${res.data.created} invoice${res.data.created !== 1 ? 's' : ''} created successfully`);
+      if (res.data.errors?.length) {
+        toast(`${res.data.errors.length} rows had server-side errors`, 'warning');
+      }
+      setShowUploadPreview(false);
+      setUploadPreviewData(null);
+      setPage(1);
+      await fetchAll(1);
     } catch (e) {
-      toast(e.message || 'Failed to create invoice', 'error');
+      console.error(e);
+      toast(e.message || 'Failed to upload invoices', 'error');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -191,177 +525,363 @@ export default function InvoiceGeneratorPage() {
     printWindow.print();
   };
 
-  const handleDownload = (invoice) => {
-    const html = generateInvoiceHTML(invoice);
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${invoice.invoiceNo}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast('Invoice downloaded');
+  const handleDownload = async (invoice) => {
+    toast('Generating PDF…', 'info');
+    try {
+      await generateInvoicePDF(invoice);
+      toast(`Invoice ${invoice.invoiceNo}.pdf downloaded`);
+    } catch (err) {
+      console.error(err);
+      // Fallback to HTML download
+      const html = generateInvoiceHTML(invoice);
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${invoice.invoiceNo}.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast('Invoice downloaded as HTML (PDF failed)', 'warning');
+    }
   };
 
   const generateInvoiceHTML = (inv) => {
-    return `
-<!DOCTYPE html>
-<html>
+    const fmtDate = (d) => { try { return new Date(d).toLocaleDateString('en-IN', { day:'2-digit', month:'2-digit', year:'numeric' }); } catch { return d || '—'; } };
+    const fmtAmt  = (n) => `₹ ${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const fmtNum  = (n) => (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    // Compute per-item tax breakdown for HSN summary table
+    const hsnMap = {};
+    (inv.items || []).forEach(item => {
+      const key        = item.hsn || '—';
+      const taxableAmt = (item.qty || 0) * (item.rate || 0) * (1 - (item.discount || 0) / 100);
+
+      // Use stored amounts from Excel if present, otherwise compute from taxRate
+      const storedCGST = item.cgst || 0;
+      const storedSGST = item.sgst || 0;
+      const storedIGST = item.igst || 0;
+
+      let cgstAmt, sgstAmt, igstAmt, cgstRate, sgstRate, igstRate;
+      if (storedIGST > 0) {
+        // Inter-state: IGST only
+        igstAmt  = storedIGST;
+        cgstAmt  = 0; sgstAmt = 0;
+        igstRate = taxableAmt > 0 ? Math.round((igstAmt / taxableAmt) * 100) : (item.taxRate || 0);
+        cgstRate = 0; sgstRate = 0;
+      } else if (storedCGST > 0 || storedSGST > 0) {
+        // Intra-state: CGST + SGST from stored values
+        cgstAmt  = storedCGST; sgstAmt = storedSGST; igstAmt = 0;
+        cgstRate = taxableAmt > 0 ? Math.round((cgstAmt / taxableAmt) * 100) : (item.taxRate || 0) / 2;
+        sgstRate = cgstRate; igstRate = 0;
+      } else {
+        // Compute from taxRate
+        const halfRate = (item.taxRate || 0) / 2;
+        cgstRate = halfRate; sgstRate = halfRate; igstRate = 0;
+        cgstAmt  = taxableAmt * cgstRate / 100;
+        sgstAmt  = taxableAmt * sgstRate / 100;
+        igstAmt  = 0;
+      }
+
+      if (!hsnMap[key]) hsnMap[key] = { taxable: 0, cgstRate, sgstRate, igstRate, cgst: 0, sgst: 0, igst: 0 };
+      hsnMap[key].taxable += taxableAmt;
+      hsnMap[key].cgst    += cgstAmt;
+      hsnMap[key].sgst    += sgstAmt;
+      hsnMap[key].igst    += igstAmt;
+    });
+    const hsnRows      = Object.entries(hsnMap);
+    const totalTaxable = hsnRows.reduce((s, [, v]) => s + v.taxable, 0);
+    const totalCGST    = hsnRows.reduce((s, [, v]) => s + v.cgst, 0);
+    const totalSGST    = hsnRows.reduce((s, [, v]) => s + v.sgst, 0);
+    const totalIGST    = hsnRows.reduce((s, [, v]) => s + v.igst, 0);
+    const totalTax     = totalCGST + totalSGST + totalIGST;
+    const hasIGST      = totalIGST > 0;
+    const hasCGSTSGST  = totalCGST > 0 || totalSGST > 0;
+
+    // Amount in words
+    const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+    const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+    const toWords = (n) => {
+      n = Math.round(n);
+      if (n === 0) return 'Zero';
+      if (n < 20) return ones[n];
+      if (n < 100) return tens[Math.floor(n/10)] + (n%10 ? ' ' + ones[n%10] : '');
+      if (n < 1000) return ones[Math.floor(n/100)] + ' Hundred' + (n%100 ? ' ' + toWords(n%100) : '');
+      if (n < 100000) return toWords(Math.floor(n/1000)) + ' Thousand' + (n%1000 ? ' ' + toWords(n%1000) : '');
+      if (n < 10000000) return toWords(Math.floor(n/100000)) + ' Lakh' + (n%100000 ? ' ' + toWords(n%100000) : '');
+      return toWords(Math.floor(n/10000000)) + ' Crore' + (n%10000000 ? ' ' + toWords(n%10000000) : '');
+    };
+    const grand = Number(inv.grandTotal) || 0;
+    const rupees = Math.floor(grand);
+    const paise  = Math.round((grand - rupees) * 100);
+    const amtWords = toWords(rupees) + ' Rupees' + (paise > 0 ? ' and ' + toWords(paise) + ' Paise' : ' Only');
+
+    return `<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Invoice ${inv.invoiceNo}</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
-    .header { display: flex; justify-content: space-between; margin-bottom: 30px; }
-    .company { font-size: 24px; font-weight: bold; color: #c0392b; }
-    .invoice-no { font-size: 18px; font-weight: bold; }
-    .section { margin-bottom: 20px; }
-    .label { font-weight: bold; color: #666; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-    th { background: #f5f5f5; font-weight: bold; }
-    .total-row { font-weight: bold; background: #f9f9f9; }
-    .footer { margin-top: 40px; padding-top: 20px; border-top: 2px solid #c0392b; }
-  </style>
+<meta charset="UTF-8"/>
+<title>Invoice ${inv.invoiceNo}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; background: #fff; color: #111; font-size: 12px; }
+  .page { max-width: 820px; margin: 0 auto; padding: 24px 28px; border: 1px solid #ccc; }
+
+  /* ── Top label ── */
+  .top-label { text-align: right; font-size: 11px; font-weight: 700; letter-spacing: 1px; margin-bottom: 10px; }
+  .top-label span { border: 1px solid #999; padding: 2px 10px; font-size: 10px; margin-left: 8px; }
+
+  /* ── Header ── */
+  .header { display: flex; align-items: flex-start; gap: 14px; padding-bottom: 14px; border-bottom: 2px solid #111; margin-bottom: 0; }
+  .logo-wrap { flex-shrink: 0; }
+  .logo-wrap img { width: 64px; height: 64px; object-fit: contain; border-radius: 6px; }
+  .company-info { flex: 1; }
+  .company-name { font-size: 18px; font-weight: 900; color: #111; }
+  .company-detail { font-size: 11px; color: #333; line-height: 1.6; margin-top: 3px; }
+  .inv-box { text-align: right; min-width: 200px; }
+  .inv-box table { margin-left: auto; border-collapse: collapse; }
+  .inv-box td { padding: 2px 6px; font-size: 12px; }
+  .inv-box td:first-child { font-weight: 700; text-align: right; }
+  .inv-box td:last-child { font-weight: 400; text-align: left; }
+
+  /* ── Bill/Ship grid ── */
+  .party-grid { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #ccc; border-top: none; }
+  .party-cell { padding: 10px 12px; }
+  .party-cell + .party-cell { border-left: 1px solid #ccc; }
+  .party-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #555; margin-bottom: 4px; }
+  .party-name { font-size: 13px; font-weight: 800; color: #111; margin-bottom: 3px; }
+  .party-line { font-size: 11px; color: #333; line-height: 1.55; }
+
+  /* ── Items table ── */
+  .items-wrap { border: 1px solid #ccc; border-top: none; }
+  .items-table { width: 100%; border-collapse: collapse; }
+  .items-table th { background: #f0f0f0; padding: 7px 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid #ccc; text-align: left; }
+  .items-table th.r { text-align: right; }
+  .items-table td { padding: 7px 10px; font-size: 12px; border-bottom: 1px solid #eee; vertical-align: top; }
+  .items-table td.r { text-align: right; }
+  .items-table td.mono { font-family: monospace; font-size: 11px; }
+  .items-table tbody tr:last-child td { border-bottom: none; }
+  .tax-row td { background: #fafafa; font-size: 11px; color: #444; border-bottom: 1px solid #eee; }
+  .total-row td { font-weight: 800; font-size: 13px; background: #f5f5f5; border-top: 2px solid #ccc; }
+
+  /* ── HSN summary ── */
+  .hsn-wrap { border: 1px solid #ccc; border-top: none; }
+  .hsn-table { width: 100%; border-collapse: collapse; }
+  .hsn-table th { background: #f0f0f0; padding: 6px 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid #ccc; text-align: left; }
+  .hsn-table th.r { text-align: right; }
+  .hsn-table td { padding: 6px 10px; font-size: 11px; border-bottom: 1px solid #eee; }
+  .hsn-table td.r { text-align: right; }
+  .hsn-table .total-row td { font-weight: 700; background: #f5f5f5; border-top: 1px solid #ccc; border-bottom: none; }
+
+  /* ── Amount in words ── */
+  .amt-words { border: 1px solid #ccc; border-top: none; padding: 8px 12px; font-size: 11px; }
+  .amt-words strong { font-size: 11px; }
+
+  /* ── Footer grid ── */
+  .footer-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; border: 1px solid #ccc; border-top: none; }
+  .footer-cell { padding: 10px 12px; }
+  .footer-cell + .footer-cell { border-left: 1px solid #ccc; }
+  .footer-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #555; margin-bottom: 6px; }
+  .footer-line { font-size: 11px; color: #333; line-height: 1.6; }
+  .footer-line strong { font-weight: 700; }
+
+  /* ── Sig ── */
+  .sig-cell { text-align: right; display: flex; flex-direction: column; justify-content: space-between; }
+  .sig-line { border-top: 1px solid #999; margin-top: 36px; padding-top: 5px; font-size: 11px; color: #555; text-align: center; }
+
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page { border: none; padding: 10px; }
+  }
+</style>
 </head>
 <body>
+<div class="page">
+
+  <!-- TAX INVOICE label -->
+  <div class="top-label">TAX INVOICE <span>ORIGINAL</span></div>
+
+  <!-- Company Header -->
   <div class="header">
-    <div>
-      <div class="company">${inv.companyName || 'Chakra Industries'}</div>
-      <div>${inv.companyAddress || ''}</div>
-      <div>GST: ${inv.companyGST || ''}</div>
+    <div class="logo-wrap">
+      <img src="${CHAKRA_LOGO_B64}" alt="Chakra Industries" />
     </div>
-    <div style="text-align: right;">
-      <div class="invoice-no">Invoice #${inv.invoiceNo}</div>
-      <div>Date: ${new Date(inv.invoiceDate).toLocaleDateString('en-IN')}</div>
-      ${inv.dueDate ? `<div>Due: ${new Date(inv.dueDate).toLocaleDateString('en-IN')}</div>` : ''}
+    <div class="company-info">
+      <div class="company-name">Sri Chakra Industries</div>
+      <div class="company-detail">
+        ${inv.companyAddress || '#13/14, Azeez Sait Industrial Estate, Mysore Road, Nayandahalli, Bangalore - 560039'}<br/>
+        ${inv.companyGST ? `GSTIN: ${inv.companyGST}` : 'GSTIN: 29ABWFS0002M1ZR'}
+      </div>
+    </div>
+    <div class="inv-box">
+      <table>
+        <tr><td>Invoice No.</td><td>${inv.invoiceNo}</td></tr>
+        <tr><td>Invoice Date</td><td>${fmtDate(inv.invoiceDate)}</td></tr>
+        <tr><td>Due Date</td><td>${inv.dueDate ? fmtDate(inv.dueDate) : fmtDate(inv.invoiceDate)}</td></tr>
+        ${inv.purchaseOrderRef ? `<tr><td>PO No.</td><td>${inv.purchaseOrderRef}</td></tr>` : ''}
+      </table>
     </div>
   </div>
 
-  <div class="section">
-    <div class="label">Bill To:</div>
-    <div><strong>${inv.partyName}</strong></div>
-    <div>${inv.partyAddress || ''}</div>
-    <div>GST: ${inv.partyGST || ''}</div>
-    ${inv.partyEmail ? `<div>Email: ${inv.partyEmail}</div>` : ''}
-    ${inv.partyPhone ? `<div>Phone: ${inv.partyPhone}</div>` : ''}
+  <!-- Bill To / Ship To -->
+  <div class="party-grid">
+    <div class="party-cell">
+      <div class="party-label">Bill To</div>
+      <div class="party-name">${inv.billToName || inv.partyName}</div>
+      <div class="party-line">
+        ${inv.billToAddress ? `Address: ${inv.billToAddress}<br/>` : (inv.partyAddress ? `Address: ${inv.partyAddress}<br/>` : '')}
+        ${inv.billToGST || inv.partyGST ? `GSTIN: ${inv.billToGST || inv.partyGST}&nbsp;&nbsp;&nbsp;Place of Supply: ${inv.partyState || 'Karnataka'}<br/>` : ''}
+        ${inv.partyPhone ? `Mobile: ${inv.partyPhone}` : ''}
+      </div>
+    </div>
+    <div class="party-cell">
+      <div class="party-label">Ship To</div>
+      <div class="party-name">${inv.partyName}</div>
+      <div class="party-line">
+        ${inv.partyAddress ? `Address: ${inv.partyAddress}` : ''}
+      </div>
+    </div>
   </div>
 
-  <table>
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Description</th>
-        <th>HSN</th>
-        <th>Qty</th>
-        <th>Unit</th>
-        <th>Rate</th>
-        <th>Discount</th>
-        <th>Amount</th>
-        <th>Tax</th>
-        <th>Total</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${inv.items.map((item, i) => `
+  <!-- Items Table -->
+  <div class="items-wrap">
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th style="width:36px">S.NO.</th>
+          <th>ITEMS</th>
+          <th>HSN</th>
+          <th class="r">QTY.</th>
+          <th class="r">RATE</th>
+          <th class="r">AMOUNT</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${(inv.items || []).map((item, i) => `
         <tr>
           <td>${i + 1}</td>
-          <td>${item.description}</td>
-          <td>${item.hsn || '—'}</td>
-          <td>${item.qty}</td>
-          <td>${item.unit}</td>
-          <td>₹${item.rate.toFixed(2)}</td>
-          <td>${item.discount}%</td>
-          <td>₹${item.amount.toFixed(2)}</td>
-          <td>₹${item.taxAmount.toFixed(2)} (${item.taxRate}%)</td>
-          <td>₹${item.total.toFixed(2)}</td>
+          <td>${item.description || '—'}</td>
+          <td class="mono">${item.hsn || '—'}</td>
+          <td class="r">${item.qty} ${item.unit || 'PCS'}</td>
+          <td class="r">${fmtNum(item.rate)}</td>
+          <td class="r">${fmtNum(item.total || item.amount || (item.qty * item.rate))}</td>
+        </tr>`).join('')}
+
+        <!-- Tax rows -->
+        ${hasCGSTSGST ? `
+        <tr class="tax-row">
+          <td colspan="5" style="text-align:right;padding-right:12px;">CGST @${hsnRows[0]?.[1]?.cgstRate || 0}%</td>
+          <td class="r">₹ ${fmtNum(totalCGST)}</td>
         </tr>
-      `).join('')}
-    </tbody>
-    <tfoot>
-      <tr class="total-row">
-        <td colspan="7" style="text-align: right;">Subtotal:</td>
-        <td colspan="3">₹${inv.subtotal.toFixed(2)}</td>
-      </tr>
-      <tr class="total-row">
-        <td colspan="7" style="text-align: right;">Total Discount:</td>
-        <td colspan="3">-₹${inv.totalDiscount.toFixed(2)}</td>
-      </tr>
-      <tr class="total-row">
-        <td colspan="7" style="text-align: right;">Total Tax:</td>
-        <td colspan="3">₹${inv.totalTax.toFixed(2)}</td>
-      </tr>
-      <tr class="total-row" style="background: #c0392b; color: white;">
-        <td colspan="7" style="text-align: right; font-size: 16px;">Grand Total:</td>
-        <td colspan="3" style="font-size: 16px;">₹${inv.grandTotal.toFixed(2)}</td>
-      </tr>
-    </tfoot>
-  </table>
+        <tr class="tax-row">
+          <td colspan="5" style="text-align:right;padding-right:12px;">SGST @${hsnRows[0]?.[1]?.sgstRate || 0}%</td>
+          <td class="r">₹ ${fmtNum(totalSGST)}</td>
+        </tr>` : ''}
+        ${hasIGST ? `
+        <tr class="tax-row">
+          <td colspan="5" style="text-align:right;padding-right:12px;">IGST @${hsnRows[0]?.[1]?.igstRate || 0}%</td>
+          <td class="r">₹ ${fmtNum(totalIGST)}</td>
+        </tr>` : ''}
 
-  ${inv.notes ? `<div class="section"><div class="label">Notes:</div><div>${inv.notes}</div></div>` : ''}
-  ${inv.terms ? `<div class="section"><div class="label">Terms & Conditions:</div><div>${inv.terms}</div></div>` : ''}
-
-  <div class="footer">
-    <div style="text-align: center; color: #999;">Thank you for your business!</div>
+        <!-- Total row -->
+        <tr class="total-row">
+          <td colspan="3" style="text-align:right;font-weight:800;">TOTAL</td>
+          <td class="r">${(inv.items || []).reduce((s, i) => s + (Number(i.qty) || 0), 0)}</td>
+          <td></td>
+          <td class="r">₹ ${fmtNum(grand)}</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
+
+  <!-- HSN/SAC Tax Summary -->
+  <div class="hsn-wrap">
+    <table class="hsn-table">
+      <thead>
+        <tr>
+          <th>HSN/SAC</th>
+          <th class="r">Taxable Value</th>
+          ${hasCGSTSGST ? `<th class="r">CGST Rate</th><th class="r">CGST Amount</th><th class="r">SGST Rate</th><th class="r">SGST Amount</th>` : ''}
+          ${hasIGST     ? `<th class="r">IGST Rate</th><th class="r">IGST Amount</th>` : ''}
+          <th class="r">Total Tax Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${hsnRows.map(([hsn, v]) => `
+        <tr>
+          <td>${hsn}</td>
+          <td class="r">${fmtNum(v.taxable)}</td>
+          ${hasCGSTSGST ? `<td class="r">${v.cgstRate}%</td><td class="r">${fmtNum(v.cgst)}</td><td class="r">${v.sgstRate}%</td><td class="r">${fmtNum(v.sgst)}</td>` : ''}
+          ${hasIGST     ? `<td class="r">${v.igstRate}%</td><td class="r">${fmtNum(v.igst)}</td>` : ''}
+          <td class="r">₹ ${fmtNum(v.cgst + v.sgst + v.igst)}</td>
+        </tr>`).join('')}
+        <tr class="total-row">
+          <td><strong>Total</strong></td>
+          <td class="r">${fmtNum(totalTaxable)}</td>
+          ${hasCGSTSGST ? `<td></td><td class="r">${fmtNum(totalCGST)}</td><td></td><td class="r">${fmtNum(totalSGST)}</td>` : ''}
+          ${hasIGST     ? `<td></td><td class="r">${fmtNum(totalIGST)}</td>` : ''}
+          <td class="r"><strong>₹ ${fmtNum(totalTax)}</strong></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Amount in Words -->
+  <div class="amt-words">
+    <strong>Total Amount (in words)</strong><br/>
+    ${amtWords}
+  </div>
+
+  <!-- Footer: Bank Details | Terms | Signature -->
+  <div class="footer-grid">
+    <div class="footer-cell">
+      <div class="footer-label">Bank Details</div>
+      <div class="footer-line">
+        <strong>Name:</strong> Chakra Industries Pvt. Ltd.<br/>
+        <strong>IFSC Code:</strong> ${inv.bankIfsc || 'HDFC0002847'}<br/>
+        <strong>Account No:</strong> ${inv.bankAccount || '50200081374926'}<br/>
+        <strong>Bank:</strong> ${inv.bankName || 'HDFC Bank, Nayandahalli Branch, Bangalore'}
+      </div>
+    </div>
+    <div class="footer-cell">
+      <div class="footer-label">Terms and Conditions</div>
+      <div class="footer-line">
+        1. Goods once sold will not be taken back or exchanged<br/>
+        2. All disputes are subject to Bangalore jurisdiction only<br/>
+        3. This is computer generated invoice &amp; doesn't require any signature.
+      </div>
+    </div>
+    <div class="footer-cell sig-cell">
+      <div>
+        <div class="footer-label">For Chakra Industries</div>
+      </div>
+      <div class="sig-line">Authorised Signatory</div>
+    </div>
+  </div>
+
+</div>
 </body>
-</html>
-    `.trim();
+</html>`.trim();
   };
 
-  // ── Download Excel Template ──────────────────────────────────────────────
-  const handleDownloadTemplate = () => {
-    const templateData = [
-      {
-        PartyName: 'Tata Motors Ltd',
-        PartyAddress: '123 Industrial Area, Mumbai',
-        PartyGST: '27AAACT2727Q1ZW',
-        PartyEmail: 'accounts@tata.com',
-        PartyPhone: '9876543210',
-        InvoiceDate: '2026-05-11',
-        DueDate: '2026-06-10',
-        Notes: 'Thank you for your business',
-        Terms: 'Payment due within 30 days.',
-        ItemDescription: 'Steel Bolts M10',
-        HSN: '73181500',
-        Qty: 500,
-        Unit: 'Nos',
-        Rate: 12.5,
-        Discount: 5,
-        TaxRate: 18,
-      },
-      {
-        PartyName: 'Tata Motors Ltd',
-        PartyAddress: '',
-        PartyGST: '',
-        PartyEmail: '',
-        PartyPhone: '',
-        InvoiceDate: '',
-        DueDate: '',
-        Notes: '',
-        Terms: '',
-        ItemDescription: 'Hex Nuts M10',
-        HSN: '73181600',
-        Qty: 500,
-        Unit: 'Nos',
-        Rate: 8,
-        Discount: 5,
-        TaxRate: 18,
-      },
-    ];
-    const ws = XLSX.utils.json_to_sheet(templateData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Invoices');
-    XLSX.writeFile(wb, 'invoice-upload-template.xlsx');
-    toast('Template downloaded');
-  };
   const handleStatusChange = async (id, status) => {
     try {
       await invoiceApi.updateStatus(id, status);
       toast('Status updated');
-      await fetchAll();
+      await fetchAll(page);
     } catch (e) {
       toast(e.message || 'Failed to update status', 'error');
+    }
+  };
+
+  // ── Delete All Invoices ───────────────────────────────────────────────────
+  const handleDeleteAll = async () => {
+    if (!window.confirm(`This will permanently delete all ${totalCount} invoices. This cannot be undone. Continue?`)) return;
+    try {
+      const res = await invoiceApi.deleteAll();
+      toast(`${res.deleted} invoices deleted`);
+      setPage(1);
+      await fetchAll(1);
+    } catch (e) {
+      toast(e.message || 'Failed to delete all invoices', 'error');
     }
   };
 
@@ -371,13 +891,214 @@ export default function InvoiceGeneratorPage() {
     try {
       await invoiceApi.delete(id);
       toast('Invoice deleted');
-      await fetchAll();
+      // If we deleted the last item on this page, go back one page
+      const newPage = invoices.length === 1 && page > 1 ? page - 1 : page;
+      setPage(newPage);
+      await fetchAll(newPage);
     } catch (e) {
       toast(e.message || 'Failed to delete', 'error');
     }
   };
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading...</div>;
+  // ── Share Invoice ─────────────────────────────────────────────────────────
+  const [shareMenuInv, setShareMenuInv] = useState(null); // invoice being shared
+
+  const handleShare = (inv) => {
+    // Always show our custom dropdown (WhatsApp, Gmail, Copy)
+    setShareMenuInv(shareMenuInv?._id === inv._id ? null : inv);
+  };
+
+  const shareViaWhatsApp = (inv) => {
+    const text = encodeURIComponent(
+      `Invoice ${inv.invoiceNo} | ${inv.partyName} | Order: ${inv.purchaseOrderRef || '—'} | Product: ${inv.items?.[0]?.description || '—'} | Qty: ${inv.items?.[0]?.qty || '—'} | Status: ${inv.orderStatus || inv.status} — Chakra Industries`
+    );
+    window.open(`https://wa.me/?text=${text}`, '_blank');
+    setShareMenuInv(null);
+  };
+
+  // ── Core PDF renderer — returns jsPDF object, never downloads ────────────
+  const renderInvoiceToPDF = async (inv) => {
+    const container = document.createElement('div');
+    container.style.cssText = 'position:fixed;left:-9999px;top:0;width:860px;background:#fff;z-index:-1;';
+    container.innerHTML = generateInvoiceHTML(inv);
+    document.body.appendChild(container);
+    try {
+      const canvas = await html2canvas(container, {
+        scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false,
+      });
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW   = pdf.internal.pageSize.getWidth();
+      const pageH   = pdf.internal.pageSize.getHeight();
+      const imgH    = (canvas.height * pageW) / canvas.width;
+      let yPos = 0, remaining = imgH;
+      while (remaining > 0) {
+        pdf.addImage(imgData, 'JPEG', 0, -yPos, pageW, imgH);
+        remaining -= pageH; yPos += pageH;
+        if (remaining > 0) pdf.addPage();
+      }
+      return pdf;
+    } finally {
+      document.body.removeChild(container);
+    }
+  };
+
+  // ── Download button — explicitly saves the PDF ────────────────────────────
+  const generateInvoicePDF = async (inv) => {
+    const pdf = await renderInvoiceToPDF(inv);
+    pdf.save(`${inv.invoiceNo}.pdf`);
+  };
+
+  // ── Gmail — opens Gmail compose with professional body (original approach) ─
+  const shareViaGmail = async (inv) => {
+    setShareMenuInv(null);
+
+    const fmtDate = (d) => { try { return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); } catch { return d || ''; } };
+    const fmtAmt  = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    const item    = inv.items?.[0] || {};
+
+    // Step 1 — silently generate & download the PDF
+    const filename = `${inv.invoiceNo}.pdf`;
+    try {
+      const pdf = await renderInvoiceToPDF(inv);
+      pdf.save(filename);
+    } catch (e) {
+      console.error('PDF generation failed:', e);
+    }
+
+    // Step 2 — build professional email body
+    const lines = [
+      `Dear ${inv.partyName},`,
+      ``,
+      `Greetings from Chakra Industries!`,
+      ``,
+      `Please find the invoice PDF (${filename}) attached to this email for your records.`,
+      ``,
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `  INVOICE DETAILS`,
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `  Invoice No.    : ${inv.invoiceNo}`,
+      `  Invoice Date   : ${fmtDate(inv.invoiceDate)}`,
+      inv.purchaseOrderRef ? `  Purchase Order : ${inv.purchaseOrderRef}` : null,
+      inv.poDate           ? `  PO Date        : ${inv.poDate}` : null,
+      inv.uniqueId         ? `  Unique ID      : ${inv.uniqueId}` : null,
+      inv.vendorCode       ? `  Vendor Code    : ${inv.vendorCode}` : null,
+      ``,
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `  PRODUCT DETAILS`,
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+      item.description     ? `  Product        : ${item.description}` : null,
+      item.hsn             ? `  Product Code   : ${item.hsn}` : null,
+      inv.brandName        ? `  Brand          : ${inv.brandName}` : null,
+      item.qty != null     ? `  Quantity       : ${item.qty} ${item.unit || ''}`.trim() : null,
+      inv.grandTotal       ? `  Grand Total    : ${fmtAmt(inv.grandTotal)}` : null,
+      ``,
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `  SHIPMENT DETAILS`,
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+      inv.orderStatus      ? `  Order Status   : ${inv.orderStatus}` : null,
+      inv.dispatchDate     ? `  Dispatch Date  : ${inv.dispatchDate}` : null,
+      inv.awb              ? `  AWB No.        : ${inv.awb}` : null,
+      inv.courierName      ? `  Courier        : ${inv.courierName}` : null,
+      inv.deliveryDate     ? `  Delivery Date  : ${inv.deliveryDate}` : null,
+      inv.podSharedLink    ? `  POD Link       : ${inv.podSharedLink}` : null,
+      ``,
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+      ``,
+      `Kindly review and confirm receipt. For any queries, please reply to this email.`,
+      ``,
+      `Terms: ${inv.terms || 'Payment due within 30 days.'}`,
+      ``,
+      `Warm regards,`,
+      `Chakra Industries`,
+      `ERP & Operations Team`,
+    ].filter(l => l !== null).join('\n');
+
+    // Step 3 — open Gmail compose (pre-filled)
+    const to      = inv.partyEmail ? encodeURIComponent(inv.partyEmail) : '';
+    const subject = encodeURIComponent(`Invoice ${inv.invoiceNo} from Chakra Industries — ${inv.partyName}`);
+    const body    = encodeURIComponent(lines);
+    window.open(
+      `https://mail.google.com/mail/?view=cm&to=${to}&su=${subject}&body=${body}`,
+      '_blank'
+    );
+
+    // Step 4 — guide the user
+    toast(`📎 ${filename} downloaded — Gmail is open. Click the paperclip icon in Gmail to attach it.`, 'success');
+  };
+
+  const shareViaCopy = (inv) => {
+    const text = `Invoice ${inv.invoiceNo} | ${inv.partyName} | PO: ${inv.purchaseOrderRef || '—'} | Product: ${inv.items?.[0]?.description || '—'} | Qty: ${inv.items?.[0]?.qty || '—'} | AWB: ${inv.awb || '—'} | Courier: ${inv.courierName || '—'} | Status: ${inv.orderStatus || inv.status}`;
+    navigator.clipboard.writeText(text).then(() => {
+      toast('Invoice details copied to clipboard');
+    });
+    setShareMenuInv(null);
+  };
+
+  // ── Manual Invoice Creation ───────────────────────────────────────────────
+  const [showCreate, setShowCreate]   = useState(false);
+  const [saving, setSaving]           = useState(false);
+  const emptyItem = { description: '', hsn: '', qty: 1, unit: 'Nos', rate: 0, discount: 0, taxRate: 18 };
+  const [createForm, setCreateForm]   = useState({
+    partyName: '', partyAddress: '', partyGST: '', partyEmail: '', partyPhone: '',
+    invoiceDate: new Date().toISOString().slice(0, 10), dueDate: '',
+    purchaseOrderRef: '', poDate: '', notes: '', terms: 'Payment due within 30 days.',
+  });
+  const [createItems, setCreateItems] = useState([{ ...emptyItem }]);
+
+  const resetCreateForm = () => {
+    setCreateForm({
+      partyName: '', partyAddress: '', partyGST: '', partyEmail: '', partyPhone: '',
+      invoiceDate: new Date().toISOString().slice(0, 10), dueDate: '',
+      purchaseOrderRef: '', poDate: '', notes: '', terms: 'Payment due within 30 days.',
+    });
+    setCreateItems([{ ...emptyItem }]);
+  };
+
+  const updateCreateItem = (i, field, val) =>
+    setCreateItems(prev => prev.map((it, idx) => idx === i ? { ...it, [field]: val } : it));
+
+  const createItemSubtotal = createItems.reduce((s, it) => {
+    const base = (parseFloat(it.qty) || 0) * (parseFloat(it.rate) || 0);
+    const disc = base * ((parseFloat(it.discount) || 0) / 100);
+    return s + base - disc;
+  }, 0);
+  const createItemTax = createItems.reduce((s, it) => {
+    const base = (parseFloat(it.qty) || 0) * (parseFloat(it.rate) || 0);
+    const disc = base * ((parseFloat(it.discount) || 0) / 100);
+    const taxable = base - disc;
+    return s + taxable * ((parseFloat(it.taxRate) || 0) / 100);
+  }, 0);
+  const createGrandTotal = createItemSubtotal + createItemTax;
+
+  const handleCreateInvoice = async () => {
+    if (!createForm.partyName.trim()) { toast('Party name is required', 'error'); return; }
+    if (createItems.some(it => !it.description.trim())) { toast('Fill item description for all rows', 'error'); return; }
+    setSaving(true);
+    try {
+      await invoiceApi.create({
+        ...createForm,
+        items: createItems.map(it => ({
+          description: it.description.trim(),
+          hsn: it.hsn.trim(),
+          qty: parseFloat(it.qty) || 1,
+          unit: it.unit,
+          rate: parseFloat(it.rate) || 0,
+          discount: parseFloat(it.discount) || 0,
+          taxRate: parseFloat(it.taxRate) || 0,
+        })),
+      });
+      toast('Invoice created successfully', 'success');
+      setShowCreate(false);
+      resetCreateForm();
+      setPage(1);
+      await fetchAll(1);
+    } catch (e) {
+      toast(e.message || 'Failed to create invoice', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div style={{ padding: '20px 24px' }}>
@@ -403,14 +1124,15 @@ export default function InvoiceGeneratorPage() {
             <MdUpload size={16} />
             {uploading ? 'Uploading...' : 'Upload Excel'}
           </button>
-          <button onClick={handleDownloadTemplate} style={{ ...btnOutline, color: TEXT_MID, borderColor: '#e2e8f0' }}>
-            <MdDownload size={16} />
-            Excel Template
-          </button>
-          <button onClick={() => setShowCreate(true)} style={btnPrimary}>
-            <MdAdd size={16} />
-            Create Invoice
-          </button>
+          {totalCount > 0 && (
+            <button
+              onClick={handleDeleteAll}
+              style={{ ...btnOutline, color: '#dc2626', borderColor: '#fca5a5', background: '#fef2f2' }}
+            >
+              <MdDeleteSweep size={16} />
+              Delete All
+            </button>
+          )}
         </div>
       </div>
 
@@ -433,62 +1155,205 @@ export default function InvoiceGeneratorPage() {
 
       {/* Invoice Table */}
       <div style={{ background: '#fff', borderRadius: 18, border: '1px solid #e8edf2', boxShadow: '0 2px 12px rgba(15,23,42,0.06)', overflow: 'hidden' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #e8edf2' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #e8edf2', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: TEXT_DARK }}>All Invoices</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Search bar */}
+            <div style={{ position: 'relative' }}>
+              <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: TEXT_LIGHT, fontSize: 14, pointerEvents: 'none' }}>🔍</span>
+              <input
+                ref={searchRef}
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by name, invoice no, PO..."
+                style={{
+                  paddingLeft: 32, paddingRight: search ? 32 : 12,
+                  paddingTop: 7, paddingBottom: 7,
+                  border: '1.5px solid #e2e8f0', borderRadius: 10,
+                  fontSize: 13, color: TEXT_DARK, background: '#f8fafc',
+                  outline: 'none', width: 260, fontFamily: 'inherit',
+                  transition: 'border-color 0.15s',
+                }}
+                onFocus={e => e.target.style.borderColor = RED}
+                onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: TEXT_LIGHT, fontSize: 16, lineHeight: 1, padding: 0 }}
+                >×</button>
+              )}
+            </div>
+            <div style={{ fontSize: 12, color: TEXT_LIGHT, whiteSpace: 'nowrap' }}>{totalCount} total</div>
+          </div>
         </div>
         {invoices.length === 0 ? (
-          <div style={{ padding: '40px 20px', textAlign: 'center', color: TEXT_LIGHT }}>No invoices yet. Create one or upload from Excel.</div>
+          <div style={{ padding: '40px 20px', textAlign: 'center', color: TEXT_LIGHT }}>No invoices yet. Upload from Excel.</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: '#f8fafc' }}>
-                  {['Invoice No', 'Party', 'Date', 'Due Date', 'Amount', 'Status', 'Actions'].map(h => (
-                    <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: TEXT_LIGHT, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e8edf2' }}>{h}</th>
+                  {['#', 'Invoice No', 'Unique ID', 'PO Number', 'PO Date', 'Ship To', 'City', 'State', 'Product', 'Brand', 'Qty', 'UOM', 'Dispatch Date', 'AWB', 'Courier', 'Order Status', 'Actions'].map(h => (
+                    <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: TEXT_LIGHT, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e8edf2', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {invoices.map((inv, i) => (
-                  <tr key={inv._id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#f8fafc' : '#fff' }}>
-                    <td style={{ padding: '11px 16px', fontFamily: 'monospace', fontWeight: 700, color: RED }}>{inv.invoiceNo}</td>
-                    <td style={{ padding: '11px 16px', fontWeight: 600, color: TEXT_DARK }}>{inv.partyName}</td>
-                    <td style={{ padding: '11px 16px', color: TEXT_MID }}>{new Date(inv.invoiceDate).toLocaleDateString('en-IN')}</td>
-                    <td style={{ padding: '11px 16px', color: TEXT_MID }}>{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('en-IN') : '—'}</td>
-                    <td style={{ padding: '11px 16px', fontWeight: 700, color: BLUE }}>₹{inv.grandTotal.toFixed(2)}</td>
-                    <td style={{ padding: '11px 16px' }}>
-                      <select
-                        value={inv.status}
-                        onChange={(e) => handleStatusChange(inv._id, e.target.value)}
-                        style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                      >
-                        <option value="Draft">Draft</option>
-                        <option value="Sent">Sent</option>
-                        <option value="Paid">Paid</option>
-                        <option value="Overdue">Overdue</option>
-                        <option value="Cancelled">Cancelled</option>
-                      </select>
-                    </td>
-                    <td style={{ padding: '11px 16px' }}>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button onClick={() => { setSelectedInvoice(inv); setShowView(true); }} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }} title="View">
-                          <MdVisibility size={14} color={BLUE} />
-                        </button>
-                        <button onClick={() => handlePrint(inv)} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }} title="Print">
-                          <MdPrint size={14} color={TEXT_MID} />
-                        </button>
-                        <button onClick={() => handleDownload(inv)} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }} title="Download">
-                          <MdDownload size={14} color={GREEN} />
-                        </button>
-                        <button onClick={() => handleDelete(inv._id, inv.invoiceNo)} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #fecaca', background: '#fef2f2', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }} title="Delete">
-                          <MdDelete size={14} color={RED_LIGHT} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                  {invoices.map((inv, i) => {
+                  const item = inv.items?.[0] || {};
+                  return (
+                    <tr key={inv._id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#f8fafc' : '#fff' }}>
+                      <td style={{ padding: '9px 12px', color: TEXT_LIGHT, fontWeight: 700, fontSize: 11 }}>{(page - 1) * PAGE_SIZE + i + 1}</td>
+                      <td style={{ padding: '9px 12px', fontFamily: 'monospace', fontWeight: 700, color: RED, whiteSpace: 'nowrap' }}>{inv.invoiceNo}</td>
+                      <td style={{ padding: '9px 12px', fontFamily: 'monospace', fontSize: 11, color: TEXT_MID, whiteSpace: 'nowrap' }}>{inv.uniqueId || '—'}</td>
+                      <td style={{ padding: '9px 12px', fontFamily: 'monospace', fontSize: 11, color: BLUE, whiteSpace: 'nowrap' }}>{inv.purchaseOrderRef || '—'}</td>
+                      <td style={{ padding: '9px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.poDate || '—'}</td>
+                      <td style={{ padding: '9px 12px', fontWeight: 600, color: TEXT_DARK, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={inv.partyName}>{inv.partyName}</td>
+                      <td style={{ padding: '9px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.partyCity || '—'}</td>
+                      <td style={{ padding: '9px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.partyState || '—'}</td>
+                      <td style={{ padding: '9px 12px', color: TEXT_MID, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.description}>{item.description || '—'}</td>
+                      <td style={{ padding: '9px 12px', color: TEXT_MID, whiteSpace: 'nowrap' }}>{inv.brandName || '—'}</td>
+                      <td style={{ padding: '9px 12px', color: TEXT_DARK, fontWeight: 600, textAlign: 'center' }}>{item.qty ?? '—'}</td>
+                      <td style={{ padding: '9px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{item.unit || '—'}</td>
+                      <td style={{ padding: '9px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.dispatchDate || '—'}</td>
+                      <td style={{ padding: '9px 12px', fontFamily: 'monospace', fontSize: 11, color: TEXT_MID, whiteSpace: 'nowrap' }}>{inv.awb || '—'}</td>
+                      <td style={{ padding: '9px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.courierName || '—'}</td>
+                      <td style={{ padding: '9px 12px' }}>
+                        <select
+                          value={inv.status}
+                          onChange={(e) => handleStatusChange(inv._id, e.target.value)}
+                          style={{ padding: '3px 6px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                        >
+                          <option value="Draft">Draft</option>
+                          <option value="Sent">Sent</option>
+                          <option value="Paid">Paid</option>
+                          <option value="Overdue">Overdue</option>
+                          <option value="Cancelled">Cancelled</option>
+                        </select>
+                      </td>
+                      <td style={{ padding: '9px 12px' }}>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button onClick={() => { setSelectedInvoice(inv); setShowView(true); }} style={{ padding: '3px 7px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="View">
+                            <MdVisibility size={13} color={BLUE} />
+                          </button>
+                          <button onClick={() => handlePrint(inv)} style={{ padding: '3px 7px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="Print">
+                            <MdPrint size={13} color={TEXT_MID} />
+                          </button>
+                          <button onClick={() => handleDownload(inv)} style={{ padding: '3px 7px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="Download">
+                            <MdDownload size={13} color={GREEN} />
+                          </button>
+                          {/* Share button with dropdown */}
+                          <div style={{ position: 'relative' }}>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleShare(inv); }}
+                              style={{ padding: '3px 7px', borderRadius: 6, border: '1px solid #dbeafe', background: '#eff6ff', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                              title="Share"
+                            >
+                              <MdShare size={13} color="#3b82f6" />
+                            </button>
+                            {shareMenuInv?._id === inv._id && (
+                              <div style={{
+                                position: 'absolute', right: 0, top: '110%', zIndex: 999,
+                                background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10,
+                                boxShadow: '0 8px 24px rgba(0,0,0,0.12)', minWidth: 180, overflow: 'hidden',
+                              }}>
+                                <button
+                                  onClick={() => shareViaWhatsApp(inv)}
+                                  style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: '#1a1a2e', fontFamily: 'inherit' }}
+                                  onMouseEnter={e => e.currentTarget.style.background = '#f0fdf4'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                >
+                                  <FaWhatsapp size={16} color="#25D366" /> WhatsApp
+                                </button>
+                                <button
+                                  onClick={() => shareViaGmail(inv)}
+                                  style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: '#1a1a2e', fontFamily: 'inherit' }}
+                                  onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                >
+                                  <FaEnvelope size={16} color="#EA4335" /> Gmail
+                                </button>
+                                <button
+                                  onClick={() => shareViaCopy(inv)}
+                                  style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: '#1a1a2e', fontFamily: 'inherit', borderTop: '1px solid #f1f5f9' }}
+                                  onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                >
+                                  <MdContentCopy size={16} color="#64748b" /> Copy Details
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          <button onClick={() => handleDelete(inv._id, inv.invoiceNo)} style={{ padding: '3px 7px', borderRadius: 6, border: '1px solid #fecaca', background: '#fef2f2', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="Delete">
+                            <MdDelete size={13} color={RED_LIGHT} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderTop: '1px solid #e8edf2', background: '#fafafa' }}>
+            <div style={{ fontSize: 12, color: TEXT_LIGHT }}>
+              Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <button
+                onClick={() => setPage(1)}
+                disabled={page === 1}
+                style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: page === 1 ? '#f1f5f9' : '#fff', color: page === 1 ? TEXT_LIGHT : TEXT_DARK, cursor: page === 1 ? 'default' : 'pointer', fontSize: 12, fontWeight: 600 }}
+              >«</button>
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: page === 1 ? '#f1f5f9' : '#fff', color: page === 1 ? TEXT_LIGHT : TEXT_DARK, cursor: page === 1 ? 'default' : 'pointer', fontSize: 12, fontWeight: 600 }}
+              >‹ Prev</button>
+
+              {/* Page number pills */}
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(n => n === 1 || n === totalPages || Math.abs(n - page) <= 2)
+                .reduce((acc, n, idx, arr) => {
+                  if (idx > 0 && n - arr[idx - 1] > 1) acc.push('...');
+                  acc.push(n);
+                  return acc;
+                }, [])
+                .map((n, idx) =>
+                  n === '...' ? (
+                    <span key={`ellipsis-${idx}`} style={{ padding: '5px 6px', fontSize: 12, color: TEXT_LIGHT }}>…</span>
+                  ) : (
+                    <button
+                      key={n}
+                      onClick={() => setPage(n)}
+                      style={{
+                        padding: '5px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                        border: n === page ? 'none' : '1px solid #e2e8f0',
+                        background: n === page ? RED : '#fff',
+                        color: n === page ? '#fff' : TEXT_DARK,
+                        minWidth: 32,
+                      }}
+                    >{n}</button>
+                  )
+                )}
+
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: page === totalPages ? '#f1f5f9' : '#fff', color: page === totalPages ? TEXT_LIGHT : TEXT_DARK, cursor: page === totalPages ? 'default' : 'pointer', fontSize: 12, fontWeight: 600 }}
+              >Next ›</button>
+              <button
+                onClick={() => setPage(totalPages)}
+                disabled={page === totalPages}
+                style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: page === totalPages ? '#f1f5f9' : '#fff', color: page === totalPages ? TEXT_LIGHT : TEXT_DARK, cursor: page === totalPages ? 'default' : 'pointer', fontSize: 12, fontWeight: 600 }}
+              >»</button>
+            </div>
           </div>
         )}
       </div>
@@ -496,72 +1361,182 @@ export default function InvoiceGeneratorPage() {
       {/* Create Invoice Modal */}
       <Modal
         open={showCreate}
-        onClose={() => setShowCreate(false)}
-        title="Create New Invoice"
+        onClose={() => { setShowCreate(false); resetCreateForm(); }}
+        title="New Invoice"
         size="xl"
         footer={
           <>
-            <button onClick={() => setShowCreate(false)} style={btnOutline}>Cancel</button>
-            <button onClick={handleCreateInvoice} style={btnPrimary}>Create Invoice</button>
+            <button onClick={() => { setShowCreate(false); resetCreateForm(); }} style={btnOutline}>Cancel</button>
+            <button onClick={handleCreateInvoice} disabled={saving} style={{ ...btnPrimary, opacity: saving ? 0.7 : 1 }}>
+              {saving ? 'Creating...' : 'Create Invoice'}
+            </button>
           </>
         }
       >
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20 }}>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID, display: 'block', marginBottom: 4 }}>Party Name *</label>
-            <input value={form.partyName} onChange={e => setForm(f => ({ ...f, partyName: e.target.value }))} style={inp} placeholder="Customer name" />
-          </div>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID, display: 'block', marginBottom: 4 }}>Party GST</label>
-            <input value={form.partyGST} onChange={e => setForm(f => ({ ...f, partyGST: e.target.value }))} style={inp} placeholder="GST number" />
-          </div>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID, display: 'block', marginBottom: 4 }}>Invoice Date</label>
-            <input type="date" value={form.invoiceDate} onChange={e => setForm(f => ({ ...f, invoiceDate: e.target.value }))} style={inp} />
-          </div>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID, display: 'block', marginBottom: 4 }}>Due Date</label>
-            <input type="date" value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} style={inp} />
-          </div>
-        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        <div style={{ marginBottom: 14 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID, display: 'block', marginBottom: 4 }}>Party Address</label>
-          <textarea value={form.partyAddress} onChange={e => setForm(f => ({ ...f, partyAddress: e.target.value }))} style={{ ...inp, minHeight: 60, resize: 'vertical' }} placeholder="Full address" />
-        </div>
-
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <label style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK }}>Items</label>
-            <button onClick={handleAddItem} style={{ ...btnOutline, padding: '4px 12px', fontSize: 12 }}>
-              <MdAdd size={14} /> Add Item
-            </button>
+          {/* ── Party Details ── */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 3, height: 14, background: RED, borderRadius: 2 }} /> Bill To
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              {[
+                ['Party Name *', 'partyName', 'text', 'Customer / Company name'],
+                ['GSTIN', 'partyGST', 'text', '29ABCDE1234F1Z5'],
+                ['Phone', 'partyPhone', 'text', '+91 98765 43210'],
+                ['Email', 'partyEmail', 'email', 'customer@email.com'],
+                ['Invoice Date *', 'invoiceDate', 'date', ''],
+                ['Due Date', 'dueDate', 'date', ''],
+                ['PO Number', 'purchaseOrderRef', 'text', 'PO-2024-001'],
+                ['PO Date', 'poDate', 'date', ''],
+              ].map(([label, key, type, ph]) => (
+                <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>{label}</label>
+                  <input type={type} placeholder={ph}
+                    value={createForm[key]}
+                    onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
+                    style={{ padding: '7px 10px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 12, outline: 'none', fontFamily: 'inherit', background: '#fff', color: '#1e293b' }}
+                    onFocus={e => e.target.style.borderColor = RED}
+                    onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                  />
+                </div>
+              ))}
+              <div style={{ gridColumn: 'span 3', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>Address</label>
+                <textarea rows={2} placeholder="#13/14, Street, City, State - PIN"
+                  value={createForm.partyAddress}
+                  onChange={e => setCreateForm(f => ({ ...f, partyAddress: e.target.value }))}
+                  style={{ padding: '7px 10px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 12, outline: 'none', fontFamily: 'inherit', background: '#fff', color: '#1e293b', resize: 'vertical' }}
+                  onFocus={e => e.target.style.borderColor = RED}
+                  onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                />
+              </div>
+            </div>
           </div>
-          {form.items.map((item, idx) => (
-            <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 0.7fr 0.7fr 1fr 0.7fr 0.7fr 40px', gap: 8, marginBottom: 8, alignItems: 'end' }}>
-              <input value={item.description} onChange={e => handleItemChange(idx, 'description', e.target.value)} style={inp} placeholder="Description" />
-              <input value={item.hsn} onChange={e => handleItemChange(idx, 'hsn', e.target.value)} style={inp} placeholder="HSN" />
-              <input type="number" value={item.qty} onChange={e => handleItemChange(idx, 'qty', e.target.value)} style={inp} placeholder="Qty" />
-              <input value={item.unit} onChange={e => handleItemChange(idx, 'unit', e.target.value)} style={inp} placeholder="Unit" />
-              <input type="number" value={item.rate} onChange={e => handleItemChange(idx, 'rate', e.target.value)} style={inp} placeholder="Rate" />
-              <input type="number" value={item.discount} onChange={e => handleItemChange(idx, 'discount', e.target.value)} style={inp} placeholder="Disc%" />
-              <input type="number" value={item.taxRate} onChange={e => handleItemChange(idx, 'taxRate', e.target.value)} style={inp} placeholder="Tax%" />
-              <button onClick={() => handleRemoveItem(idx)} style={{ padding: '8px', borderRadius: 6, border: '1px solid #fecaca', background: '#fef2f2', cursor: 'pointer' }}>
-                <MdDelete size={16} color={RED_LIGHT} />
+
+          {/* ── Items Table ── */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.8px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 3, height: 14, background: RED, borderRadius: 2 }} /> Items *
+              </div>
+              <button
+                onClick={() => setCreateItems(p => [...p, { ...emptyItem }])}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 7, border: `1.5px solid ${RED}`, background: '#fef2f2', color: RED, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                + Add Row
               </button>
             </div>
-          ))}
-        </div>
+            <div style={{ overflowX: 'auto', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 820 }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                    {['#', 'Description *', 'HSN', 'Qty', 'Unit', 'Rate (₹)', 'Disc %', 'Tax %', 'Amount (₹)', ''].map((h, i) => (
+                      <th key={i} style={{ padding: '8px 10px', textAlign: i >= 3 && i <= 8 ? 'right' : 'left', fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {createItems.map((item, i) => {
+                    const base    = (parseFloat(item.qty) || 0) * (parseFloat(item.rate) || 0);
+                    const disc    = base * ((parseFloat(item.discount) || 0) / 100);
+                    const taxable = base - disc;
+                    const tax     = taxable * ((parseFloat(item.taxRate) || 0) / 100);
+                    const total   = taxable + tax;
+                    return (
+                      <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '6px 8px', color: '#94a3b8', fontWeight: 700, fontSize: 11, textAlign: 'center', width: 28 }}>{i + 1}</td>
+                        <td style={{ padding: '6px 8px', minWidth: 180 }}>
+                          <input style={{ width: '100%', padding: '6px 8px', border: '1.5px solid #e2e8f0', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'inherit' }}
+                            placeholder="Item description" value={item.description}
+                            onChange={e => updateCreateItem(i, 'description', e.target.value)}
+                            onFocus={e => e.target.style.borderColor = RED} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                        </td>
+                        <td style={{ padding: '6px 8px', width: 90 }}>
+                          <input style={{ width: '100%', padding: '6px 8px', border: '1.5px solid #e2e8f0', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'inherit' }}
+                            placeholder="73211110" value={item.hsn}
+                            onChange={e => updateCreateItem(i, 'hsn', e.target.value)}
+                            onFocus={e => e.target.style.borderColor = RED} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                        </td>
+                        <td style={{ padding: '6px 8px', width: 70 }}>
+                          <input type="number" style={{ width: '100%', padding: '6px 8px', border: '1.5px solid #e2e8f0', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'inherit', textAlign: 'right' }}
+                            value={item.qty} onChange={e => updateCreateItem(i, 'qty', e.target.value)}
+                            onFocus={e => e.target.style.borderColor = RED} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                        </td>
+                        <td style={{ padding: '6px 8px', width: 80 }}>
+                          <select style={{ width: '100%', padding: '6px 8px', border: '1.5px solid #e2e8f0', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'inherit' }}
+                            value={item.unit} onChange={e => updateCreateItem(i, 'unit', e.target.value)}>
+                            {['Nos', 'Pcs', 'Kg', 'Grams', 'Litre', 'ML', 'Metre', 'Set', 'Box', 'Carton', 'Dozen', 'EA'].map(u => <option key={u}>{u}</option>)}
+                          </select>
+                        </td>
+                        <td style={{ padding: '6px 8px', width: 100 }}>
+                          <input type="number" style={{ width: '100%', padding: '6px 8px', border: '1.5px solid #e2e8f0', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'inherit', textAlign: 'right' }}
+                            value={item.rate} onChange={e => updateCreateItem(i, 'rate', e.target.value)}
+                            onFocus={e => e.target.style.borderColor = RED} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                        </td>
+                        <td style={{ padding: '6px 8px', width: 70 }}>
+                          <input type="number" style={{ width: '100%', padding: '6px 8px', border: '1.5px solid #e2e8f0', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'inherit', textAlign: 'right' }}
+                            value={item.discount} onChange={e => updateCreateItem(i, 'discount', e.target.value)}
+                            onFocus={e => e.target.style.borderColor = RED} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                        </td>
+                        <td style={{ padding: '6px 8px', width: 70 }}>
+                          <input type="number" style={{ width: '100%', padding: '6px 8px', border: '1.5px solid #e2e8f0', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'inherit', textAlign: 'right' }}
+                            value={item.taxRate} onChange={e => updateCreateItem(i, 'taxRate', e.target.value)}
+                            onFocus={e => e.target.style.borderColor = RED} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                        </td>
+                        <td style={{ padding: '6px 8px', width: 100, textAlign: 'right', fontWeight: 700, color: '#1e293b', fontSize: 12 }}>
+                          ₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td style={{ padding: '6px 8px', width: 36, textAlign: 'center' }}>
+                          <button onClick={() => setCreateItems(p => p.filter((_, idx) => idx !== i))}
+                            disabled={createItems.length === 1}
+                            style={{ background: 'none', border: 'none', cursor: createItems.length === 1 ? 'not-allowed' : 'pointer', color: createItems.length === 1 ? '#cbd5e1' : '#ef4444', fontSize: 16, lineHeight: 1, padding: 2 }}>
+                            ×
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: '#f8fafc', borderTop: '2px solid #e2e8f0' }}>
+                    <td colSpan={8} style={{ padding: '8px 10px', textAlign: 'right', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
+                      Subtotal: ₹{createItemSubtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })} &nbsp;|&nbsp;
+                      Tax: ₹{createItemTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', fontSize: 14, fontWeight: 900, color: RED }}>
+                      ₹{createGrandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID, display: 'block', marginBottom: 4 }}>Notes</label>
-            <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} style={{ ...inp, minHeight: 60, resize: 'vertical' }} placeholder="Additional notes" />
+          {/* ── Notes ── */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>Notes</label>
+              <textarea rows={2} placeholder="Any special instructions..."
+                value={createForm.notes}
+                onChange={e => setCreateForm(f => ({ ...f, notes: e.target.value }))}
+                style={{ padding: '7px 10px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 12, outline: 'none', fontFamily: 'inherit', background: '#fff', color: '#1e293b', resize: 'vertical' }}
+                onFocus={e => e.target.style.borderColor = RED} onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>Terms</label>
+              <textarea rows={2}
+                value={createForm.terms}
+                onChange={e => setCreateForm(f => ({ ...f, terms: e.target.value }))}
+                style={{ padding: '7px 10px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 12, outline: 'none', fontFamily: 'inherit', background: '#fff', color: '#1e293b', resize: 'vertical' }}
+                onFocus={e => e.target.style.borderColor = RED} onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+              />
+            </div>
           </div>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID, display: 'block', marginBottom: 4 }}>Terms & Conditions</label>
-            <textarea value={form.terms} onChange={e => setForm(f => ({ ...f, terms: e.target.value }))} style={{ ...inp, minHeight: 60, resize: 'vertical' }} placeholder="Payment terms" />
-          </div>
+
         </div>
       </Modal>
 
@@ -575,6 +1550,18 @@ export default function InvoiceGeneratorPage() {
           footer={
             <>
               <button onClick={() => { setShowView(false); setSelectedInvoice(null); }} style={btnOutline}>Close</button>
+              <button
+                onClick={() => shareViaWhatsApp(selectedInvoice)}
+                style={{ ...btnOutline, color: '#25D366', borderColor: '#bbf7d0', gap: 6 }}
+              >
+                <FaWhatsapp size={15} /> WhatsApp
+              </button>
+              <button
+                onClick={() => shareViaGmail(selectedInvoice)}
+                style={{ ...btnOutline, color: '#EA4335', borderColor: '#fecaca', gap: 6 }}
+              >
+                <FaEnvelope size={14} /> Gmail
+              </button>
               <button onClick={() => handlePrint(selectedInvoice)} style={btnPrimary}>
                 <MdPrint size={16} /> Print
               </button>
@@ -582,6 +1569,123 @@ export default function InvoiceGeneratorPage() {
           }
         >
           <div dangerouslySetInnerHTML={{ __html: generateInvoiceHTML(selectedInvoice) }} />
+        </Modal>
+      )}
+
+      {/* Upload Preview / Validation Modal */}
+      {uploadPreviewData && (
+        <Modal
+          open={showUploadPreview}
+          onClose={() => { setShowUploadPreview(false); setUploadPreviewData(null); }}
+          title="Excel Upload Preview"
+          size="xl"
+          footer={
+            <>
+              <button
+                onClick={() => { setShowUploadPreview(false); setUploadPreviewData(null); }}
+                style={btnOutline}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmUpload}
+                disabled={uploading || !uploadPreviewData.valid.length}
+                style={{ ...btnPrimary, opacity: (uploading || !uploadPreviewData.valid.length) ? 0.6 : 1 }}
+              >
+                {uploading ? 'Creating...' : `Create ${uploadPreviewData.valid.length} Invoice${uploadPreviewData.valid.length !== 1 ? 's' : ''}`}
+              </button>
+            </>
+          }
+        >
+          {/* Summary bar */}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+            <div style={{ flex: 1, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <MdCheckCircle size={20} color="#22c55e" />
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: '#16a34a' }}>{uploadPreviewData.valid.length}</div>
+                <div style={{ fontSize: 11, color: '#15803d' }}>Valid invoices ready to create</div>
+                {uploadPreviewData.valid[0]?.uniqueId && (
+                  <div style={{ fontSize: 10, color: '#15803d', marginTop: 2 }}>
+                    ✓ UniqueId detected · ✓ PO Number detected · ✓ Brand detected
+                  </div>
+                )}
+              </div>
+            </div>
+            {uploadPreviewData.errors.length > 0 && (
+              <div style={{ flex: 1, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <MdError size={20} color="#ef4444" />
+                <div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: '#dc2626' }}>{uploadPreviewData.errors.length}</div>
+                  <div style={{ fontSize: 11, color: '#b91c1c' }}>Rows with errors (will be skipped)</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Errors list */}
+          {uploadPreviewData.errors.length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <MdWarning size={16} color="#f59e0b" /> Validation Errors
+              </div>
+              <div style={{ background: '#fef9f0', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 14px', maxHeight: 160, overflowY: 'auto' }}>
+                {uploadPreviewData.errors.map((err, i) => (
+                  <div key={i} style={{ fontSize: 12, color: '#92400e', padding: '3px 0', borderBottom: i < uploadPreviewData.errors.length - 1 ? '1px solid #fde68a' : 'none' }}>
+                    <span style={{ fontWeight: 700 }}>Row {err.row}</span> — {err.field}: {err.message}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Valid invoices preview table */}
+          {uploadPreviewData.valid.length > 0 && (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK, marginBottom: 8 }}>Invoices to be Created</div>
+              <div style={{ overflowX: 'auto', maxHeight: 340, overflowY: 'auto', border: '1px solid #e8edf2', borderRadius: 10 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>
+                    <tr>
+                      {['#', 'Unique ID', 'PO Number', 'PO Date', 'Ship To', 'City', 'State', 'Product', 'Brand', 'Qty', 'Dispatch Date', 'AWB', 'Courier', 'Order Status'].map(h => (
+                        <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: TEXT_LIGHT, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e8edf2', whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {uploadPreviewData.valid.map((inv, i) => {
+                      const item = inv.items?.[0] || {};
+                      return (
+                        <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                          <td style={{ padding: '7px 12px', color: TEXT_LIGHT, fontWeight: 700 }}>{i + 1}</td>
+                          <td style={{ padding: '7px 12px', fontFamily: 'monospace', fontSize: 11, color: TEXT_MID, whiteSpace: 'nowrap' }}>{inv.uniqueId || '—'}</td>
+                          <td style={{ padding: '7px 12px', fontFamily: 'monospace', fontSize: 11, color: BLUE, whiteSpace: 'nowrap' }}>{inv.purchaseOrderRef || '—'}</td>
+                          <td style={{ padding: '7px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.poDate || '—'}</td>
+                          <td style={{ padding: '7px 12px', fontWeight: 600, color: TEXT_DARK, maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={inv.partyName}>{inv.partyName}</td>
+                          <td style={{ padding: '7px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.partyCity || '—'}</td>
+                          <td style={{ padding: '7px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.partyState || '—'}</td>
+                          <td style={{ padding: '7px 12px', color: TEXT_MID, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.description}>{item.description || '—'}</td>
+                          <td style={{ padding: '7px 12px', color: TEXT_MID, whiteSpace: 'nowrap' }}>{inv.brandName || '—'}</td>
+                          <td style={{ padding: '7px 12px', color: TEXT_DARK, fontWeight: 600, textAlign: 'center' }}>{item.qty ?? '—'}</td>
+                          <td style={{ padding: '7px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.dispatchDate || '—'}</td>
+                          <td style={{ padding: '7px 12px', fontFamily: 'monospace', fontSize: 11, color: TEXT_MID, whiteSpace: 'nowrap' }}>{inv.awb || '—'}</td>
+                          <td style={{ padding: '7px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.courierName || '—'}</td>
+                          <td style={{ padding: '7px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.orderStatus || '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {uploadPreviewData.valid.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '30px 20px', color: TEXT_LIGHT }}>
+              <MdError size={40} color="#fca5a5" style={{ marginBottom: 8 }} />
+              <div style={{ fontSize: 14, fontWeight: 600, color: RED }}>No valid invoices found</div>
+              <div style={{ fontSize: 12, marginTop: 4 }}>Please fix the errors above and re-upload.</div>
+            </div>
+          )}
         </Modal>
       )}
     </div>

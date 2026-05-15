@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const BASE = import.meta.env.VITE_API_URL || 'https://chakraindustries-backend.onrender.com/api';
 const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
 const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
 const handle = async (res) => { const d = await res.json(); if (!res.ok) throw new Error(d.message || 'Request failed'); return d; };
@@ -24,4 +24,9 @@ export const logisticsApi = {
   updateShipment: (id, body) => fetch(`${BASE}/logistics/shipments/${id}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   markPOD:        (id, body) => fetch(`${BASE}/logistics/shipments/${id}/pod`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   deleteShipment: (id)     => fetch(`${BASE}/logistics/shipments/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
+
+  // Courier Tracking & Reports
+  trackCourier:   (awbNo, courier = '') => fetch(`${BASE}/logistics/track/${awbNo}${courier ? `?courier=${courier}` : ''}`, { headers: authHeaders() }).then(handle),
+  regularize:     (id)     => fetch(`${BASE}/logistics/dispatches/${id}/regularize`, { method: 'POST', headers: authHeaders() }).then(handle),
+  getPendency:    ()       => fetch(`${BASE}/logistics/pendency`, { headers: authHeaders() }).then(handle),
 };

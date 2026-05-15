@@ -472,9 +472,9 @@ export default function SettingsPage() {
       <Modal open={openModal === 'company'} onClose={() => setOpenModal(null)} title="Company Profile"
         footer={<><button className={btnOutline} onClick={() => setOpenModal(null)}>Cancel</button><button className={btnPrimary}>Save Changes</button></>}>
         <div className="grid grid-cols-2 gap-4">
-          <div className={fieldCls}><label className={labelCls}>Company Name *</label><input className={inputCls} defaultValue="Chakra Industries Pvt Ltd" /></div>
-          <div className={fieldCls}><label className={labelCls}>GST Number</label><input className={inputCls} defaultValue="27AABCC1234D1Z5" /></div>
-          <div className={fieldCls}><label className={labelCls}>PAN Number</label><input className={inputCls} defaultValue="AABCC1234D" /></div>
+          <div className={fieldCls}><label className={labelCls}>Company Name *</label><input className={inputCls} defaultValue="Sri Chakra Industries" /></div>
+          <div className={fieldCls}><label className={labelCls}>GST Number</label><input className={inputCls} defaultValue="29ABWFS0002M1ZR" /></div>
+          <div className={fieldCls}><label className={labelCls}>PAN Number</label><input className={inputCls} defaultValue="ABWFS0002M" /></div>
           <div className={fieldCls}><label className={labelCls}>Phone</label><input className={inputCls} defaultValue="+91 98765 43210" /></div>
           <div className={fieldCls}><label className={labelCls}>Email</label><input type="email" className={inputCls} defaultValue="info@chakraindustries.in" /></div>
           <div className={fieldCls}><label className={labelCls}>Website</label><input className={inputCls} defaultValue="www.chakraindustries.in" /></div>

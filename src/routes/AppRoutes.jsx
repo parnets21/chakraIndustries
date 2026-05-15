@@ -37,6 +37,7 @@ import RealTimeTrackingPage from '../pages/logistics/RealTimeTrackingPage';
 // Returns
 import ReturnsSubPage from '../pages/returns/ReturnsSubPage';
 import MaterialReturnsPage from '../pages/returns/MaterialReturnsPage';
+import ReturnRequestDetailPage from '../pages/returns/ReturnRequestDetailPage';
 
 // Finance
 import FinanceSubPage from '../pages/finance/FinanceSubPage';
@@ -134,15 +135,18 @@ export default function AppRoutes() {
       <Route path="/logistics/dc"        element={<P element={<LogisticsSubPage tab="dc" />} />} />
       <Route path="/logistics/pendency"  element={<P element={<LogisticsSubPage tab="pendency" />} />} />
       <Route path="/logistics/courier"   element={<P element={<LogisticsSubPage tab="courier" />} />} />
+      <Route path="/logistics/docket"    element={<P element={<LogisticsSubPage tab="docket" />} />} />
       <Route path="/logistics/livetrack" element={<P element={<RealTimeTrackingPage />} />} />
 
       {/* Returns */}
       <Route path="/returns"           element={<Navigate to="/returns/requests" replace />} />
       <Route path="/returns/requests"  element={<P element={<ReturnsSubPage tab="requests" />} />} />
+      <Route path="/returns/tracker"   element={<P element={<ReturnsSubPage tab="tracker" />} />} />
       <Route path="/returns/docket"    element={<P element={<ReturnsSubPage tab="docket" />} />} />
       <Route path="/returns/matching"  element={<P element={<ReturnsSubPage tab="matching" />} />} />
       <Route path="/returns/loss"      element={<P element={<ReturnsSubPage tab="loss" />} />} />
       <Route path="/returns/material"  element={<P element={<MaterialReturnsPage />} />} />
+      <Route path="/returns/detail/:id" element={<P element={<ReturnRequestDetailPage />} />} />
 
       {/* Finance */}
       <Route path="/finance"           element={<Navigate to="/finance/ledger" replace />} />

@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import StatusBadge from '../../components/common/StatusBadge';
 import Modal from '../../components/common/Modal';
 import { materialReturnApi } from '../../api/materialReturnApi';
 import { toast } from '../../components/common/Toast';
+import DocketTrackingPage from './DocketTrackingPage';
 
 const STAGES = ['Initiated', 'Approved', 'Transport_Pickup', 'In_Transit', 'Out_For_Delivery', 'Delivered', 'Warehouse_Queue', 'Received_At_Warehouse', 'QC_In_Progress', 'QC_Completed', 'Closed'];
 const stageColor = { 
@@ -20,6 +22,7 @@ const stageColor = {
 };
 
 export default function MaterialReturnsPage({ initialTab = 0 }) {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [returns, setReturns]     = useState([]);
   const [stats, setStats]         = useState({ total: 0, inTransit: 0, pendingQC: 0, closed: 0 });
@@ -37,7 +40,10 @@ export default function MaterialReturnsPage({ initialTab = 0 }) {
     productName: '',
     returnQty: 1,
     pickupAddress: '',
-    attachments: []
+    attachments: [],
+    partyType: 'Dealer',
+    invoiceAmount: '',
+    createdBy: 'Priya Sharma'
   });
 
   const fetchAll = useCallback(async () => {
@@ -106,11 +112,40 @@ export default function MaterialReturnsPage({ initialTab = 0 }) {
 
   return (
     <div>
+      {/* Page Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-800 mb-2">Material Returns</h1>
+        <p className="text-gray-600">Create and manage material return requests</p>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="flex space-x-1 mb-6 bg-gray-100 p-1 rounded-lg w-fit">
+        {[
+          { id: 0, label: 'Return Requests', icon: '📋' },
+         
+          { id: 2, label: 'Debit/Credit Matching', icon: '💰' },
+         
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === tab.id
+                ? 'bg-red-600 text-white shadow-sm'
+                : 'text-gray-600 hover:text-gray-800 hover:bg-white'
+            }`}
+          >
+            <span className="mr-2">{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
         <button onClick={() => setShowCreate(true)} style={{
           padding: '8px 18px', borderRadius: 10, background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
           color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-        }}>+ New Return</button>
+        }}>+ Create Return</button>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
@@ -122,6 +157,7 @@ export default function MaterialReturnsPage({ initialTab = 0 }) {
         ))}
       </div>
 
+      {/* Tab Content */}
       {activeTab === 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
@@ -157,8 +193,7 @@ export default function MaterialReturnsPage({ initialTab = 0 }) {
 
           {selected && (
             <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-              <div className="text-sm font-bold text-gray-800 mb-4">Stage Tracker — {selected.mrId}</div>
-              <div className="flex items-center mb-6 overflow-x-auto pb-1">
+        <div className="flex items-center mb-6 overflow-x-auto pb-1">
                 {STAGES.map((s, i) => {
                   const cur = stageIdx(selected.stage);
                   const done = i < cur; const active = i === cur;
@@ -196,22 +231,13 @@ export default function MaterialReturnsPage({ initialTab = 0 }) {
         </div>
       )}
 
-      {activeTab === 1 && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="text-sm font-bold text-gray-800 mb-4">Docket Tracking</div>
-          {returns.map((r, i) => (
-            <div key={i} onClick={() => setSelected(r)}
-              className={`p-3 rounded-lg mb-2 cursor-pointer border-2 transition-all ${selected?._id === r._id ? 'border-red-600 bg-red-50/60' : 'border-gray-200 hover:border-red-300'}`}>
-              <div className="flex justify-between items-center mb-1">
-                <span className="font-bold text-red-700 text-sm">{r.docketId}</span>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ background: stageColor[r.stage] }}>{r.stage}</span>
-              </div>
-              <div className="text-xs text-gray-500">{r.mrId} · {r.supplierName}</div>
-              <div className="text-xs text-gray-400 mt-0.5">Transport: {r.transport || '—'} {r.awbNo ? `· AWB: ${r.awbNo}` : ''}</div>
-            </div>
-          ))}
-        </div>
+      
+      {activeTab === 2 && (
+        <DocketTrackingPage />
       )}
+
+
+     
 
       {/* Create Modal */}
       <Modal open={showCreate} onClose={() => setShowCreate(false)} title="New Material Return"

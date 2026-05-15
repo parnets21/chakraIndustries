@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const BASE = import.meta.env.VITE_API_URL || 'https://chakraindustries-backend.onrender.com/api';
 const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
 const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
 const handle = async (res) => { const d = await res.json(); if (!res.ok) throw new Error(d.message || 'Request failed'); return d; };
@@ -27,10 +27,9 @@ export const bulkOrderApi = {
   updateSchedule:   (id, body) => fetch(`${BASE}/bulk-orders/schedules/${id}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   deleteSchedule:   (id)     => fetch(`${BASE}/bulk-orders/schedules/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
 
-  // Bulk Orders (Complete Flow)
-  getAll:           (p = {}) => fetch(`${BASE}/bulk-orders${q(p)}`, { headers: authHeaders() }).then(handle),
-  getById:          (id)     => fetch(`${BASE}/bulk-orders/${id}`, { headers: authHeaders() }).then(handle),
-  create:           (body)   => fetch(`${BASE}/bulk-orders`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
-  update:           (id, body) => fetch(`${BASE}/bulk-orders/${id}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
-  delete:           (id)     => fetch(`${BASE}/bulk-orders/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
+  // Convert to Dispatch
+  convertToDispatch: (id)   => fetch(`${BASE}/bulk-orders/quotations/${id}/convert-to-dispatch`, { method: 'POST', headers: authHeaders() }).then(handle),
+
+  // Convert to Purchase Order
+  convertToPO: (id, vendorId) => fetch(`${BASE}/bulk-orders/quotations/${id}/convert-to-po`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ vendorId }) }).then(handle),
 };

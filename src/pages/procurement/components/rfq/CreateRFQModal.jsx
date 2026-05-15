@@ -61,6 +61,38 @@ export default function CreateRFQModal({ open, onClose, onSaved }) {
   const toggleVendor = (id) =>
     setSelectedVendors(prev => prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id]);
 
+  // ── When PR is selected, auto-populate items from that PR ──────────────────
+  const handlePRChange = async (prId) => {
+    const pr = prs.find(p => p._id === prId);
+    setForm(f => ({
+      ...f,
+      linkedPR: prId,
+      title: f.title || (pr ? `RFQ for ${pr.prId} — ${pr.department}` : ''),
+    }));
+
+    if (!prId) {
+      setItems([{ ...emptyItem }]);
+      return;
+    }
+
+    try {
+      const res = await prApi.getById(prId);
+      const prData = res.data;
+      if (prData?.items?.length) {
+        setItems(prData.items.map(it => ({
+          sku: '',
+          name: it.name || '',
+          qty: it.qty ? String(it.qty) : '',
+          unit: it.unit || 'Nos',
+          spec: '',
+          requiredDate: prData.requiredBy ? new Date(prData.requiredBy).toISOString().slice(0, 10) : '',
+        })));
+      }
+    } catch (e) {
+      console.error('Failed to load PR items:', e);
+    }
+  };
+
   const updateItem = (i, field, val) =>
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, [field]: val } : it));
 
@@ -153,41 +185,16 @@ export default function CreateRFQModal({ open, onClose, onSaved }) {
               </div>
               <div style={{ gridColumn: 'span 3' }}>
                 <label style={lbl}>PR Reference (Approved PRs only)</label>
-                <select style={inp} value={form.linkedPR} onChange={e => {
-                  const prId = e.target.value;
-                  const pr = prs.find(p => p._id === prId);
-                  
-                  // Auto-populate items from PR
-                  const prItems = pr && pr.items ? pr.items.map(item => ({
-                    sku: '',
-                    name: item.name || '',
-                    qty: item.qty || '',
-                    unit: item.unit || 'Nos',
-                    spec: '',
-                    requiredDate: pr.requiredBy ? pr.requiredBy.split('T')[0] : '',
-                  })) : [{ ...emptyItem }];
-                  
-                  setForm(f => ({
-                    ...f,
-                    linkedPR: prId,
-                    title: f.title || (pr ? `RFQ for ${pr.prId} — ${pr.department}` : ''),
-                  }));
-                  
-                  // Auto-populate items if PR is selected
-                  if (prId && pr) {
-                    setItems(prItems);
-                  }
-                }}
+                <select style={inp} value={form.linkedPR} onChange={e => handlePRChange(e.target.value)}
                   onFocus={e => e.target.style.borderColor = '#c0392b'} onBlur={e => e.target.style.borderColor = '#e2e8f0'}>
                   <option value="">— None —</option>
                   {prs.map(p => (
-                    <option key={p._id} value={p._id}>{p.prId} — {p.department}</option>
+                    <option key={p._id} value={p._id}>{p.prId} — {p.department} ({p.items?.length || 0} items)</option>
                   ))}
                 </select>
                 {form.linkedPR && (
-                  <div style={{ fontSize: 11, color: '#16a34a', marginTop: 6, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ width: 4, height: 4, background: '#16a34a', borderRadius: '50%' }} />
-                    Items auto-populated from PR ({items.length} item{items.length !== 1 ? 's' : ''})
+                  <div style={{ marginTop: 6, fontSize: 11, color: '#10b981', fontWeight: 600 }}>
+                    ✓ Items auto-populated from PR
                   </div>
                 )}
               </div>

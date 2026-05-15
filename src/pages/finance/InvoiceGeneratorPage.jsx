@@ -8,6 +8,8 @@ import { FaWhatsapp, FaEnvelope } from 'react-icons/fa';
 import { CHAKRA_LOGO_B64 } from '../../assets/chakraLogoB64';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import SingleProductInvoices from './components/SingleProductInvoices';
+import MultipleProductInvoices from './components/MultipleProductInvoices';
 
 // Design tokens
 const RED = '#c0392b';
@@ -35,8 +37,12 @@ const btnOutline = {
   fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
 };
 
-export default function InvoiceGeneratorPage() {
+export default function InvoiceGeneratorPage({ type = 'single' }) {
   const [invoices, setInvoices] = useState([]);
+  const [singleInvoices, setSingleInvoices] = useState([]);
+  const [multiInvoices, setMultiInvoices] = useState([]);
+  const [singleTotal, setSingleTotal] = useState(0);
+  const [multiTotal, setMultiTotal] = useState(0);
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [showView, setShowView] = useState(false);
@@ -44,27 +50,45 @@ export default function InvoiceGeneratorPage() {
   const [uploading, setUploading] = useState(false);
   const [showUploadPreview, setShowUploadPreview] = useState(false);
   const [uploadPreviewData, setUploadPreviewData] = useState(null);
+  const [shareMenuInv, setShareMenuInv] = useState(null);
   const fileInputRef = useRef(null);
 
   // Pagination
   const PAGE_SIZE = 20;
-  const [page, setPage] = useState(1);
+  const [singlePage, setSinglePage] = useState(1);
+  const [multiPage, setMultiPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const [search, setSearch] = useState('');
   const searchRef = useRef(null);
+
+  // Derived: sliced invoices for current page
+  const pagedSingleInvoices = singleInvoices.slice((singlePage - 1) * PAGE_SIZE, singlePage * PAGE_SIZE);
+  const pagedMultiInvoices  = multiInvoices.slice((multiPage - 1) * PAGE_SIZE, multiPage * PAGE_SIZE);
+
+  // Keep legacy `page` alias so handleDelete still works
+  const page = type === 'single' ? singlePage : multiPage;
 
   const fetchAll = useCallback(async (p = 1, q = '') => {
     setLoading(true);
     try {
       const params = { page: p, limit: PAGE_SIZE };
       if (q.trim()) params.search = q.trim();
-      const [listRes, statsRes] = await Promise.all([
+
+      // Fetch ALL invoices and split on the frontend based on items.length
+      const [allRes, statsRes] = await Promise.all([
         invoiceApi.getAll(params),
         invoiceApi.getStats(),
       ]);
-      setInvoices(listRes.data || []);
-      setTotalCount(listRes.total || 0);
+
+      const all = allRes.data || [];
+      const single = all.filter(inv => (inv.items?.length || 0) <= 1);
+      const multi  = all.filter(inv => (inv.items?.length || 0) > 1);
+
+      setSingleInvoices(single);
+      setSingleTotal(single.length);
+      setMultiInvoices(multi);
+      setMultiTotal(multi.length);
+      setTotalCount(all.length);
       setStats(statsRes.data || {});
     } catch (e) {
       console.error(e);
@@ -77,13 +101,13 @@ export default function InvoiceGeneratorPage() {
   // Debounce search — wait 400ms after user stops typing
   useEffect(() => {
     const t = setTimeout(() => {
-      setPage(1);
+      setSinglePage(1);
+      setMultiPage(1);
       fetchAll(1, search);
     }, 400);
     return () => clearTimeout(t);
   }, [search]); // eslint-disable-line
-
-  useEffect(() => { fetchAll(page, search); }, [fetchAll, page]); // eslint-disable-line
+  useEffect(() => { fetchAll(1, ''); }, [fetchAll]); // eslint-disable-line
 
   // Close share dropdown when clicking outside
   useEffect(() => {
@@ -102,10 +126,15 @@ export default function InvoiceGeneratorPage() {
 
     const getField = (row, ...keys) => {
       for (const k of keys) {
+        // 1. Exact match
         if (row[k] !== undefined && row[k] !== null && row[k] !== '') return String(row[k]).trim();
         const lower = k.toLowerCase();
+        // 2. Trimmed case-insensitive exact match
         const found = Object.keys(row).find(rk => rk.trim().toLowerCase() === lower);
         if (found !== undefined && row[found] !== undefined && row[found] !== '') return String(row[found]).trim();
+        // 3. Fuzzy: row key contains the search key (handles 'cgst ' trailing space, 'CGST@9%', etc.)
+        const fuzzy = Object.keys(row).find(rk => rk.trim().toLowerCase().includes(lower) || lower.includes(rk.trim().toLowerCase()));
+        if (fuzzy !== undefined && row[fuzzy] !== undefined && row[fuzzy] !== '') return String(row[fuzzy]).trim();
       }
       return '';
     };
@@ -507,7 +536,8 @@ export default function InvoiceGeneratorPage() {
       }
       setShowUploadPreview(false);
       setUploadPreviewData(null);
-      setPage(1);
+      setSinglePage(1);
+      setMultiPage(1);
       await fetchAll(1);
     } catch (e) {
       console.error(e);
@@ -557,9 +587,11 @@ export default function InvoiceGeneratorPage() {
       const taxableAmt = (item.qty || 0) * (item.rate || 0) * (1 - (item.discount || 0) / 100);
 
       // Use stored amounts from Excel if present, otherwise compute from taxRate
-      const storedCGST = item.cgst || 0;
-      const storedSGST = item.sgst || 0;
-      const storedIGST = item.igst || 0;
+      const storedCGST = Number(item.cgst) || 0;
+      const storedSGST = Number(item.sgst) || 0;
+      const storedIGST = Number(item.igst) || 0;
+      // Check if tax data was actually provided (non-zero) vs genuinely absent
+      const hasTaxData = (item.cgst != null && item.cgst !== '') || (item.sgst != null && item.sgst !== '') || (item.igst != null && item.igst !== '');
 
       let cgstAmt, sgstAmt, igstAmt, cgstRate, sgstRate, igstRate;
       if (storedIGST > 0) {
@@ -568,18 +600,22 @@ export default function InvoiceGeneratorPage() {
         cgstAmt  = 0; sgstAmt = 0;
         igstRate = taxableAmt > 0 ? Math.round((igstAmt / taxableAmt) * 100) : (item.taxRate || 0);
         cgstRate = 0; sgstRate = 0;
-      } else if (storedCGST > 0 || storedSGST > 0) {
+      } else if (hasTaxData && (storedCGST > 0 || storedSGST > 0)) {
         // Intra-state: CGST + SGST from stored values
         cgstAmt  = storedCGST; sgstAmt = storedSGST; igstAmt = 0;
         cgstRate = taxableAmt > 0 ? Math.round((cgstAmt / taxableAmt) * 100) : (item.taxRate || 0) / 2;
         sgstRate = cgstRate; igstRate = 0;
-      } else {
-        // Compute from taxRate
+      } else if (item.taxRate > 0) {
+        // Fallback: compute from taxRate only when no stored tax data at all
         const halfRate = (item.taxRate || 0) / 2;
         cgstRate = halfRate; sgstRate = halfRate; igstRate = 0;
         cgstAmt  = taxableAmt * cgstRate / 100;
         sgstAmt  = taxableAmt * sgstRate / 100;
         igstAmt  = 0;
+      } else {
+        // Truly zero tax
+        cgstAmt = 0; sgstAmt = 0; igstAmt = 0;
+        cgstRate = 0; sgstRate = 0; igstRate = 0;
       }
 
       if (!hsnMap[key]) hsnMap[key] = { taxable: 0, cgstRate, sgstRate, igstRate, cgst: 0, sgst: 0, igst: 0 };
@@ -594,8 +630,8 @@ export default function InvoiceGeneratorPage() {
     const totalSGST    = hsnRows.reduce((s, [, v]) => s + v.sgst, 0);
     const totalIGST    = hsnRows.reduce((s, [, v]) => s + v.igst, 0);
     const totalTax     = totalCGST + totalSGST + totalIGST;
-    const hasIGST      = totalIGST > 0;
-    const hasCGSTSGST  = totalCGST > 0 || totalSGST > 0;
+    const hasIGST      = true;   // always show all tax columns
+    const hasCGSTSGST  = true;
 
     // Amount in words
     const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
@@ -623,7 +659,7 @@ export default function InvoiceGeneratorPage() {
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, sans-serif; background: #fff; color: #111; font-size: 12px; }
-  .page { max-width: 820px; margin: 0 auto; padding: 24px 28px; border: 1px solid #ccc; }
+  .page { max-width: 820px; margin: 0 auto; padding: 24px 28px; border: 1px solid #ccc; overflow: hidden; }
 
   /* ── Top label ── */
   .top-label { text-align: right; font-size: 11px; font-weight: 700; letter-spacing: 1px; margin-bottom: 10px; }
@@ -663,11 +699,11 @@ export default function InvoiceGeneratorPage() {
   .total-row td { font-weight: 800; font-size: 13px; background: #f5f5f5; border-top: 2px solid #ccc; }
 
   /* ── HSN summary ── */
-  .hsn-wrap { border: 1px solid #ccc; border-top: none; }
-  .hsn-table { width: 100%; border-collapse: collapse; }
-  .hsn-table th { background: #f0f0f0; padding: 6px 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid #ccc; text-align: left; }
+  .hsn-wrap { border: 1px solid #ccc; border-top: none; overflow-x: hidden; }
+  .hsn-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .hsn-table th { background: #f0f0f0; padding: 4px 5px; font-size: 8.5px; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid #ccc; text-align: left; word-break: break-word; }
   .hsn-table th.r { text-align: right; }
-  .hsn-table td { padding: 6px 10px; font-size: 11px; border-bottom: 1px solid #eee; }
+  .hsn-table td { padding: 4px 5px; font-size: 9.5px; border-bottom: 1px solid #eee; word-break: break-word; overflow: hidden; }
   .hsn-table td.r { text-align: right; }
   .hsn-table .total-row td { font-weight: 700; background: #f5f5f5; border-top: 1px solid #ccc; border-bottom: none; }
 
@@ -795,6 +831,17 @@ export default function InvoiceGeneratorPage() {
   <!-- HSN/SAC Tax Summary -->
   <div class="hsn-wrap">
     <table class="hsn-table">
+      <colgroup>
+        <col style="width:11%"/>
+        <col style="width:13%"/>
+        <col style="width:8%"/>
+        <col style="width:11%"/>
+        <col style="width:8%"/>
+        <col style="width:11%"/>
+        <col style="width:8%"/>
+        <col style="width:11%"/>
+        <col style="width:19%"/>
+      </colgroup>
       <thead>
         <tr>
           <th>HSN/SAC</th>
@@ -866,7 +913,7 @@ export default function InvoiceGeneratorPage() {
     try {
       await invoiceApi.updateStatus(id, status);
       toast('Status updated');
-      await fetchAll(page);
+      await fetchAll(1, search);
     } catch (e) {
       toast(e.message || 'Failed to update status', 'error');
     }
@@ -878,7 +925,8 @@ export default function InvoiceGeneratorPage() {
     try {
       const res = await invoiceApi.deleteAll();
       toast(`${res.deleted} invoices deleted`);
-      setPage(1);
+      setSinglePage(1);
+      setMultiPage(1);
       await fetchAll(1);
     } catch (e) {
       toast(e.message || 'Failed to delete all invoices', 'error');
@@ -892,16 +940,19 @@ export default function InvoiceGeneratorPage() {
       await invoiceApi.delete(id);
       toast('Invoice deleted');
       // If we deleted the last item on this page, go back one page
-      const newPage = invoices.length === 1 && page > 1 ? page - 1 : page;
-      setPage(newPage);
-      await fetchAll(newPage);
+      const currentList = type === 'single' ? singleInvoices : multiInvoices;
+      const currentPage = type === 'single' ? singlePage : multiPage;
+      const setCurrentPage = type === 'single' ? setSinglePage : setMultiPage;
+      const newPage = currentList.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage;
+      setCurrentPage(newPage);
+      await fetchAll(1, search);
     } catch (e) {
       toast(e.message || 'Failed to delete', 'error');
     }
   };
 
   // ── Share Invoice ─────────────────────────────────────────────────────────
-  const [shareMenuInv, setShareMenuInv] = useState(null); // invoice being shared
+  // Note: shareMenuInv state is declared at the top of the component
 
   const handleShare = (inv) => {
     // Always show our custom dropdown (WhatsApp, Gmail, Copy)
@@ -1091,7 +1142,8 @@ export default function InvoiceGeneratorPage() {
       toast('Invoice created successfully', 'success');
       setShowCreate(false);
       resetCreateForm();
-      setPage(1);
+      setSinglePage(1);
+      setMultiPage(1);
       await fetchAll(1);
     } catch (e) {
       toast(e.message || 'Failed to create invoice', 'error');
@@ -1105,8 +1157,14 @@ export default function InvoiceGeneratorPage() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: TEXT_DARK, margin: 0 }}>Invoice Generator</h1>
-          <p style={{ fontSize: 13, color: TEXT_LIGHT, margin: '4px 0 0' }}>Create, upload, and manage invoices</p>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: TEXT_DARK, margin: 0 }}>
+            {type === 'single' ? 'Single Product Invoices' : 'Multiple Products Invoices'}
+          </h1>
+          <p style={{ fontSize: 13, color: TEXT_LIGHT, margin: '4px 0 0' }}>
+            {type === 'single'
+              ? 'Invoices with one product per customer order'
+              : 'Invoices with multiple / bulk products per order'}
+          </p>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
           <input
@@ -1116,12 +1174,6 @@ export default function InvoiceGeneratorPage() {
             onChange={handleFileUpload}
             style={{ display: 'none' }}
           />
-          <button
-            onClick={() => setShowCreate(true)}
-            style={btnPrimary}
-          >
-            + Create Invoice
-          </button>
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
@@ -1143,15 +1195,18 @@ export default function InvoiceGeneratorPage() {
       </div>
 
       {/* Stats Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
-        {[
-          { label: 'Total Invoices', value: stats.total || 0, color: BLUE },
-          { label: 'Draft', value: stats.draft || 0, color: TEXT_MID },
-          { label: 'Sent', value: stats.sent || 0, color: '#f59e0b' },
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
+        {(type === 'single' ? [
+          { label: 'Single Product Invoices', value: singleTotal, color: '#16a34a' },
           { label: 'Paid', value: stats.paid || 0, color: GREEN },
           { label: 'Overdue', value: stats.overdue || 0, color: RED_LIGHT },
           { label: 'Total Value', value: `₹${((stats.totalValue || 0) / 100000).toFixed(2)}L`, color: RED },
-        ].map((s, i) => (
+        ] : [
+          { label: 'Multi-Product Invoices', value: multiTotal, color: '#1d4ed8' },
+          { label: 'Paid', value: stats.paid || 0, color: GREEN },
+          { label: 'Overdue', value: stats.overdue || 0, color: RED_LIGHT },
+          { label: 'Total Value', value: `₹${((stats.totalValue || 0) / 100000).toFixed(2)}L`, color: RED },
+        ]).map((s, i) => (
           <div key={i} style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', border: '1px solid #e8edf2', boxShadow: '0 2px 8px rgba(15,23,42,0.04)' }}>
             <div style={{ fontSize: 28, fontWeight: 900, color: s.color }}>{s.value}</div>
             <div style={{ fontSize: 12, color: TEXT_LIGHT, marginTop: 4 }}>{s.label}</div>
@@ -1159,210 +1214,54 @@ export default function InvoiceGeneratorPage() {
         ))}
       </div>
 
-      {/* Invoice Table */}
-      <div style={{ background: '#fff', borderRadius: 18, border: '1px solid #e8edf2', boxShadow: '0 2px 12px rgba(15,23,42,0.06)', overflow: 'hidden' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #e8edf2', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: TEXT_DARK }}>All Invoices</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {/* Search bar */}
-            <div style={{ position: 'relative' }}>
-              <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: TEXT_LIGHT, fontSize: 14, pointerEvents: 'none' }}>🔍</span>
-              <input
-                ref={searchRef}
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search by name, invoice no, PO..."
-                style={{
-                  paddingLeft: 32, paddingRight: search ? 32 : 12,
-                  paddingTop: 7, paddingBottom: 7,
-                  border: '1.5px solid #e2e8f0', borderRadius: 10,
-                  fontSize: 13, color: TEXT_DARK, background: '#f8fafc',
-                  outline: 'none', width: 260, fontFamily: 'inherit',
-                  transition: 'border-color 0.15s',
-                }}
-                onFocus={e => e.target.style.borderColor = RED}
-                onBlur={e => e.target.style.borderColor = '#e2e8f0'}
-              />
-              {search && (
-                <button
-                  onClick={() => setSearch('')}
-                  style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: TEXT_LIGHT, fontSize: 16, lineHeight: 1, padding: 0 }}
-                >×</button>
-              )}
-            </div>
-            <div style={{ fontSize: 12, color: TEXT_LIGHT, whiteSpace: 'nowrap' }}>{totalCount} total</div>
-          </div>
-        </div>
-        {invoices.length === 0 ? (
-          <div style={{ padding: '40px 20px', textAlign: 'center', color: TEXT_LIGHT }}>No invoices yet. Upload from Excel.</div>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ background: '#f8fafc' }}>
-                  {['#', 'Invoice No', 'Unique ID', 'PO Number', 'PO Date', 'Ship To', 'City', 'State', 'Product', 'Brand', 'Qty', 'UOM', 'Dispatch Date', 'AWB', 'Courier', 'Order Status', 'Actions'].map(h => (
-                    <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: TEXT_LIGHT, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e8edf2', whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                  {invoices.map((inv, i) => {
-                  const item = inv.items?.[0] || {};
-                  return (
-                    <tr key={inv._id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#f8fafc' : '#fff' }}>
-                      <td style={{ padding: '9px 12px', color: TEXT_LIGHT, fontWeight: 700, fontSize: 11 }}>{(page - 1) * PAGE_SIZE + i + 1}</td>
-                      <td style={{ padding: '9px 12px', fontFamily: 'monospace', fontWeight: 700, color: RED, whiteSpace: 'nowrap' }}>{inv.invoiceNo}</td>
-                      <td style={{ padding: '9px 12px', fontFamily: 'monospace', fontSize: 11, color: TEXT_MID, whiteSpace: 'nowrap' }}>{inv.uniqueId || '—'}</td>
-                      <td style={{ padding: '9px 12px', fontFamily: 'monospace', fontSize: 11, color: BLUE, whiteSpace: 'nowrap' }}>{inv.purchaseOrderRef || '—'}</td>
-                      <td style={{ padding: '9px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.poDate || '—'}</td>
-                      <td style={{ padding: '9px 12px', fontWeight: 600, color: TEXT_DARK, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={inv.partyName}>{inv.partyName}</td>
-                      <td style={{ padding: '9px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.partyCity || '—'}</td>
-                      <td style={{ padding: '9px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.partyState || '—'}</td>
-                      <td style={{ padding: '9px 12px', color: TEXT_MID, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.description}>{item.description || '—'}</td>
-                      <td style={{ padding: '9px 12px', color: TEXT_MID, whiteSpace: 'nowrap' }}>{inv.brandName || '—'}</td>
-                      <td style={{ padding: '9px 12px', color: TEXT_DARK, fontWeight: 600, textAlign: 'center' }}>{item.qty ?? '—'}</td>
-                      <td style={{ padding: '9px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{item.unit || '—'}</td>
-                      <td style={{ padding: '9px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.dispatchDate || '—'}</td>
-                      <td style={{ padding: '9px 12px', fontFamily: 'monospace', fontSize: 11, color: TEXT_MID, whiteSpace: 'nowrap' }}>{inv.awb || '—'}</td>
-                      <td style={{ padding: '9px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.courierName || '—'}</td>
-                      <td style={{ padding: '9px 12px' }}>
-                        <select
-                          value={inv.status}
-                          onChange={(e) => handleStatusChange(inv._id, e.target.value)}
-                          style={{ padding: '3px 6px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
-                        >
-                          <option value="Draft">Draft</option>
-                          <option value="Sent">Sent</option>
-                          <option value="Paid">Paid</option>
-                          <option value="Overdue">Overdue</option>
-                          <option value="Cancelled">Cancelled</option>
-                        </select>
-                      </td>
-                      <td style={{ padding: '9px 12px' }}>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          <button onClick={() => { setSelectedInvoice(inv); setShowView(true); }} style={{ padding: '3px 7px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="View">
-                            <MdVisibility size={13} color={BLUE} />
-                          </button>
-                          <button onClick={() => handlePrint(inv)} style={{ padding: '3px 7px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="Print">
-                            <MdPrint size={13} color={TEXT_MID} />
-                          </button>
-                          <button onClick={() => handleDownload(inv)} style={{ padding: '3px 7px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="Download">
-                            <MdDownload size={13} color={GREEN} />
-                          </button>
-                          {/* Share button with dropdown */}
-                          <div style={{ position: 'relative' }}>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleShare(inv); }}
-                              style={{ padding: '3px 7px', borderRadius: 6, border: '1px solid #dbeafe', background: '#eff6ff', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                              title="Share"
-                            >
-                              <MdShare size={13} color="#3b82f6" />
-                            </button>
-                            {shareMenuInv?._id === inv._id && (
-                              <div style={{
-                                position: 'absolute', right: 0, top: '110%', zIndex: 999,
-                                background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10,
-                                boxShadow: '0 8px 24px rgba(0,0,0,0.12)', minWidth: 180, overflow: 'hidden',
-                              }}>
-                                <button
-                                  onClick={() => shareViaWhatsApp(inv)}
-                                  style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: '#1a1a2e', fontFamily: 'inherit' }}
-                                  onMouseEnter={e => e.currentTarget.style.background = '#f0fdf4'}
-                                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                >
-                                  <FaWhatsapp size={16} color="#25D366" /> WhatsApp
-                                </button>
-                                <button
-                                  onClick={() => shareViaGmail(inv)}
-                                  style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: '#1a1a2e', fontFamily: 'inherit' }}
-                                  onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
-                                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                >
-                                  <FaEnvelope size={16} color="#EA4335" /> Gmail
-                                </button>
-                                <button
-                                  onClick={() => shareViaCopy(inv)}
-                                  style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: '#1a1a2e', fontFamily: 'inherit', borderTop: '1px solid #f1f5f9' }}
-                                  onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                >
-                                  <MdContentCopy size={16} color="#64748b" /> Copy Details
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                          <button onClick={() => handleDelete(inv._id, inv.invoiceNo)} style={{ padding: '3px 7px', borderRadius: 6, border: '1px solid #fecaca', background: '#fef2f2', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="Delete">
-                            <MdDelete size={13} color={RED_LIGHT} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+      {/* ── Invoice Sections: Single + Multi ── */}
+      {type === 'single' && (
+        <SingleProductInvoices
+          invoices={pagedSingleInvoices}
+          total={singleTotal}
+          page={singlePage}
+          PAGE_SIZE={PAGE_SIZE}
+          search={search}
+          setSearch={setSearch}
+          searchRef={searchRef}
+          setPage={setSinglePage}
+          handleStatusChange={handleStatusChange}
+          handlePrint={handlePrint}
+          handleDownload={handleDownload}
+          handleShare={handleShare}
+          shareMenuInv={shareMenuInv}
+          shareViaWhatsApp={shareViaWhatsApp}
+          shareViaGmail={shareViaGmail}
+          shareViaCopy={shareViaCopy}
+          handleDelete={handleDelete}
+          setSelectedInvoice={setSelectedInvoice}
+          setShowView={setShowView}
+        />
+      )}
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderTop: '1px solid #e8edf2', background: '#fafafa' }}>
-            <div style={{ fontSize: 12, color: TEXT_LIGHT }}>
-              Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <button
-                onClick={() => setPage(1)}
-                disabled={page === 1}
-                style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: page === 1 ? '#f1f5f9' : '#fff', color: page === 1 ? TEXT_LIGHT : TEXT_DARK, cursor: page === 1 ? 'default' : 'pointer', fontSize: 12, fontWeight: 600 }}
-              >«</button>
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-                style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: page === 1 ? '#f1f5f9' : '#fff', color: page === 1 ? TEXT_LIGHT : TEXT_DARK, cursor: page === 1 ? 'default' : 'pointer', fontSize: 12, fontWeight: 600 }}
-              >‹ Prev</button>
-
-              {/* Page number pills */}
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter(n => n === 1 || n === totalPages || Math.abs(n - page) <= 2)
-                .reduce((acc, n, idx, arr) => {
-                  if (idx > 0 && n - arr[idx - 1] > 1) acc.push('...');
-                  acc.push(n);
-                  return acc;
-                }, [])
-                .map((n, idx) =>
-                  n === '...' ? (
-                    <span key={`ellipsis-${idx}`} style={{ padding: '5px 6px', fontSize: 12, color: TEXT_LIGHT }}>…</span>
-                  ) : (
-                    <button
-                      key={n}
-                      onClick={() => setPage(n)}
-                      style={{
-                        padding: '5px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                        border: n === page ? 'none' : '1px solid #e2e8f0',
-                        background: n === page ? RED : '#fff',
-                        color: n === page ? '#fff' : TEXT_DARK,
-                        minWidth: 32,
-                      }}
-                    >{n}</button>
-                  )
-                )}
-
-              <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: page === totalPages ? '#f1f5f9' : '#fff', color: page === totalPages ? TEXT_LIGHT : TEXT_DARK, cursor: page === totalPages ? 'default' : 'pointer', fontSize: 12, fontWeight: 600 }}
-              >Next ›</button>
-              <button
-                onClick={() => setPage(totalPages)}
-                disabled={page === totalPages}
-                style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: page === totalPages ? '#f1f5f9' : '#fff', color: page === totalPages ? TEXT_LIGHT : TEXT_DARK, cursor: page === totalPages ? 'default' : 'pointer', fontSize: 12, fontWeight: 600 }}
-              >»</button>
-            </div>
-          </div>
-        )}
-      </div>
+      {type === 'multi' && (
+        <MultipleProductInvoices
+          invoices={pagedMultiInvoices}
+          total={multiTotal}
+          page={multiPage}
+          PAGE_SIZE={PAGE_SIZE}
+          setPage={setMultiPage}
+          search={search}
+          setSearch={setSearch}
+          searchRef={searchRef}
+          handleStatusChange={handleStatusChange}
+          handlePrint={handlePrint}
+          handleDownload={handleDownload}
+          handleShare={handleShare}
+          shareMenuInv={shareMenuInv}
+          shareViaWhatsApp={shareViaWhatsApp}
+          shareViaGmail={shareViaGmail}
+          shareViaCopy={shareViaCopy}
+          handleDelete={handleDelete}
+          setSelectedInvoice={setSelectedInvoice}
+          setShowView={setShowView}
+        />
+      )}
 
       {/* Create Invoice Modal */}
       <Modal

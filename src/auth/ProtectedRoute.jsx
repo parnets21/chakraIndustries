@@ -4,7 +4,14 @@ import { canAccess } from './rbac';
 
 // Maps pathname → page key
 function pathToPage(pathname) {
-  return pathname.replace('/', '').split('/')[0] || 'dashboard';
+  const segment = pathname.replace('/', '').split('/')[0] || 'dashboard';
+  // Normalize hyphenated path segments to camelCase/no-hyphen page keys
+  const PATH_MAP = {
+    'po-generator': 'pogenerator',
+    'live-tracking': 'livetracking',
+    'credit-notes': 'creditnotes',
+  };
+  return PATH_MAP[segment] ?? segment;
 }
 
 export default function ProtectedRoute({ children }) {

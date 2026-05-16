@@ -87,6 +87,7 @@ export const DEFAULT_PAGE_ACCESS = {
   returns:      { super_admin: 'full', management: 'view',  purchase_manager: 'full',  production_manager: false,   dealer: 'view', corporate_client: 'view' },
   finance:      { super_admin: 'full', management: 'full',  purchase_manager: 'view',  production_manager: false,   dealer: false,  corporate_client: false  },
   invoicegen:   { super_admin: 'full', management: 'full',  purchase_manager: 'view',  production_manager: false,   dealer: false,  corporate_client: false  },
+  pogenerator:  { super_admin: 'full', management: 'full',  purchase_manager: 'full',  production_manager: false,   dealer: false,  corporate_client: false  },
   tally:        { super_admin: 'full', management: 'view',  purchase_manager: false,   production_manager: false,   dealer: false,  corporate_client: false  },
   forecasting:  { super_admin: 'full', management: 'full',  purchase_manager: 'view',  production_manager: 'view',  dealer: false,  corporate_client: false  },
   reports:      { super_admin: 'full', management: 'full',  purchase_manager: 'full',  production_manager: 'full',  dealer: false,  corporate_client: false  },
@@ -258,6 +259,16 @@ export const NAV_ITEMS = [
     children: [
       { path: '/finance/invoices/single', label: 'Single Product',    page: 'invoicegen' },
       { path: '/finance/invoices/multi',  label: 'Multiple Products', page: 'invoicegen' },
+    ],
+  },
+  {
+    label: 'PO Generator', page: 'pogenerator', icon: 'MdAssignment',
+    children: [
+      { path: '/po-generator',                 label: 'Dashboard',         page: 'pogenerator' },
+      { path: '/po-generator/upload',          label: 'PO Upload',         page: 'pogenerator' },
+      { path: '/po-generator/partial-invoice', label: 'Partial Invoice',   page: 'pogenerator' },
+      { path: '/po-generator/pending-orders',  label: 'Pending Orders',    page: 'pogenerator' },
+      { path: '/po-generator/invoice-history', label: 'Invoice History',   page: 'pogenerator' },
     ],
   },
   {

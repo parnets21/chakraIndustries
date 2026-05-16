@@ -738,7 +738,7 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
   <!-- Company Header -->
   <div class="header">
     <div class="logo-wrap">
-      <img src="${CHAKRA_LOGO_B64}" alt="Chakra Industries" />
+      <img src="${CHAKRA_LOGO_B64}" alt="Sri Chakra Industries" />
     </div>
     <div class="company-info">
       <div class="company-name">Sri Chakra Industries</div>
@@ -882,7 +882,7 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
     <div class="footer-cell">
       <div class="footer-label">Bank Details</div>
       <div class="footer-line">
-        <strong>Name:</strong> Chakra Industries Pvt. Ltd.<br/>
+        <strong>Name:</strong> Sri Chakra Industries Pvt. Ltd.<br/>
         <strong>IFSC Code:</strong> ${inv.bankIfsc || 'HDFC0002847'}<br/>
         <strong>Account No:</strong> ${inv.bankAccount || '50200081374926'}<br/>
         <strong>Bank:</strong> ${inv.bankName || 'HDFC Bank, Nayandahalli Branch, Bangalore'}
@@ -898,7 +898,7 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
     </div>
     <div class="footer-cell sig-cell">
       <div>
-        <div class="footer-label">For Chakra Industries</div>
+        <div class="footer-label">For Sri Chakra Industries</div>
       </div>
       <div class="sig-line">Authorised Signatory</div>
     </div>
@@ -961,7 +961,7 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
 
   const shareViaWhatsApp = (inv) => {
     const text = encodeURIComponent(
-      `Invoice ${inv.invoiceNo} | ${inv.partyName} | Order: ${inv.purchaseOrderRef || '—'} | Product: ${inv.items?.[0]?.description || '—'} | Qty: ${inv.items?.[0]?.qty || '—'} | Status: ${inv.orderStatus || inv.status} — Chakra Industries`
+      `Invoice ${inv.invoiceNo} | ${inv.partyName} | Order: ${inv.purchaseOrderRef || '—'} | Product: ${inv.items?.[0]?.description || '—'} | Qty: ${inv.items?.[0]?.qty || '—'} | Status: ${inv.orderStatus || inv.status} — Sri Chakra Industries`
     );
     window.open(`https://wa.me/?text=${text}`, '_blank');
     setShareMenuInv(null);
@@ -1021,7 +1021,7 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
     const lines = [
       `Dear ${inv.partyName},`,
       ``,
-      `Greetings from Chakra Industries!`,
+      `Greetings from Sri Chakra Industries!`,
       ``,
       `Please find the invoice PDF (${filename}) attached to this email for your records.`,
       ``,
@@ -1061,13 +1061,13 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
       `Terms: ${inv.terms || 'Payment due within 30 days.'}`,
       ``,
       `Warm regards,`,
-      `Chakra Industries`,
+      `Sri Chakra Industries`,
       `ERP & Operations Team`,
     ].filter(l => l !== null).join('\n');
 
     // Step 3 — open Gmail compose (pre-filled)
     const to      = inv.partyEmail ? encodeURIComponent(inv.partyEmail) : '';
-    const subject = encodeURIComponent(`Invoice ${inv.invoiceNo} from Chakra Industries — ${inv.partyName}`);
+    const subject = encodeURIComponent(`Invoice ${inv.invoiceNo} from Sri Chakra Industries — ${inv.partyName}`);
     const body    = encodeURIComponent(lines);
     window.open(
       `https://mail.google.com/mail/?view=cm&to=${to}&su=${subject}&body=${body}`,

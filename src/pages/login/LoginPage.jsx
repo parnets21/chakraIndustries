@@ -516,9 +516,9 @@ export default function LoginPage() {
         <div className="left-panel">
           <div className="brand-content">
             <div className="brand-logo">
-              <img src="/logos.png" alt="Chakra Industries" />
+              <img src="/logos.png" alt="Sri Chakra Industries" />
             </div>
-            <h1 className="brand-title">Chakra Industries</h1>
+            <h1 className="brand-title">Sri Chakra Industries</h1>
             <div className="brand-subtitle">ERP PLATFORM</div>
             <p className="brand-description">
               Transforming manufacturing operations through intelligent automation and seamless integration
@@ -650,7 +650,7 @@ export default function LoginPage() {
                 </div>
               </div>
               <p className="footer-text">
-                © 2026 Chakra Industries. All rights reserved.
+                © 2026 Sri Chakra Industries. All rights reserved.
               </p>
             </div>
           </div>

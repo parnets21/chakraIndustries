@@ -45,6 +45,15 @@ import FinanceSubPage from '../pages/finance/FinanceSubPage';
 import CreditNoteTrackingPage from '../pages/finance/CreditNoteTrackingPage';
 import InvoiceGeneratorPage from '../pages/finance/InvoiceGeneratorPage';
 
+// PO Generator
+import POGeneratorDashboard from '../pages/pogenerator/POGeneratorDashboard';
+import POUploadPage         from '../pages/pogenerator/POUploadPage';
+import StockVerifyPage      from '../pages/pogenerator/StockVerifyPage';
+import ApprovalQueuePage    from '../pages/pogenerator/ApprovalQueuePage';
+import PartialInvoicePage   from '../pages/pogenerator/PartialInvoicePage';
+import PendingOrdersPage    from '../pages/pogenerator/PendingOrdersPage';
+import InvoiceHistoryPage   from '../pages/pogenerator/InvoiceHistoryPage';
+
 // Tally Integration
 import TallySubPage from '../pages/tally/TallySubPage';
 
@@ -160,6 +169,15 @@ export default function AppRoutes() {
       <Route path="/finance/invoices"         element={<Navigate to="/finance/invoices/single" replace />} />
       <Route path="/finance/invoices/single"  element={<P element={<InvoiceGeneratorPage type="single" />} />} />
       <Route path="/finance/invoices/multi"   element={<P element={<InvoiceGeneratorPage type="multi" />} />} />
+
+      {/* PO Generator */}
+      <Route path="/po-generator"                      element={<P element={<POGeneratorDashboard />} />} />
+      <Route path="/po-generator/upload"               element={<P element={<POUploadPage />} />} />
+      <Route path="/po-generator/stock-verify/:poId"   element={<P element={<StockVerifyPage />} />} />
+      <Route path="/po-generator/approval/:poId"       element={<P element={<ApprovalQueuePage />} />} />
+      <Route path="/po-generator/partial-invoice"      element={<P element={<PartialInvoicePage />} />} />
+      <Route path="/po-generator/pending-orders"       element={<P element={<PendingOrdersPage />} />} />
+      <Route path="/po-generator/invoice-history"      element={<P element={<InvoiceHistoryPage />} />} />
 
       {/* Forecasting */}
       <Route path="/forecasting"            element={<Navigate to="/forecasting/demand" replace />} />

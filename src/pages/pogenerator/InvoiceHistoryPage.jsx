@@ -20,68 +20,91 @@ const STATUS_COLORS = {
 function buildInvoiceHTML(inv) {
   const fmt  = (n) => `₹${(Number(n)||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
   const fmtD = (d) => { try { return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'}); } catch { return d||'—'; } };
+  const n    = (v) => Number(v) || 0;
 
-  const rows = (inv.items||[]).map((it,i) => `
+  const rows = (inv.items||[]).map((it,i) => {
+    const taxable  = n(it.taxableValue) || n(it.invoicedQty) * n(it.basePrice);
+    const cgstVal  = n(it.cgstVal)  || (taxable * n(it.cgst)  / 100);
+    const sgstVal  = n(it.sgstVal)  || (taxable * n(it.sgst)  / 100);
+    const igstVal  = n(it.igstVal)  || (taxable * n(it.igst)  / 100);
+    const taxAmt   = cgstVal + sgstVal + igstVal || (taxable * n(it.gst) / 100);
+    const total    = n(it.lineTotal) || taxable + taxAmt;
+    const cgstPct  = n(it.cgst)  || (n(it.gst) / 2);
+    const sgstPct  = n(it.sgst)  || (n(it.gst) / 2);
+    const igstPct  = n(it.igst);
+    return `
     <tr>
       <td>${i+1}</td>
-      <td>${it.itemName||'—'}</td>
-      <td style="text-align:right">${it.requestedQty} ${it.unit}</td>
-      <td style="text-align:right;color:#1d4ed8;font-weight:700">${it.invoicedQty} ${it.unit}</td>
-      <td style="text-align:right;color:${it.pendingQty>0?'#dc2626':'#94a3b8'};font-weight:${it.pendingQty>0?700:400}">${it.pendingQty>0?`${it.pendingQty} ${it.unit}`:'—'}</td>
+      <td>${it.itemName||'—'}${it.hsn?`<br/><span style="font-size:10px;color:#64748b">HSN: ${it.hsn}</span>`:''}
+      </td>
+      <td style="text-align:right">${n(it.invoicedQty)} ${it.unit||''}</td>
       <td style="text-align:right">${fmt(it.basePrice)}</td>
-      <td style="text-align:right">${it.gst}%</td>
-      <td style="text-align:right;font-weight:700">${fmt(it.lineTotal)}</td>
-    </tr>`).join('');
+      <td style="text-align:right">${n(it.discount)||0}%</td>
+      <td style="text-align:right">${fmt(taxable)}</td>
+      <td style="text-align:right">${cgstPct}%</td>
+      <td style="text-align:right">${fmt(cgstVal)}</td>
+      <td style="text-align:right">${sgstPct}%</td>
+      <td style="text-align:right">${fmt(sgstVal)}</td>
+      <td style="text-align:right">${igstPct}%</td>
+      <td style="text-align:right">${fmt(igstVal)}</td>
+      <td style="text-align:right;color:#a16207">${fmt(taxAmt)}</td>
+      <td style="text-align:right;font-weight:700;color:#c0392b">${fmt(total)}</td>
+    </tr>`;
+  }).join('');
+
+  // Compute totals
+  const items = inv.items || [];
+  const totalTaxable = items.reduce((s,it) => s + (n(it.taxableValue) || n(it.invoicedQty)*n(it.basePrice)), 0);
+  const totalCGST    = items.reduce((s,it) => { const t=n(it.taxableValue)||n(it.invoicedQty)*n(it.basePrice); return s+(n(it.cgstVal)||(t*n(it.cgst)/100)); }, 0);
+  const totalSGST    = items.reduce((s,it) => { const t=n(it.taxableValue)||n(it.invoicedQty)*n(it.basePrice); return s+(n(it.sgstVal)||(t*n(it.sgst)/100)); }, 0);
+  const totalIGST    = items.reduce((s,it) => { const t=n(it.taxableValue)||n(it.invoicedQty)*n(it.basePrice); return s+(n(it.igstVal)||(t*n(it.igst)/100)); }, 0);
 
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
 <title>Invoice ${inv.invoiceNo}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,sans-serif;font-size:12px;color:#111;background:#fff}
-.page{max-width:820px;margin:0 auto;padding:28px 32px;border:1px solid #ccc}
+body{font-family:Arial,sans-serif;font-size:11px;color:#111;background:#fff}
+.page{max-width:1000px;margin:0 auto;padding:24px 28px;border:1px solid #ccc}
 .top{text-align:right;font-size:10px;font-weight:700;letter-spacing:1px;margin-bottom:10px}
 .top span{border:1px solid #999;padding:2px 10px;margin-left:8px}
 .header{display:flex;align-items:flex-start;gap:14px;padding-bottom:14px;border-bottom:2px solid #111;margin-bottom:0}
-.logo-wrap{flex-shrink:0}
-.logo-wrap img{width:64px;height:64px;object-fit:contain;border-radius:6px}
-.co-name{font-size:18px;font-weight:900;color:#111}
-.co-detail{font-size:11px;color:#333;line-height:1.6;margin-top:3px}
+.logo-wrap img{width:60px;height:60px;object-fit:contain;border-radius:6px}
+.co-name{font-size:17px;font-weight:900;color:#111}
+.co-detail{font-size:10px;color:#333;line-height:1.6;margin-top:3px}
 .inv-box{text-align:right;min-width:200px}
 .inv-box table{margin-left:auto;border-collapse:collapse}
-.inv-box td{padding:2px 6px;font-size:12px}
+.inv-box td{padding:2px 6px;font-size:11px}
 .inv-box td:first-child{font-weight:700;text-align:right}
 .party-grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid #ccc;border-top:none}
 .party-cell{padding:10px 12px}
 .party-cell+.party-cell{border-left:1px solid #ccc}
-.party-label{font-size:10px;font-weight:700;text-transform:uppercase;color:#555;margin-bottom:4px}
-.party-name{font-size:13px;font-weight:800;color:#111;margin-bottom:3px}
-.items-wrap{border:1px solid #ccc;border-top:none}
-table.items{width:100%;border-collapse:collapse}
-table.items th{background:#f0f0f0;padding:7px 10px;font-size:10px;font-weight:700;text-transform:uppercase;border-bottom:1px solid #ccc;text-align:left}
-table.items td{padding:7px 10px;font-size:12px;border-bottom:1px solid #eee;vertical-align:top}
-.total-row td{font-weight:800;font-size:13px;background:#f5f5f5;border-top:2px solid #ccc}
+.party-label{font-size:9px;font-weight:700;text-transform:uppercase;color:#555;margin-bottom:3px}
+.party-name{font-size:12px;font-weight:800;color:#111;margin-bottom:2px}
+.items-wrap{border:1px solid #ccc;border-top:none;overflow-x:auto}
+table.items{width:100%;border-collapse:collapse;min-width:900px}
+table.items th{background:#1e293b;color:#e2e8f0;padding:6px 8px;font-size:9px;font-weight:700;text-transform:uppercase;border-bottom:1px solid #334155;text-align:left;white-space:nowrap}
+table.items td{padding:6px 8px;font-size:11px;border-bottom:1px solid #eee;vertical-align:top}
+.total-row td{font-weight:800;font-size:12px;background:#f5f5f5;border-top:2px solid #ccc}
 .summary{border:1px solid #ccc;border-top:none;padding:12px 16px;display:flex;justify-content:flex-end}
-.summary-box{min-width:260px}
-.summary-row{display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px}
-.summary-total{display:flex;justify-content:space-between;border-top:2px solid #111;padding-top:8px;font-size:15px;font-weight:900;color:#c0392b}
-.type-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;margin-left:8px}
+.summary-box{min-width:280px}
+.summary-row{display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px}
+.summary-total{display:flex;justify-content:space-between;border-top:2px solid #111;padding-top:8px;font-size:14px;font-weight:900;color:#c0392b}
+.type-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;margin-left:6px}
 .partial{background:#fef9c3;color:#a16207}
 .full{background:#dcfce7;color:#16a34a}
-.footer{border:1px solid #ccc;border-top:none;padding:12px 16px;font-size:11px;color:#555;text-align:center}
+.footer{border:1px solid #ccc;border-top:none;padding:10px 16px;font-size:10px;color:#555;text-align:center}
 @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.page{border:none;padding:10px}}
 </style></head><body><div class="page">
 <div class="top">PO INVOICE <span>${inv.invoiceType==='partial'?'PARTIAL':'FULL'}</span><span>ORIGINAL</span></div>
 <div class="header">
-  <div class="logo-wrap">
-    <img src="${CHAKRA_LOGO_B64}" alt="Sri Chakra Industries" />
-  </div>
+  <div class="logo-wrap"><img src="${CHAKRA_LOGO_B64}" alt="Sri Chakra Industries" /></div>
   <div style="flex:1">
     <div class="co-name">Sri Chakra Industries</div>
     <div class="co-detail">#13/14, Azeez Sait Industrial Estate, Mysore Road, Nayandahalli, Bangalore - 560039<br/>GSTIN: 29ABWFS0002M1ZR</div>
   </div>
   <div class="inv-box">
     <table>
-      <tr><td>Invoice No.</td><td>${inv.invoiceNo}</td></tr>
+      <tr><td>Invoice No.</td><td><strong>${inv.invoiceNo}</strong></td></tr>
       <tr><td>Invoice Date</td><td>${fmtD(inv.createdAt)}</td></tr>
       <tr><td>PO Reference</td><td>${inv.poRef||'—'}</td></tr>
       <tr><td>Invoice Type</td><td><span class="type-badge ${inv.invoiceType}">${inv.invoiceType==='partial'?'Partial':'Full'}</span></td></tr>
@@ -96,36 +119,55 @@ table.items td{padding:7px 10px;font-size:12px;border-bottom:1px solid #eee;vert
   <div class="party-cell">
     <div class="party-label">Billed By</div>
     <div class="party-name">Sri Chakra Industries</div>
-    <div style="font-size:11px;color:#333">#13/14, Mysore Road, Nayandahalli, Bangalore - 560039</div>
+    <div style="font-size:10px;color:#333">#13/14, Mysore Road, Nayandahalli, Bangalore - 560039</div>
   </div>
 </div>
 <div class="items-wrap">
   <table class="items">
     <thead><tr>
-      <th style="width:32px">#</th>
-      <th>Item Name</th>
-      <th style="text-align:right">Requested</th>
-      <th style="text-align:right;color:#1d4ed8">Invoiced</th>
-      <th style="text-align:right;color:#dc2626">Pending</th>
-      <th style="text-align:right">Unit Price</th>
-      <th style="text-align:right">GST</th>
-      <th style="text-align:right">Line Total</th>
+      <th>#</th>
+      <th>Item Name / HSN</th>
+      <th style="text-align:right">Qty</th>
+      <th style="text-align:right">Unit Rate</th>
+      <th style="text-align:right">Disc%</th>
+      <th style="text-align:right">Taxable Value</th>
+      <th style="text-align:right">CGST%</th>
+      <th style="text-align:right">CGST Amt</th>
+      <th style="text-align:right">SGST%</th>
+      <th style="text-align:right">SGST Amt</th>
+      <th style="text-align:right">IGST%</th>
+      <th style="text-align:right">IGST Amt</th>
+      <th style="text-align:right">Tax Amt</th>
+      <th style="text-align:right">Total Amt</th>
     </tr></thead>
     <tbody>${rows}</tbody>
-    <tfoot><tr class="total-row">
-      <td colspan="7" style="text-align:right;padding-right:12px">GRAND TOTAL</td>
-      <td style="text-align:right">${fmt(inv.grandTotal)}</td>
-    </tr></tfoot>
+    <tfoot>
+      <tr class="total-row">
+        <td colspan="5" style="text-align:right;padding-right:10px">TOTALS</td>
+        <td style="text-align:right">${fmt(totalTaxable)}</td>
+        <td></td>
+        <td style="text-align:right;color:#1d4ed8">${fmt(totalCGST)}</td>
+        <td></td>
+        <td style="text-align:right;color:#1d4ed8">${fmt(totalSGST)}</td>
+        <td></td>
+        <td style="text-align:right;color:#7c3aed">${fmt(totalIGST)}</td>
+        <td style="text-align:right;color:#a16207">${fmt(totalCGST+totalSGST+totalIGST)}</td>
+        <td style="text-align:right;color:#c0392b">${fmt(inv.grandTotal)}</td>
+      </tr>
+    </tfoot>
   </table>
 </div>
 <div class="summary">
   <div class="summary-box">
-    <div class="summary-row"><span>Subtotal</span><span>${fmt(inv.subtotal)}</span></div>
-    <div class="summary-row"><span>GST Total</span><span>${fmt(inv.gstTotal)}</span></div>
+    <div class="summary-row"><span>Total Taxable Value</span><span>${fmt(totalTaxable)}</span></div>
+    <div class="summary-row"><span>CGST</span><span>${fmt(totalCGST)}</span></div>
+    <div class="summary-row"><span>SGST</span><span>${fmt(totalSGST)}</span></div>
+    ${totalIGST > 0 ? `<div class="summary-row"><span>IGST</span><span>${fmt(totalIGST)}</span></div>` : ''}
+    <div class="summary-row"><span>Total Tax</span><span>${fmt(totalCGST+totalSGST+totalIGST||n(inv.gstTotal))}</span></div>
     <div class="summary-total"><span>Grand Total</span><span>${fmt(inv.grandTotal)}</span></div>
   </div>
 </div>
-${inv.notes?`<div style="border:1px solid #ccc;border-top:none;padding:10px 16px;font-size:12px;color:#475569"><strong>Notes:</strong> ${inv.notes}</div>`:''}
+${inv.notes?`<div style="border:1px solid #ccc;border-top:none;padding:10px 16px;font-size:11px;color:#475569"><strong>Notes:</strong> ${inv.notes}</div>`:''}
 <div class="footer">This is a computer-generated invoice. All disputes subject to Bangalore jurisdiction only.</div>
 </div></body></html>`;
 }

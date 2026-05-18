@@ -212,35 +212,73 @@ export default function PartialInvoicePage() {
               ))}
             </div>
 
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>Line Items</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>Line Items — Full Price Breakup</div>
             <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 10 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
-                  <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                    {['Item', 'Requested', 'Invoiced', 'Pending', 'Unit Price', 'GST', 'Line Total'].map(h => (
-                      <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>{h}</th>
+                  <tr style={{ background: '#1e293b', borderBottom: '1px solid #334155' }}>
+                    {['#','Item / HSN','Qty','Unit Rate','Disc%','Taxable Val','CGST%','CGST Amt','SGST%','SGST Amt','IGST%','IGST Amt','Tax Amt','Total Amt'].map(h => (
+                      <th key={h} style={{ padding: '7px 10px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#cbd5e1', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {(viewInv.items || []).map((it, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '10px 12px', fontWeight: 600 }}>{it.itemName}</td>
-                      <td style={{ padding: '10px 12px', color: '#475569' }}>{it.requestedQty} {it.unit}</td>
-                      <td style={{ padding: '10px 12px', fontWeight: 700, color: '#1d4ed8' }}>{it.invoicedQty} {it.unit}</td>
-                      <td style={{ padding: '10px 12px', fontWeight: it.pendingQty > 0 ? 700 : 400, color: it.pendingQty > 0 ? '#dc2626' : '#94a3b8' }}>
-                        {it.pendingQty > 0 ? `${it.pendingQty} ${it.unit}` : '—'}
-                      </td>
-                      <td style={{ padding: '10px 12px', color: '#475569' }}>₹{(it.basePrice || 0).toLocaleString('en-IN')}</td>
-                      <td style={{ padding: '10px 12px', color: '#475569' }}>{it.gst}%</td>
-                      <td style={{ padding: '10px 12px', fontWeight: 700 }}>₹{Math.round(it.lineTotal || 0).toLocaleString('en-IN')}</td>
-                    </tr>
-                  ))}
+                  {(viewInv.items || []).map((it, i) => {
+                    const n = v => Number(v) || 0;
+                    const taxable = n(it.taxableValue) || n(it.invoicedQty) * n(it.basePrice);
+                    const cgstPct = n(it.cgst) || n(it.gst) / 2;
+                    const sgstPct = n(it.sgst) || n(it.gst) / 2;
+                    const igstPct = n(it.igst);
+                    const cgstVal = n(it.cgstVal) || +(taxable * cgstPct / 100).toFixed(2);
+                    const sgstVal = n(it.sgstVal) || +(taxable * sgstPct / 100).toFixed(2);
+                    const igstVal = n(it.igstVal) || +(taxable * igstPct / 100).toFixed(2);
+                    const taxAmt  = +(cgstVal + sgstVal + igstVal).toFixed(2);
+                    const total   = n(it.lineTotal) || +(taxable + taxAmt).toFixed(2);
+                    const fmt = v => `₹${(Number(v)||0).toLocaleString('en-IN',{minimumFractionDigits:2})}`;
+                    return (
+                      <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', background: i%2===0?'#fff':'#f8fafc' }}>
+                        <td style={{ padding: '8px 10px', color: '#94a3b8', fontWeight: 700 }}>{i+1}</td>
+                        <td style={{ padding: '8px 10px', fontWeight: 600, color: '#1e293b' }}>
+                          {it.itemName}
+                          {it.hsn && <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>HSN: {it.hsn}</div>}
+                        </td>
+                        <td style={{ padding: '8px 10px', color: '#475569' }}>{n(it.invoicedQty)} {it.unit}</td>
+                        <td style={{ padding: '8px 10px', color: '#475569' }}>{fmt(it.basePrice)}</td>
+                        <td style={{ padding: '8px 10px', color: '#475569' }}>{n(it.discount)||0}%</td>
+                        <td style={{ padding: '8px 10px', color: '#475569', fontWeight: 600 }}>{fmt(taxable)}</td>
+                        <td style={{ padding: '8px 10px', color: '#1d4ed8' }}>{cgstPct}%</td>
+                        <td style={{ padding: '8px 10px', color: '#1d4ed8', fontWeight: 600 }}>{fmt(cgstVal)}</td>
+                        <td style={{ padding: '8px 10px', color: '#1d4ed8' }}>{sgstPct}%</td>
+                        <td style={{ padding: '8px 10px', color: '#1d4ed8', fontWeight: 600 }}>{fmt(sgstVal)}</td>
+                        <td style={{ padding: '8px 10px', color: '#7c3aed' }}>{igstPct}%</td>
+                        <td style={{ padding: '8px 10px', color: '#7c3aed', fontWeight: 600 }}>{fmt(igstVal)}</td>
+                        <td style={{ padding: '8px 10px', color: '#a16207', fontWeight: 600 }}>{fmt(taxAmt)}</td>
+                        <td style={{ padding: '8px 10px', fontWeight: 800, color: '#c0392b' }}>{fmt(total)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
                 <tfoot>
                   <tr style={{ background: '#f8fafc', borderTop: '2px solid #e2e8f0' }}>
-                    <td colSpan={6} style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, fontSize: 14, color: '#c0392b' }}>Grand Total</td>
-                    <td style={{ padding: '10px 12px', fontWeight: 900, fontSize: 15, color: '#c0392b' }}>₹{Math.round(viewInv.grandTotal || 0).toLocaleString('en-IN')}</td>
+                    <td colSpan={5} style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#64748b', fontSize: 12 }}>Totals</td>
+                    <td style={{ padding: '8px 10px', fontWeight: 700, color: '#475569' }}>
+                      ₹{(viewInv.items||[]).reduce((s,it) => s+(Number(it.taxableValue)||Number(it.invoicedQty)*Number(it.basePrice)||0), 0).toLocaleString('en-IN',{minimumFractionDigits:2})}
+                    </td>
+                    <td /><td style={{ padding: '8px 10px', fontWeight: 700, color: '#1d4ed8' }}>
+                      ₹{(viewInv.items||[]).reduce((s,it) => { const t=Number(it.taxableValue)||Number(it.invoicedQty)*Number(it.basePrice)||0; return s+(Number(it.cgstVal)||(t*(Number(it.cgst)||Number(it.gst)/2)/100)||0); }, 0).toLocaleString('en-IN',{minimumFractionDigits:2})}
+                    </td>
+                    <td /><td style={{ padding: '8px 10px', fontWeight: 700, color: '#1d4ed8' }}>
+                      ₹{(viewInv.items||[]).reduce((s,it) => { const t=Number(it.taxableValue)||Number(it.invoicedQty)*Number(it.basePrice)||0; return s+(Number(it.sgstVal)||(t*(Number(it.sgst)||Number(it.gst)/2)/100)||0); }, 0).toLocaleString('en-IN',{minimumFractionDigits:2})}
+                    </td>
+                    <td /><td style={{ padding: '8px 10px', fontWeight: 700, color: '#7c3aed' }}>
+                      ₹{(viewInv.items||[]).reduce((s,it) => { const t=Number(it.taxableValue)||Number(it.invoicedQty)*Number(it.basePrice)||0; return s+(Number(it.igstVal)||(t*(Number(it.igst)||0)/100)||0); }, 0).toLocaleString('en-IN',{minimumFractionDigits:2})}
+                    </td>
+                    <td style={{ padding: '8px 10px', fontWeight: 700, color: '#a16207' }}>
+                      ₹{(Number(viewInv.gstTotal)||0).toLocaleString('en-IN',{minimumFractionDigits:2})}
+                    </td>
+                    <td style={{ padding: '8px 10px', fontWeight: 900, color: '#c0392b', fontSize: 14 }}>
+                      ₹{(Number(viewInv.grandTotal)||0).toLocaleString('en-IN',{minimumFractionDigits:2})}
+                    </td>
                   </tr>
                 </tfoot>
               </table>

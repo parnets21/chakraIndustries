@@ -200,13 +200,13 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
           valid.push(currentInvoice);
         }
 
-        const add1 = getField(row, 'Add1', 'Address1', 'Address 1');
-        const add2 = getField(row, 'Add 2', 'Add2', 'Address2', 'Address 2');
+        const add1 = getField(row, 'Bill to Add1', 'Bill To Add1', 'BillToAdd1', 'Add1', 'Address1', 'Address 1');
+        const add2 = getField(row, 'Bill to Add 2', 'Bill To Add 2', 'BillToAdd2', 'Add 2', 'Add2', 'Address2', 'Address 2');
         const address = [add1, add2].filter(Boolean).join(', ');
 
-        // Ship To — read dedicated ship-to columns if present, else fall back to bill-to address
-        const shipAdd1 = getField(row, 'Ship To Add1', 'ShipToAdd1', 'Ship To Address1', 'ShipToAddress1');
-        const shipAdd2 = getField(row, 'Ship To Add2', 'ShipToAdd2', 'Ship To Address2', 'ShipToAddress2');
+        // Ship To — read dedicated ship-to columns
+        const shipAdd1 = getField(row, 'Ship to Add1', 'Ship To Add1', 'ShipToAdd1', 'Ship To Address1', 'ShipToAddress1');
+        const shipAdd2 = getField(row, 'Ship to Add 2', 'Ship To Add 2', 'ShipToAdd2', 'Ship To Address2', 'ShipToAddress2');
         const shipAddress = [shipAdd1, shipAdd2].filter(Boolean).join(', ') || address;
         const shipName = getField(row, 'Ship To Name', 'ShipToName', 'Ship To') || billTo;
 

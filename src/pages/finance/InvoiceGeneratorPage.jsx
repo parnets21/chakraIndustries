@@ -128,13 +128,10 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
       for (const k of keys) {
         // 1. Exact match
         if (row[k] !== undefined && row[k] !== null && row[k] !== '') return String(row[k]).trim();
-        const lower = k.toLowerCase();
         // 2. Trimmed case-insensitive exact match
+        const lower = k.toLowerCase();
         const found = Object.keys(row).find(rk => rk.trim().toLowerCase() === lower);
         if (found !== undefined && row[found] !== undefined && row[found] !== '') return String(row[found]).trim();
-        // 3. Fuzzy: row key contains the search key (handles 'cgst ' trailing space, 'CGST@9%', etc.)
-        const fuzzy = Object.keys(row).find(rk => rk.trim().toLowerCase().includes(lower) || lower.includes(rk.trim().toLowerCase()));
-        if (fuzzy !== undefined && row[fuzzy] !== undefined && row[fuzzy] !== '') return String(row[fuzzy]).trim();
       }
       return '';
     };
@@ -168,11 +165,11 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
       // Pure numeric string → treat as Excel serial
       if (/^\d+$/.test(s)) return serialToDate(Number(s));
 
-      // DD/MM/YYYY
+      // MM/DD/YYYY (Excel US format)
       const m1 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
       if (m1) {
         const yr = m1[3].length === 2 ? '20' + m1[3] : m1[3];
-        return `${yr}-${m1[2].padStart(2,'0')}-${m1[1].padStart(2,'0')}`;
+        return `${yr}-${m1[1].padStart(2,'0')}-${m1[2].padStart(2,'0')}`;
       }
       // DD-MM-YYYY or DD.MM.YYYY
       const m2 = s.match(/^(\d{1,2})[-.](\d{1,2})[-.](\d{2,4})$/);
@@ -222,7 +219,10 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
           invoiceDate:      parseDateField(getField(row, 'Invoice Date', 'InvoiceDate', 'Date')),
           dueDate:          '',
           purchaseOrderRef: getField(row, 'PO NO', 'PO No', 'PO Number', 'PO NO.'),
-          poDate:           parseDateField(getField(row, 'PO DATE', 'PO Date', 'PODate') || ''),
+          poDate:           (() => {
+            const raw = getField(row, 'PO DATE', 'PO Date', 'PODate');
+            return raw ? parseDateField(raw) : '';
+          })(),
           notes:            '',
           terms:            'Payment due within 30 days.',
           items:            [],
@@ -616,7 +616,20 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
   };
 
   const generateInvoiceHTML = (inv) => {
-    const fmtDate = (d) => { try { return new Date(d).toLocaleDateString('en-IN', { day:'2-digit', month:'2-digit', year:'numeric' }); } catch { return d || '—'; } };
+    const fmtDate = (d) => {
+      if (!d) return '—';
+      try {
+        // If it's already YYYY-MM-DD, parse as local date to avoid UTC shift
+        const iso = String(d).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (iso) {
+          const dt = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+          return dt.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        }
+        const dt = new Date(d);
+        if (isNaN(dt.getTime())) return String(d);
+        return dt.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      } catch { return String(d) || '—'; }
+    };
     const fmtAmt  = (n) => `₹ ${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const fmtNum  = (n) => (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -792,6 +805,7 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
         <tr><td>Invoice No.</td><td>${inv.invoiceNo}</td></tr>
         <tr><td>Invoice Date</td><td>${fmtDate(inv.invoiceDate)}</td></tr>
         ${inv.purchaseOrderRef ? `<tr><td>PO No.</td><td>${inv.purchaseOrderRef}</td></tr>` : ''}
+        ${inv.poDate ? `<tr><td>PO Date</td><td>${fmtDate(inv.poDate)}</td></tr>` : ''}
       </table>
     </div>
   </div>

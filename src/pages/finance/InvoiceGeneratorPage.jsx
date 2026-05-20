@@ -132,6 +132,9 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
         const lower = k.toLowerCase();
         const found = Object.keys(row).find(rk => rk.trim().toLowerCase() === lower);
         if (found !== undefined && row[found] !== undefined && row[found] !== '') return String(row[found]).trim();
+        // 3. Starts-with match (handles 'cgst 2.5%', 'sgst 2.5%', 'igst 5%', etc.)
+        const startsWith = Object.keys(row).find(rk => rk.trim().toLowerCase().startsWith(lower));
+        if (startsWith !== undefined && row[startsWith] !== undefined && row[startsWith] !== '') return String(row[startsWith]).trim();
       }
       return '';
     };

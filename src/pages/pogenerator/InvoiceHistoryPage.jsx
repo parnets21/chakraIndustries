@@ -21,22 +21,62 @@ function buildInvoiceHTML(inv) {
   const fmt  = (n) => `₹${(Number(n)||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
   const fmtD = (d) => { try { return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'}); } catch { return d||'—'; } };
   const n    = (v) => Number(v) || 0;
+  const esc  = (v) => String(v ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[ch]));
+  const GSTIN_RE = /\b[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9]Z[A-Z0-9]\b/i;
+  const normalizeAddress = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return { addressHTML: '', gstin: '' };
+
+    const gstin = raw.match(GSTIN_RE)?.[0]?.toUpperCase() || '';
+    const withoutGST = raw
+      .replace(/GSTIN\s*[:\-]?\s*[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9]Z[A-Z0-9]/ig, '')
+      .replace(GSTIN_RE, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+
+    const lines = withoutGST
+      .split(/\r?\n|,\s*(?=\S)/)
+      .map(part => part.trim().replace(/[,\s]+$/, ''))
+      .filter(Boolean);
+
+    return {
+      addressHTML: lines.map(esc).join('<br/>'),
+      gstin,
+    };
+  };
 
   const rows = (inv.items||[]).map((it,i) => {
     const taxable  = n(it.taxableValue) || n(it.invoicedQty) * n(it.basePrice);
     const cgstVal  = n(it.cgstVal)  || (taxable * n(it.cgst)  / 100);
     const sgstVal  = n(it.sgstVal)  || (taxable * n(it.sgst)  / 100);
     const igstVal  = n(it.igstVal)  || (taxable * n(it.igst)  / 100);
-    const taxAmt   = cgstVal + sgstVal + igstVal || (taxable * n(it.gst) / 100);
+    const taxAmt   = cgstVal + sgstVal + igstVal;
     const total    = n(it.lineTotal) || taxable + taxAmt;
-    const cgstPct  = n(it.cgst)  || (n(it.gst) / 2);
-    const sgstPct  = n(it.sgst)  || (n(it.gst) / 2);
+    // Use stored percentages directly — never fall back to gst/2 which adds phantom tax
+    const cgstPct  = n(it.cgst);
+    const sgstPct  = n(it.sgst);
     const igstPct  = n(it.igst);
+    // Extract HSN from itemName if not stored separately (legacy invoices)
+    let itemName = it.itemName || '—';
+    let hsnCode  = (it.hsn && it.hsn.trim()) ? it.hsn.trim() : '';
+    if (!hsnCode) {
+      const m = itemName.match(/(?:\/\s*)?(\d{6,10})\s*$/);
+      if (m) { hsnCode = m[1]; itemName = itemName.replace(/\s*\/?\s*\d{6,10}\s*$/, '').trim(); }
+    } else {
+      // Clean HSN from name if it leaked in
+      itemName = itemName.replace(/\s*\/?\s*\d{6,10}\s*$/, '').trim();
+    }
     return `
     <tr>
-      <td>${i+1}</td>
-      <td>${it.itemName||'—'}${it.hsn?`<br/><span style="font-size:10px;color:#64748b">HSN: ${it.hsn}</span>`:''}
-      </td>
+      <td style="text-align:center">${i+1}</td>
+      <td class="desc" title="${esc(itemName)}">${esc(itemName)}</td>
+      <td style="text-align:center;font-weight:700;color:#334155">${hsnCode || '—'}</td>
       <td style="text-align:right">${n(it.invoicedQty)} ${it.unit||''}</td>
       <td style="text-align:right">${fmt(it.basePrice)}</td>
       <td style="text-align:right">${n(it.discount)||0}%</td>
@@ -59,41 +99,127 @@ function buildInvoiceHTML(inv) {
   const totalSGST    = items.reduce((s,it) => { const t=n(it.taxableValue)||n(it.invoicedQty)*n(it.basePrice); return s+(n(it.sgstVal)||(t*n(it.sgst)/100)); }, 0);
   const totalIGST    = items.reduce((s,it) => { const t=n(it.taxableValue)||n(it.invoicedQty)*n(it.basePrice); return s+(n(it.igstVal)||(t*n(it.igst)/100)); }, 0);
 
+  // ── HSN-wise tax breakup ──────────────────────────────────────────────────
+  const hsnMap = {};
+  for (const it of items) {
+    // Resolve HSN — use stored field, or extract from itemName for legacy invoices
+    let resolvedHsn = (it.hsn && it.hsn.trim()) ? it.hsn.trim() : '';
+    if (!resolvedHsn && it.itemName) {
+      const m = it.itemName.match(/(?:\/\s*)?(\d{6,10})\s*$/);
+      if (m) resolvedHsn = m[1];
+    }
+    const hsn     = resolvedHsn || 'N/A';
+    const taxable = n(it.taxableValue) || n(it.invoicedQty) * n(it.basePrice);
+    // Use stored percentages directly — no gst/2 fallback
+    const cgstPct = n(it.cgst);
+    const sgstPct = n(it.sgst);
+    const igstPct = n(it.igst);
+    const cgstVal = n(it.cgstVal)  || (taxable * cgstPct / 100);
+    const sgstVal = n(it.sgstVal)  || (taxable * sgstPct / 100);
+    const igstVal = n(it.igstVal)  || (taxable * igstPct / 100);
+    // Group by HSN + tax rate combo so different-rate items under same HSN stay separate
+    const key = `${hsn}__${cgstPct}__${sgstPct}__${igstPct}`;
+    if (!hsnMap[key]) hsnMap[key] = { hsn, taxable:0, cgstPct, sgstPct, igstPct, cgst:0, sgst:0, igst:0 };
+    hsnMap[key].taxable += taxable;
+    hsnMap[key].cgst    += cgstVal;
+    hsnMap[key].sgst    += sgstVal;
+    hsnMap[key].igst    += igstVal;
+  }
+  const hsnRows = Object.values(hsnMap).map((h,i) => `
+    <tr>
+      <td>${i+1}</td>
+      <td style="font-weight:700">${h.hsn}</td>
+      <td style="text-align:right">${fmt(h.taxable)}</td>
+      <td style="text-align:right">${h.cgstPct}%</td>
+      <td style="text-align:right;color:#1d4ed8">${fmt(h.cgst)}</td>
+      <td style="text-align:right">${h.sgstPct}%</td>
+      <td style="text-align:right;color:#1d4ed8">${fmt(h.sgst)}</td>
+      <td style="text-align:right">${h.igstPct > 0 ? h.igstPct+'%' : '—'}</td>
+      <td style="text-align:right;color:#7c3aed">${h.igst > 0 ? fmt(h.igst) : '—'}</td>
+      <td style="text-align:right;color:#a16207;font-weight:700">${fmt(h.cgst+h.sgst+h.igst)}</td>
+      <td style="text-align:right;font-weight:800;color:#c0392b">${fmt(h.taxable+h.cgst+h.sgst+h.igst)}</td>
+    </tr>`).join('');
+  const hsnTotTaxable = Object.values(hsnMap).reduce((s,h)=>s+h.taxable,0);
+  const hsnTotCGST    = Object.values(hsnMap).reduce((s,h)=>s+h.cgst,0);
+  const hsnTotSGST    = Object.values(hsnMap).reduce((s,h)=>s+h.sgst,0);
+  const hsnTotIGST    = Object.values(hsnMap).reduce((s,h)=>s+h.igst,0);
+  const hsnTotTax     = hsnTotCGST + hsnTotSGST + hsnTotIGST;
+
+  // ── Bill To / Ship To fields ──────────────────────────────────────────────
+  const buyerName     = esc(inv.buyerName || '—');
+  const buyerAddress  = normalizeAddress(inv.buyerAddress);
+  const buyerGSTIN    = esc(inv.buyerGSTIN || buyerAddress.gstin || '');
+  const shipToName    = esc(inv.shipToName || inv.buyerName || '—');
+  const shipToAddress = normalizeAddress(inv.shipToAddress || inv.buyerAddress);
+
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
 <title>Invoice ${inv.invoiceNo}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,sans-serif;font-size:11px;color:#111;background:#fff}
-.page{max-width:1000px;margin:0 auto;padding:24px 28px;border:1px solid #ccc}
-.top{text-align:right;font-size:10px;font-weight:700;letter-spacing:1px;margin-bottom:10px}
-.top span{border:1px solid #999;padding:2px 10px;margin-left:8px}
-.header{display:flex;align-items:flex-start;gap:14px;padding-bottom:14px;border-bottom:2px solid #111;margin-bottom:0}
-.logo-wrap img{width:60px;height:60px;object-fit:contain;border-radius:6px}
-.co-name{font-size:17px;font-weight:900;color:#111}
-.co-detail{font-size:10px;color:#333;line-height:1.6;margin-top:3px}
-.inv-box{text-align:right;min-width:200px}
+body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff}
+.page{max-width:900px;margin:0 auto;padding:18px 20px;border:1px solid #ccc}
+.top{text-align:right;font-size:9px;font-weight:700;letter-spacing:1px;margin-bottom:8px}
+.top span{border:1px solid #999;padding:2px 8px;margin-left:6px}
+.header{display:flex;align-items:flex-start;gap:12px;padding-bottom:12px;border-bottom:2px solid #111;margin-bottom:0}
+.logo-wrap img{width:52px;height:52px;object-fit:contain;border-radius:5px}
+.co-name{font-size:15px;font-weight:900;color:#111}
+.co-detail{font-size:9px;color:#333;line-height:1.5;margin-top:2px}
+.inv-box{text-align:right;min-width:180px}
 .inv-box table{margin-left:auto;border-collapse:collapse}
-.inv-box td{padding:2px 6px;font-size:11px}
+.inv-box td{padding:1px 5px;font-size:10px}
 .inv-box td:first-child{font-weight:700;text-align:right}
 .party-grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid #ccc;border-top:none}
-.party-cell{padding:10px 12px}
+.party-cell{padding:8px 10px}
 .party-cell+.party-cell{border-left:1px solid #ccc}
-.party-label{font-size:9px;font-weight:700;text-transform:uppercase;color:#555;margin-bottom:3px}
-.party-name{font-size:12px;font-weight:800;color:#111;margin-bottom:2px}
-.items-wrap{border:1px solid #ccc;border-top:none;overflow-x:auto}
-table.items{width:100%;border-collapse:collapse;min-width:900px}
-table.items th{background:#1e293b;color:#e2e8f0;padding:6px 8px;font-size:9px;font-weight:700;text-transform:uppercase;border-bottom:1px solid #334155;text-align:left;white-space:nowrap}
-table.items td{padding:6px 8px;font-size:11px;border-bottom:1px solid #eee;vertical-align:top}
-.total-row td{font-weight:800;font-size:12px;background:#f5f5f5;border-top:2px solid #ccc}
-.summary{border:1px solid #ccc;border-top:none;padding:12px 16px;display:flex;justify-content:flex-end}
-.summary-box{min-width:280px}
-.summary-row{display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px}
-.summary-total{display:flex;justify-content:space-between;border-top:2px solid #111;padding-top:8px;font-size:14px;font-weight:900;color:#c0392b}
-.type-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;margin-left:6px}
+.party-label{font-size:8px;font-weight:700;text-transform:uppercase;color:#555;margin-bottom:2px}
+.party-name{font-size:11px;font-weight:800;color:#111;margin-bottom:1px}
+.party-detail{font-size:9px;color:#444;line-height:1.5;margin-top:1px}
+.items-wrap{border:1px solid #ccc;border-top:none;overflow:hidden}
+table.items{width:100%;border-collapse:collapse;table-layout:fixed}
+table.items col.c-no   {width:28px}
+table.items col.c-desc {width:200px}
+table.items col.c-hsn  {width:60px}
+table.items col.c-qty  {width:48px}
+table.items col.c-rate {width:68px}
+table.items col.c-disc {width:38px}
+table.items col.c-tax  {width:72px}
+table.items col.c-pct  {width:38px}
+table.items col.c-amt  {width:62px}
+table.items col.c-tot  {width:72px}
+table.items th{background:#1e293b;color:#e2e8f0;padding:5px 4px;font-size:8px;font-weight:700;text-transform:uppercase;border-bottom:1px solid #334155;text-align:left;white-space:nowrap;overflow:hidden}
+table.items td{padding:5px 4px;font-size:9.5px;border-bottom:1px solid #eee;vertical-align:middle;overflow:hidden}
+table.items td.desc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+.total-row td{font-weight:800;font-size:10px;background:#f5f5f5;border-top:2px solid #ccc}
+.hsn-section{border:1px solid #ccc;border-top:none;overflow:hidden}
+.hsn-title{background:#f1f5f9;padding:6px 10px;font-size:9px;font-weight:800;color:#334155;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0}
+table.hsn{width:100%;border-collapse:collapse;table-layout:fixed}
+table.hsn th{background:#334155;color:#e2e8f0;padding:4px 6px;font-size:8px;font-weight:700;text-transform:uppercase;text-align:left;white-space:nowrap}
+table.hsn td{padding:4px 6px;font-size:9.5px;border-bottom:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hsn-total-row td{font-weight:800;font-size:10px;background:#f8fafc;border-top:2px solid #cbd5e1}
+.summary{border:1px solid #ccc;border-top:none;padding:10px 14px;display:flex;justify-content:flex-end}
+.summary-box{min-width:260px}
+.summary-row{display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px}
+.summary-total{display:flex;justify-content:space-between;border-top:2px solid #111;padding-top:7px;font-size:13px;font-weight:900;color:#c0392b}
+.type-badge{display:inline-block;padding:2px 7px;border-radius:20px;font-size:9px;font-weight:700;margin-left:5px}
 .partial{background:#fef9c3;color:#a16207}
 .full{background:#dcfce7;color:#16a34a}
-.footer{border:1px solid #ccc;border-top:none;padding:10px 16px;font-size:10px;color:#555;text-align:center}
-@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.page{border:none;padding:10px}}
+.footer{border:1px solid #ccc;border-top:none;padding:8px 14px;font-size:9px;color:#555;text-align:center}
+@media print{
+  @page{size:A4 portrait;margin:8mm}
+  body{-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:8px}
+  .page{border:none;padding:0;max-width:100%}
+  table.items{font-size:8px}
+  table.items col.c-desc{width:140px}
+  table.items col.c-no{width:20px}
+  table.items col.c-hsn{width:50px}
+  table.items col.c-qty{width:40px}
+  table.items col.c-rate{width:55px}
+  table.items col.c-disc{width:30px}
+  table.items col.c-tax{width:55px}
+  table.items col.c-pct{width:30px}
+  table.items col.c-amt{width:50px}
+  table.items col.c-tot{width:55px}
+}
 </style></head><body><div class="page">
 <div class="top">PO INVOICE <span>${inv.invoiceType==='partial'?'PARTIAL':'FULL'}</span><span>ORIGINAL</span></div>
 <div class="header">
@@ -113,37 +239,47 @@ table.items td{padding:6px 8px;font-size:11px;border-bottom:1px solid #eee;verti
 </div>
 <div class="party-grid">
   <div class="party-cell">
-    <div class="party-label">Vendor / Supplier</div>
-    <div class="party-name">${inv.vendorName||'—'}</div>
+    <div class="party-label">Bill To</div>
+    <div class="party-name">${buyerName}</div>
+    ${buyerAddress.addressHTML ? `<div class="party-detail">${buyerAddress.addressHTML}</div>` : ''}
+    ${buyerGSTIN ? `<div class="party-detail" style="margin-top:4px"><strong>GSTIN:</strong> ${buyerGSTIN}</div>` : ''}
   </div>
   <div class="party-cell">
-    <div class="party-label">Billed By</div>
-    <div class="party-name">Sri Chakra Industries</div>
-    <div style="font-size:10px;color:#333">#13/14, Mysore Road, Nayandahalli, Bangalore - 560039</div>
+    <div class="party-label">Ship To</div>
+    <div class="party-name">${shipToName}</div>
+    ${shipToAddress.addressHTML ? `<div class="party-detail">${shipToAddress.addressHTML}</div>` : ''}
   </div>
 </div>
 <div class="items-wrap">
   <table class="items">
+    <colgroup>
+      <col class="c-no"/><col class="c-desc"/><col class="c-hsn"/>
+      <col class="c-qty"/><col class="c-rate"/><col class="c-disc"/>
+      <col class="c-tax"/><col class="c-pct"/><col class="c-amt"/>
+      <col class="c-pct"/><col class="c-amt"/><col class="c-pct"/>
+      <col class="c-amt"/><col class="c-amt"/><col class="c-tot"/>
+    </colgroup>
     <thead><tr>
       <th>#</th>
-      <th>Item Name / HSN</th>
+      <th>Item Description</th>
+      <th style="text-align:center">HSN/SAC</th>
       <th style="text-align:right">Qty</th>
-      <th style="text-align:right">Unit Rate</th>
+      <th style="text-align:right">Rate</th>
       <th style="text-align:right">Disc%</th>
-      <th style="text-align:right">Taxable Value</th>
+      <th style="text-align:right">Taxable</th>
       <th style="text-align:right">CGST%</th>
-      <th style="text-align:right">CGST Amt</th>
+      <th style="text-align:right">CGST</th>
       <th style="text-align:right">SGST%</th>
-      <th style="text-align:right">SGST Amt</th>
+      <th style="text-align:right">SGST</th>
       <th style="text-align:right">IGST%</th>
-      <th style="text-align:right">IGST Amt</th>
-      <th style="text-align:right">Tax Amt</th>
-      <th style="text-align:right">Total Amt</th>
+      <th style="text-align:right">IGST</th>
+      <th style="text-align:right">Tax</th>
+      <th style="text-align:right">Total</th>
     </tr></thead>
     <tbody>${rows}</tbody>
     <tfoot>
       <tr class="total-row">
-        <td colspan="5" style="text-align:right;padding-right:10px">TOTALS</td>
+        <td colspan="6" style="text-align:right;padding-right:10px">TOTALS</td>
         <td style="text-align:right">${fmt(totalTaxable)}</td>
         <td></td>
         <td style="text-align:right;color:#1d4ed8">${fmt(totalCGST)}</td>
@@ -157,6 +293,42 @@ table.items td{padding:6px 8px;font-size:11px;border-bottom:1px solid #eee;verti
     </tfoot>
   </table>
 </div>
+
+<!-- HSN-wise Tax Breakup -->
+<div class="hsn-section">
+  <div class="hsn-title">HSN / SAC — Tax Breakup</div>
+  <table class="hsn">
+    <thead><tr>
+      <th>#</th>
+      <th>HSN / SAC Code</th>
+      <th style="text-align:right">Taxable Value</th>
+      <th style="text-align:right">CGST %</th>
+      <th style="text-align:right">CGST Amt</th>
+      <th style="text-align:right">SGST %</th>
+      <th style="text-align:right">SGST Amt</th>
+      <th style="text-align:right">IGST %</th>
+      <th style="text-align:right">IGST Amt</th>
+      <th style="text-align:right">Total Tax</th>
+      <th style="text-align:right">Total Amt</th>
+    </tr></thead>
+    <tbody>${hsnRows}</tbody>
+    <tfoot>
+      <tr class="hsn-total-row">
+        <td colspan="2" style="text-align:right;padding-right:10px">TOTALS</td>
+        <td style="text-align:right">${fmt(hsnTotTaxable)}</td>
+        <td></td>
+        <td style="text-align:right;color:#1d4ed8">${fmt(hsnTotCGST)}</td>
+        <td></td>
+        <td style="text-align:right;color:#1d4ed8">${fmt(hsnTotSGST)}</td>
+        <td></td>
+        <td style="text-align:right;color:#7c3aed">${hsnTotIGST > 0 ? fmt(hsnTotIGST) : '—'}</td>
+        <td style="text-align:right;color:#a16207;font-weight:800">${fmt(hsnTotTax)}</td>
+        <td style="text-align:right;color:#c0392b;font-weight:900">${fmt(hsnTotTaxable+hsnTotTax)}</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
 <div class="summary">
   <div class="summary-box">
     <div class="summary-row"><span>Total Taxable Value</span><span>${fmt(totalTaxable)}</span></div>
@@ -187,6 +359,7 @@ export default function InvoiceHistoryPage() {
   const [updating, setUpdating]     = useState(null);
   const [deleting, setDeleting]     = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [migratingHSN, setMigratingHSN] = useState(false);
 
   // Delivery tracking state
   const [deliveryInv, setDeliveryInv]       = useState(null);   // invoice open in delivery modal
@@ -210,6 +383,20 @@ export default function InvoiceHistoryPage() {
     finally { setLoading(false); }
   };
 
+  // ── Fix HSN migration ──────────────────────────────────────────────────────
+  const handleMigrateHSN = async () => {
+    setMigratingHSN(true);
+    try {
+      const res = await poGeneratorApi.migrateHSN();
+      setSuccessMsg(res.message || 'HSN migration complete');
+      fetchAll(); // reload so updated invoices show correct HSN
+    } catch (e) {
+      setSuccessMsg('HSN migration failed: ' + e.message);
+    } finally {
+      setMigratingHSN(false);
+    }
+  };
+
   useEffect(() => { fetchAll(); }, [filter]);
 
   useEffect(() => {
@@ -225,16 +412,90 @@ export default function InvoiceHistoryPage() {
     setTimeout(() => w.print(), 400);
   };
 
-  // ── Download as HTML file ──────────────────────────────────────────────────
-  const handleDownload = (inv) => {
-    const html  = buildInvoiceHTML(inv);
-    const blob  = new Blob([html], { type: 'text/html' });
-    const url   = URL.createObjectURL(blob);
-    const a     = document.createElement('a');
-    a.href      = url;
-    a.download  = `${inv.invoiceNo}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const [downloading, setDownloading] = useState(null);
+
+  // ── Download as PDF ────────────────────────────────────────────────────────
+  const handleDownload = async (inv) => {
+    setDownloading(inv._id);
+    // Render the invoice HTML in a hidden off-screen iframe, then capture with
+    // html2canvas and export via jsPDF — no server required.
+    const { default: jsPDF } = await import('jspdf');
+    const { default: html2canvas } = await import('html2canvas');
+
+    // Create a hidden iframe to render the full invoice HTML
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1400px;height:900px;border:none;visibility:hidden';
+    document.body.appendChild(iframe);
+
+    await new Promise((resolve) => {
+      iframe.onload = resolve;
+      iframe.srcdoc = buildInvoiceHTML(inv);
+    });
+
+    // Give fonts/images a moment to render
+    await new Promise(r => setTimeout(r, 600));
+
+    try {
+      const doc = iframe.contentDocument || iframe.contentWindow.document;
+      const page = doc.querySelector('.page') || doc.body;
+
+      const canvas = await html2canvas(page, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        windowWidth: 1400,
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      // A4 landscape: 297 × 210 mm
+      const pdfW = 297;
+      const pdfH = 210;
+      const ratio = pdfW / (imgW / 2); // scale factor (canvas is 2×)
+      const renderedH = (imgH / 2) * ratio;
+
+      // If content is taller than one landscape page, use portrait or multi-page
+      const orientation = renderedH > pdfH ? 'p' : 'l';
+      const pdf = new jsPDF({ orientation, unit: 'mm', format: 'a4' });
+      const pageW = orientation === 'l' ? 297 : 210;
+      const pageH = orientation === 'l' ? 210 : 297;
+
+      const finalRatio = pageW / (imgW / 2);
+      const finalH = (imgH / 2) * finalRatio;
+
+      let yOffset = 0;
+      let remaining = finalH;
+      let firstPage = true;
+
+      while (remaining > 0) {
+        if (!firstPage) pdf.addPage();
+        firstPage = false;
+
+        const sliceH = Math.min(remaining, pageH);
+        const srcY = yOffset / finalRatio;
+        const srcH = sliceH / finalRatio;
+
+        // Crop the canvas slice for this page
+        const sliceCanvas = document.createElement('canvas');
+        sliceCanvas.width = imgW;
+        sliceCanvas.height = srcH * 2; // ×2 for scale
+        const ctx = sliceCanvas.getContext('2d');
+        ctx.drawImage(canvas, 0, srcY * 2, imgW, srcH * 2, 0, 0, imgW, srcH * 2);
+
+        pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pageW, sliceH);
+        yOffset += sliceH;
+        remaining -= sliceH;
+      }
+
+      pdf.save(`${inv.invoiceNo}.pdf`);
+    } finally {
+      document.body.removeChild(iframe);
+      setDownloading(null);
+    }
   };
 
   const handleStatusUpdate = async (id, status) => {
@@ -323,10 +584,17 @@ export default function InvoiceHistoryPage() {
           <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0 }}>Invoice History</h1>
           <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>All PO-based invoices — view, print, download</p>
         </div>
-        <button onClick={() => navigate('/po-generator/upload')}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 18px', background: 'linear-gradient(135deg,#c0392b,#922b21)', color: '#fff', border: 'none', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-          <MdReceipt size={15} /> + New Invoice
-        </button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button onClick={handleMigrateHSN} disabled={migratingHSN}
+            title="Extract HSN codes from item names and fix existing invoices"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 16px', background: migratingHSN ? '#94a3b8' : '#fef9c3', color: '#a16207', border: '1.5px solid #fde68a', borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: migratingHSN ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+            {migratingHSN ? '⏳ Fixing HSN...' : '🔧 Fix HSN Codes'}
+          </button>
+          <button onClick={() => navigate('/po-generator/upload')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 18px', background: 'linear-gradient(135deg,#c0392b,#922b21)', color: '#fff', border: 'none', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <MdReceipt size={15} /> + New Invoice
+          </button>
+        </div>
       </div>
 
       {/* Success banner */}
@@ -423,9 +691,9 @@ export default function InvoiceHistoryPage() {
                             style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: '#f0fdf4', color: '#16a34a', border: 'none', borderRadius: 7, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
                             <MdPrint size={14} /> Print
                           </button>
-                          <button onClick={() => handleDownload(inv)} title="Download"
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: '#fef9c3', color: '#a16207', border: 'none', borderRadius: 7, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
-                            <MdDownload size={14} />
+                          <button onClick={() => handleDownload(inv)} title="Download PDF" disabled={downloading === inv._id}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: downloading === inv._id ? '#f1f5f9' : '#fef9c3', color: '#a16207', border: 'none', borderRadius: 7, fontSize: 12, cursor: downloading === inv._id ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontWeight: 600, opacity: downloading === inv._id ? 0.6 : 1 }}>
+                            <MdDownload size={14} /> {downloading === inv._id ? 'PDF...' : 'PDF'}
                           </button>
                           <button onClick={() => setDeleteConfirm(inv)} title="Delete Invoice" disabled={deleting === inv._id}
                             style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: 7, fontSize: 12, cursor: deleting === inv._id ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontWeight: 600, opacity: deleting === inv._id ? 0.6 : 1 }}>
@@ -469,9 +737,9 @@ export default function InvoiceHistoryPage() {
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 <MdPrint size={15} /> Print
               </button>
-              <button onClick={() => viewInv && handleDownload(viewInv)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: '#fefce8', color: '#a16207', border: '1px solid #fde68a', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                <MdDownload size={15} /> Download
+              <button onClick={() => viewInv && handleDownload(viewInv)} disabled={downloading === viewInv?._id}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: downloading === viewInv?._id ? '#f1f5f9' : '#fefce8', color: '#a16207', border: '1px solid #fde68a', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: downloading === viewInv?._id ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: downloading === viewInv?._id ? 0.6 : 1 }}>
+                <MdDownload size={15} /> {downloading === viewInv?._id ? 'Generating PDF...' : 'Download PDF'}
               </button>
               <button onClick={() => setViewInv(null)}
                 style={{ padding: '8px 16px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>

@@ -143,19 +143,38 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
 
     const parseDateField = (val) => {
       if (!val && val !== 0) return new Date().toISOString().split('T')[0];
-      if (typeof val === 'number') {
-        try {
-          const d = XLSX.SSF.parse_date_code(val);
-          return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
-        } catch { return new Date().toISOString().split('T')[0]; }
-      }
+
+      // Helper: convert Excel serial number to YYYY-MM-DD
+      const serialToDate = (n) => {
+        // Excel serial: days since 1900-01-00 (with leap-year bug: 1900 treated as leap)
+        const serial = Number(n);
+        if (!serial || serial < 1) return new Date().toISOString().split('T')[0];
+        // Adjust for Excel's 1900 leap-year bug (serial 60 = fake Feb 29 1900)
+        const adjusted = serial > 59 ? serial - 1 : serial;
+        const msPerDay = 86400000;
+        const epoch = new Date(Date.UTC(1900, 0, 1)); // Jan 1 1900
+        const d = new Date(epoch.getTime() + (adjusted - 1) * msPerDay);
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+
+      if (typeof val === 'number') return serialToDate(val);
+
       const s = String(val).trim();
       if (!s) return new Date().toISOString().split('T')[0];
+
+      // Pure numeric string → treat as Excel serial
+      if (/^\d+$/.test(s)) return serialToDate(Number(s));
+
+      // DD/MM/YYYY
       const m1 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
       if (m1) {
         const yr = m1[3].length === 2 ? '20' + m1[3] : m1[3];
-        return `${yr}-${m1[1].padStart(2,'0')}-${m1[2].padStart(2,'0')}`;
+        return `${yr}-${m1[2].padStart(2,'0')}-${m1[1].padStart(2,'0')}`;
       }
+      // DD-MM-YYYY or DD.MM.YYYY
       const m2 = s.match(/^(\d{1,2})[-.](\d{1,2})[-.](\d{2,4})$/);
       if (m2) {
         const yr = m2[3].length === 2 ? '20' + m2[3] : m2[3];
@@ -185,6 +204,12 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
         const add2 = getField(row, 'Add 2', 'Add2', 'Address2', 'Address 2');
         const address = [add1, add2].filter(Boolean).join(', ');
 
+        // Ship To — read dedicated ship-to columns if present, else fall back to bill-to address
+        const shipAdd1 = getField(row, 'Ship To Add1', 'ShipToAdd1', 'Ship To Address1', 'ShipToAddress1');
+        const shipAdd2 = getField(row, 'Ship To Add2', 'ShipToAdd2', 'Ship To Address2', 'ShipToAddress2');
+        const shipAddress = [shipAdd1, shipAdd2].filter(Boolean).join(', ') || address;
+        const shipName = getField(row, 'Ship To Name', 'ShipToName', 'Ship To') || billTo;
+
         currentInvoice = {
           invoiceNo:        invoiceNo,
           partyName:        billTo,
@@ -192,6 +217,8 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
           partyGST:         getField(row, 'GSTIN', 'GST', 'GST No', 'GSTIN No'),
           partyEmail:       '',
           partyPhone:       '',
+          shipToName:       shipName,
+          shipToAddress:    shipAddress,
           invoiceDate:      parseDateField(getField(row, 'Invoice Date', 'InvoiceDate', 'Date')),
           dueDate:          '',
           purchaseOrderRef: getField(row, 'PO NO', 'PO No', 'PO Number', 'PO NO.'),
@@ -212,16 +239,24 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
         const igst     = parseNum(getField(row, 'igst', 'IGST', 'IGST Amount'));
         const total    = parseNum(getField(row, 'Total Value', 'TotalValue', 'Total', 'Amount'));
 
-        // Compute tax rate from amounts
+        // Compute tax rate from amounts — use parseFloat to preserve decimals like 2.5
         const taxAmt   = cgst + sgst + igst;
-        const taxRate  = basic > 0 ? Math.round((taxAmt / basic) * 100) : 0;
+        const taxRate  = basic > 0 ? parseFloat(((taxAmt / basic) * 100).toFixed(2)) : 0;
+
+        // Unit column — use exact match only to avoid fuzzy-matching 'Unit Rate'
+        const unitVal = (row['Unit'] !== undefined && row['Unit'] !== null && String(row['Unit']).trim() !== '')
+          ? String(row['Unit']).trim()
+          : (row['UOM'] !== undefined && row['UOM'] !== null && String(row['UOM']).trim() !== '')
+            ? String(row['UOM']).trim()
+            : 'Nos';
 
         currentInvoice.items.push({
           description: itemName,
           hsn:         hsn,
           qty:         qty || 1,
-          unit:        getField(row, 'Unit', 'UOM') || 'Nos',
+          unit:        unitVal,
           rate:        rate || (qty > 0 ? basic / qty : basic),
+          basic:       basic,
           discount:    0,
           taxRate:     taxRate,
           cgst,
@@ -265,16 +300,21 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
 
     const parseDateField = (val) => {
       if (!val && val !== 0) return new Date().toISOString().split('T')[0];
-      if (typeof val === 'number') {
-        try {
-          const d = XLSX.SSF.parse_date_code(val);
-          return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
-        } catch { return new Date().toISOString().split('T')[0]; }
-      }
+
+      const serialToDate = (n) => {
+        const serial = Number(n);
+        if (!serial || serial < 1) return new Date().toISOString().split('T')[0];
+        const adjusted = serial > 59 ? serial - 1 : serial;
+        const d = new Date(Date.UTC(1900, 0, 1) + (adjusted - 1) * 86400000);
+        return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+      };
+
+      if (typeof val === 'number') return serialToDate(val);
       const s = String(val).trim();
       if (!s) return new Date().toISOString().split('T')[0];
+      if (/^\d+$/.test(s)) return serialToDate(Number(s));
       const m1 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
-      if (m1) { const yr = m1[3].length === 2 ? '20'+m1[3] : m1[3]; return `${yr}-${m1[1].padStart(2,'0')}-${m1[2].padStart(2,'0')}`; }
+      if (m1) { const yr = m1[3].length === 2 ? '20'+m1[3] : m1[3]; return `${yr}-${m1[2].padStart(2,'0')}-${m1[1].padStart(2,'0')}`; }
       const m2 = s.match(/^(\d{1,2})-(\d{1,2})-(\d{2,4})$/);
       if (m2) { const yr = m2[3].length === 2 ? '20'+m2[3] : m2[3]; return `${yr}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`; }
       return s;
@@ -598,12 +638,12 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
         // Inter-state: IGST only
         igstAmt  = storedIGST;
         cgstAmt  = 0; sgstAmt = 0;
-        igstRate = taxableAmt > 0 ? Math.round((igstAmt / taxableAmt) * 100) : (item.taxRate || 0);
+        igstRate = taxableAmt > 0 ? parseFloat(((igstAmt / taxableAmt) * 100).toFixed(2)) : (item.taxRate || 0);
         cgstRate = 0; sgstRate = 0;
       } else if (hasTaxData && (storedCGST > 0 || storedSGST > 0)) {
         // Intra-state: CGST + SGST from stored values
         cgstAmt  = storedCGST; sgstAmt = storedSGST; igstAmt = 0;
-        cgstRate = taxableAmt > 0 ? Math.round((cgstAmt / taxableAmt) * 100) : (item.taxRate || 0) / 2;
+        cgstRate = taxableAmt > 0 ? parseFloat(((cgstAmt / taxableAmt) * 100).toFixed(2)) : (item.taxRate || 0) / 2;
         sgstRate = cgstRate; igstRate = 0;
       } else if (item.taxRate > 0) {
         // Fallback: compute from taxRate only when no stored tax data at all
@@ -751,7 +791,6 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
       <table>
         <tr><td>Invoice No.</td><td>${inv.invoiceNo}</td></tr>
         <tr><td>Invoice Date</td><td>${fmtDate(inv.invoiceDate)}</td></tr>
-        <tr><td>Due Date</td><td>${inv.dueDate ? fmtDate(inv.dueDate) : fmtDate(inv.invoiceDate)}</td></tr>
         ${inv.purchaseOrderRef ? `<tr><td>PO No.</td><td>${inv.purchaseOrderRef}</td></tr>` : ''}
       </table>
     </div>
@@ -770,9 +809,9 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
     </div>
     <div class="party-cell">
       <div class="party-label">Ship To</div>
-      <div class="party-name">${inv.partyName}</div>
+      <div class="party-name">${inv.shipToName || inv.partyName}</div>
       <div class="party-line">
-        ${inv.partyAddress ? `Address: ${inv.partyAddress}` : ''}
+        ${(inv.shipToAddress || inv.partyAddress) ? `Address: ${inv.shipToAddress || inv.partyAddress}` : ''}
       </div>
     </div>
   </div>
@@ -796,9 +835,9 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
           <td>${i + 1}</td>
           <td>${item.description || '—'}</td>
           <td class="mono">${item.hsn || '—'}</td>
-          <td class="r">${item.qty} ${item.unit || 'PCS'}</td>
+          <td class="r">${item.qty}</td>
           <td class="r">${fmtNum(item.rate)}</td>
-          <td class="r">${fmtNum(item.total || item.amount || (item.qty * item.rate))}</td>
+          <td class="r">${fmtNum(item.basic || ((item.qty || 0) * (item.rate || 0)))}</td>
         </tr>`).join('')}
 
         <!-- Tax rows -->
@@ -877,17 +916,8 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
     ${amtWords}
   </div>
 
-  <!-- Footer: Bank Details | Terms | Signature -->
-  <div class="footer-grid">
-    <div class="footer-cell">
-      <div class="footer-label">Bank Details</div>
-      <div class="footer-line">
-        <strong>Name:</strong> Sri Chakra Industries Pvt. Ltd.<br/>
-        <strong>IFSC Code:</strong> ${inv.bankIfsc || 'HDFC0002847'}<br/>
-        <strong>Account No:</strong> ${inv.bankAccount || '50200081374926'}<br/>
-        <strong>Bank:</strong> ${inv.bankName || 'HDFC Bank, Nayandahalli Branch, Bangalore'}
-      </div>
-    </div>
+  <!-- Footer: Terms | Signature -->
+  <div class="footer-grid" style="grid-template-columns:1fr 1fr;">
     <div class="footer-cell">
       <div class="footer-label">Terms and Conditions</div>
       <div class="footer-line">

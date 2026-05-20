@@ -6,6 +6,7 @@ const q = (p = {}) => { const s = new URLSearchParams(p).toString(); return s ? 
 
 export const poGeneratorApi = {
   getStats:          ()             => fetch(`${BASE}/po-generator/stats`,                          { headers: authHeaders() }).then(handle),
+  getUploadSummary:  (params = {})  => fetch(`${BASE}/po-generator/upload-summary${q(params)}`,     { headers: authHeaders() }).then(handle),
   listPOs:           (params = {})  => fetch(`${BASE}/po-generator/pos${q(params)}`,                { headers: authHeaders() }).then(handle),
   deletePO:          (id)           => fetch(`${BASE}/po-generator/pos/${id}`,                       { method: 'DELETE', headers: authHeaders() }).then(handle),
   stockCheck:        (poId)         => fetch(`${BASE}/po-generator/stock-check/${poId}`,             { headers: authHeaders() }).then(handle),
@@ -18,4 +19,5 @@ export const poGeneratorApi = {
   deleteInvoice:     (id)           => fetch(`${BASE}/po-generator/invoices/${id}`,                  { method: 'DELETE', headers: authHeaders() }).then(handle),
   listPendingOrders: (params = {})  => fetch(`${BASE}/po-generator/pending-orders${q(params)}`,     { headers: authHeaders() }).then(handle),
   updatePendingOrder:(id, body)     => fetch(`${BASE}/po-generator/pending-orders/${id}`,           { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  migrateHSN:        ()             => fetch(`${BASE}/po-generator/migrate-hsn`,                    { method: 'POST', headers: authHeaders() }).then(handle),
 };

@@ -291,22 +291,6 @@ export default function POGeneratorDashboard() {
           )}
         </div>
 
-        {/* Quick Nav */}
-        <div style={{ background: '#fff', borderRadius: 14, padding: '18px 20px', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: '#1e293b', marginBottom: 14 }}>Quick Navigation</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {MODULES.map(mod => (
-              <button key={mod.label} onClick={() => navigate(mod.path)}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', background: mod.bg, border: `1px solid ${mod.border}`, borderRadius: 9, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <mod.icon size={15} color={mod.color} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: mod.color }}>{mod.label}</span>
-                </div>
-                <MdArrowForward size={13} color={mod.color} />
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
     </div>

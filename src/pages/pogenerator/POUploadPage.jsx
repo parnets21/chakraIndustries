@@ -301,52 +301,286 @@ function parsePOFromText({ flatText, lines }) {
   if (grandM) result.total = grandM[1].replace(/,/g, '');
   const taxM = text.match(/(?:Total\s+)?Tax\s+Amount\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i);
   if (taxM) result.taxTotal = taxM[1].replace(/,/g, '');
-  const subM = text.match(/Sub\s*Total\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i) || text.match(/Total\s+(?:Base|Taxable)\s+(?:Value|Amount)\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i);
+  const subM = text.match(/Sub\s*Total\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i) || text.match(/Total\s+(?:Base|Taxable)\s+(?:Value|Amount)\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i)
+    || text.match(/Total\s+Amount\s*\(?Without\s+Tax\)?\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i);
   if (subM) result.subTotal = subM[1].replace(/,/g, '');
+
+  // ── Pass 0: Direct flatText regex extraction ──────────────────────────────
+  // For structured POs where the item table has a known column order in flatText.
+  // Pattern: serial, item_name, description?, qty, uom, hsn, unit_rate,
+  //          cgst_amt (cgst_pct), sgst_amt (sgst_pct), igst_amt (igst_pct), amount
+  // This is more reliable than token-based parsing for PDFs where pdfjs merges lines.
+  {
+    const NUM = '([\\d,]+(?:\\.\\d{1,4})?)';
+    const PCT = `${NUM}\\s*\\(\\s*${NUM}\\s*\\)`;  // e.g. 2,505.98 (18.0)
+    const ZERO_PCT = `0\\.00\\s*\\(\\s*0\\.0\\s*\\)`;  // 0.00 (0.0)
+    const UOM_PAT = '(Nos?\\.?|Numbers?|Pcs?\\.?|Kgs?\\.?|Units?|EA|Sets?|Ltrs?\\.?|Mtrs?\\.?|Boxes?|Rolls?|Pairs?|Bags?|Sheets?|MT|Ton|Tonne|Quintal|Sqft|Sqm|RMT|Mtr|Ltr|Gms?|Grams?|Dozen|Bale|Bundle|Coil|Drum|Packet|Pkt)';
+
+    // Pattern A: CGST=0, SGST=0, IGST=value (inter-state)
+    // Row: <serial> <name> <qty> <uom> <hsn> <rate> 0.00 (0.0) 0.00 (0.0) <igst_amt> (<igst_pct>) <amount>
+    const patA = new RegExp(
+      `(\\d{1,3})[^\\d\\n]{1,80}?` +                    // serial + name
+      `(\\d{1,6}(?:\\.\\d{1,3})?)\\s+` +                // qty
+      `${UOM_PAT}\\s+` +                                 // uom
+      `(\\d{4,8})\\s+` +                                 // hsn
+      `${NUM}\\s+` +                                     // unit rate
+      `${ZERO_PCT}\\s+` +                                // cgst 0.00 (0.0)
+      `${ZERO_PCT}\\s+` +                                // sgst 0.00 (0.0)
+      `${PCT}\\s+` +                                     // igst_amt (igst_pct)
+      `${NUM}`,                                          // line total
+      'gi'
+    );
+
+    // Pattern B: CGST=value, SGST=value, IGST=0 (intra-state)
+    const patB = new RegExp(
+      `(\\d{1,3})[^\\d\\n]{1,80}?` +
+      `(\\d{1,6}(?:\\.\\d{1,3})?)\\s+` +
+      `${UOM_PAT}\\s+` +
+      `(\\d{4,8})\\s+` +
+      `${NUM}\\s+` +
+      `${PCT}\\s+` +                                     // cgst_amt (cgst_pct)
+      `${PCT}\\s+` +                                     // sgst_amt (sgst_pct)
+      `${ZERO_PCT}\\s+` +                                // igst 0.00 (0.0)
+      `${NUM}`,
+      'gi'
+    );
+
+    const tryRegexParse = (pat, isInterState) => {
+      let m;
+      pat.lastIndex = 0;
+      while ((m = pat.exec(text)) !== null) {
+        const fullMatch = m[0];
+        // Skip if this looks like a footer/summary line
+        if (/total|subtotal|grand|tax\s+amount/i.test(fullMatch)) continue;
+
+        let qty, uom, hsn, rate, igstAmt, igstPct, cgstAmt, cgstPct, sgstAmt, sgstPct, lineAmt;
+
+        if (isInterState) {
+          // Groups: 1=serial, 2=qty, 3=uom, 4=hsn, 5=rate, 6=igst_amt, 7=igst_pct, 8=line_total
+          qty      = parseFloat(m[2]);
+          uom      = m[3];
+          hsn      = m[4];
+          rate     = parseFloat(m[5].replace(/,/g, ''));
+          igstAmt  = parseFloat(m[6].replace(/,/g, ''));
+          igstPct  = parseFloat(m[7]);
+          lineAmt  = parseFloat(m[8].replace(/,/g, ''));
+          cgstAmt = 0; cgstPct = 0; sgstAmt = 0; sgstPct = 0;
+        } else {
+          // Groups: 1=serial, 2=qty, 3=uom, 4=hsn, 5=rate, 6=cgst_amt, 7=cgst_pct, 8=sgst_amt, 9=sgst_pct, 10=line_total
+          qty      = parseFloat(m[2]);
+          uom      = m[3];
+          hsn      = m[4];
+          rate     = parseFloat(m[5].replace(/,/g, ''));
+          cgstAmt  = parseFloat(m[6].replace(/,/g, ''));
+          cgstPct  = parseFloat(m[7]);
+          sgstAmt  = parseFloat(m[8].replace(/,/g, ''));
+          sgstPct  = parseFloat(m[9]);
+          lineAmt  = parseFloat(m[10].replace(/,/g, ''));
+          igstAmt = 0; igstPct = 0;
+        }
+
+        if (!qty || !rate || !lineAmt) continue;
+        const taxable = +(rate * qty).toFixed(2);
+        if (taxable <= 0) continue;
+
+        // Extract item name — text between serial and qty
+        const serialEnd = m[0].indexOf(m[2]);
+        let rawName = m[0].slice(m[1].length, serialEnd).trim();
+        rawName = rawName.replace(/\s+/g, ' ').replace(/[^\w\s\-\/\.]/g, '').trim();
+        if (rawName.length < 2) rawName = 'Item';
+
+        const item = {
+          name: rawName,
+          qty, unit: uom || 'Nos', hsn,
+          rate, discount: 0,
+          cgst: cgstPct, cgstVal: cgstAmt,
+          sgst: sgstPct, sgstVal: sgstAmt,
+          igst: igstPct, igstVal: igstAmt,
+          gst: cgstPct + sgstPct + igstPct,
+          taxableValue: taxable,
+          lineAmount: lineAmt,
+        };
+
+        const key = `${item.name.toLowerCase()}|${item.qty}`;
+        if (!result.items.some(x => `${x.name.toLowerCase()}|${x.qty}` === key)) {
+          result.items.push(item);
+          console.log('✅ Pass0 regex:', item.name, 'qty=', item.qty, 'rate=', item.rate, 'igst=', item.igst, 'igstVal=', item.igstVal);
+        }
+      }
+    };
+
+    tryRegexParse(patA, true);   // inter-state (IGST only)
+    if (result.items.length === 0) tryRegexParse(patB, false); // intra-state (CGST+SGST)
+  }
 
   // ── Core item extractor ───────────────────────────────────────────────────
   // Given raw tokens for one row, extract item data or return null
   const extractItem = (rawToks) => {
-    const toks = stripDates(rawToks);
+    // Unwrap parenthesized numbers like (18.5) → "18.5", (0.0) → "0.0"
+    // These appear in some POs as tax % hints in brackets
+    const toks = stripDates(rawToks).map(t => {
+      const pm = String(t).match(/^\((\d+(?:\.\d+)?)\)$/);
+      return pm ? pm[1] : t;
+    });
     if (toks.length < 3) return null;
 
-    // Broader numeric check: any token that looks like a number (with or without currency)
+    // ── Pre-extract HSN early so isNumeric can exclude it from the number pool ──
+    let hsnEarly = '';
+    {
+      const joined = toks.join(' ');
+      const hsnMatch = joined.match(/\b(?:HSN|SAC)\b\s*(?:Code)?\s*[:-]?\s*(\d{4,10})/i);
+      if (hsnMatch) {
+        hsnEarly = hsnMatch[1];
+      } else {
+        for (let i = 2; i < toks.length; i++) {
+          if (/^\d{4,8}$/.test(toks[i])) {
+            const v = parseInt(toks[i], 10);
+            if (v >= 1000 && !(v >= 1900 && v <= 2099)) {
+              hsnEarly = toks[i];
+              break;
+            }
+          }
+        }
+      }
+    }
+
     const isNumeric = (t) => {
       const raw = String(t || '').trim().replace(/^[₹Rs\.INR,\s]+/i, '').replace(/,/g, '');
-      return /^\d+(\.\d{1,4})?$/.test(raw) && parseFloat(raw) > 0;
+      if (!/^\d+(\.\d{1,4})?$/.test(raw) || parseFloat(raw) <= 0) return false;
+      // Exclude standalone 4-8 digit integers that look like HSN codes
+      if (/^\d{4,8}$/.test(raw)) {
+        const v = parseInt(raw, 10);
+        if (hsnEarly && raw === hsnEarly) return false;
+        if (v >= 1000 && v <= 9999 && !/[,.]/.test(String(t || ''))) return false;
+      }
+      return true;
     };
 
-    // All numeric entries with position
     const nums = toks.map((t, i) => ({ t, i, n: toNum(t), ok: isNumeric(t) })).filter(x => x.ok);
     if (nums.length < 2) return null;
 
-    // Last number = line total (largest value, or last if ambiguous)
     const totalE = nums.reduce((best, x) => x.n >= best.n ? x : best, nums[nums.length - 1]);
     const lineTotal = totalE.n;
 
-    // Qty detection — try multiple strategies
+    // ── Pre-scan: detect explicit tax columns by analysing the number sequence ──
+    // Strategy: work backwards from the lineTotal in the nums array.
+    // In POs with explicit tax columns the tail of nums looks like:
+    //   [..., taxable, cgstAmt, sgstAmt, igstAmt, lineTotal]  (intra-state)
+    //   [..., taxable, igstAmt, lineTotal]                     (inter-state)
+    // We also scan tokens for slab% markers to identify which tax type each amount belongs to.
+    const GST_SLABS = new Set([5, 12, 18, 28, 2.5, 6, 9, 14]);
+    let preCgst = 0, preSgst = 0, preIgst = 0;
+    let preCgstVal = 0, preSgstVal = 0, preIgstVal = 0;
+
+    // Collect all GST slab % tokens from the row (including unwrapped ones like 18.0)
+    const slabsInRow = [];
+    for (let i = 0; i < toks.length; i++) {
+      const v = parseFloat(toks[i]);
+      if (isFinite(v) && GST_SLABS.has(v)) slabsInRow.push({ v, i });
+    }
+
+    // Collect all positive numbers < lineTotal that could be tax amounts
+    // (exclude the lineTotal itself and numbers that look like qty/rate)
+    const taxCandidates = nums.filter(x =>
+      x.i !== totalE.i && x.n < lineTotal && x.n > 0
+    );
+
+    // Try to match slab% tokens to nearby numeric values (within ±5 positions)
+    const matchedTaxIdx = new Set();
+    for (const slab of slabsInRow) {
+      // Look for a numeric token within 5 positions of the slab token
+      let bestMatch = null;
+      for (const tc of taxCandidates) {
+        if (matchedTaxIdx.has(tc.i)) continue;
+        const dist = Math.abs(tc.i - slab.i);
+        if (dist > 5) continue;
+        // Sanity: tc.n should be roughly slab.v% of something ≤ lineTotal
+        const impliedBase = tc.n / (slab.v / 100);
+        if (impliedBase <= 0 || impliedBase > lineTotal * 1.1) continue;
+        if (!bestMatch || dist < Math.abs(bestMatch.i - slab.i)) bestMatch = tc;
+      }
+      if (bestMatch) {
+        matchedTaxIdx.add(bestMatch.i);
+        if (!preCgst && preCgstVal === 0) { preCgst = slab.v; preCgstVal = bestMatch.n; }
+        else if (!preSgst && preSgstVal === 0) { preSgst = slab.v; preSgstVal = bestMatch.n; }
+        else if (!preIgst) { preIgst = slab.v; preIgstVal = bestMatch.n; }
+      } else {
+        // Slab found but no matching amount nearby — register as zero-value tax
+        if (!preCgst && preCgstVal === 0) { preCgst = slab.v; preCgstVal = 0; }
+        else if (!preSgst && preSgstVal === 0) { preSgst = slab.v; preSgstVal = 0; }
+      }
+    }
+
+    // Fallback: if only one slab found with no amount matched, try the number
+    // second-from-last in nums (pattern: [..., taxAmt, total])
+    if (preIgst === 0 && preCgst === 0 && preSgst === 0 && slabsInRow.length === 0) {
+      // No slab tokens at all — try back-calculating from lineTotal
+      // (handled later in taxDiff logic)
+    } else if (preIgstVal === 0 && preCgstVal === 0 && preSgstVal === 0 && slabsInRow.length > 0) {
+      // Slabs found but no amounts matched — try second-to-last number
+      const nonTotalNums = nums.filter(x => x.i !== totalE.i);
+      if (nonTotalNums.length >= 1) {
+        const lastBeforeTotal = nonTotalNums[nonTotalNums.length - 1];
+        if (lastBeforeTotal.n < lineTotal * 0.5) {
+          const slab = slabsInRow[slabsInRow.length - 1];
+          preIgst = slab.v; preIgstVal = lastBeforeTotal.n;
+          matchedTaxIdx.add(lastBeforeTotal.i);
+        }
+      }
+    }
+
+    const preTaxSum = preCgstVal + preSgstVal + preIgstVal;
+    const preTaxable = (preTaxSum > 0 && preTaxSum < lineTotal * 0.5)
+      ? +(lineTotal - preTaxSum).toFixed(2) : 0;
+
+    // ── Qty detection ─────────────────────────────────────────────────────
     let qtyE = null;
 
-    // Strategy 1: find a number where rate × qty ≈ lineTotal (within 2%), both numbers present
+    // Helper: is this num a known pre-scanned tax amount?
+    const isPreTaxAmt = (n, idx) => {
+      if (idx !== undefined && matchedTaxIdx.has(idx)) return true;
+      if (preTaxSum === 0) return false;
+      return (
+        (preCgstVal > 0 && Math.abs(n - preCgstVal) < 0.01) ||
+        (preSgstVal > 0 && Math.abs(n - preSgstVal) < 0.01) ||
+        (preIgstVal > 0 && Math.abs(n - preIgstVal) < 0.01)
+      );
+    };
+
+    // Strategy 0: if we have pre-scanned taxable, find qty × rate ≈ preTaxable
+    if (preTaxable > 0) {
+      for (let a = 0; a < nums.length && !qtyE; a++) {
+        for (let b = a + 1; b < nums.length && !qtyE; b++) {
+          const na = nums[a], nb = nums[b];
+          if (na.i === totalE.i || nb.i === totalE.i) continue;
+          if (na.i === 0 || nb.i === 0) continue;
+          if (isPreTaxAmt(na.n, na.i) || isPreTaxAmt(nb.n, nb.i)) continue;
+          const prod = na.n * nb.n;
+          if (prod > 0 && Math.abs(prod - preTaxable) / Math.max(prod, preTaxable) < 0.03) {
+            qtyE = na.n <= nb.n ? na : nb;
+            break;
+          }
+        }
+      }
+    }
+
+    // Strategy 1: find qty × rate ≈ lineTotal
     for (let a = 0; a < nums.length && !qtyE; a++) {
       for (let b = a + 1; b < nums.length && !qtyE; b++) {
         const na = nums[a], nb = nums[b];
         if (na.i === totalE.i || nb.i === totalE.i) continue;
-        if (na.i === 0 || nb.i === 0) continue; // skip serial
-        // Check if na × nb ≈ lineTotal
+        if (na.i === 0 || nb.i === 0) continue;
         const prod = na.n * nb.n;
         if (prod > 0 && Math.abs(prod - lineTotal) / Math.max(prod, lineTotal) < 0.03) {
-          // Smaller = qty, larger = rate
-          if (na.n <= nb.n) { qtyE = na; }
-          else { qtyE = nb; }
+          qtyE = na.n <= nb.n ? na : nb;
           break;
         }
       }
     }
 
-    // Strategy 2: first number after serial that is < 10000 and not the total
+    // Strategy 2: first small number after serial, not a tax amount
     if (!qtyE) {
-      qtyE = nums.find(x => x.i > 0 && x.i !== totalE.i && x.n < 10000 && x.n > 0);
+      qtyE = nums.find(x => x.i > 0 && x.i !== totalE.i && x.n < 10000 && !isPreTaxAmt(x.n, x.i));
     }
 
     // Strategy 3: lineTotal / candidate = reasonable qty
@@ -364,13 +598,15 @@ function parsePOFromText({ flatText, lines }) {
     if (!qtyE) return null;
     const qty = qtyE.n;
 
-    // Unit rate = number where rate × qty ≈ lineTotal (within 3%)
+    // Unit rate: find number where rate × qty ≈ preTaxable (preferred) or lineTotal
+    const rateTarget = preTaxable > 0 ? preTaxable : lineTotal;
     let rateE = nums.find(x => {
       if (x.i === 0 || x.i === totalE.i || x.i === qtyE.i) return false;
+      if (isPreTaxAmt(x.n, x.i)) return false;
       const c = x.n * qty;
-      return c > 0 && Math.abs(c - lineTotal) / Math.max(c, lineTotal) < 0.03;
+      return c > 0 && Math.abs(c - rateTarget) / Math.max(c, rateTarget) < 0.03;
     });
-    const unitRate = rateE ? rateE.n : +(lineTotal / qty).toFixed(2);
+    const unitRate = rateE ? rateE.n : +(rateTarget / qty).toFixed(2);
     if (!unitRate || unitRate <= 0) return null;
 
     // Name = text tokens before first number after serial
@@ -380,57 +616,50 @@ function parsePOFromText({ flatText, lines }) {
     let name = nameToks.join(' ').replace(/\s+/g, ' ').replace(/\s*\/?\s*\d{6,10}\s*$/, '').trim();
     if (name.length < 2) return null;
 
-    // GST inference — only used as a display hint, not for calculation
-    const taxable = +(unitRate * qty).toFixed(2);
+    // Use pre-scanned taxable if available, else compute from rate × qty
+    const taxable = preTaxable > 0 ? preTaxable : +(unitRate * qty).toFixed(2);
     const rawPct = taxable > 0 ? (lineTotal - taxable) / taxable * 100 : 0;
-    // Snap to nearest standard slab — 0 wins when there's no tax difference
     const gst = [0, 5, 12, 18, 28].reduce((p, c) => Math.abs(c - rawPct) < Math.abs(p - rawPct) ? c : p, 0);
 
-    // Tax breakdown — only extract if tokens look like genuine GST columns
-    // Valid GST slabs only; must not be the qty or rate token; tax value must be << lineTotal
-    const GST_SLABS = new Set([5, 12, 18, 28, 2.5, 6, 9, 14]);
-    let cgst = 0, sgst = 0, igst = 0, cgstVal = 0, sgstVal = 0, igstVal = 0;
+    // Use pre-scanned tax breakdown if available
+    let cgst = preCgst, sgst = preSgst, igst = preIgst;
+    let cgstVal = preCgstVal, sgstVal = preSgstVal, igstVal = preIgstVal;
+
     const usedIdx = new Set([0, qtyE?.i, rateE?.i, totalE?.i].filter(x => x != null && x >= 0));
-    // Pre-compute pdfLineTotal and taxDiff — used in multiple passes below
     const pdfLineTotal = +lineTotal.toFixed(2);
     const taxDiff = +(pdfLineTotal - taxable).toFixed(2);
 
-    // Pass A: look for GST % followed by a matching tax amount (within 20% tolerance)
-    for (let i = 0; i < toks.length - 1; i++) {
-      if (usedIdx.has(i)) continue;
-      const pctRaw = parseFloat(toks[i]);
-      if (!isFinite(pctRaw) || !GST_SLABS.has(pctRaw)) continue;
-      const valRaw = toNum(toks[i + 1]);
-      if (valRaw <= 0) continue;
-      // Sanity check: pct% of taxable ≈ val (within 20% — wider tolerance for PDFs with different taxable base)
-      if (taxable > 0) {
-        const expected = taxable * pctRaw / 100;
-        if (Math.abs(expected - valRaw) / Math.max(expected, valRaw) > 0.20) continue;
+    if (cgst === 0 && sgst === 0 && igst === 0) {
+      // Pass A: GST % followed by matching tax amount
+      for (let i = 0; i < toks.length - 1; i++) {
+        if (usedIdx.has(i)) continue;
+        const pctRaw = parseFloat(toks[i]);
+        if (!isFinite(pctRaw) || !GST_SLABS.has(pctRaw)) continue;
+        const valRaw = toNum(toks[i + 1]);
+        if (valRaw <= 0) continue;
+        if (taxable > 0) {
+          const expected = taxable * pctRaw / 100;
+          if (Math.abs(expected - valRaw) / Math.max(expected, valRaw) > 0.20) continue;
+        }
+        if (!cgst) { cgst = pctRaw; cgstVal = valRaw; }
+        else if (!sgst) { sgst = pctRaw; sgstVal = valRaw; }
+        else if (!igst) { igst = pctRaw; igstVal = valRaw; }
       }
-      if (!cgst) { cgst = pctRaw; cgstVal = valRaw; }
-      else if (!sgst) { sgst = pctRaw; sgstVal = valRaw; }
-      else if (!igst) { igst = pctRaw; igstVal = valRaw; }
     }
 
-    // Pass B: if no tax found yet, look for GST % values alone (no adjacent amount)
-    // This handles PDFs where tax % columns exist but amounts are computed from line total
     if (cgst === 0 && sgst === 0 && igst === 0) {
+      // Pass B: GST % values alone
       const slabTokens = [];
       for (let i = 0; i < toks.length; i++) {
         if (usedIdx.has(i)) continue;
         const v = parseFloat(toks[i]);
         if (isFinite(v) && GST_SLABS.has(v)) slabTokens.push({ v, i });
       }
-      // Two equal slab values → CGST + SGST (intra-state)
       if (slabTokens.length >= 2 && slabTokens[0].v === slabTokens[1].v) {
-        cgst = slabTokens[0].v;
-        sgst = slabTokens[1].v;
+        cgst = slabTokens[0].v; sgst = slabTokens[1].v;
         cgstVal = +(taxable * cgst / 100).toFixed(2);
         sgstVal = +(taxable * sgst / 100).toFixed(2);
-      }
-      // One slab value → could be IGST (inter-state) or single CGST
-      else if (slabTokens.length === 1) {
-        // Check if lineTotal - taxable ≈ taxable * slab / 100 (IGST)
+      } else if (slabTokens.length === 1) {
         const slab = slabTokens[0].v;
         const expectedTax = taxable * slab / 100;
         const actualTax = pdfLineTotal - taxable;
@@ -441,28 +670,18 @@ function parsePOFromText({ flatText, lines }) {
       }
     }
 
-    // ── Back-calculate tax ONLY when lineTotal > taxable by a meaningful margin
-    // AND the difference snaps cleanly to a known GST slab.
-    // If lineTotal ≈ taxable (no-tax PDF), taxDiff ≈ 0 → skip entirely.
     if (cgst === 0 && sgst === 0 && igst === 0 && taxDiff > 0.5) {
       const rawPctCalc = taxable > 0 ? taxDiff / taxable * 100 : 0;
-      // Only infer if it snaps tightly to a known slab (within 1.5%)
       const nearestSlab = [5, 12, 18, 28].find(s => Math.abs(s - rawPctCalc) < 1.5);
       if (nearestSlab) {
-        cgst = nearestSlab / 2;
-        sgst = nearestSlab / 2;
+        cgst = nearestSlab / 2; sgst = nearestSlab / 2;
         cgstVal = +(taxable * cgst / 100).toFixed(2);
         sgstVal = +(taxable * sgst / 100).toFixed(2);
         igstVal = 0;
       }
-      // If it doesn't snap to a slab, leave all tax as 0 — PDF has no tax
     }
 
-    // ── Special case: rate already includes tax (taxable ≈ lineTotal) ──────────
-    // This happens when the parser picks the "landed price" (post-tax) as the rate.
-    // Detect by finding a GST slab % in the tokens and back-computing the base price.
     if (cgst === 0 && sgst === 0 && igst === 0 && Math.abs(taxDiff) < 1.0) {
-      // Look for a GST slab % token in the row
       const slabTokens = [];
       for (let i = 0; i < toks.length; i++) {
         if (usedIdx.has(i)) continue;
@@ -470,86 +689,79 @@ function parsePOFromText({ flatText, lines }) {
         if (isFinite(v) && GST_SLABS.has(v) && v > 0) slabTokens.push({ v, i });
       }
       if (slabTokens.length > 0) {
-        // Use the first non-zero slab found
         const slab = slabTokens[0].v;
-        // Back-compute: basePrice = landedPrice / (1 + slab/100)
         const baseRate = +(unitRate / (1 + slab / 100)).toFixed(2);
         const baseTaxable = +(baseRate * qty).toFixed(2);
         const taxFromSlab = +(baseTaxable * slab / 100).toFixed(2);
-        // Verify: baseTaxable + taxFromSlab ≈ lineTotal (within 2%)
         if (Math.abs(baseTaxable + taxFromSlab - pdfLineTotal) / pdfLineTotal < 0.02) {
-          // Determine CGST/SGST vs IGST based on number of slab tokens
           if (slabTokens.length >= 2 && slabTokens[0].v === slabTokens[1].v) {
             cgst = slab; sgst = slab;
             cgstVal = +(baseTaxable * cgst / 100).toFixed(2);
             sgstVal = +(baseTaxable * sgst / 100).toFixed(2);
           } else {
-            // Single slab — check if it's CGST only (half of total) or IGST
-            // If slab appears once and total tax = slab% of base, it's IGST
             igst = slab;
             igstVal = +(baseTaxable * igst / 100).toFixed(2);
           }
-          // Update taxable and rate to use base (pre-tax) values
+          let hsn = hsnEarly || '';
+          if (!hsn) {
+            const hsnL = toks.join(' ').match(/\b(?:HSN|SAC)\b\s*(?:Code)?\s*[:-]?\s*(\d{4,10})/i);
+            if (hsnL) hsn = hsnL[1];
+            else { const sl = toks.join(' ').match(/\/\s*(\d{6,10})(?=\s|$)/); if (sl) hsn = sl[1]; }
+            if (!hsn) { const st = toks.find((t, i) => i > 0 && /^\d{6,10}$/.test(t) && !isPrice(t) && t !== String(qtyE.n)); if (st) hsn = st; }
+          }
           return {
-            name,
-            qty,
-            unit: toks.find(t => UOM_RE.test(t)) || 'Nos',
-            rate: baseRate,
-            gst: slab,
-            cgst, cgstVal,
-            sgst, sgstVal,
-            igst, igstVal,
-            discount: 0,
-            taxableValue: baseTaxable,
-            lineAmount: pdfLineTotal,
-            hsn,
+            name, qty, unit: toks.find(t => UOM_RE.test(t)) || 'Nos',
+            rate: baseRate, gst: slab,
+            cgst, cgstVal, sgst, sgstVal, igst, igstVal,
+            discount: 0, taxableValue: baseTaxable, lineAmount: pdfLineTotal, hsn,
           };
         }
       }
     }
 
-    // HSN
-    let hsn = '';
-    const hsnL = toks.join(' ').match(/\b(?:HSN|SAC)\b\s*(?:Code)?\s*[:-]?\s*(\d{4,10})/i);
-    if (hsnL) hsn = hsnL[1];
-    else { const sl = toks.join(' ').match(/\/\s*(\d{6,10})(?=\s|$)/); if (sl) hsn = sl[1]; }
-    if (!hsn) { const st = toks.find((t, i) => i > 0 && /^\d{6,10}$/.test(t) && !isPrice(t) && t !== String(qtyE.n)); if (st) hsn = st; }
+    // HSN — use pre-extracted value, or fall back to token scan
+    let hsn = hsnEarly || '';
+    if (!hsn) {
+      const hsnL = toks.join(' ').match(/\b(?:HSN|SAC)\b\s*(?:Code)?\s*[:-]?\s*(\d{4,10})/i);
+      if (hsnL) hsn = hsnL[1];
+      else { const sl = toks.join(' ').match(/\/\s*(\d{6,10})(?=\s|$)/); if (sl) hsn = sl[1]; }
+      if (!hsn) { const st = toks.find((t, i) => i > 0 && /^\d{6,10}$/.test(t) && !isPrice(t) && t !== String(qtyE.n)); if (st) hsn = st; }
+    }
 
-    // Recompute final gst total percentage
     const finalGstPct = cgst + sgst + igst || gst;
-
     return {
-      name,
-      qty,
-      unit: toks.find(t => UOM_RE.test(t)) || 'Nos',
-      rate: +unitRate.toFixed(2),
-      gst: finalGstPct,
-      cgst, cgstVal,
-      sgst, sgstVal,
-      igst, igstVal,
-      discount: 0,
-      taxableValue: taxable,
-      lineAmount: pdfLineTotal,
-      hsn,
+      name, qty, unit: toks.find(t => UOM_RE.test(t)) || 'Nos',
+      rate: +unitRate.toFixed(2), gst: finalGstPct,
+      cgst, cgstVal, sgst, sgstVal, igst, igstVal,
+      discount: 0, taxableValue: taxable, lineAmount: pdfLineTotal, hsn,
     };
   };
 
   const seen = new Set();
   const addItem = (item) => {
     if (!item || item.name.length < 2) return false;
+    // Reject if the item's line total matches the document grand total — it's a footer row
+    if (result.total && Math.abs(item.lineAmount - parseFloat(result.total)) < 1) return false;
+    // Reject if the item's taxable value matches the document subtotal — it's a summary row
+    if (result.subTotal && Math.abs(item.taxableValue - parseFloat(result.subTotal)) < 1) return false;
     const key = `${item.name.toLowerCase()}|${item.qty}`;
     if (seen.has(key)) return false;
     seen.add(key); result.items.push(item); return true;
   };
 
   // ── Pass 1: scan every line ───────────────────────────────────────────────
+  // Lines that are always headers/footers — skip even if they contain numbers
   const HDRLINE = /^(sl\.?\s*no\.?|s\.?\s*no\.?|sr\.?\s*no\.?|item\s*(name|description|code)|qty\.?|quantity|uom|unit\s*(price|rate)?|base\s*price|cgst|sgst|igst|gst\s*%?|amount|total\s*amount|tax\s*amount|discount|hsn\s*(code)?|sac\s*(code)?|taxable|page\s*\d|terms|dear\s+sir|we\s+hereby|vendor\s*(name|no)|billing\s*address|shipping\s*address|contact\s*(person|no)|gstin\s*[:\-]|pan\s*(no|number)|cin\s*(no|number)|ifsc|bank\s*(name|account)|payment\s*terms?|warranty|delivery\s*(date|address)|purchase\s*order\s*(no|date|number)|po\s*(no|date|number)|authorized\s*signatory|e\s*&\s*oe)/i;
+
+  // Footer/summary lines — skip even when they contain prices
+  const SKIPLINE = /(?:total\s+amount\s*(?:without|with|incl|excl)?|grand\s+total|sub\s*total|net\s+amount|amount\s+payable|total\s+tax|tax\s+amount|amount\s+in\s+words|taxable\s+value|total\s+value|invoice\s+total|order\s+total|balance\s+due|total\s+due|round\s+off|freight|shipping\s+charge|handling|packing|other\s+charge|terms\s+of\s+payment|gross\s+amount|total\s+without\s+tax|without\s+tax|total\s+igst|total\s+cgst|total\s+sgst)/i;
 
   for (const line of lines) {
     const rawToks = line.tokens.map(t => t.str);
     const toks = stripDates(rawToks);
     const ls = toks.join(' ');
     if (ls.length < 5) continue;
+    if (SKIPLINE.test(ls)) continue;
     if (!toks.some(isPrice) && HDRLINE.test(ls.trim())) continue;
     const item = extractItem(rawToks);
     if (item) { addItem(item); console.log('✅ Pass1:', item.name, 'qty=', item.qty, 'rate=', item.rate); }
@@ -763,134 +975,277 @@ export default function POUploadPage() {
 
   return (
     <div style={{ padding: '24px 28px', background: '#f8fafc', minHeight: '100vh' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0 }}>PO Upload & Invoice Generation</h1>
-          <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>Upload any PO PDF — data is auto-extracted, edit if needed, then create invoice</p>
+      <style>{`
+        .po-page { display:flex; flex-direction:column; gap:20px; }
+        .po-banner {
+          background: linear-gradient(135deg,#0f172a 0%,#7f1d1d 60%,#0f172a 100%);
+          border-radius:16px; padding:22px 26px;
+          display:flex; align-items:center; justify-content:space-between;
+          position:relative; overflow:hidden;
+          box-shadow:0 6px 24px rgba(15,23,42,0.18); gap:16px;
+        }
+        .po-kpi-grid {
+          display:grid; grid-template-columns:repeat(2,1fr); gap:12px;
+        }
+        @media(min-width:640px)  { .po-kpi-grid { grid-template-columns:repeat(4,1fr); } }
+        .po-card {
+          background:#fff; border-radius:16px;
+          border:1px solid #e8edf2;
+          box-shadow:0 2px 10px rgba(15,23,42,0.05);
+          overflow:hidden;
+        }
+        .po-card-head {
+          display:flex; align-items:flex-start; justify-content:space-between;
+          padding:16px 20px 0; margin-bottom:14px;
+        }
+        .po-table th { white-space:nowrap; }
+        .po-table tr:hover td { background:#fef2f2 !important; }
+        .po-btn-ghost {
+          display:inline-flex; align-items:center; gap:6px;
+          padding:9px 16px; background:#fff; color:#475569;
+          border:1.5px solid #e2e8f0; border-radius:10px;
+          font-size:13px; font-weight:600; cursor:pointer;
+          font-family:inherit; transition:border-color 0.15s,color 0.15s;
+        }
+        .po-btn-ghost:hover { border-color:#c0392b; color:#c0392b; }
+        .po-btn-primary {
+          display:inline-flex; align-items:center; gap:7px;
+          padding:10px 22px;
+          background:linear-gradient(135deg,#c0392b,#922b21);
+          color:#fff; border:none; border-radius:10px;
+          font-size:14px; font-weight:700; cursor:pointer;
+          font-family:inherit; box-shadow:0 3px 12px rgba(192,57,43,0.3);
+          transition:opacity 0.15s,transform 0.15s;
+        }
+        .po-btn-primary:hover:not(:disabled) { opacity:0.92; transform:translateY(-1px); }
+        .po-btn-primary:disabled { background:#94a3b8; box-shadow:none; cursor:not-allowed; }
+        .po-status-badge {
+          display:inline-flex; padding:3px 10px; border-radius:999px;
+          font-size:11px; font-weight:700;
+        }
+        .po-action-btn {
+          width:32px; height:32px; display:inline-flex; align-items:center;
+          justify-content:center; border-radius:8px; cursor:pointer;
+          transition:opacity 0.15s;
+        }
+        .po-action-btn:hover { opacity:0.75; }
+        .po-input {
+          padding:5px 8px; border:1px solid #e2e8f0; border-radius:6px;
+          font-size:12px; outline:none; font-family:inherit; background:#fff;
+          transition:border-color 0.15s;
+        }
+        .po-input:focus { border-color:#c0392b; }
+        .po-select {
+          padding:5px 6px; border:1px solid #e2e8f0; border-radius:6px;
+          font-size:11px; outline:none; font-family:inherit; background:#fff;
+        }
+      `}</style>
+
+      <div className="po-page">
+
+      {/* ── Banner ── */}
+      <div className="po-banner">
+        <div style={{ position:'absolute', top:-40, right:100, width:180, height:180, borderRadius:'50%', background:'rgba(239,68,68,0.08)', pointerEvents:'none' }} />
+        <div style={{ position:'absolute', bottom:-30, right:40, width:120, height:120, borderRadius:'50%', background:'rgba(192,57,43,0.06)', pointerEvents:'none' }} />
+        <div style={{ position:'relative', zIndex:1 }}>
+          <div style={{ fontSize:10, fontWeight:600, color:'rgba(148,163,184,0.8)', letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:6 }}>
+            Finance · Procurement
+          </div>
+          <div style={{ fontSize:20, fontWeight:800, color:'#f1f5f9', letterSpacing:'-0.4px', marginBottom:4 }}>
+            PO Upload &amp; Invoice Generation
+          </div>
+          <div style={{ fontSize:12, color:'#94a3b8' }}>
+            Upload any PO PDF — data is auto-extracted, edit if needed, then create invoice
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <input ref={fileRef} type="file" accept="application/pdf" onChange={handlePDFUpload} style={{ display: 'none' }} />
-          <button onClick={() => navigate('/po-generator/invoice-history')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 16px', background: '#fff', color: '#475569', border: '1.5px solid #e2e8f0', borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+        <div style={{ position:'relative', zIndex:1, display:'flex', gap:10, flexShrink:0, flexWrap:'wrap' }}>
+          <input ref={fileRef} type="file" accept="application/pdf" onChange={handlePDFUpload} style={{ display:'none' }} />
+          <button className="po-btn-ghost" onClick={() => navigate('/po-generator/invoice-history')}>
             <MdHistory size={15} /> Invoice History
           </button>
-          <button onClick={() => fileRef.current?.click()} disabled={parsing} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 22px', background: parsing ? '#94a3b8' : 'linear-gradient(135deg,#c0392b,#922b21)', color: '#fff', border: 'none', borderRadius: 9, fontSize: 14, fontWeight: 700, cursor: parsing ? 'not-allowed' : 'pointer', fontFamily: 'inherit', boxShadow: '0 3px 12px rgba(192,57,43,0.3)' }}>
+          <button className="po-btn-primary" onClick={() => fileRef.current?.click()} disabled={parsing}>
             <MdPictureAsPdf size={18} /> {parsing ? 'Reading PDF...' : 'Upload PO PDF'}
           </button>
         </div>
       </div>
 
+      {/* ── Parse Error ── */}
       {parseError && (
-        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 9, padding: '11px 15px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#dc2626' }}>
-          <span>❌ {parseError}</span>
-          <button onClick={() => setParseError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626' }}><MdClose size={15} /></button>
+        <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:10, padding:'12px 16px', display:'flex', alignItems:'center', gap:10, fontSize:13, color:'#dc2626', boxShadow:'0 1px 4px rgba(220,38,38,0.08)' }}>
+          <span style={{ fontSize:16 }}>❌</span>
+          <span style={{ flex:1, fontWeight:500 }}>{parseError}</span>
+          <button onClick={() => setParseError('')} style={{ background:'none', border:'none', cursor:'pointer', color:'#dc2626', padding:4, borderRadius:6, display:'flex' }}><MdClose size={16} /></button>
         </div>
       )}
 
-      {/* Day-wise summary */}
-      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 13, padding: '18px 20px', marginBottom: 22, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', marginBottom: 16 }}>
+
+      {/* ── Day-wise Summary Card ── */}
+      <div className="po-card">
+        {/* Card header */}
+        <div className="po-card-head">
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 800, color: '#0f172a' }}><MdCalendarToday size={18} color="#c0392b" /> Uploaded PO Today View</div>
-            <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>Use the calendar to see uploaded POs and invoice data for the selected day.</div>
+            <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:14, fontWeight:800, color:'#0f172a' }}>
+              <div style={{ width:32, height:32, borderRadius:9, background:'linear-gradient(135deg,#c0392b,#922b21)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', flexShrink:0 }}>
+                <MdCalendarToday size={16} />
+              </div>
+              Daily PO Upload View
+            </div>
+            <div style={{ fontSize:12, color:'#94a3b8', marginTop:4, marginLeft:40 }}>Select a date to review uploaded POs and generated invoices</div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <input type="date" value={selectedUploadDate} onChange={e => setSelectedUploadDate(e.target.value)} style={{ height: 38, padding: '0 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', color: '#0f172a', background: '#fff' }} />
-            <button onClick={() => loadUploadSummary(selectedUploadDate)} disabled={summaryLoading} style={{ height: 38, width: 38, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0', borderRadius: 8, background: summaryLoading ? '#f1f5f9' : '#fff', color: '#475569', cursor: summaryLoading ? 'not-allowed' : 'pointer' }}><MdRefresh size={18} /></button>
+          <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+            <input type="date" value={selectedUploadDate} onChange={e => setSelectedUploadDate(e.target.value)}
+              style={{ height:36, padding:'0 12px', border:'1.5px solid #e2e8f0', borderRadius:9, fontSize:13, fontFamily:'inherit', color:'#0f172a', background:'#fff', outline:'none' }} />
+            <button onClick={() => loadUploadSummary(selectedUploadDate)} disabled={summaryLoading}
+              style={{ height:36, width:36, display:'inline-flex', alignItems:'center', justifyContent:'center', border:'1.5px solid #e2e8f0', borderRadius:9, background:summaryLoading?'#f1f5f9':'#fff', color:'#475569', cursor:summaryLoading?'not-allowed':'pointer', transition:'border-color 0.15s' }}>
+              <MdRefresh size={17} style={{ animation: summaryLoading ? 'spin 1s linear infinite' : 'none' }} />
+            </button>
           </div>
         </div>
-        {summaryError && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 12px', color: '#dc2626', fontSize: 13, fontWeight: 700, marginBottom: 14 }}>{summaryError}</div>}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 16 }}>
+
+        {summaryError && (
+          <div style={{ margin:'0 20px 14px', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'10px 14px', color:'#dc2626', fontSize:13, fontWeight:600 }}>
+            {summaryError}
+          </div>
+        )}
+
+        {/* KPI chips */}
+        <div className="po-kpi-grid" style={{ padding:'0 20px 16px' }}>
           {[
-            { label: 'POs Uploaded', value: uploadSummary?.selected?.uploadedPOs || 0, color: '#c0392b', bg: '#fef2f2', border: '#fecaca' },
-            { label: 'Invoices Created', value: uploadSummary?.selected?.invoiceCount || 0, color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
-            { label: 'Line Items', value: uploadSummary?.selected?.itemCount || 0, color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
-            { label: 'Invoice Value', value: money(uploadSummary?.selected?.totalValue), color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+            { label:'POs Uploaded',    value: uploadSummary?.selected?.uploadedPOs || 0,          gradient:'linear-gradient(135deg,#ef4444,#b91c1c)', icon:'📄' },
+            { label:'Invoices Created', value: uploadSummary?.selected?.invoiceCount || 0,         gradient:'linear-gradient(135deg,#3b82f6,#1d4ed8)', icon:'🧾' },
+            { label:'Line Items',       value: uploadSummary?.selected?.itemCount || 0,            gradient:'linear-gradient(135deg,#22c55e,#15803d)', icon:'📋' },
+            { label:'Invoice Value',    value: money(uploadSummary?.selected?.totalValue),         gradient:'linear-gradient(135deg,#a855f7,#7c3aed)', icon:'💰' },
           ].map(card => (
-            <div key={card.label} style={{ background: card.bg, border: `1px solid ${card.border}`, borderRadius: 8, padding: '12px 14px' }}>
-              <div style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: 5 }}>{card.label}</div>
-              <div style={{ fontSize: 20, fontWeight: 900, color: card.color, lineHeight: 1.1 }}>{card.value}</div>
+            <div key={card.label} style={{ background:'#fff', border:'1px solid #e8edf2', borderRadius:12, padding:'14px 16px', position:'relative', overflow:'hidden', boxShadow:'0 1px 4px rgba(15,23,42,0.04)' }}>
+              <div style={{ position:'absolute', top:0, left:0, right:0, height:3, background:card.gradient, borderRadius:'12px 12px 0 0' }} />
+              <div style={{ fontSize:20, marginBottom:6 }}>{card.icon}</div>
+              <div style={{ fontSize:20, fontWeight:900, color:'#0f172a', letterSpacing:'-0.5px', lineHeight:1 }}>
+                {summaryLoading ? <span style={{ color:'#e2e8f0' }}>—</span> : card.value}
+              </div>
+              <div style={{ fontSize:11, color:'#64748b', fontWeight:600, marginTop:4, textTransform:'uppercase', letterSpacing:'0.5px' }}>{card.label}</div>
             </div>
           ))}
         </div>
-        <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 10 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+
+        {/* Table */}
+        <div style={{ overflowX:'auto', borderTop:'1px solid #f1f5f9' }}>
+          <table className="po-table" style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
             <thead>
-              <tr style={{ background: '#f8fafc' }}>
+              <tr style={{ background:'#f8fafc' }}>
                 {['Upload Time','PO Number','Invoice No','Vendor','Buyer','Items','Amount','Status','Actions'].map(h => (
-                  <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', whiteSpace: 'nowrap', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>{h}</th>
+                  <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.7px', borderBottom:'1px solid #f1f5f9' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {summaryLoading && <tr><td colSpan={9} style={{ padding: 18, textAlign: 'center', color: '#64748b', fontWeight: 700 }}>Loading...</td></tr>}
-              {!summaryLoading && (uploadSummary?.selected?.invoices || []).map(inv => (
-                <tr key={inv._id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '10px 12px', color: '#64748b', whiteSpace: 'nowrap' }}>{formatDateTime(inv.createdAt)}</td>
-                  <td style={{ padding: '10px 12px', color: '#0f172a', fontWeight: 800, whiteSpace: 'nowrap' }}>{inv.poRef || '-'}</td>
-                  <td style={{ padding: '10px 12px', color: '#1d4ed8', fontWeight: 800, whiteSpace: 'nowrap' }}>{inv.invoiceNo}</td>
-                  <td style={{ padding: '10px 12px', color: '#334155', minWidth: 140 }}>{inv.vendorName || '-'}</td>
-                  <td style={{ padding: '10px 12px', color: '#334155', minWidth: 140 }}>{inv.buyerName || '-'}</td>
-                  <td style={{ padding: '10px 12px', color: '#475569', fontWeight: 700 }}>{inv.itemCount || 0}</td>
-                  <td style={{ padding: '10px 12px', color: '#7c3aed', fontWeight: 900, whiteSpace: 'nowrap' }}>{money(inv.grandTotal)}</td>
-                  <td style={{ padding: '10px 12px' }}><span style={{ display: 'inline-flex', padding: '3px 8px', borderRadius: 999, background: '#f1f5f9', color: '#475569', fontSize: 11, fontWeight: 800 }}>{inv.status}</span></td>
-                  <td style={{ padding: '10px 12px' }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                      <button onClick={() => handleViewInvoice(inv)} disabled={viewLoading === inv._id} title="View" style={{ width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #dbeafe', borderRadius: 8, background: viewLoading === inv._id ? '#f1f5f9' : '#eff6ff', color: '#1d4ed8', cursor: viewLoading === inv._id ? 'not-allowed' : 'pointer' }}><MdVisibility size={17} /></button>
-                      <button onClick={() => handleDeleteInvoice(inv)} disabled={deletingInvoice === inv._id} title="Delete" style={{ width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #fecaca', borderRadius: 8, background: deletingInvoice === inv._id ? '#f1f5f9' : '#fef2f2', color: '#dc2626', cursor: deletingInvoice === inv._id ? 'not-allowed' : 'pointer' }}><MdDelete size={17} /></button>
+              {summaryLoading && (
+                <tr><td colSpan={9} style={{ padding:28, textAlign:'center', color:'#94a3b8', fontSize:13 }}>
+                  <div style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
+                    <div style={{ width:16, height:16, border:'2px solid #e2e8f0', borderTopColor:'#c0392b', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
+                    Loading...
+                  </div>
+                </td></tr>
+              )}
+              {!summaryLoading && (uploadSummary?.selected?.invoices || []).map((inv, ri) => (
+                <tr key={inv._id} style={{ borderBottom:'1px solid #f8fafc', cursor:'pointer', transition:'background 0.1s' }}
+                  onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
+                  onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                  <td style={{ padding:'11px 14px', color:'#94a3b8', whiteSpace:'nowrap', fontSize:11.5 }}>{formatDateTime(inv.createdAt)}</td>
+                  <td style={{ padding:'11px 14px', color:'#c0392b', fontWeight:800, whiteSpace:'nowrap' }}>{inv.poRef || '—'}</td>
+                  <td style={{ padding:'11px 14px', color:'#1d4ed8', fontWeight:700, whiteSpace:'nowrap' }}>{inv.invoiceNo}</td>
+                  <td style={{ padding:'11px 14px', color:'#334155', minWidth:140 }}>{inv.vendorName || '—'}</td>
+                  <td style={{ padding:'11px 14px', color:'#334155', minWidth:140 }}>{inv.buyerName || '—'}</td>
+                  <td style={{ padding:'11px 14px', textAlign:'center' }}>
+                    <span style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:28, height:28, borderRadius:8, background:'#f1f5f9', color:'#475569', fontWeight:700, fontSize:12 }}>{inv.itemCount || 0}</span>
+                  </td>
+                  <td style={{ padding:'11px 14px', color:'#7c3aed', fontWeight:800, whiteSpace:'nowrap' }}>{money(inv.grandTotal)}</td>
+                  <td style={{ padding:'11px 14px' }}>
+                    <span className="po-status-badge" style={{ background:'rgba(34,197,94,0.1)', color:'#15803d' }}>{inv.status}</span>
+                  </td>
+                  <td style={{ padding:'11px 14px' }}>
+                    <div style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+                      <button className="po-action-btn" onClick={() => handleViewInvoice(inv)} disabled={viewLoading === inv._id} title="View"
+                        style={{ border:'1px solid #dbeafe', background: viewLoading===inv._id?'#f1f5f9':'#eff6ff', color:'#1d4ed8' }}>
+                        <MdVisibility size={16} />
+                      </button>
+                      <button className="po-action-btn" onClick={() => handleDeleteInvoice(inv)} disabled={deletingInvoice === inv._id} title="Delete"
+                        style={{ border:'1px solid #fecaca', background: deletingInvoice===inv._id?'#f1f5f9':'#fef2f2', color:'#dc2626' }}>
+                        <MdDelete size={16} />
+                      </button>
                     </div>
                   </td>
                 </tr>
               ))}
-              {!summaryLoading && !(uploadSummary?.selected?.invoices || []).length && <tr><td colSpan={9} style={{ padding: 18, textAlign: 'center', color: '#94a3b8', fontWeight: 700 }}>No PO uploads found for this date.</td></tr>}
+              {!summaryLoading && !(uploadSummary?.selected?.invoices || []).length && (
+                <tr><td colSpan={9} style={{ padding:32, textAlign:'center' }}>
+                  <div style={{ fontSize:32, marginBottom:8 }}>📭</div>
+                  <div style={{ fontSize:13, color:'#94a3b8', fontWeight:600 }}>No PO uploads found for this date</div>
+                </td></tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* View Invoice Modal */}
-      <Modal open={!!viewInvoice} onClose={() => setViewInvoice(null)} title={`Invoice: ${viewInvoice?.invoiceNo || ''}`} size="lg" footer={<button onClick={() => setViewInvoice(null)} style={{ padding: '8px 16px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Close</button>}>
+
+      {/* ── View Invoice Modal ── */}
+      <Modal open={!!viewInvoice} onClose={() => setViewInvoice(null)} title={`Invoice: ${viewInvoice?.invoiceNo || ''}`} size="lg"
+        footer={
+          <button onClick={() => setViewInvoice(null)} style={{ padding:'8px 20px', background:'#f1f5f9', color:'#475569', border:'none', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            Close
+          </button>
+        }>
         {viewInvoice && (
           <div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12, marginBottom: 16 }}>
-              {[['PO Number', viewInvoice.poRef || '-'], ['Invoice No', viewInvoice.invoiceNo || '-'], ['Vendor', viewInvoice.vendorName || '-'], ['Status', viewInvoice.status || '-'], ['Grand Total', money(viewInvoice.grandTotal)]].map(([label, value]) => (
-                <div key={label} style={{ border: '1px solid #e2e8f0', borderRadius: 9, padding: '10px 12px', background: '#f8fafc' }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>{value}</div>
+            {/* Meta grid */}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:10, marginBottom:16 }}>
+              {[['PO Number', viewInvoice.poRef||'—'], ['Invoice No', viewInvoice.invoiceNo||'—'], ['Vendor', viewInvoice.vendorName||'—'], ['Status', viewInvoice.status||'—'], ['Grand Total', money(viewInvoice.grandTotal)]].map(([label, value]) => (
+                <div key={label} style={{ border:'1px solid #e8edf2', borderRadius:10, padding:'10px 14px', background:'#f8fafc' }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:4 }}>{label}</div>
+                  <div style={{ fontSize:13, fontWeight:800, color:'#0f172a' }}>{value}</div>
                 </div>
               ))}
-              {/* Bill To */}
-              <div style={{ border: '1px solid #e2e8f0', borderRadius: 9, padding: '10px 12px', background: '#f8fafc', gridColumn: 'span 2' }}>
-                <div style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: 4 }}>Bill To</div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>{viewInvoice.buyerName || '-'}</div>
-                {viewInvoice.buyerAddress && <div style={{ fontSize: 12, color: '#475569', marginTop: 3, whiteSpace: 'pre-line' }}>{viewInvoice.buyerAddress}</div>}
-                {viewInvoice.buyerGSTIN && <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>GSTIN: {viewInvoice.buyerGSTIN}</div>}
+              <div style={{ border:'1px solid #e8edf2', borderRadius:10, padding:'10px 14px', background:'#f8fafc', gridColumn:'span 2' }}>
+                <div style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:4 }}>Bill To</div>
+                <div style={{ fontSize:13, fontWeight:800, color:'#0f172a' }}>{viewInvoice.buyerName||'—'}</div>
+                {viewInvoice.buyerAddress && <div style={{ fontSize:12, color:'#475569', marginTop:3, whiteSpace:'pre-line' }}>{viewInvoice.buyerAddress}</div>}
+                {viewInvoice.buyerGSTIN && <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>GSTIN: {viewInvoice.buyerGSTIN}</div>}
               </div>
-              {/* Ship To */}
               {(viewInvoice.shipToName || viewInvoice.shipToAddress) && (
-                <div style={{ border: '1px solid #e2e8f0', borderRadius: 9, padding: '10px 12px', background: '#f8fafc', gridColumn: 'span 2' }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: 4 }}>Ship To</div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>{viewInvoice.shipToName || viewInvoice.buyerName || '-'}</div>
-                  {viewInvoice.shipToAddress && <div style={{ fontSize: 12, color: '#475569', marginTop: 3, whiteSpace: 'pre-line' }}>{viewInvoice.shipToAddress}</div>}
+                <div style={{ border:'1px solid #e8edf2', borderRadius:10, padding:'10px 14px', background:'#f8fafc', gridColumn:'span 2' }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:4 }}>Ship To</div>
+                  <div style={{ fontSize:13, fontWeight:800, color:'#0f172a' }}>{viewInvoice.shipToName||viewInvoice.buyerName||'—'}</div>
+                  {viewInvoice.shipToAddress && <div style={{ fontSize:12, color:'#475569', marginTop:3, whiteSpace:'pre-line' }}>{viewInvoice.shipToAddress}</div>}
                 </div>
               )}
             </div>
-            <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 10 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                <thead><tr style={{ background: '#f8fafc' }}>{['#','Item','HSN','Qty','Rate','Taxable','Total'].map(h => <th key={h} style={{ padding: '9px 10px', textAlign: 'left', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', whiteSpace: 'nowrap', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>{h}</th>)}</tr></thead>
+            {/* Items table */}
+            <div style={{ overflowX:'auto', border:'1px solid #e8edf2', borderRadius:12 }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                <thead>
+                  <tr style={{ background:'#f8fafc' }}>
+                    {['#','Item','HSN','Qty','Rate','Taxable','Total'].map(h => (
+                      <th key={h} style={{ padding:'10px 12px', textAlign:'left', fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.6px', borderBottom:'1px solid #f1f5f9', whiteSpace:'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
                 <tbody>
-                  {(viewInvoice.items || []).map((item, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '9px 10px', color: '#94a3b8', fontWeight: 800 }}>{i + 1}</td>
-                      <td style={{ padding: '9px 10px', color: '#334155', minWidth: 180 }}>{item.itemName || item.name || '-'}</td>
-                      <td style={{ padding: '9px 10px', color: '#475569', whiteSpace: 'nowrap' }}>{item.hsn || '-'}</td>
-                      <td style={{ padding: '9px 10px', color: '#475569', whiteSpace: 'nowrap' }}>{Number(item.invoicedQty || item.qty || 0).toLocaleString('en-IN')} {item.unit || ''}</td>
-                      <td style={{ padding: '9px 10px', color: '#475569', whiteSpace: 'nowrap' }}>{money(item.basePrice || item.rate)}</td>
-                      <td style={{ padding: '9px 10px', color: '#475569', whiteSpace: 'nowrap' }}>{money(item.taxableValue)}</td>
-                      <td style={{ padding: '9px 10px', color: '#c0392b', fontWeight: 900, whiteSpace: 'nowrap' }}>{money(item.lineTotal || item.lineAmount)}</td>
+                  {(viewInvoice.items||[]).map((item, i) => (
+                    <tr key={i} style={{ borderBottom:'1px solid #f8fafc' }}
+                      onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
+                      onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                      <td style={{ padding:'10px 12px', color:'#94a3b8', fontWeight:700 }}>{i+1}</td>
+                      <td style={{ padding:'10px 12px', color:'#334155', minWidth:180, fontWeight:500 }}>{item.itemName||item.name||'—'}</td>
+                      <td style={{ padding:'10px 12px', color:'#64748b', whiteSpace:'nowrap' }}>{item.hsn||'—'}</td>
+                      <td style={{ padding:'10px 12px', color:'#475569', whiteSpace:'nowrap' }}>{Number(item.invoicedQty||item.qty||0).toLocaleString('en-IN')} {item.unit||''}</td>
+                      <td style={{ padding:'10px 12px', color:'#475569', whiteSpace:'nowrap' }}>{money(item.basePrice||item.rate)}</td>
+                      <td style={{ padding:'10px 12px', color:'#475569', whiteSpace:'nowrap' }}>{money(item.taxableValue)}</td>
+                      <td style={{ padding:'10px 12px', color:'#c0392b', fontWeight:800, whiteSpace:'nowrap' }}>{money(item.lineTotal||item.lineAmount)}</td>
                     </tr>
                   ))}
-                  {!(viewInvoice.items || []).length && <tr><td colSpan={7} style={{ padding: 16, textAlign: 'center', color: '#94a3b8', fontWeight: 700 }}>No line items found.</td></tr>}
+                  {!(viewInvoice.items||[]).length && (
+                    <tr><td colSpan={7} style={{ padding:24, textAlign:'center', color:'#94a3b8', fontSize:13 }}>No line items found.</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -898,70 +1253,85 @@ export default function POUploadPage() {
         )}
       </Modal>
 
-      {/* PDF Preview Panel */}
+
+      {/* ── PDF Preview Panel ── */}
       {showPDFPanel && parsedPO && (
-        <div style={{ background: '#fff', border: '2px solid #c0392b', borderRadius: 13, padding: '18px 20px', marginBottom: 22, boxShadow: '0 4px 18px rgba(192,57,43,0.1)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-              <MdPictureAsPdf size={22} color="#c0392b" />
+        <div className="po-card" style={{ border:'2px solid #c0392b', boxShadow:'0 4px 20px rgba(192,57,43,0.12)' }}>
+          {/* Panel header */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'16px 20px', borderBottom:'1px solid #fef2f2', background:'linear-gradient(135deg,#fff5f5,#fff)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+              <div style={{ width:40, height:40, borderRadius:10, background:'linear-gradient(135deg,#c0392b,#922b21)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', flexShrink:0 }}>
+                <MdPictureAsPdf size={20} />
+              </div>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>PDF Parsed — {parsedPO.fileName}</div>
-                <div style={{ fontSize: 11, color: '#94a3b8' }}>Review extracted data below</div>
+                <div style={{ fontSize:14, fontWeight:800, color:'#1e293b' }}>PDF Parsed — {parsedPO.fileName}</div>
+                <div style={{ fontSize:11.5, color:'#94a3b8', marginTop:2 }}>Review extracted data below and edit if needed</div>
               </div>
             </div>
-            <button onClick={() => setShowPDFPanel(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><MdClose size={19} /></button>
+            <button onClick={() => setShowPDFPanel(false)} style={{ width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', background:'#f1f5f9', border:'none', borderRadius:8, cursor:'pointer', color:'#64748b' }}>
+              <MdClose size={17} />
+            </button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12, marginBottom: 14 }}>
-            {[
-              { label: 'PO Number', value: parsedPO.poNumber || 'Not detected', ok: !!parsedPO.poNumber },
-              { label: 'Vendor',    value: parsedPO.vendor   || 'Not detected', ok: !!parsedPO.vendor },
-              { label: 'Grand Total', value: parsedPO.total ? `₹${parseFloat(parsedPO.total).toLocaleString('en-IN')}` : 'Not detected', ok: !!parsedPO.total },
-              { label: 'Items',     value: `${parsedPO.items.length} found`, ok: parsedPO.items.length > 0 },
-            ].map(f => (
-              <div key={f.label} style={{ background: f.ok ? '#f0fdf4' : '#fef9f0', border: `1px solid ${f.ok ? '#bbf7d0' : '#fed7aa'}`, borderRadius: 9, padding: '11px 13px' }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 3 }}>{f.label}</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: f.ok ? '#15803d' : '#92400e' }}>{f.value}</div>
+          <div style={{ padding:'16px 20px' }}>
+            {/* Extracted fields */}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:10, marginBottom:16 }}>
+              {[
+                { label:'PO Number',   value: parsedPO.poNumber||'Not detected', ok: !!parsedPO.poNumber },
+                { label:'Vendor',      value: parsedPO.vendor||'Not detected',   ok: !!parsedPO.vendor },
+                { label:'Grand Total', value: parsedPO.total ? `₹${parseFloat(parsedPO.total).toLocaleString('en-IN')}` : 'Not detected', ok: !!parsedPO.total },
+                { label:'Items Found', value: `${parsedPO.items.length} item${parsedPO.items.length!==1?'s':''}`, ok: parsedPO.items.length > 0 },
+              ].map(f => (
+                <div key={f.label} style={{ background: f.ok?'#f0fdf4':'#fef9f0', border:`1px solid ${f.ok?'#bbf7d0':'#fed7aa'}`, borderRadius:10, padding:'12px 14px' }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:4 }}>{f.label}</div>
+                  <div style={{ fontSize:13, fontWeight:700, color: f.ok?'#15803d':'#92400e' }}>{f.value}</div>
+                </div>
+              ))}
+              {/* Bill To */}
+              <div style={{ background: parsedPO.buyerName?'#f0fdf4':'#fef9f0', border:`1px solid ${parsedPO.buyerName?'#bbf7d0':'#fed7aa'}`, borderRadius:10, padding:'12px 14px' }}>
+                <div style={{ fontSize:10, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:4 }}>Bill To</div>
+                <div style={{ fontSize:13, fontWeight:700, color: parsedPO.buyerName?'#15803d':'#92400e' }}>{parsedPO.buyerName||'Not detected'}</div>
+                {parsedPO.buyerAddress && <div style={{ fontSize:11, color:'#475569', marginTop:3, whiteSpace:'pre-line' }}>{parsedPO.buyerAddress}</div>}
+                {parsedPO.buyerGSTIN && <div style={{ fontSize:11, color:'#64748b', marginTop:2 }}>GSTIN: {parsedPO.buyerGSTIN}</div>}
               </div>
-            ))}
-            {/* Bill To card */}
-            <div style={{ background: parsedPO.buyerName ? '#f0fdf4' : '#fef9f0', border: `1px solid ${parsedPO.buyerName ? '#bbf7d0' : '#fed7aa'}`, borderRadius: 9, padding: '11px 13px' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 3 }}>Bill To</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: parsedPO.buyerName ? '#15803d' : '#92400e' }}>{parsedPO.buyerName || 'Not detected'}</div>
-              {parsedPO.buyerAddress && <div style={{ fontSize: 11, color: '#475569', marginTop: 3, whiteSpace: 'pre-line' }}>{parsedPO.buyerAddress}</div>}
-              {parsedPO.buyerGSTIN && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>GSTIN: {parsedPO.buyerGSTIN}</div>}
+              {/* Ship To */}
+              <div style={{ background:(parsedPO.shipToName||parsedPO.buyerName)?'#f0fdf4':'#fef9f0', border:`1px solid ${(parsedPO.shipToName||parsedPO.buyerName)?'#bbf7d0':'#fed7aa'}`, borderRadius:10, padding:'12px 14px' }}>
+                <div style={{ fontSize:10, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:4 }}>Ship To</div>
+                <div style={{ fontSize:13, fontWeight:700, color:(parsedPO.shipToName||parsedPO.buyerName)?'#15803d':'#92400e' }}>{parsedPO.shipToName||parsedPO.buyerName||'Not detected'}</div>
+                {parsedPO.shipToAddress && <div style={{ fontSize:11, color:'#475569', marginTop:3, whiteSpace:'pre-line' }}>{parsedPO.shipToAddress}</div>}
+              </div>
             </div>
-            {/* Ship To card */}
-            <div style={{ background: (parsedPO.shipToName || parsedPO.buyerName) ? '#f0fdf4' : '#fef9f0', border: `1px solid ${(parsedPO.shipToName || parsedPO.buyerName) ? '#bbf7d0' : '#fed7aa'}`, borderRadius: 9, padding: '11px 13px' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 3 }}>Ship To</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: (parsedPO.shipToName || parsedPO.buyerName) ? '#15803d' : '#92400e' }}>{parsedPO.shipToName || parsedPO.buyerName || 'Not detected'}</div>
-              {parsedPO.shipToAddress && <div style={{ fontSize: 11, color: '#475569', marginTop: 3, whiteSpace: 'pre-line' }}>{parsedPO.shipToAddress}</div>}
+
+            {parsedPO.items.length === 0 && (
+              <div style={{ background:'#fef9c3', border:'1px solid #fde68a', borderRadius:9, padding:'10px 14px', marginBottom:14, fontSize:12.5, color:'#92400e', display:'flex', alignItems:'center', gap:8 }}>
+                <span style={{ fontSize:16 }}>⚠️</span>
+                Could not auto-detect items from this PDF. Please enter them manually below.
+              </div>
+            )}
+
+            {/* Line items table header */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:7, fontSize:12, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.5px' }}>
+                <MdTableChart size={15} color="#c0392b" />
+                {parsedPO.items.length > 0 ? 'Line Items — auto-filled, edit if needed' : 'Line Items — enter manually'}
+              </div>
+              <button onClick={() => setEditableItems(prev => [...prev, { name:'', hsn:'', qty:1, unit:'Nos', rate:0, discount:0, cgst:0, sgst:0, igst:0, gst:0, taxableValue:0, lineAmount:0 }])}
+                style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'6px 14px', background:'#eff6ff', color:'#1d4ed8', border:'1px solid #bfdbfe', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                + Add Row
+              </button>
             </div>
-          </div>
 
-          {parsedPO.items.length === 0 && (
-            <div style={{ background: '#fef9c3', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: 12, color: '#92400e' }}>
-              ⚠️ Could not auto-detect items from this PDF. Please enter them manually below.
-            </div>
-          )}
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <MdTableChart size={14} /> {parsedPO.items.length > 0 ? 'Line Items (auto-filled — edit if needed)' : 'Line Items — enter manually'}
-            </span>
-            <button onClick={() => setEditableItems(prev => [...prev, { name: '', hsn: '', qty: 1, unit: 'Nos', rate: 0, discount: 0, cgst: 0, sgst: 0, igst: 0, gst: 0, taxableValue: 0, lineAmount: 0 }])} style={{ padding: '4px 12px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ Add Row</button>
-          </div>
-
-          <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 10, marginBottom: 14 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ background: '#1e293b', color: '#fff' }}>
-                  {['#','Item Name','HSN','Qty','UOM','Unit Rate','Disc%','CGST%','CGST Val','SGST%','SGST Val','IGST%','IGST Val','Taxable Val','Tax Amt','Total Amt',''].map(h => (
-                    <th key={h} style={{ padding: '8px 8px', textAlign: 'left', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap', color: '#cbd5e1' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
+            {/* Editable items table */}
+            <div style={{ overflowX:'auto', border:'1px solid #e2e8f0', borderRadius:12, marginBottom:16 }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                <thead>
+                  <tr style={{ background:'linear-gradient(135deg,#1e293b,#0f172a)' }}>
+                    {['#','Item Name','HSN','Qty','UOM','Unit Rate','Disc%','CGST%','CGST Val','SGST%','SGST Val','IGST%','IGST Val','Taxable','Tax Amt','Total',''].map(h => (
+                      <th key={h} style={{ padding:'9px 10px', textAlign:'left', fontSize:10, fontWeight:700, textTransform:'uppercase', whiteSpace:'nowrap', color:'#94a3b8', letterSpacing:'0.5px' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
                 {editableItems.map((item, i) => {
                   const qty = Number(item.qty) || 0, rate = Number(item.rate) || 0, disc = Number(item.discount) || 0;
                   const cgstPct = Number(item.cgst) || 0, sgstPct = Number(item.sgst) || 0, igstPct = Number(item.igst) || 0;
@@ -970,99 +1340,95 @@ export default function POUploadPage() {
                   const sgstVal = +(taxable * sgstPct / 100).toFixed(2);
                   const igstVal = +(taxable * igstPct / 100).toFixed(2);
                   const taxAmt  = +(cgstVal + sgstVal + igstVal).toFixed(2);
-                  // Use PDF lineAmount as fallback when no tax % entered yet
                   const pdfLine = Number(item.lineAmount) || 0;
                   const total   = taxAmt > 0 ? +(taxable + taxAmt).toFixed(2) : (pdfLine > taxable ? pdfLine : +(taxable + taxAmt).toFixed(2));
                   const upd = (f, v) => setEditableItems(prev => prev.map((it, idx) => idx === i ? { ...it, [f]: v } : it));
-                  const inp = (f, w, type = 'text', step) => <input type={type} value={item[f]} onChange={e => upd(f, e.target.value)} step={step} min="0" style={{ width: w, padding: '4px 6px', border: '1px solid #e2e8f0', borderRadius: 5, fontSize: 12, outline: 'none', fontFamily: 'inherit', background: '#fff' }} />;
+                  const inp = (f, w, type = 'text', step) => (
+                    <input type={type} value={item[f]} onChange={e => upd(f, e.target.value)} step={step} min="0"
+                      className="po-input" style={{ width: w }} />
+                  );
                   return (
-                    <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#fff' : '#f8fafc' }}>
-                      <td style={{ padding: '4px 8px', color: '#94a3b8', fontWeight: 700 }}>{i + 1}</td>
-                      <td style={{ padding: '3px 4px' }}>{inp('name', 160)}</td>
-                      <td style={{ padding: '3px 4px' }}>{inp('hsn', 72)}</td>
-                      <td style={{ padding: '3px 4px' }}>{inp('qty', 52, 'number', '0.001')}</td>
-                      <td style={{ padding: '3px 4px' }}><select value={item.unit} onChange={e => upd('unit', e.target.value)} style={{ width: 60, padding: '4px 4px', border: '1px solid #e2e8f0', borderRadius: 5, fontSize: 11, outline: 'none', fontFamily: 'inherit', background: '#fff' }}>{['Nos','Numbers','Pcs','Kgs','Units','EA','Sets','Ltrs','Mtrs','Boxes','Rolls','Pairs','Bags','Sheets'].map(u => <option key={u}>{u}</option>)}</select></td>
-                      <td style={{ padding: '3px 4px' }}>{inp('rate', 80, 'number', '0.01')}</td>
-                      <td style={{ padding: '3px 4px' }}>{inp('discount', 44, 'number', '0.1')}</td>
-                      <td style={{ padding: '3px 4px' }}>{inp('cgst', 44, 'number', '0.5')}</td>
-                      <td style={{ padding: '4px 8px', color: '#1d4ed8', fontWeight: 600, whiteSpace: 'nowrap' }}>₹{cgstVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                      <td style={{ padding: '3px 4px' }}>{inp('sgst', 44, 'number', '0.5')}</td>
-                      <td style={{ padding: '4px 8px', color: '#1d4ed8', fontWeight: 600, whiteSpace: 'nowrap' }}>₹{sgstVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                      <td style={{ padding: '3px 4px' }}>{inp('igst', 44, 'number', '0.5')}</td>
-                      <td style={{ padding: '4px 8px', color: '#7c3aed', fontWeight: 600, whiteSpace: 'nowrap' }}>₹{igstVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                      <td style={{ padding: '4px 8px', color: '#475569', fontWeight: 600, whiteSpace: 'nowrap' }}>₹{taxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                      <td style={{ padding: '4px 8px', color: '#a16207', fontWeight: 600, whiteSpace: 'nowrap' }}>₹{taxAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                      <td style={{ padding: '4px 8px', fontWeight: 800, color: '#c0392b', whiteSpace: 'nowrap' }}>₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                      <td style={{ padding: '3px 4px' }}><button onClick={() => setEditableItems(prev => prev.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', padding: '3px' }}><MdClose size={15} /></button></td>
+                    <tr key={i} style={{ borderBottom:'1px solid #f1f5f9', background: i%2===0?'#fff':'#fafbfc' }}
+                      onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
+                      onMouseLeave={e => e.currentTarget.style.background=i%2===0?'#fff':'#fafbfc'}>
+                      <td style={{ padding:'5px 10px', color:'#94a3b8', fontWeight:700, fontSize:11 }}>{i+1}</td>
+                      <td style={{ padding:'3px 5px' }}>{inp('name', 160)}</td>
+                      <td style={{ padding:'3px 5px' }}>{inp('hsn', 72)}</td>
+                      <td style={{ padding:'3px 5px' }}>{inp('qty', 52, 'number', '0.001')}</td>
+                      <td style={{ padding:'3px 5px' }}>
+                        <select value={item.unit} onChange={e => upd('unit', e.target.value)} className="po-select" style={{ width:64 }}>
+                          {['Nos','Numbers','Pcs','Kgs','Units','EA','Sets','Ltrs','Mtrs','Boxes','Rolls','Pairs','Bags','Sheets'].map(u => <option key={u}>{u}</option>)}
+                        </select>
+                      </td>
+                      <td style={{ padding:'3px 5px' }}>{inp('rate', 80, 'number', '0.01')}</td>
+                      <td style={{ padding:'3px 5px' }}>{inp('discount', 44, 'number', '0.1')}</td>
+                      <td style={{ padding:'3px 5px' }}>{inp('cgst', 44, 'number', '0.5')}</td>
+                      <td style={{ padding:'5px 10px', color:'#1d4ed8', fontWeight:600, whiteSpace:'nowrap', fontSize:11.5 }}>₹{cgstVal.toLocaleString('en-IN',{minimumFractionDigits:2})}</td>
+                      <td style={{ padding:'3px 5px' }}>{inp('sgst', 44, 'number', '0.5')}</td>
+                      <td style={{ padding:'5px 10px', color:'#1d4ed8', fontWeight:600, whiteSpace:'nowrap', fontSize:11.5 }}>₹{sgstVal.toLocaleString('en-IN',{minimumFractionDigits:2})}</td>
+                      <td style={{ padding:'3px 5px' }}>{inp('igst', 44, 'number', '0.5')}</td>
+                      <td style={{ padding:'5px 10px', color:'#7c3aed', fontWeight:600, whiteSpace:'nowrap', fontSize:11.5 }}>₹{igstVal.toLocaleString('en-IN',{minimumFractionDigits:2})}</td>
+                      <td style={{ padding:'5px 10px', color:'#475569', fontWeight:600, whiteSpace:'nowrap', fontSize:11.5 }}>₹{taxable.toLocaleString('en-IN',{minimumFractionDigits:2})}</td>
+                      <td style={{ padding:'5px 10px', color:'#a16207', fontWeight:600, whiteSpace:'nowrap', fontSize:11.5 }}>₹{taxAmt.toLocaleString('en-IN',{minimumFractionDigits:2})}</td>
+                      <td style={{ padding:'5px 10px', fontWeight:800, color:'#c0392b', whiteSpace:'nowrap', fontSize:12 }}>₹{total.toLocaleString('en-IN',{minimumFractionDigits:2})}</td>
+                      <td style={{ padding:'3px 5px' }}>
+                        <button onClick={() => setEditableItems(prev => prev.filter((_,idx) => idx!==i))}
+                          style={{ width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:7, cursor:'pointer', color:'#dc2626' }}>
+                          <MdClose size={14} />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
-              </tbody>
-              <tfoot>
-                <tr style={{ background: '#f8fafc', borderTop: '2px solid #e2e8f0' }}>
-                  <td colSpan={8} style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#64748b', fontSize: 12 }}>Totals →</td>
-                  <td style={{ padding: '8px 8px', fontWeight: 700, color: '#1d4ed8', fontSize: 12 }}>₹{editableItems.reduce((s, it) => {
-                    const t = +(Number(it.rate)*Number(it.qty)*(1-(Number(it.discount)||0)/100)).toFixed(2);
-                    return s + +(t*(Number(it.cgst)||0)/100).toFixed(2);
-                  }, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                  <td />
-                  <td style={{ padding: '8px 8px', fontWeight: 700, color: '#1d4ed8', fontSize: 12 }}>₹{editableItems.reduce((s, it) => {
-                    const t = +(Number(it.rate)*Number(it.qty)*(1-(Number(it.discount)||0)/100)).toFixed(2);
-                    return s + +(t*(Number(it.sgst)||0)/100).toFixed(2);
-                  }, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                  <td />
-                  <td style={{ padding: '8px 8px', fontWeight: 700, color: '#7c3aed', fontSize: 12 }}>₹{editableItems.reduce((s, it) => {
-                    const t = +(Number(it.rate)*Number(it.qty)*(1-(Number(it.discount)||0)/100)).toFixed(2);
-                    return s + +(t*(Number(it.igst)||0)/100).toFixed(2);
-                  }, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                  <td style={{ padding: '8px 8px', fontWeight: 700, color: '#475569', fontSize: 12 }}>₹{editableItems.reduce((s, it) => {
-                    return s + +(Number(it.rate)*Number(it.qty)*(1-(Number(it.discount)||0)/100)).toFixed(2);
-                  }, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                  <td style={{ padding: '8px 8px', fontWeight: 700, color: '#a16207', fontSize: 12 }}>₹{editableItems.reduce((s, it) => {
-                    const t = +(Number(it.rate)*Number(it.qty)*(1-(Number(it.discount)||0)/100)).toFixed(2);
-                    const tax = +((t*(Number(it.cgst)||0)/100)+(t*(Number(it.sgst)||0)/100)+(t*(Number(it.igst)||0)/100)).toFixed(2);
-                    return s + tax;
-                  }, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                  <td style={{ padding: '8px 8px', fontWeight: 900, color: '#c0392b', fontSize: 14 }}>₹{editableItems.reduce((s, it) => {
-                    const taxable = +(Number(it.rate)*Number(it.qty)*(1-(Number(it.discount)||0)/100)).toFixed(2);
-                    const cgstV = +(taxable*(Number(it.cgst)||0)/100).toFixed(2);
-                    const sgstV = +(taxable*(Number(it.sgst)||0)/100).toFixed(2);
-                    const igstV = +(taxable*(Number(it.igst)||0)/100).toFixed(2);
-                    const taxAmt = cgstV + sgstV + igstV;
-                    const pdfLine = Number(it.lineAmount) || 0;
-                    const rowTotal = taxAmt > 0 ? +(taxable + taxAmt).toFixed(2) : (pdfLine > taxable ? pdfLine : +(taxable + taxAmt).toFixed(2));
-                    return s + rowTotal;
-                  }, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                  <td />
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-
-          {pdfInvoiceMsg && (
-            <div style={{ background: pdfInvoiceMsg.startsWith('Error') ? '#fef2f2' : '#f0fdf4', border: `1px solid ${pdfInvoiceMsg.startsWith('Error') ? '#fecaca' : '#bbf7d0'}`, borderRadius: 9, padding: '11px 15px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: pdfInvoiceMsg.startsWith('Error') ? '#dc2626' : '#15803d' }}>{pdfInvoiceMsg.startsWith('Error') ? '❌' : '✅'} {pdfInvoiceMsg}</div>
-              {!pdfInvoiceMsg.startsWith('Error') && <button onClick={() => navigate('/po-generator/invoice-history')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 14px', background: '#c0392b', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}><MdHistory size={14} /> View Invoice</button>}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background:'#f8fafc', borderTop:'2px solid #e2e8f0' }}>
+                    <td colSpan={8} style={{ padding:'9px 12px', textAlign:'right', fontWeight:700, color:'#64748b', fontSize:12 }}>Totals →</td>
+                    <td style={{ padding:'9px 10px', fontWeight:700, color:'#1d4ed8', fontSize:12 }}>₹{editableItems.reduce((s,it)=>{const t=+(Number(it.rate)*Number(it.qty)*(1-(Number(it.discount)||0)/100)).toFixed(2);return s+(+(t*(Number(it.cgst)||0)/100).toFixed(2));},0).toLocaleString('en-IN',{minimumFractionDigits:2})}</td>
+                    <td />
+                    <td style={{ padding:'9px 10px', fontWeight:700, color:'#1d4ed8', fontSize:12 }}>₹{editableItems.reduce((s,it)=>{const t=+(Number(it.rate)*Number(it.qty)*(1-(Number(it.discount)||0)/100)).toFixed(2);return s+(+(t*(Number(it.sgst)||0)/100).toFixed(2));},0).toLocaleString('en-IN',{minimumFractionDigits:2})}</td>
+                    <td />
+                    <td style={{ padding:'9px 10px', fontWeight:700, color:'#7c3aed', fontSize:12 }}>₹{editableItems.reduce((s,it)=>{const t=+(Number(it.rate)*Number(it.qty)*(1-(Number(it.discount)||0)/100)).toFixed(2);return s+(+(t*(Number(it.igst)||0)/100).toFixed(2));},0).toLocaleString('en-IN',{minimumFractionDigits:2})}</td>
+                    <td style={{ padding:'9px 10px', fontWeight:700, color:'#475569', fontSize:12 }}>₹{editableItems.reduce((s,it)=>s+(+(Number(it.rate)*Number(it.qty)*(1-(Number(it.discount)||0)/100)).toFixed(2)),0).toLocaleString('en-IN',{minimumFractionDigits:2})}</td>
+                    <td style={{ padding:'9px 10px', fontWeight:700, color:'#a16207', fontSize:12 }}>₹{editableItems.reduce((s,it)=>{const t=+(Number(it.rate)*Number(it.qty)*(1-(Number(it.discount)||0)/100)).toFixed(2);const tax=+((t*(Number(it.cgst)||0)/100)+(t*(Number(it.sgst)||0)/100)+(t*(Number(it.igst)||0)/100)).toFixed(2);return s+tax;},0).toLocaleString('en-IN',{minimumFractionDigits:2})}</td>
+                    <td style={{ padding:'9px 10px', fontWeight:900, color:'#c0392b', fontSize:14 }}>₹{editableItems.reduce((s,it)=>{const taxable=+(Number(it.rate)*Number(it.qty)*(1-(Number(it.discount)||0)/100)).toFixed(2);const cgstV=+(taxable*(Number(it.cgst)||0)/100).toFixed(2);const sgstV=+(taxable*(Number(it.sgst)||0)/100).toFixed(2);const igstV=+(taxable*(Number(it.igst)||0)/100).toFixed(2);const taxAmt=cgstV+sgstV+igstV;const pdfLine=Number(it.lineAmount)||0;const rowTotal=taxAmt>0?+(taxable+taxAmt).toFixed(2):(pdfLine>taxable?pdfLine:+(taxable+taxAmt).toFixed(2));return s+rowTotal;},0).toLocaleString('en-IN',{minimumFractionDigits:2})}</td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
             </div>
-          )}
 
-          {!pdfInvoiceMsg && (
-            <button onClick={handleCreateFromPDF} disabled={pdfInvoicing} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '13px 24px', background: pdfInvoicing ? '#94a3b8' : 'linear-gradient(135deg,#c0392b,#922b21)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 800, cursor: pdfInvoicing ? 'not-allowed' : 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(192,57,43,0.35)' }}>
-              <MdReceipt size={20} />
-              {pdfInvoicing ? 'Creating Invoice...' : `Create Invoice from PDF  ·  ${editableItems.filter(it => it.name.trim()).length} item(s)  ·  ₹${editableItems.reduce((s, it) => {
-                const taxable = +(Number(it.rate)*Number(it.qty)*(1-(Number(it.discount)||0)/100)).toFixed(2);
-                const cgstV = +(taxable*(Number(it.cgst)||0)/100).toFixed(2);
-                const sgstV = +(taxable*(Number(it.sgst)||0)/100).toFixed(2);
-                const igstV = +(taxable*(Number(it.igst)||0)/100).toFixed(2);
-                const taxAmt = cgstV + sgstV + igstV;
-                const pdfLine = Number(it.lineAmount) || 0;
-                const rowTotal = taxAmt > 0 ? +(taxable + taxAmt).toFixed(2) : (pdfLine > taxable ? pdfLine : +(taxable + taxAmt).toFixed(2));
-                return s + rowTotal;
-              }, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
-            </button>
-          )}
+            {/* Success / Error message */}
+            {pdfInvoiceMsg && (
+              <div style={{ background: pdfInvoiceMsg.startsWith('Error')?'#fef2f2':'#f0fdf4', border:`1px solid ${pdfInvoiceMsg.startsWith('Error')?'#fecaca':'#bbf7d0'}`, borderRadius:10, padding:'12px 16px', marginBottom:14, display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}>
+                <div style={{ fontSize:13, fontWeight:700, color: pdfInvoiceMsg.startsWith('Error')?'#dc2626':'#15803d', display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontSize:16 }}>{pdfInvoiceMsg.startsWith('Error')?'❌':'✅'}</span>
+                  {pdfInvoiceMsg}
+                </div>
+                {!pdfInvoiceMsg.startsWith('Error') && (
+                  <button onClick={() => navigate('/po-generator/invoice-history')}
+                    style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'7px 14px', background:'#c0392b', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                    <MdHistory size={14} /> View Invoice
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Create Invoice CTA */}
+            {!pdfInvoiceMsg && (
+              <button onClick={handleCreateFromPDF} disabled={pdfInvoicing}
+                style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:10, width:'100%', padding:'14px 24px', background: pdfInvoicing?'#94a3b8':'linear-gradient(135deg,#c0392b,#922b21)', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:800, cursor: pdfInvoicing?'not-allowed':'pointer', fontFamily:'inherit', boxShadow: pdfInvoicing?'none':'0 4px 16px rgba(192,57,43,0.35)' }}
+                onMouseEnter={e => { if(!pdfInvoicing){e.currentTarget.style.opacity='0.92';e.currentTarget.style.transform='translateY(-1px)';} }}
+                onMouseLeave={e => { e.currentTarget.style.opacity='1';e.currentTarget.style.transform='translateY(0)'; }}>
+                <MdReceipt size={20} />
+                {pdfInvoicing ? 'Creating Invoice...' : `Create Invoice from PDF  ·  ${editableItems.filter(it=>it.name.trim()).length} item(s)  ·  ₹${editableItems.reduce((s,it)=>{const taxable=+(Number(it.rate)*Number(it.qty)*(1-(Number(it.discount)||0)/100)).toFixed(2);const cgstV=+(taxable*(Number(it.cgst)||0)/100).toFixed(2);const sgstV=+(taxable*(Number(it.sgst)||0)/100).toFixed(2);const igstV=+(taxable*(Number(it.igst)||0)/100).toFixed(2);const taxAmt=cgstV+sgstV+igstV;const pdfLine=Number(it.lineAmount)||0;const rowTotal=taxAmt>0?+(taxable+taxAmt).toFixed(2):(pdfLine>taxable?pdfLine:+(taxable+taxAmt).toFixed(2));return s+rowTotal;},0).toLocaleString('en-IN',{minimumFractionDigits:2})}`}
+              </button>
+            )}
+          </div>
         </div>
       )}
+
+      </div>{/* end .po-page */}
     </div>
   );
 }

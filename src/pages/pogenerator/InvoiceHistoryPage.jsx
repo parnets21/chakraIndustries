@@ -158,8 +158,6 @@ function buildInvoiceHTML(inv) {
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Arial,sans-serif;font-size:10px;color:#111;background:#fff}
 .page{max-width:900px;margin:0 auto;padding:18px 20px;border:1px solid #ccc}
-.top{text-align:right;font-size:9px;font-weight:700;letter-spacing:1px;margin-bottom:8px}
-.top span{border:1px solid #999;padding:2px 8px;margin-left:6px}
 .header{display:flex;align-items:flex-start;gap:12px;padding-bottom:12px;border-bottom:2px solid #111;margin-bottom:0}
 .logo-wrap img{width:52px;height:52px;object-fit:contain;border-radius:5px}
 .co-name{font-size:15px;font-weight:900;color:#111}
@@ -221,7 +219,6 @@ table.hsn td{padding:4px 6px;font-size:9.5px;border-bottom:1px solid #f1f5f9;whi
   table.items col.c-tot{width:55px}
 }
 </style></head><body><div class="page">
-<div class="top">PO INVOICE <span>${inv.invoiceType==='partial'?'PARTIAL':'FULL'}</span><span>ORIGINAL</span></div>
 <div class="header">
   <div class="logo-wrap"><img src="${CHAKRA_LOGO_B64}" alt="Sri Chakra Industries" /></div>
   <div style="flex:1">
@@ -233,7 +230,6 @@ table.hsn td{padding:4px 6px;font-size:9.5px;border-bottom:1px solid #f1f5f9;whi
       <tr><td>Invoice No.</td><td><strong>${inv.invoiceNo}</strong></td></tr>
       <tr><td>Invoice Date</td><td>${fmtD(inv.createdAt)}</td></tr>
       <tr><td>PO Reference</td><td>${inv.poRef||'—'}</td></tr>
-      <tr><td>Invoice Type</td><td><span class="type-badge ${inv.invoiceType}">${inv.invoiceType==='partial'?'Partial':'Full'}</span></td></tr>
     </table>
   </div>
 </div>
@@ -417,14 +413,12 @@ export default function InvoiceHistoryPage() {
   // ── Download as PDF ────────────────────────────────────────────────────────
   const handleDownload = async (inv) => {
     setDownloading(inv._id);
-    // Render the invoice HTML in a hidden off-screen iframe, then capture with
-    // html2canvas and export via jsPDF — no server required.
     const { default: jsPDF } = await import('jspdf');
     const { default: html2canvas } = await import('html2canvas');
 
     // Create a hidden iframe to render the full invoice HTML
     const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1400px;height:900px;border:none;visibility:hidden';
+    iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:900px;height:1200px;border:none;visibility:hidden';
     document.body.appendChild(iframe);
 
     await new Promise((resolve) => {
@@ -444,26 +438,20 @@ export default function InvoiceHistoryPage() {
         useCORS: true,
         allowTaint: true,
         backgroundColor: '#ffffff',
-        windowWidth: 1400,
+        windowWidth: 900,
         logging: false,
       });
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
       const imgW = canvas.width;
       const imgH = canvas.height;
 
-      // A4 landscape: 297 × 210 mm
-      const pdfW = 297;
-      const pdfH = 210;
-      const ratio = pdfW / (imgW / 2); // scale factor (canvas is 2×)
-      const renderedH = (imgH / 2) * ratio;
+      // Always use A4 portrait: 210 × 297 mm
+      const pageW = 210;
+      const pageH = 297;
 
-      // If content is taller than one landscape page, use portrait or multi-page
-      const orientation = renderedH > pdfH ? 'p' : 'l';
-      const pdf = new jsPDF({ orientation, unit: 'mm', format: 'a4' });
-      const pageW = orientation === 'l' ? 297 : 210;
-      const pageH = orientation === 'l' ? 210 : 297;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
+      // Scale image to fit page width
       const finalRatio = pageW / (imgW / 2);
       const finalH = (imgH / 2) * finalRatio;
 
@@ -482,9 +470,9 @@ export default function InvoiceHistoryPage() {
         // Crop the canvas slice for this page
         const sliceCanvas = document.createElement('canvas');
         sliceCanvas.width = imgW;
-        sliceCanvas.height = srcH * 2; // ×2 for scale
+        sliceCanvas.height = Math.ceil(srcH * 2);
         const ctx = sliceCanvas.getContext('2d');
-        ctx.drawImage(canvas, 0, srcY * 2, imgW, srcH * 2, 0, 0, imgW, srcH * 2);
+        ctx.drawImage(canvas, 0, Math.floor(srcY * 2), imgW, Math.ceil(srcH * 2), 0, 0, imgW, Math.ceil(srcH * 2));
 
         pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pageW, sliceH);
         yOffset += sliceH;
@@ -585,11 +573,6 @@ export default function InvoiceHistoryPage() {
           <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>All PO-based invoices — view, print, download</p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <button onClick={handleMigrateHSN} disabled={migratingHSN}
-            title="Extract HSN codes from item names and fix existing invoices"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 16px', background: migratingHSN ? '#94a3b8' : '#fef9c3', color: '#a16207', border: '1.5px solid #fde68a', borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: migratingHSN ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
-            {migratingHSN ? '⏳ Fixing HSN...' : '🔧 Fix HSN Codes'}
-          </button>
           <button onClick={() => navigate('/po-generator/upload')}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 18px', background: 'linear-gradient(135deg,#c0392b,#922b21)', color: '#fff', border: 'none', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             <MdReceipt size={15} /> + New Invoice

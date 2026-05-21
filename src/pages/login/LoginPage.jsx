@@ -630,25 +630,40 @@ export default function LoginPage() {
             </form>
 
             <div className="login-footer">
-              <div style={{ 
-                background: '#fef3c7', 
-                border: '1.5px solid #fbbf24', 
-                borderRadius: '10px', 
-                padding: '12px 14px', 
-                marginBottom: '14px',
-                fontSize: '11px',
-                textAlign: 'left'
-              }}>
-                <div style={{ fontWeight: '700', marginBottom: '8px', color: '#92400e', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <RiShieldKeyholeLine size={18} />
-                  Test Credentials:
+              {/* Quick-fill admin credentials */}
+              <button
+                type="button"
+                onClick={() => { setEmail('chakra@admin.com'); setPassword('chakra123'); }}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 14px',
+                  marginBottom: '14px',
+                  background: 'linear-gradient(135deg,#f8fafc,#f1f5f9)',
+                  border: '1.5px solid #e2e8f0',
+                  borderRadius: '11px',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor='#c0392b'; e.currentTarget.style.background='linear-gradient(135deg,#fef2f2,#fee2e2)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.background='linear-gradient(135deg,#f8fafc,#f1f5f9)'; }}
+              >
+                <div style={{ display:'flex', alignItems:'center', gap:9 }}>
+                  <div style={{ width:32, height:32, borderRadius:8, background:'linear-gradient(135deg,#c0392b,#922b21)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <RiShieldKeyholeLine size={17} color="#fff" />
+                  </div>
+                  <div style={{ textAlign:'left' }}>
+                    <div style={{ fontSize:12, fontWeight:700, color:'#1e293b' }}>Admin Login</div>
+                    <div style={{ fontSize:11, color:'#94a3b8', marginTop:1 }}>Click to autofill credentials</div>
+                  </div>
                 </div>
-                <div style={{ color: '#78350f', lineHeight: '1.6' }}>
-                  <div><strong>Admin:</strong>  chakra@admin.com / chakra123</div>
-                  <div><strong>Purchase:</strong> purchase@chakra.in / purchase123</div>
-                  <div><strong>Production:</strong> production@chakra.in / prod123</div>
+                <div style={{ width:28, height:28, borderRadius:8, background:'rgba(192,57,43,0.1)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <MdArrowForward size={16} color="#c0392b" />
                 </div>
-              </div>
+              </button>
               <p className="footer-text">
                 © 2026 Sri Chakra Industries. All rights reserved.
               </p>

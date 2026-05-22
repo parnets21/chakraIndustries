@@ -1,297 +1,1207 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import StatusBadge from '../../components/common/StatusBadge';
-import Modal from '../../components/common/Modal';
-import { materialReturnApi } from '../../api/materialReturnApi';
-import { toast } from '../../components/common/Toast';
-import DocketTrackingPage from './DocketTrackingPage';
+import { useEffect, useMemo, useState } from "react";
+import {
+  Package, Truck, Search, DollarSign, CheckSquare, AlertTriangle,
+  CheckCircle, XCircle, Download, RefreshCw, Plus, Eye,
+  Pencil, MoreHorizontal, X, Printer, MapPin, Paperclip,
+  ClipboardList, ChevronLeft, ChevronRight, ArrowRight, FileText,
+  Layers, BarChart2, TrendingUp, Activity
+} from "lucide-react";
+import { materialReturnApi } from "../../api/materialReturnApi";
 
-const STAGES = ['Initiated', 'Approved', 'Transport_Pickup', 'In_Transit', 'Out_For_Delivery', 'Delivered', 'Warehouse_Queue', 'Received_At_Warehouse', 'QC_In_Progress', 'QC_Completed', 'Closed'];
-const stageColor = { 
-  Initiated: '#6b7280', 
-  Approved: '#059669',
-  Transport_Pickup: '#f59e0b', 
-  In_Transit: '#3b82f6',
-  Out_For_Delivery: '#8b5cf6',
-  Delivered: '#f59e0b',
-  Warehouse_Queue: '#3b82f6',
-  Received_At_Warehouse: '#10b981',
-  QC_In_Progress: '#8b5cf6',
-  QC_Completed: '#059669',
-  Closed: '#10b981'
+const STAGE_FLOW = ["Initiated","Approved","Transport_Pickup","In_Transit","Out_For_Delivery","Delivered","Warehouse_Queue","Received_At_Warehouse","QC_In_Progress","QC_Completed","Closed"];
+const STAGE_NAMES = { Initiated:"Initiated", Approved:"Approved", Transport_Pickup:"Transport Pickup", In_Transit:"In Transit", Out_For_Delivery:"Out For Delivery", Delivered:"Delivered", Warehouse_Queue:"Warehouse Queue", Received_At_Warehouse:"Received At Warehouse", QC_In_Progress:"QC In Progress", QC_Completed:"QC Completed", Closed:"Closed" };
+const STAGE_COLORS = {
+  Initiated:{bg:"#f3f4f6",text:"#6b7280"}, Approved:{bg:"#d1fae5",text:"#065f46"},
+  Transport_Pickup:{bg:"#fef3c7",text:"#92400e"}, In_Transit:{bg:"#dbeafe",text:"#1d4ed8"},
+  Out_For_Delivery:{bg:"#ede9fe",text:"#6d28d9"}, Delivered:{bg:"#fef3c7",text:"#92400e"},
+  Warehouse_Queue:{bg:"#dbeafe",text:"#1d4ed8"}, Received_At_Warehouse:{bg:"#d1fae5",text:"#065f46"},
+  QC_In_Progress:{bg:"#ede9fe",text:"#6d28d9"}, QC_Completed:{bg:"#d1fae5",text:"#065f46"},
+  Closed:{bg:"#f3f4f6",text:"#374151"}
 };
 
-export default function MaterialReturnsPage({ initialTab = 0 }) {
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState(initialTab);
-  const [returns, setReturns]     = useState([]);
-  const [stats, setStats]         = useState({ total: 0, inTransit: 0, pendingQC: 0, closed: 0 });
-  const [selected, setSelected]   = useState(null);
-  const [showCreate, setShowCreate] = useState(false);
-  const [saving, setSaving]       = useState(false);
-  const [form, setForm] = useState({ 
-    supplierName: '', 
-    items: 1, 
-    value: '', 
-    reason: '', 
-    transport: '', 
-    awbNo: '',
-    invoiceNo: '',
-    productName: '',
-    returnQty: 1,
-    pickupAddress: '',
-    attachments: [],
-    partyType: 'Dealer',
-    invoiceAmount: '',
-    createdBy: 'Priya Sharma'
-  });
+const INIT_RETURNS = [
+  { mrId:"MR-2026-0024", docketId:"DKT-789456", invoiceNo:"INV-2026-1234", supplierName:"ABC Suppliers Pvt Ltd", productName:"Stainless Steel Sheet", returnQty:10, stage:"In_Transit", qcStatus:"Pending", finStatus:"Partial", priority:"High", value:12500, returnReason:"Damaged during transit", pickupAddress:"123 Industrial Area, Phase 2, Delhi-110001", awbNo:"AWB123456789", vehicle:"HR55AB1234", transport:"Blue Dart", driverName:"Rakesh Kumar", driverMobile:"9876543210", currentLocation:"Gurgaon, Haryana", expectedDelivery:"15 May 2026", eta:"15 May 2026, 06:00 PM", createdOn:"12 May 2026", createdBy:"Priya Sharma", invoiceValue:12500, returnValue:12500, recoverableAmt:10000, recoveredAmt:6000, debitNote:4000, creditNote:6000, pendingAmt:4000, financialClosure:"No", recoveryStatus:"In Progress", returnType:"Material Return" },
+  { mrId:"MR-2026-0023", docketId:"DKT-789455", invoiceNo:"INV-2026-1233", supplierName:"XYZ Industries", productName:"Copper Wire", returnQty:25, stage:"Received_At_Warehouse", qcStatus:"Completed", finStatus:"Reconciled", priority:"Medium", value:18750, returnReason:"Quality not as per specification", pickupAddress:"45 Electronic City, Bangalore-560100", awbNo:"AWB987654321", vehicle:"KA01AB5678", transport:"VRL Logistics", driverName:"Suresh Kumar", driverMobile:"9876501234", currentLocation:"Bangalore", expectedDelivery:"10 May 2026", eta:"10 May 2026, 04:00 PM", createdOn:"08 May 2026", createdBy:"Ravi Kumar", invoiceValue:18750, returnValue:18750, recoverableAmt:18750, recoveredAmt:18750, debitNote:18750, creditNote:18750, pendingAmt:0, financialClosure:"Yes", recoveryStatus:"Completed", returnType:"Material Return" },
+  { mrId:"MR-2026-0022", docketId:"DKT-789454", invoiceNo:"INV-2026-1232", supplierName:"Global Components", productName:"Aluminum Frame", returnQty:5, stage:"QC_In_Progress", qcStatus:"In_Progress", finStatus:"Pending", priority:"High", value:7250, returnReason:"Wrong dimensions delivered", pickupAddress:"78 MIDC Area, Pune-411021", awbNo:"AWB456789123", vehicle:"MH12CD9012", transport:"DTDC", driverName:"Anil Patil", driverMobile:"9765432198", currentLocation:"Pune Warehouse", expectedDelivery:"12 May 2026", eta:"12 May 2026, 02:00 PM", createdOn:"09 May 2026", createdBy:"Anjali Singh", invoiceValue:7250, returnValue:7250, recoverableAmt:7250, recoveredAmt:0, debitNote:0, creditNote:0, pendingAmt:7250, financialClosure:"No", recoveryStatus:"Pending", returnType:"Material Return" },
+  { mrId:"MR-2026-0021", docketId:"DKT-789453", invoiceNo:"INV-2026-1231", supplierName:"Tech Solutions Ltd", productName:"Motor Housing", returnQty:8, stage:"Approved", qcStatus:"Pending", finStatus:"Pending", priority:"Medium", value:9600, returnReason:"Manufacturing defect", pickupAddress:"92 Electronic Complex, Chennai-600032", awbNo:"–", vehicle:"–", transport:"–", driverName:"–", driverMobile:"–", currentLocation:"–", expectedDelivery:"–", eta:"–", createdOn:"08 May 2026", createdBy:"Suresh Patel", invoiceValue:9600, returnValue:9600, recoverableAmt:9600, recoveredAmt:0, debitNote:0, creditNote:0, pendingAmt:9600, financialClosure:"No", recoveryStatus:"Pending", returnType:"Material Return" },
+  { mrId:"MR-2026-0020", docketId:"DKT-789452", invoiceNo:"INV-2026-1230", supplierName:"ABC Suppliers Pvt Ltd", productName:"Bearing Set", returnQty:12, stage:"Closed", qcStatus:"Completed", finStatus:"Reconciled", priority:"Low", value:15300, returnReason:"Wrong size delivered", pickupAddress:"34 Industrial Estate, Kolkata-700046", awbNo:"AWB321654987", vehicle:"WB01EF3456", transport:"Delhivery", driverName:"Rahim Khan", driverMobile:"9812345678", currentLocation:"Kolkata", expectedDelivery:"05 May 2026", eta:"05 May 2026, 11:00 AM", createdOn:"01 May 2026", createdBy:"Priya Sharma", invoiceValue:15300, returnValue:15300, recoverableAmt:15300, recoveredAmt:15300, debitNote:15300, creditNote:15300, pendingAmt:0, financialClosure:"Yes", recoveryStatus:"Completed", returnType:"Material Return" },
+  { mrId:"MR-2026-0019", docketId:"DKT-789451", invoiceNo:"INV-2026-1229", supplierName:"Prime Components", productName:"Gear Box", returnQty:3, stage:"Transport_Pickup", qcStatus:"Pending", finStatus:"Pending", priority:"Medium", value:6450, returnReason:"Defective unit", pickupAddress:"55 GIDC, Ahmedabad-380024", awbNo:"AWB654321789", vehicle:"GJ01GH7890", transport:"Blue Dart", driverName:"Harish Shah", driverMobile:"9023456789", currentLocation:"Ahmedabad Hub", expectedDelivery:"18 May 2026", eta:"18 May 2026, 03:00 PM", createdOn:"07 May 2026", createdBy:"Ravi Kumar", invoiceValue:6450, returnValue:6450, recoverableAmt:6450, recoveredAmt:0, debitNote:0, creditNote:0, pendingAmt:6450, financialClosure:"No", recoveryStatus:"Pending", returnType:"Material Return" },
+  { mrId:"MR-2026-0018", docketId:"DKT-789450", invoiceNo:"INV-2026-1228", supplierName:"XYZ Industries", productName:"Steel Rod", returnQty:20, stage:"Out_For_Delivery", qcStatus:"Pending", finStatus:"Partial", priority:"High", value:22000, returnReason:"Damaged during transit", pickupAddress:"67 SEZ Phase 3, Noida-201305", awbNo:"AWB789123456", vehicle:"UP16IJ2345", transport:"VRL Logistics", driverName:"Ramesh Yadav", driverMobile:"9634567890", currentLocation:"Noida Distribution Center", expectedDelivery:"16 May 2026", eta:"16 May 2026, 05:00 PM", createdOn:"06 May 2026", createdBy:"Anjali Singh", invoiceValue:22000, returnValue:22000, recoverableAmt:22000, recoveredAmt:5000, debitNote:5000, creditNote:0, pendingAmt:17000, financialClosure:"No", recoveryStatus:"In Progress", returnType:"Material Return" },
+  { mrId:"MR-2026-0017", docketId:"DKT-789449", invoiceNo:"INV-2026-1227", supplierName:"ABC Suppliers Pvt Ltd", productName:"Electric Motor", returnQty:4, stage:"Delivered", qcStatus:"Completed", finStatus:"Partial", priority:"Medium", value:9000, returnReason:"Wrong model", pickupAddress:"89 Industrial Park, Hyderabad-500018", awbNo:"AWB112233445", vehicle:"TS09KL6789", transport:"DTDC", driverName:"Venkat Reddy", driverMobile:"9512345678", currentLocation:"Hyderabad Warehouse", expectedDelivery:"04 May 2026", eta:"04 May 2026, 01:00 PM", createdOn:"30 Apr 2026", createdBy:"Suresh Patel", invoiceValue:9000, returnValue:9000, recoverableAmt:9000, recoveredAmt:4500, debitNote:9000, creditNote:4500, pendingAmt:4500, financialClosure:"No", recoveryStatus:"In Progress", returnType:"Material Return" },
+];
 
-  const fetchAll = useCallback(async () => {
-    try {
-      const [listRes, statsRes] = await Promise.all([materialReturnApi.getAll(), materialReturnApi.getStats()]);
-      setReturns(listRes.data || []);
-      setStats(statsRes.data || {});
-      if (!selected && listRes.data?.length > 0) setSelected(listRes.data[0]);
-    } catch (e) { console.error(e); }
-  }, []);
+const ACTIVITY_LOGS = [
+  { initials:"PS", color:"#ef4444", name:"Priya Sharma", detail:"Return created", date:"12 May 2026 10:30 AM" },
+  { initials:"RM", color:"#3b82f6", name:"Ramesh Mehta", detail:"Approved by Manager", date:"12 May 2026 11:00 AM" },
+  { initials:"TS", color:"#8b5cf6", name:"Transport Team", detail:"Transport Assigned", date:"12 May 2026 02:15 PM" },
+  { initials:"BL", color:"#f59e0b", name:"Blue Dart", detail:"Shipment in Transit", date:"12 May 2026 05:45 PM" },
+];
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+const ATTACHMENTS = [
+  { name:"Invoice Copy.pdf", size:"1.2 MB" },
+  { name:"Damage Images.zip", size:"4.5 MB" },
+  { name:"LR Copy.pdf", size:"1.1 MB" },
+  { name:"Other Documents.pdf", size:"0.8 MB" },
+];
 
-  const handleCreate = async () => {
-    if (!form.supplierName || !form.reason || !form.invoiceNo || !form.productName || !form.pickupAddress) { 
-      toast('Supplier, Invoice Number, Product Name, Pickup Address and reason are required', 'error'); 
-      return; 
-    }
-    setSaving(true);
-    try {
-      const returnData = { 
-        ...form, 
-        value: parseFloat(form.value) || 0, 
-        items: parseInt(form.items) || 1,
-        returnQty: parseInt(form.returnQty) || 1,
-        expectedQty: parseInt(form.returnQty) || parseInt(form.items) || 1, // Set expected qty
-      };
-      
-      await materialReturnApi.create(returnData);
-      setShowCreate(false);
-      setForm({ 
-        supplierName: '', 
-        items: 1, 
-        value: '', 
-        reason: '', 
-        transport: '', 
-        awbNo: '',
-        invoiceNo: '',
-        productName: '',
-        returnQty: 1,
-        pickupAddress: '',
-        attachments: []
-      });
-      await fetchAll();
-      toast('Material return created');
-    } catch (e) { toast(e.message, 'error'); }
-    finally { setSaving(false); }
+// ── Badges ──────────────────────────────────────────────────────────────────
+function Badge({ label, color, bg }) {
+  return (
+    <span style={{ display:"inline-flex", alignItems:"center", gap:4, color, backgroundColor:bg, fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20, whiteSpace:"nowrap" }}>
+      <span style={{ width:5, height:5, borderRadius:"50%", background:color, display:"inline-block", flexShrink:0 }} />
+      {label}
+    </span>
+  );
+}
+function StageBadge({ stage }) {
+  const c = STAGE_COLORS[stage] || { bg:"#f3f4f6", text:"#374151" };
+  return <Badge label={STAGE_NAMES[stage] || stage} color={c.text} bg={c.bg} />;
+}
+function QCBadge({ s }) {
+  const m = { Pending:["#92400e","#fef3c7"], In_Progress:["#1d4ed8","#dbeafe"], Completed:["#065f46","#d1fae5"], Failed:["#991b1b","#fee2e2"] };
+  const [c,bg] = m[s]||["#374151","#f3f4f6"];
+  return <Badge label={s?.replace(/_/g," ")} color={c} bg={bg} />;
+}
+function FinBadge({ s }) {
+  const m = { Pending:["#9a3412","#fee2e2"], Partial:["#6d28d9","#ede9fe"], Reconciled:["#065f46","#d1fae5"], Written_Off:["#374151","#f3f4f6"] };
+  const [c,bg] = m[s]||["#374151","#f3f4f6"];
+  return <Badge label={s} color={c} bg={bg} />;
+}
+function PriBadge({ s }) {
+  const m = { High:["#991b1b","#fee2e2"], Medium:["#92400e","#fef3c7"], Low:["#166534","#dcfce7"] };
+  const [c,bg] = m[s]||["#374151","#f3f4f6"];
+  return <Badge label={s} color={c} bg={bg} />;
+}
+function RecBadge({ s }) {
+  const m = { "In Progress":["#1d4ed8","#dbeafe"], Completed:["#065f46","#d1fae5"], Pending:["#9a3412","#fee2e2"] };
+  const [c,bg] = m[s]||["#374151","#f3f4f6"];
+  return <Badge label={s} color={c} bg={bg} />;
+}
+
+const mapStage = (stage = "") => ({
+  Return_Request_Create: "Initiated",
+  Manager_Approval: "Approved",
+  Docket_Create: "Transport_Pickup",
+  Transport_Tracking: "In_Transit",
+  Warehouse_Receive: "Received_At_Warehouse",
+  QC_Verification: "QC_In_Progress",
+  Finance_Reconciliation: "QC_Completed",
+  Tally_Sync: "Closed",
+}[stage] || stage || "Initiated");
+
+const formatDisplayDate = (value) => {
+  const d = value ? new Date(value) : new Date();
+  if (Number.isNaN(d.getTime())) return value || "-";
+  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+};
+
+const normalizeMaterialReturn = (r) => {
+  const value = Number(r.value || r.refundAmount || r.invoiceAmount || 0);
+  const recoveredAmt = Number(r.recoveredAmt || r.creditNoteAmount || (r.reconciliationStatus === "Completed" ? value : 0));
+  const debitNote = Number(r.debitNote || r.debitNoteAmount || (r.debitNoteId ? value : 0));
+  const creditNote = Number(r.creditNote || r.creditNoteAmount || (r.creditNoteId ? recoveredAmt : 0));
+  return {
+    ...r,
+    mrId: r.mrId || r.id || r._id,
+    docketId: r.docketId || r.awbNo || "-",
+    invoiceNo: r.invoiceNo || "",
+    supplierName: r.supplierName || r.customerName || "Unknown Party",
+    productName: r.productName || r.items?.[0]?.productName || "Return Material",
+    returnQty: Number(r.returnQty || r.expectedQty || r.items?.[0]?.returnQty || 0),
+    stage: mapStage(r.stage || r.currentWorkflowStage),
+    qcStatus: r.qcStatus === "In Progress" ? "In_Progress" : r.qcStatus || "Pending",
+    finStatus: r.finStatus || (r.reconciliationStatus === "Completed" ? "Reconciled" : r.ledgerStatus === "Updated" ? "Partial" : "Pending"),
+    priority: r.priority || "Medium",
+    value,
+    returnReason: r.returnReason || r.reason || "Material return",
+    pickupAddress: r.pickupAddress || r.address || "-",
+    awbNo: r.awbNo || r.lrNumber || "-",
+    vehicle: r.vehicle || r.vehicleNumber || "-",
+    transport: r.transport || r.courierPartner || "-",
+    driverName: r.driverName || "-",
+    driverMobile: r.driverMobile || "-",
+    currentLocation: r.currentLocation || r.lastScanLocation || "-",
+    expectedDelivery: formatDisplayDate(r.expectedDelivery || r.estimatedDelivery),
+    eta: formatDisplayDate(r.expectedDelivery || r.estimatedDelivery),
+    createdOn: formatDisplayDate(r.createdAt || r.returnDate),
+    createdBy: r.createdBy || r.requestedBy || "System",
+    invoiceValue: Number(r.invoiceValue || r.invoiceAmount || value),
+    returnValue: value,
+    recoverableAmt: Number(r.recoverableAmt || value),
+    recoveredAmt,
+    debitNote,
+    creditNote,
+    pendingAmt: Math.max(0, Number(r.recoverableAmt || value) - recoveredAmt),
+    financialClosure: r.finStatus === "Reconciled" || r.reconciliationStatus === "Completed" ? "Yes" : "No",
+    recoveryStatus: r.finStatus === "Reconciled" || r.reconciliationStatus === "Completed" ? "Completed" : recoveredAmt > 0 ? "In Progress" : "Pending",
+    returnType: r.returnType || r.reason || "Material Return",
   };
+};
 
-  const handleStageUpdate = async (id, stage) => {
-    try {
-      await materialReturnApi.updateStage(id, stage);
-      await fetchAll();
-      toast(`Stage updated to ${stage}`);
-    } catch (e) { toast(e.message, 'error'); }
-  };
+// ── Lifecycle Stepper ────────────────────────────────────────────────────────
+function LifecycleStepper({ stage }) {
+  const idx = STAGE_FLOW.indexOf(stage);
+  return (
+    <div style={{ overflowX:"auto", paddingBottom:4 }}>
+      <div style={{ display:"flex", alignItems:"flex-start", minWidth:800 }}>
+        {STAGE_FLOW.map((s,i) => {
+          const done = i < idx, active = i === idx;
+          return (
+            <div key={s} style={{ display:"flex", alignItems:"flex-start", flex:1 }}>
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", minWidth:60 }}>
+                <div style={{
+                  width:24, height:24, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center",
+                  background: done?"#10b981": active?"#3b82f6":"#e5e7eb",
+                  color: (done||active)?"#fff":"#9ca3af", fontSize:10, fontWeight:800,
+                  boxShadow: active?"0 0 0 3px #bfdbfe":"none", flexShrink:0
+                }}>
+                  {done ? "✓" : i+1}
+                </div>
+                <div style={{ fontSize:8, textAlign:"center", marginTop:4, color: done?"#059669": active?"#1d4ed8":"#9ca3af", fontWeight: active?700:500, lineHeight:1.3, maxWidth:56 }}>
+                  {STAGE_NAMES[s]}
+                </div>
+              </div>
+              {i < STAGE_FLOW.length-1 && (
+                <div style={{ height:2, flex:1, marginTop:11, background: i<idx?"#10b981":"#e5e7eb" }} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
-  const stageIdx = (s) => STAGES.indexOf(s);
+// ── Modal ────────────────────────────────────────────────────────────────────
+function Modal({ title, onClose, children, footer }) {
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+      <div style={{ background:"#fff", borderRadius:14, width:"100%", maxWidth:680, maxHeight:"90vh", display:"flex", flexDirection:"column", boxShadow:"0 20px 60px rgba(0,0,0,0.25)" }}>
+        <div style={{ padding:"14px 20px", borderBottom:"1px solid #e5e7eb", display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 }}>
+          <span style={{ fontWeight:800, fontSize:15, color:"#111" }}>{title}</span>
+          <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", color:"#6b7280", display:"flex", alignItems:"center" }}><X size={18}/></button>
+        </div>
+        <div style={{ flex:1, overflowY:"auto", padding:"18px 20px" }}>{children}</div>
+        {footer && <div style={{ padding:"12px 20px", borderTop:"1px solid #e5e7eb", flexShrink:0 }}>{footer}</div>}
+      </div>
+    </div>
+  );
+}
 
-  const kpis = [
-    { label: 'Total Returns',  value: stats.total,     color: '#1c2833' },
-    { label: 'In-transit',     value: stats.inTransit, color: '#3b82f6' },
-    { label: 'Pending QC',     value: stats.pendingQC, color: '#8b5cf6' },
-    { label: 'Closed',         value: stats.closed,    color: '#10b981' },
+// ── Reconciliation Modal ──────────────────────────────────────────────────────
+function ReconciliationModal({ r, onClose }) {
+  return (
+    <Modal title={`Financial Reconciliation — ${r.mrId}`} onClose={onClose}>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:16 }}>
+        {[
+          { label:"Invoice Value", val:`₹ ${r.invoiceValue?.toLocaleString("en-IN")}` },
+          { label:"Return Value", val:`₹ ${r.returnValue?.toLocaleString("en-IN")}` },
+          { label:"Recoverable Amount", val:`₹ ${r.recoverableAmt?.toLocaleString("en-IN")}` },
+          { label:"Recovered Amount", val:`₹ ${r.recoveredAmt?.toLocaleString("en-IN")}` },
+          { label:"Debit Note", val:`₹ ${r.debitNote?.toLocaleString("en-IN")}` },
+          { label:"Credit Note", val:`₹ ${r.creditNote?.toLocaleString("en-IN")}` },
+          { label:"Pending Amount", val:`₹ ${r.pendingAmt?.toLocaleString("en-IN")}`, red: r.pendingAmt > 0 },
+          { label:"Financial Closure", val: r.financialClosure },
+        ].map((f,i) => (
+          <div key={i} style={{ background:"#f9fafb", borderRadius:8, padding:"10px 14px", border:"1px solid #f3f4f6" }}>
+            <div style={{ fontSize:10, color:"#6b7280", marginBottom:4 }}>{f.label}</div>
+            <div style={{ fontSize:15, fontWeight:700, color: f.red?"#dc2626":"#111" }}>{f.val}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ background:"#eff6ff", borderRadius:8, padding:12, border:"1px solid #bfdbfe" }}>
+        <div style={{ fontWeight:700, fontSize:13, color:"#1e40af", marginBottom:8 }}>Recovery Status</div>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <RecBadge s={r.recoveryStatus} />
+          <span style={{ fontSize:12, color:"#374151" }}>Last updated: {r.createdOn}</span>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ── QC Report Modal ───────────────────────────────────────────────────────────
+function QCReportModal({ r, onClose }) {
+  return (
+    <Modal title={`QC Report — ${r.mrId}`} onClose={onClose}>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:16 }}>
+        {[
+          { label:"QC Status", val:<QCBadge s={r.qcStatus}/>, isComp:true },
+          { label:"Product", val:r.productName },
+          { label:"Return Qty", val:r.returnQty },
+          { label:"Accepted Qty", val: r.qcStatus==="Completed" ? r.returnQty : "—" },
+          { label:"Rejected Qty", val: r.qcStatus==="Completed" ? 0 : "—" },
+          { label:"Damage %", val: r.qcStatus==="Completed" ? "0%" : "—" },
+          { label:"QC By", val: r.qcStatus==="Completed" ? "QC Team" : "—" },
+          { label:"QC Date", val: r.qcStatus==="Completed" ? r.createdOn : "—" },
+          { label:"Remarks", val: r.returnReason },
+        ].map((f,i) => (
+          <div key={i} style={{ background:"#fffbeb", borderRadius:8, padding:"10px 14px", border:"1px solid #fde68a" }}>
+            <div style={{ fontSize:10, color:"#6b7280", marginBottom:4 }}>{f.label}</div>
+            {f.isComp ? f.val : <div style={{ fontSize:13, fontWeight:700, color:"#111" }}>{f.val}</div>}
+          </div>
+        ))}
+      </div>
+    </Modal>
+  );
+}
+
+// ── Track Shipment Modal ──────────────────────────────────────────────────────
+function TrackModal({ r, onClose }) {
+  const steps = [
+    { label:"Pickup Scheduled", loc:r.pickupAddress, done:true },
+    { label:"Picked Up", loc:`Vehicle: ${r.vehicle}`, done: ["Transport_Pickup","In_Transit","Out_For_Delivery","Delivered","Warehouse_Queue","Received_At_Warehouse","QC_In_Progress","QC_Completed","Closed"].includes(r.stage) },
+    { label:"In Transit", loc:`Current: ${r.currentLocation}`, done: ["In_Transit","Out_For_Delivery","Delivered","Warehouse_Queue","Received_At_Warehouse","QC_In_Progress","QC_Completed","Closed"].includes(r.stage) },
+    { label:"Out for Delivery", loc:`ETA: ${r.eta}`, done: ["Out_For_Delivery","Delivered","Warehouse_Queue","Received_At_Warehouse","QC_In_Progress","QC_Completed","Closed"].includes(r.stage) },
+    { label:"Delivered to Warehouse", loc:"Destination Warehouse", done: ["Delivered","Warehouse_Queue","Received_At_Warehouse","QC_In_Progress","QC_Completed","Closed"].includes(r.stage) },
   ];
+  return (
+    <Modal title={`Track Shipment — ${r.awbNo}`} onClose={onClose}>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:16 }}>
+        {[["Transport Partner", r.transport], ["AWB Number", r.awbNo], ["Vehicle No", r.vehicle], ["Driver", r.driverName], ["Driver Mobile", r.driverMobile], ["Expected Delivery", r.expectedDelivery]].map(([k,v]) => (
+          <div key={k} style={{ background:"#f0fdf4", borderRadius:8, padding:"10px 14px", border:"1px solid #bbf7d0" }}>
+            <div style={{ fontSize:10, color:"#6b7280", marginBottom:3 }}>{k}</div>
+            <div style={{ fontSize:13, fontWeight:700, color:"#111" }}>{v||"—"}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontWeight:700, fontSize:13, marginBottom:10, color:"#059669" }}>Tracking Timeline</div>
+      <div style={{ position:"relative" }}>
+        {steps.map((s,i) => (
+          <div key={i} style={{ display:"flex", gap:12, marginBottom:12 }}>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center" }}>
+              <div style={{ width:20, height:20, borderRadius:"50%", background: s.done?"#10b981":"#e5e7eb", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:10, fontWeight:800, flexShrink:0 }}>
+                {s.done ? "✓" : "○"}
+              </div>
+              {i < steps.length-1 && <div style={{ width:2, height:24, background: s.done?"#10b981":"#e5e7eb" }} />}
+            </div>
+            <div style={{ paddingTop:2 }}>
+              <div style={{ fontSize:12, fontWeight:700, color: s.done?"#059669":"#9ca3af" }}>{s.label}</div>
+              <div style={{ fontSize:11, color:"#6b7280" }}>{s.loc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Modal>
+  );
+}
+
+// ── Attachments Modal ─────────────────────────────────────────────────────────
+function AttachmentsModal({ onClose }) {
+  const allDocs = [...ATTACHMENTS, { name:"Inspection Report.pdf", size:"2.1 MB" }, { name:"Supplier Confirmation.pdf", size:"0.9 MB" }];
+  return (
+    <Modal title="All Attachments" onClose={onClose}>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+        {allDocs.map((a,i) => (
+          <div key={i} style={{ background:"#fff7ed", borderRadius:10, padding:"12px 14px", border:"1px solid #fed7aa", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <FileText size={20} color="#ea580c"/>
+              <div>
+                <div style={{ fontSize:12, fontWeight:700, color:"#111" }}>{a.name}</div>
+                <div style={{ fontSize:10, color:"#9ca3af" }}>{a.size}</div>
+              </div>
+            </div>
+            <button onClick={() => alert(`Downloading: ${a.name}`)} style={{ background:"#ea580c", color:"#fff", border:"none", borderRadius:6, padding:"5px 10px", fontSize:11, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:4 }}>
+              <Download size={12}/> Download
+            </button>
+          </div>
+        ))}
+      </div>
+    </Modal>
+  );
+}
+
+// ── Print Full Details ────────────────────────────────────────────────────────
+function handlePrintDetail(r) {
+  const win = window.open("", "_blank");
+  const stageIdx = STAGE_FLOW.indexOf(r.stage);
+  const stageSteps = STAGE_FLOW.map((s, i) => {
+    const done = i < stageIdx, active = i === stageIdx;
+    return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;">
+      <div style="width:22px;height:22px;border-radius:50%;background:${done?"#10b981":active?"#3b82f6":"#e5e7eb"};color:${(done||active)?"#fff":"#9ca3af"};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;">${done?"✓":i+1}</div>
+      <div style="font-size:8px;text-align:center;margin-top:4px;color:${done?"#059669":active?"#1d4ed8":"#9ca3af"};font-weight:${active?700:500};max-width:56px;line-height:1.3;">${STAGE_NAMES[s]}</div>
+    </div>${i<STAGE_FLOW.length-1?`<div style="height:2px;flex:1;margin-top:10px;background:${i<stageIdx?"#10b981":"#e5e7eb"};"></div>`:""}`;
+  }).join("");
+
+  win.document.write(`<!DOCTYPE html><html><head><title>Material Return — ${r.mrId}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #111; padding: 28px; font-size: 13px; }
+    h1 { font-size: 20px; font-weight: 800; color: #dc2626; }
+    h2 { font-size: 14px; font-weight: 700; margin-bottom: 10px; color: #1e293b; border-left: 3px solid #dc2626; padding-left: 8px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 2px solid #dc2626; padding-bottom: 12px; }
+    .header-sub { font-size: 12px; color: #6b7280; margin-top: 4px; }
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; }
+    .section { margin-bottom: 20px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .grid4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; }
+    .card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; }
+    .label { font-size: 10px; color: #6b7280; margin-bottom: 3px; }
+    .value { font-size: 13px; font-weight: 600; color: #111; }
+    .value-red { font-size: 13px; font-weight: 700; color: #dc2626; }
+    .stepper { display: flex; align-items: flex-start; margin-bottom: 6px; overflow: hidden; }
+    .fin-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #e5e7eb; font-size: 12px; }
+    .activity-row { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid #f3f4f6; }
+    .avatar { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 9px; font-weight: 800; flex-shrink: 0; }
+    .print-footer { margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 10px; font-size: 10px; color: #9ca3af; display: flex; justify-content: space-between; }
+    .green-card { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px 12px; }
+    .yellow-card { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 12px; }
+    .blue-card { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px 12px; }
+    @media print { body { padding: 16px; } }
+  </style></head><body>
+  <div class="header">
+    <div>
+      <h1>Material Return — ${r.mrId}</h1>
+      <div class="header-sub">Docket: ${r.docketId} &nbsp;|&nbsp; Invoice: ${r.invoiceNo} &nbsp;|&nbsp; Created: ${r.createdOn} by ${r.createdBy}</div>
+    </div>
+    <div style="text-align:right;">
+      <div><span class="badge" style="background:#fee2e2;color:#991b1b;">${r.priority} Priority</span></div>
+      <div style="margin-top:6px;"><span class="badge" style="background:${STAGE_COLORS[r.stage]?.bg||"#f3f4f6"};color:${STAGE_COLORS[r.stage]?.text||"#374151"};">${STAGE_NAMES[r.stage]}</span></div>
+      <div style="font-size:10px;color:#6b7280;margin-top:4px;">Printed: ${new Date().toLocaleString("en-IN")}</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Return Information</h2>
+    <div class="grid4">
+      <div class="card"><div class="label">Supplier</div><div class="value">${r.supplierName}</div></div>
+      <div class="card"><div class="label">Product</div><div class="value">${r.productName}</div></div>
+      <div class="card"><div class="label">Return Qty</div><div class="value">${r.returnQty} units</div></div>
+      <div class="card"><div class="label">Return Value</div><div class="value">₹ ${r.returnValue?.toLocaleString("en-IN")}</div></div>
+      <div class="card" style="grid-column:1/3"><div class="label">Return Reason</div><div class="value">${r.returnReason}</div></div>
+      <div class="card" style="grid-column:3/5"><div class="label">Pickup Address</div><div class="value">${r.pickupAddress}</div></div>
+      <div class="card"><div class="label">QC Status</div><div class="value">${r.qcStatus?.replace(/_/g," ")}</div></div>
+      <div class="card"><div class="label">Financial Status</div><div class="value">${r.finStatus}</div></div>
+      <div class="card"><div class="label">Recovery Status</div><div class="value">${r.recoveryStatus}</div></div>
+      <div class="card"><div class="label">Return Type</div><div class="value">${r.returnType}</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Return Lifecycle</h2>
+    <div class="stepper">${stageSteps}</div>
+  </div>
+
+  <div class="section">
+    <h2>Transport Details</h2>
+    <div class="grid4">
+      <div class="green-card"><div class="label">Transport Partner</div><div class="value">${r.transport||"—"}</div></div>
+      <div class="green-card"><div class="label">AWB Number</div><div class="value">${r.awbNo||"—"}</div></div>
+      <div class="green-card"><div class="label">Vehicle No</div><div class="value">${r.vehicle||"—"}</div></div>
+      <div class="green-card"><div class="label">Driver Name</div><div class="value">${r.driverName||"—"}</div></div>
+      <div class="green-card"><div class="label">Driver Mobile</div><div class="value">${r.driverMobile||"—"}</div></div>
+      <div class="green-card"><div class="label">Current Location</div><div class="value">${r.currentLocation||"—"}</div></div>
+      <div class="green-card"><div class="label">Expected Delivery</div><div class="value">${r.expectedDelivery||"—"}</div></div>
+      <div class="green-card"><div class="label">ETA</div><div class="value">${r.eta||"—"}</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>QC Details</h2>
+    <div class="grid4">
+      <div class="yellow-card"><div class="label">QC Status</div><div class="value">${r.qcStatus?.replace(/_/g," ")||"—"}</div></div>
+      <div class="yellow-card"><div class="label">QC By</div><div class="value">${r.qcStatus==="Completed"?"QC Team":"—"}</div></div>
+      <div class="yellow-card"><div class="label">QC Date</div><div class="value">${r.qcStatus==="Completed"?r.createdOn:"—"}</div></div>
+      <div class="yellow-card"><div class="label">Accepted Qty</div><div class="value">${r.qcStatus==="Completed"?r.returnQty:"—"}</div></div>
+      <div class="yellow-card"><div class="label">Rejected Qty</div><div class="value">${r.qcStatus==="Completed"?"0":"—"}</div></div>
+      <div class="yellow-card"><div class="label">Damage %</div><div class="value">${r.qcStatus==="Completed"?"0%":"—"}</div></div>
+      <div class="yellow-card" style="grid-column:3/5"><div class="label">QC Remarks</div><div class="value">${r.returnReason}</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Financial Details</h2>
+    <div class="grid2">
+      <div class="blue-card">
+        ${[["Invoice Value",`₹ ${r.invoiceValue?.toLocaleString("en-IN")}`],["Return Value",`₹ ${r.returnValue?.toLocaleString("en-IN")}`],["Recoverable Amount",`₹ ${r.recoverableAmt?.toLocaleString("en-IN")}`],["Recovered Amount",`₹ ${r.recoveredAmt?.toLocaleString("en-IN")}`],["Debit Note",`₹ ${r.debitNote?.toLocaleString("en-IN")}`],["Credit Note",`₹ ${r.creditNote?.toLocaleString("en-IN")}`]].map(([k,v]) => `<div class="fin-row"><span style="color:#6b7280">${k}</span><span style="font-weight:700">${v}</span></div>`).join("")}
+      </div>
+      <div class="blue-card">
+        ${[["Pending Amount",`₹ ${r.pendingAmt?.toLocaleString("en-IN")}`,r.pendingAmt>0],["Financial Closure",r.financialClosure,false],["Recovery Status",r.recoveryStatus,false]].map(([k,v,red]) => `<div class="fin-row"><span style="color:#6b7280">${k}</span><span style="font-weight:700;color:${red?"#dc2626":"#111"}">${v}</span></div>`).join("")}
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Activity Log</h2>
+    ${ACTIVITY_LOGS.map(a => `<div class="activity-row">
+      <div class="avatar" style="background:${a.color}">${a.initials}</div>
+      <div><div style="font-size:12px;font-weight:600;">${a.name}</div><div style="font-size:11px;color:#6b7280;">${a.detail}</div><div style="font-size:10px;color:#9ca3af;">${a.date}</div></div>
+    </div>`).join("")}
+  </div>
+
+  <div class="section">
+    <h2>Attachments</h2>
+    <div class="grid4">
+      ${ATTACHMENTS.map(a => `<div class="card" style="display:flex;align-items:center;gap:8px;">
+        <div style="font-size:12px;font-weight:600;">${a.name}</div>
+        <div style="font-size:10px;color:#9ca3af;">${a.size}</div>
+      </div>`).join("")}
+    </div>
+  </div>
+
+  <div class="print-footer">
+    <span>Material Return Management System</span>
+    <span>Document: ${r.mrId} | Printed on ${new Date().toLocaleString("en-IN")}</span>
+  </div>
+  <script>window.onload = function(){ window.print(); }</script>
+  </body></html>`);
+  win.document.close();
+}
+
+// ── Detail Panel ──────────────────────────────────────────────────────────────
+function DetailPanel({ r, onClose, onMoveNext }) {
+  const [activeModal, setActiveModal] = useState(null);
+  const nextIdx = STAGE_FLOW.indexOf(r.stage) + 1;
+  const nextStage = STAGE_FLOW[nextIdx];
+
+  const handleExportDetail = () => {
+    const lines = [`Material Return: ${r.mrId}`, `Docket: ${r.docketId}`, `Invoice: ${r.invoiceNo}`, `Supplier: ${r.supplierName}`, `Product: ${r.productName}`, `Return Qty: ${r.returnQty}`, `Stage: ${STAGE_NAMES[r.stage]}`, `QC Status: ${r.qcStatus}`, `Financial Status: ${r.finStatus}`, `Value: ₹${r.value?.toLocaleString("en-IN")}`, `Priority: ${r.priority}`, `Return Reason: ${r.returnReason}`, `Pickup Address: ${r.pickupAddress}`, `Transport: ${r.transport}`, `AWB No: ${r.awbNo}`, `Vehicle: ${r.vehicle}`, `Driver: ${r.driverName} (${r.driverMobile})`, `Current Location: ${r.currentLocation}`, `ETA: ${r.eta}`, `Created On: ${r.createdOn}`, `Created By: ${r.createdBy}`];
+    const blob = new Blob([lines.join("\n")], { type:"text/plain" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `${r.mrId}.txt`; a.click();
+  };
 
   return (
-    <div>
-      {/* Page Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">Material Returns</h1>
-        <p className="text-gray-600">Create and manage material return requests</p>
-      </div>
+    <>
+      {activeModal === "reconciliation" && <ReconciliationModal r={r} onClose={() => setActiveModal(null)} />}
+      {activeModal === "qc" && <QCReportModal r={r} onClose={() => setActiveModal(null)} />}
+      {activeModal === "track" && <TrackModal r={r} onClose={() => setActiveModal(null)} />}
+      {activeModal === "attachments" && <AttachmentsModal onClose={() => setActiveModal(null)} />}
 
-      {/* Tab Navigation */}
-      <div className="flex space-x-1 mb-6 bg-gray-100 p-1 rounded-lg w-fit">
-        {[
-          { id: 0, label: 'Return Requests', icon: '📋' },
-         
-          { id: 2, label: 'Debit/Credit Matching', icon: '💰' },
-         
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === tab.id
-                ? 'bg-red-600 text-white shadow-sm'
-                : 'text-gray-600 hover:text-gray-800 hover:bg-white'
-            }`}
-          >
-            <span className="mr-2">{tab.icon}</span>
-            {tab.label}
+      <div style={{ display:"flex", flexDirection:"column", background:"#fff", borderRadius:12, border:"1px solid #e5e7eb", height:"100%", overflow:"hidden" }}>
+        <div style={{ padding:"10px 14px", borderBottom:"1px solid #e5e7eb", display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0, background:"#fafafa" }}>
+          <span style={{ fontWeight:800, fontSize:13, color:"#dc2626" }}>Return Details — {r.mrId}</span>
+          <div style={{ display:"flex", gap:6 }}>
+            <button onClick={handleExportDetail} style={{ border:"1px solid #e5e7eb", background:"#fff", borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", color:"#374151", fontWeight:600, display:"flex", alignItems:"center", gap:4 }}>
+              <Download size={12}/> Export
+            </button>
+            <button onClick={() => handlePrintDetail(r)} style={{ border:"1px solid #e5e7eb", background:"#fff", borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", color:"#374151", fontWeight:600, display:"flex", alignItems:"center", gap:4 }}>
+              <Printer size={12}/> Print
+            </button>
+            <button onClick={onClose} style={{ border:"1px solid #e5e7eb", background:"#fff", borderRadius:7, padding:"4px 8px", cursor:"pointer", color:"#6b7280", display:"flex", alignItems:"center" }}>
+              <X size={14}/>
+            </button>
+          </div>
+        </div>
+
+        <div style={{ flex:1, overflowY:"auto", padding:"12px 14px" }}>
+          {/* Meta row */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:8, marginBottom:12, padding:"10px 12px", background:"#f9fafb", borderRadius:10, border:"1px solid #f3f4f6" }}>
+            {[
+              { label:"MR ID", val:r.mrId },
+              { label:"Docket ID", val:r.docketId },
+              { label:"Priority", val:<PriBadge s={r.priority}/>, comp:true },
+              { label:"Stage", val:<StageBadge stage={r.stage}/>, comp:true },
+              { label:"Fin. Status", val:<FinBadge s={r.finStatus}/>, comp:true },
+              { label:"Recovery", val:<RecBadge s={r.recoveryStatus}/>, comp:true },
+            ].map((f,i) => (
+              <div key={i}>
+                <div style={{ fontSize:9, color:"#9ca3af", marginBottom:3 }}>{f.label}</div>
+                {f.comp ? f.val : <div style={{ fontSize:11, fontWeight:700, fontFamily:"monospace", color:"#111" }}>{f.val}</div>}
+              </div>
+            ))}
+          </div>
+
+          {/* Info grid */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:12, padding:"10px 12px", background:"#f9fafb", borderRadius:10 }}>
+            {[
+              ["Supplier", r.supplierName], ["Product", r.productName], ["Return Qty", r.returnQty],
+              ["Return Value", `₹ ${r.returnValue?.toLocaleString("en-IN")}`], ["Created On", r.createdOn], ["Created By", r.createdBy],
+            ].map(([label,val],i) => (
+              <div key={i}>
+                <div style={{ fontSize:9, color:"#9ca3af", marginBottom:2 }}>{label}</div>
+                <div style={{ fontSize:11, fontWeight:600, color:"#111" }}>{val}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Lifecycle */}
+          <div style={{ marginBottom:12, padding:"10px 12px", background:"#f9fafb", borderRadius:10 }}>
+            <div style={{ fontWeight:700, fontSize:12, marginBottom:10, color:"#111" }}>Return Lifecycle</div>
+            <LifecycleStepper stage={r.stage} />
+          </div>
+
+          {/* Transport + QC */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>
+            <div style={{ padding:"10px 12px", background:"#f0fdf4", borderRadius:10, border:"1px solid #bbf7d0" }}>
+              <div style={{ fontWeight:700, fontSize:12, color:"#065f46", marginBottom:8, display:"flex", alignItems:"center", gap:5 }}>
+                <Truck size={13}/> Transport Details
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:8 }}>
+                {[["Transport", r.transport],["AWB No", r.awbNo],["Vehicle No", r.vehicle],["Driver", r.driverName],["Mobile", r.driverMobile],["Location", r.currentLocation],["Exp. Delivery", r.expectedDelivery],["ETA", r.eta]].map(([k,v]) => (
+                  <div key={k}><div style={{ fontSize:9, color:"#6b7280" }}>{k}</div><div style={{ fontSize:10, fontWeight:600, color:"#111" }}>{v||"—"}</div></div>
+                ))}
+              </div>
+              <button onClick={() => setActiveModal("track")} style={{ width:"100%", padding:"6px", background:"#059669", color:"#fff", border:"none", borderRadius:7, fontSize:11, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
+                <MapPin size={12}/> Track Shipment
+              </button>
+            </div>
+            <div style={{ padding:"10px 12px", background:"#fffbeb", borderRadius:10, border:"1px solid #fde68a" }}>
+              <div style={{ fontWeight:700, fontSize:12, color:"#92400e", marginBottom:8, display:"flex", alignItems:"center", gap:5 }}>
+                <CheckCircle size={13}/> QC Details
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:8 }}>
+                <div><div style={{ fontSize:9, color:"#6b7280" }}>QC Status</div><QCBadge s={r.qcStatus} /></div>
+                {[["QC By", r.qcStatus==="Completed"?"QC Team":"—"],["QC Date", r.qcStatus==="Completed"?r.createdOn:"—"],["Accepted Qty", r.qcStatus==="Completed"?r.returnQty:"—"],["Rejected Qty", r.qcStatus==="Completed"?"0":"—"],["Damage %", r.qcStatus==="Completed"?"0%":"—"]].map(([k,v]) => (
+                  <div key={k}><div style={{ fontSize:9, color:"#6b7280" }}>{k}</div><div style={{ fontSize:10, fontWeight:600, color:"#111" }}>{v}</div></div>
+                ))}
+              </div>
+              <button onClick={() => setActiveModal("qc")} style={{ width:"100%", padding:"6px", background:"#d97706", color:"#fff", border:"none", borderRadius:7, fontSize:11, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
+                <ClipboardList size={12}/> View QC Report
+              </button>
+            </div>
+          </div>
+
+          {/* Financial + Attachments + Activity */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
+            <div style={{ padding:"10px 12px", background:"#eff6ff", borderRadius:10, border:"1px solid #bfdbfe" }}>
+              <div style={{ fontWeight:700, fontSize:12, color:"#1e40af", marginBottom:8, display:"flex", alignItems:"center", gap:5 }}>
+                <DollarSign size={13}/> Financial
+              </div>
+              {[["Invoice Value", `₹ ${r.invoiceValue?.toLocaleString("en-IN")}`],["Return Value", `₹ ${r.returnValue?.toLocaleString("en-IN")}`],["Recoverable", `₹ ${r.recoverableAmt?.toLocaleString("en-IN")}`],["Recovered", `₹ ${r.recoveredAmt?.toLocaleString("en-IN")}`],["Debit Note", `₹ ${r.debitNote?.toLocaleString("en-IN")}`],["Credit Note", `₹ ${r.creditNote?.toLocaleString("en-IN")}`],["Pending", `₹ ${r.pendingAmt?.toLocaleString("en-IN")}`],["Closure", r.financialClosure]].map(([k,v],i) => (
+                <div key={k} style={{ display:"flex", justifyContent:"space-between", marginBottom:4, paddingBottom:4, borderBottom: i<7?"1px solid #dbeafe":"none" }}>
+                  <span style={{ fontSize:9, color:"#6b7280" }}>{k}</span>
+                  <span style={{ fontSize:9, fontWeight:700, color: k==="Pending" && r.pendingAmt>0 ? "#dc2626":"#111" }}>{v}</span>
+                </div>
+              ))}
+              <button onClick={() => setActiveModal("reconciliation")} style={{ width:"100%", marginTop:6, padding:"5px", background:"#1d4ed8", color:"#fff", border:"none", borderRadius:7, fontSize:10, fontWeight:700, cursor:"pointer" }}>
+                View Reconciliation
+              </button>
+            </div>
+
+            <div style={{ padding:"10px 12px", background:"#fff7ed", borderRadius:10, border:"1px solid #fed7aa" }}>
+              <div style={{ fontWeight:700, fontSize:12, color:"#c2410c", marginBottom:8, display:"flex", alignItems:"center", gap:5 }}>
+                <Paperclip size={13}/> Attachments
+              </div>
+              {ATTACHMENTS.map((a,i) => (
+                <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6, paddingBottom:6, borderBottom: i<3?"1px solid #fde68a":"none" }}>
+                  <div>
+                    <div style={{ fontSize:10, fontWeight:600, color:"#111", display:"flex", alignItems:"center", gap:4 }}><FileText size={11} color="#ea580c"/>{a.name}</div>
+                    <div style={{ fontSize:9, color:"#9ca3af" }}>{a.size}</div>
+                  </div>
+                  <button onClick={() => alert(`Downloading: ${a.name}`)} style={{ background:"none", border:"none", cursor:"pointer", color:"#ea580c", display:"flex" }}><Download size={14}/></button>
+                </div>
+              ))}
+              <button onClick={() => setActiveModal("attachments")} style={{ width:"100%", marginTop:2, padding:"5px", background:"#ea580c", color:"#fff", border:"none", borderRadius:7, fontSize:10, fontWeight:700, cursor:"pointer" }}>
+                View All Attachments
+              </button>
+            </div>
+
+            <div style={{ padding:"10px 12px", background:"#f5f3ff", borderRadius:10, border:"1px solid #ddd6fe" }}>
+              <div style={{ fontWeight:700, fontSize:12, color:"#6d28d9", marginBottom:8, display:"flex", alignItems:"center", gap:5 }}>
+                <Activity size={13}/> Activity Logs
+              </div>
+              {ACTIVITY_LOGS.map((a,i) => (
+                <div key={i} style={{ display:"flex", gap:7, marginBottom:8, paddingBottom:8, borderBottom: i<3?"1px solid #ddd6fe":"none" }}>
+                  <div style={{ width:22, height:22, borderRadius:"50%", background:a.color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:8, fontWeight:800, flexShrink:0 }}>{a.initials}</div>
+                  <div>
+                    <div style={{ fontSize:10, fontWeight:600, color:"#111" }}>{a.name}</div>
+                    <div style={{ fontSize:9, color:"#6b7280" }}>{a.detail}</div>
+                    <div style={{ fontSize:9, color:"#9ca3af" }}>{a.date}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ padding:"10px 14px", borderTop:"1px solid #e5e7eb", flexShrink:0 }}>
+          <button onClick={onMoveNext} disabled={!nextStage} style={{
+            width:"100%", padding:"10px", fontSize:13, fontWeight:800, border:"none", borderRadius:9, cursor: nextStage?"pointer":"not-allowed",
+            background: nextStage?"#dc2626":"#e5e7eb", color: nextStage?"#fff":"#9ca3af",
+            display:"flex", alignItems:"center", justifyContent:"center", gap:8
+          }}>
+            {nextStage ? <><ArrowRight size={15}/> Move to Next Stage → {STAGE_NAMES[nextStage]}</> : <><CheckCircle size={15}/> Return Completed</>}
           </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Create Return Modal ───────────────────────────────────────────────────────
+const EMPTY_FORM = {
+  supplierName:"", invoiceNo:"", productName:"", returnQty:1, value:"",
+  priority:"Medium", returnReason:"", pickupAddress:"", awbNo:"", vehicle:"",
+  transport:"", driverName:"", driverMobile:"", returnType:"Material Return",
+  stage:"Initiated", qcStatus:"Pending", finStatus:"Pending"
+};
+
+function CreateReturnModal({ onClose, onCreate }) {
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [errors, setErrors] = useState({});
+  const upd = (k,v) => { setForm(p=>({...p,[k]:v})); setErrors(e=>({...e,[k]:""})); };
+
+  const validate = () => {
+    const e = {};
+    if (!form.supplierName.trim()) e.supplierName = "Required";
+    if (!form.invoiceNo.trim()) e.invoiceNo = "Required";
+    if (!form.productName.trim()) e.productName = "Required";
+    if (!form.pickupAddress.trim()) e.pickupAddress = "Required";
+    return e;
+  };
+
+  const submit = () => {
+    const e = validate();
+    if (Object.keys(e).length) { setErrors(e); return; }
+    onCreate(form);
+  };
+
+  const inp = (style={}) => ({ style:{ width:"100%", padding:"7px 11px", border:"1px solid #d1d5db", borderRadius:8, fontSize:12, boxSizing:"border-box", ...style } });
+  const errStyle = { fontSize:10, color:"#dc2626", marginTop:2 };
+
+  return (
+    <Modal
+      title="Create New Material Return"
+      onClose={onClose}
+      footer={
+        <div style={{ display:"flex", justifyContent:"flex-end", gap:10 }}>
+          <button onClick={onClose} style={{ padding:"8px 20px", border:"1px solid #d1d5db", background:"#fff", borderRadius:8, fontSize:12, cursor:"pointer", fontWeight:600 }}>Cancel</button>
+          <button onClick={submit} style={{ padding:"8px 22px", background:"#dc2626", color:"#fff", border:"none", borderRadius:8, fontSize:12, fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>
+            <Plus size={13}/> Create Return
+          </button>
+        </div>
+      }
+    >
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
+        <div>
+          <label style={{ fontSize:11, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>MR ID <span style={{ color:"#9ca3af", fontWeight:400 }}>(Auto)</span></label>
+          <input disabled value="MR-2026-XXXX" {...inp({ background:"#f9fafb", color:"#9ca3af" })} />
+        </div>
+        <div>
+          <label style={{ fontSize:11, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>Docket ID <span style={{ color:"#9ca3af", fontWeight:400 }}>(Auto)</span></label>
+          <input disabled value="DKT-XXXXXX" {...inp({ background:"#f9fafb", color:"#9ca3af" })} />
+        </div>
+        <div>
+          <label style={{ fontSize:11, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>Invoice No *</label>
+          <input value={form.invoiceNo} onChange={e=>upd("invoiceNo",e.target.value)} placeholder="INV-2026-XXXX" {...inp(errors.invoiceNo?{borderColor:"#dc2626"}:{})} />
+          {errors.invoiceNo && <div style={errStyle}>{errors.invoiceNo}</div>}
+        </div>
+        <div>
+          <label style={{ fontSize:11, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>Supplier Name *</label>
+          <input value={form.supplierName} onChange={e=>upd("supplierName",e.target.value)} placeholder="Enter supplier name" {...inp(errors.supplierName?{borderColor:"#dc2626"}:{})} />
+          {errors.supplierName && <div style={errStyle}>{errors.supplierName}</div>}
+        </div>
+        <div>
+          <label style={{ fontSize:11, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>Product Name *</label>
+          <input value={form.productName} onChange={e=>upd("productName",e.target.value)} placeholder="Enter product name" {...inp(errors.productName?{borderColor:"#dc2626"}:{})} />
+          {errors.productName && <div style={errStyle}>{errors.productName}</div>}
+        </div>
+        <div>
+          <label style={{ fontSize:11, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>Return Qty</label>
+          <input type="number" min="1" value={form.returnQty} onChange={e=>upd("returnQty",e.target.value)} {...inp()} />
+        </div>
+        <div>
+          <label style={{ fontSize:11, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>Stage</label>
+          <select value={form.stage} onChange={e=>upd("stage",e.target.value)} style={{ width:"100%", padding:"7px 11px", border:"1px solid #d1d5db", borderRadius:8, fontSize:12, background:"#fff" }}>
+            {STAGE_FLOW.map(s => <option key={s} value={s}>{STAGE_NAMES[s]}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize:11, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>QC Status</label>
+          <select value={form.qcStatus} onChange={e=>upd("qcStatus",e.target.value)} style={{ width:"100%", padding:"7px 11px", border:"1px solid #d1d5db", borderRadius:8, fontSize:12, background:"#fff" }}>
+            {["Pending","In_Progress","Completed","Failed"].map(s => <option key={s} value={s}>{s.replace(/_/g," ")}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize:11, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>Financial Status</label>
+          <select value={form.finStatus} onChange={e=>upd("finStatus",e.target.value)} style={{ width:"100%", padding:"7px 11px", border:"1px solid #d1d5db", borderRadius:8, fontSize:12, background:"#fff" }}>
+            {["Pending","Partial","Reconciled","Written_Off"].map(s => <option key={s} value={s}>{s.replace(/_/g," ")}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize:11, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>Priority</label>
+          <select value={form.priority} onChange={e=>upd("priority",e.target.value)} style={{ width:"100%", padding:"7px 11px", border:"1px solid #d1d5db", borderRadius:8, fontSize:12, background:"#fff" }}>
+            {["Low","Medium","High"].map(s => <option key={s}>{s}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize:11, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>Value (₹)</label>
+          <input type="number" min="0" value={form.value} onChange={e=>upd("value",e.target.value)} placeholder="0" {...inp()} />
+        </div>
+        <div>
+          <label style={{ fontSize:11, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>Return Type</label>
+          <select value={form.returnType} onChange={e=>upd("returnType",e.target.value)} style={{ width:"100%", padding:"7px 11px", border:"1px solid #d1d5db", borderRadius:8, fontSize:12, background:"#fff" }}>
+            {["Material Return","Damaged","Wrong Item","Excess Qty","Quality Issue"].map(s => <option key={s}>{s}</option>)}
+          </select>
+        </div>
+        <div style={{ gridColumn:"1/-1" }}>
+          <label style={{ fontSize:11, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>Return Reason</label>
+          <textarea value={form.returnReason} onChange={e=>upd("returnReason",e.target.value)} rows={2} placeholder="Describe the reason for return..." style={{ width:"100%", padding:"7px 11px", border:"1px solid #d1d5db", borderRadius:8, fontSize:12, resize:"none", boxSizing:"border-box" }} />
+        </div>
+        <div style={{ gridColumn:"1/-1" }}>
+          <label style={{ fontSize:11, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>Pickup Address *</label>
+          <textarea value={form.pickupAddress} onChange={e=>upd("pickupAddress",e.target.value)} rows={2} placeholder="Full pickup address..." style={{ width:"100%", padding:"7px 11px", border:"1px solid #d1d5db", borderRadius:8, fontSize:12, resize:"none", boxSizing:"border-box", ...(errors.pickupAddress?{borderColor:"#dc2626"}:{}) }} />
+          {errors.pickupAddress && <div style={errStyle}>{errors.pickupAddress}</div>}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ── Analytics Charts ──────────────────────────────────────────────────────────
+function TrendChart() {
+  const pts = [12,18,14,22,19,28];
+  const labels = ["Dec","Jan","Feb","Mar","Apr","May"];
+  const max = 32, w = 260, h = 110, px = 28, py = 18;
+  const cx = (i) => px + i*((w-px*2)/5);
+  const cy = (v) => h - py - (v/max)*(h-py*2);
+  const path = pts.map((v,i) => (i===0?"M":"L")+cx(i)+","+cy(v)).join(" ");
+  return (
+    <svg width={w} height={h+20} style={{ overflow:"visible" }}>
+      {[0,10,20,30].map(v => <line key={v} x1={px} y1={cy(v)} x2={w-px} y2={cy(v)} stroke="#f3f4f6" strokeWidth={1}/>)}
+      {labels.map((l,i) => <text key={l} x={cx(i)} y={h+12} fontSize={9} fill="#9ca3af" textAnchor="middle">{l}</text>)}
+      <path d={path} fill="none" stroke="#ef4444" strokeWidth={2}/>
+      <path d={path+` L${cx(5)},${h-py} L${cx(0)},${h-py} Z`} fill="#ef4444" opacity={0.1}/>
+      {pts.map((v,i) => <circle key={i} cx={cx(i)} cy={cy(v)} r={3} fill="#ef4444"/>)}
+    </svg>
+  );
+}
+
+function DonutChart() {
+  const data = [["In Transit",25,"#3b82f6"],["Pending QC",17,"#f59e0b"],["Received",21,"#10b981"],["Closed",29,"#8b5cf6"],["Others",8,"#6b7280"]];
+  let angle = -90;
+  const r=44, cx=60, cy=60;
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+      <svg width={120} height={120}>
+        {data.map(([,pct,color],i) => {
+          const sweep = (pct/100)*360, a1=angle*Math.PI/180, a2=(angle+sweep)*Math.PI/180;
+          const x1=cx+r*Math.cos(a1), y1=cy+r*Math.sin(a1), x2=cx+r*Math.cos(a2), y2=cy+r*Math.sin(a2);
+          const p=`M${cx},${cy} L${x1},${y1} A${r},${r},0,${sweep>180?1:0},1,${x2},${y2} Z`;
+          angle += sweep;
+          return <path key={i} d={p} fill={color} opacity={0.85}/>;
+        })}
+        <circle cx={cx} cy={cy} r={28} fill="#fff"/>
+        <text x={cx} y={cy-3} textAnchor="middle" fontSize={15} fontWeight={800} fill="#111">24</text>
+        <text x={cx} y={cy+11} textAnchor="middle" fontSize={8} fill="#6b7280">Total</text>
+      </svg>
+      <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+        {data.map(([label,pct,color],i) => (
+          <div key={i} style={{ display:"flex", alignItems:"center", gap:5, fontSize:10 }}>
+            <div style={{ width:8, height:8, borderRadius:2, background:color, flexShrink:0 }}/>
+            <span style={{ color:"#374151" }}>{label}</span>
+            <span style={{ color:"#9ca3af" }}>{pct}%</span>
+          </div>
         ))}
       </div>
+    </div>
+  );
+}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <button onClick={() => setShowCreate(true)} style={{
-          padding: '8px 18px', borderRadius: 10, background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
-          color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-        }}>+ Create Return</button>
+function HBarChart() {
+  const data = [["ABC Suppliers",8,"#ef4444"],["XYZ Industries",6,"#f97316"],["Prime Components",4,"#3b82f6"],["Global Components",3,"#10b981"],["Tech Solutions",3,"#8b5cf6"]];
+  const max = 8;
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+      {data.map(([name,v,color],i) => (
+        <div key={i} style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <div style={{ fontSize:10, color:"#374151", width:100, textAlign:"right", flexShrink:0, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{name}</div>
+          <div style={{ flex:1, background:"#f3f4f6", borderRadius:4, height:13 }}>
+            <div style={{ width:`${(v/max)*100}%`, background:color, height:"100%", borderRadius:4 }}/>
+          </div>
+          <div style={{ fontSize:10, fontWeight:700, color:"#374151", width:14 }}>{v}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LossChart() {
+  const h=110, pad=20, max=200000;
+  const lH=(24500/max)*(h-pad), rH=(145230/max)*(h-pad);
+  return (
+    <svg width={160} height={h+28}>
+      {[0,50,100,150,200].map((v,i)=><text key={i} x={2} y={h-pad-(v/200)*(h-pad)+4} fontSize={7} fill="#9ca3af">₹{v}K</text>)}
+      <rect x={32} y={h-pad-lH} width={40} height={lH} fill="#ef4444" rx={3}/>
+      <text x={52} y={h-pad-lH-5} textAnchor="middle" fontSize={8} fontWeight={700} fill="#ef4444">₹24.5K</text>
+      <rect x={88} y={h-pad-rH} width={40} height={rH} fill="#10b981" rx={3}/>
+      <text x={108} y={h-pad-rH-5} textAnchor="middle" fontSize={8} fontWeight={700} fill="#10b981">₹1.45L</text>
+      <text x={52} y={h+16} textAnchor="middle" fontSize={8} fill="#6b7280">Loss</text>
+      <text x={108} y={h+16} textAnchor="middle" fontSize={8} fill="#6b7280">Recovered</text>
+    </svg>
+  );
+}
+
+// ── Pagination ────────────────────────────────────────────────────────────────
+function Pagination({ page, totalPages, pageSize, totalEntries, onPageChange, onPageSizeChange }) {
+  const getPages = () => {
+    if (totalPages <= 7) return Array.from({length: totalPages}, (_,i) => i+1);
+    const pages = [1];
+    if (page > 3) pages.push("...");
+    for (let i = Math.max(2, page-1); i <= Math.min(totalPages-1, page+1); i++) pages.push(i);
+    if (page < totalPages-2) pages.push("...");
+    pages.push(totalPages);
+    return pages;
+  };
+
+  const from = totalEntries === 0 ? 0 : (page-1)*pageSize+1;
+  const to = Math.min(page*pageSize, totalEntries);
+
+  return (
+    <div style={{ padding:"10px 14px", borderTop:"1px solid #e5e7eb", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0, flexWrap:"wrap", gap:8 }}>
+      <span style={{ fontSize:11, color:"#6b7280", whiteSpace:"nowrap" }}>
+        {totalEntries === 0 ? "No entries" : `Showing ${from}–${to} of ${totalEntries} entries`}
+      </span>
+
+      <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+        {/* Prev */}
+        <button
+          onClick={() => onPageChange(Math.max(1, page-1))}
+          disabled={page === 1}
+          style={{ display:"flex", alignItems:"center", justifyContent:"center", width:30, height:30, border:"1px solid #e5e7eb", borderRadius:7, background: page===1?"#f9fafb":"#fff", cursor: page===1?"not-allowed":"pointer", color: page===1?"#d1d5db":"#374151" }}
+        >
+          <ChevronLeft size={14}/>
+        </button>
+
+        {/* Page numbers */}
+        {getPages().map((p, i) =>
+          p === "..." ? (
+            <span key={`dots-${i}`} style={{ width:30, textAlign:"center", fontSize:12, color:"#9ca3af", userSelect:"none" }}>…</span>
+          ) : (
+            <button
+              key={p}
+              onClick={() => onPageChange(p)}
+              style={{
+                width:30, height:30, border: p===page?"2px solid #dc2626":"1px solid #e5e7eb",
+                borderRadius:7, background: p===page?"#dc2626":"#fff",
+                color: p===page?"#fff":"#374151", fontSize:12,
+                fontWeight: p===page?800:400, cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center"
+              }}
+            >
+              {p}
+            </button>
+          )
+        )}
+
+        {/* Next */}
+        <button
+          onClick={() => onPageChange(Math.min(totalPages, page+1))}
+          disabled={page === totalPages || totalPages === 0}
+          style={{ display:"flex", alignItems:"center", justifyContent:"center", width:30, height:30, border:"1px solid #e5e7eb", borderRadius:7, background: page===totalPages||totalPages===0?"#f9fafb":"#fff", cursor: page===totalPages||totalPages===0?"not-allowed":"pointer", color: page===totalPages||totalPages===0?"#d1d5db":"#374151" }}
+        >
+          <ChevronRight size={14}/>
+        </button>
+
+        {/* Page size selector */}
+        <div style={{ display:"flex", alignItems:"center", gap:5, marginLeft:8 }}>
+          <span style={{ fontSize:11, color:"#6b7280", whiteSpace:"nowrap" }}>Rows:</span>
+          <select
+            value={pageSize}
+            onChange={e => onPageSizeChange(Number(e.target.value))}
+            style={{ padding:"4px 8px", border:"1px solid #e5e7eb", borderRadius:7, fontSize:11, background:"#fff", cursor:"pointer", height:30 }}
+          >
+            {[5,10,20,50].map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
+export default function MaterialReturnsPage() {
+  const [returns, setReturns] = useState(INIT_RETURNS.map(normalizeMaterialReturn));
+  const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState({ supplier:"", stage:"", qcStatus:"", finStatus:"", returnType:"" });
+  const [showCreate, setShowCreate] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const loadReturns = async () => {
+    setLoading(true);
+    try {
+      const response = await materialReturnApi.getAll();
+      const data = (response.data || []).map(normalizeMaterialReturn);
+      setReturns(data.length ? data : INIT_RETURNS.map(normalizeMaterialReturn));
+    } catch {
+      setReturns(INIT_RETURNS.map(normalizeMaterialReturn));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadReturns(); }, []);
+
+  const showToast = (msg, type="success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const filtered = useMemo(() => returns.filter(r => {
+    if (search) {
+      const t = search.toLowerCase();
+      if (![r.mrId,r.supplierName,r.productName,r.invoiceNo,r.docketId].some(v=>v?.toLowerCase().includes(t))) return false;
+    }
+    if (filters.supplier && r.supplierName !== filters.supplier) return false;
+    if (filters.stage && r.stage !== filters.stage) return false;
+    if (filters.qcStatus && r.qcStatus !== filters.qcStatus) return false;
+    if (filters.finStatus && r.finStatus !== filters.finStatus) return false;
+    if (filters.returnType && r.returnType !== filters.returnType) return false;
+    return true;
+  }), [returns, search, filters]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginated = filtered.slice((page-1)*pageSize, page*pageSize);
+
+  const setFilter = (k,v) => { setFilters(p=>({...p,[k]:v})); setPage(1); };
+  const setSearchReset = (v) => { setSearch(v); setPage(1); };
+
+  const kpis = {
+    total: returns.length,
+    inTransit: returns.filter(r=>r.stage==="In_Transit").length,
+    pendingQC: returns.filter(r=>r.qcStatus==="Pending").length,
+    finPending: returns.filter(r=>r.finStatus==="Pending").length,
+    closed: returns.filter(r=>r.stage==="Closed").length,
+    critical: returns.filter(r=>r.priority==="High"&&r.stage!=="Closed").length,
+  };
+
+  const kpiCards = [
+    { label:"Total Returns", val:kpis.total, sub:"All time", color:"#dc2626", bg:"#fee2e2", Icon:Package },
+    { label:"In Transit", val:kpis.inTransit, sub:"Currently moving", color:"#1d4ed8", bg:"#dbeafe", Icon:Truck },
+    { label:"Pending QC", val:kpis.pendingQC, sub:"Awaiting check", color:"#7c3aed", bg:"#ede9fe", Icon:Search },
+    { label:"Financial Pending", val:kpis.finPending, sub:"Awaiting closure", color:"#92400e", bg:"#fef3c7", Icon:DollarSign },
+    { label:"Recovered Amount", val:"₹1,45,230", sub:"This month", color:"#065f46", bg:"#d1fae5", Icon:CheckCircle },
+    { label:"Loss Amount", val:"₹24,500", sub:"This month", color:"#991b1b", bg:"#fee2e2", Icon:AlertTriangle },
+    { label:"Closed Returns", val:kpis.closed, sub:"Completed", color:"#059669", bg:"#d1fae5", Icon:CheckSquare },
+    { label:"Critical Returns", val:kpis.critical, sub:"High priority open", color:"#c2410c", bg:"#ffedd5", Icon:XCircle },
+  ];
+
+  const handleMoveNext = () => {
+    if (!selected) return;
+    const ci = STAGE_FLOW.indexOf(selected.stage);
+    if (ci < STAGE_FLOW.length - 1) {
+      const ns = STAGE_FLOW[ci+1];
+      setReturns(p => p.map(r => r.mrId===selected.mrId ? {...r, stage:ns} : r));
+      setSelected(p => ({...p, stage:ns}));
+      showToast(`✓ Moved to ${STAGE_NAMES[ns]}`);
+    }
+  };
+
+  const handleCreate = async (form) => {
+    const val = parseInt(form.value)||0;
+    const nr = {
+      ...form,
+      mrId:`MR-2026-${String(returns.length+25).padStart(4,"0")}`,
+      docketId:`DKT-${Math.floor(Math.random()*900000)+100000}`,
+      returnQty: parseInt(form.returnQty)||1,
+      value: val, invoiceValue:val, returnValue:val,
+      recoverableAmt:val, recoveredAmt:0, debitNote:0, creditNote:0, pendingAmt:val,
+      financialClosure:"No", recoveryStatus:"Pending",
+      awbNo:"—", vehicle:"—", transport:"—", driverName:"—", driverMobile:"—",
+      currentLocation:"—", expectedDelivery:"—", eta:"—",
+      createdOn:"16 May 2026", createdBy:"Current User",
+    };
+    try {
+      const response = await materialReturnApi.create(nr);
+      setReturns(p => [normalizeMaterialReturn(response.data || nr),...p]);
+    } catch {
+      setReturns(p => [normalizeMaterialReturn(nr),...p]);
+    }
+    setShowCreate(false);
+    setPage(1);
+    showToast("✓ Material Return created successfully!");
+  };
+
+  const handleExportAll = () => {
+    const headers = "MR ID,Docket ID,Invoice No,Supplier,Product,Qty,Stage,QC Status,Fin Status,Priority,Value";
+    const rows = filtered.map(r => [r.mrId,r.docketId,r.invoiceNo,r.supplierName,r.productName,r.returnQty,r.stage,r.qcStatus,r.finStatus,r.priority,r.value].join(","));
+    const blob = new Blob([[headers,...rows].join("\n")], {type:"text/csv"});
+    const a = document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="material_returns.csv"; a.click();
+    showToast("✓ CSV exported successfully!");
+  };
+
+  const handleRefresh = () => {
+    setSearch(""); setFilters({ supplier:"", stage:"", qcStatus:"", finStatus:"", returnType:"" }); setPage(1); loadReturns();
+    showToast("✓ Filters cleared & refreshed!");
+  };
+
+  const uniqueSuppliers = [...new Set(returns.map(r=>r.supplierName))];
+
+  return (
+    <div style={{ padding:20, background:"#f8fafc", minHeight:"100vh", fontFamily:"system-ui,-apple-system,sans-serif" }}>
+
+      {/* Toast */}
+      {toast && (
+        <div style={{ position:"fixed", top:18, right:18, zIndex:9999, padding:"10px 18px", background: toast.type==="success"?"#059669":"#dc2626", color:"#fff", borderRadius:10, fontWeight:700, fontSize:13, boxShadow:"0 4px 20px rgba(0,0,0,0.2)" }}>
+          {toast.msg}
+        </div>
+      )}
+
+      {/* Header */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+        <div>
+          <h1 style={{ fontWeight:800, fontSize:20, color:"#111", margin:0 }}>Material Returns</h1>
+          <p style={{ color:"#6b7280", margin:"4px 0 0", fontSize:12 }}>Create and manage material return requests across your supply chain</p>
+        </div>
+        <div style={{ display:"flex", gap:8 }}>
+          <button onClick={handleExportAll} style={{ padding:"7px 14px", border:"1px solid #e5e7eb", background:"#fff", borderRadius:8, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:5, color:"#374151", fontWeight:600 }}>
+            <Download size={13}/> Export
+          </button>
+          <button onClick={handleRefresh} style={{ padding:"7px 14px", border:"1px solid #e5e7eb", background:"#fff", borderRadius:8, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:5, color:"#374151", fontWeight:600 }}>
+            <RefreshCw size={13}/> Refresh
+          </button>
+          <button onClick={() => setShowCreate(true)} style={{ padding:"7px 16px", background:"#dc2626", color:"#fff", border:"none", borderRadius:8, fontSize:13, fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", gap:6, boxShadow:"0 2px 8px rgba(220,38,38,0.3)" }}>
+            <Plus size={14}/> Create Return
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-        {kpis.map((k, i) => (
-          <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <div className="text-2xl font-black tracking-tight" style={{ color: k.color }}>{k.value}</div>
-            <div className="text-xs text-gray-500 font-medium mt-1">{k.label}</div>
+      {/* Filter Bar */}
+      <div style={{ background:"#fff", borderRadius:12, border:"1px solid #e5e7eb", padding:"10px 14px", marginBottom:16, display:"flex", flexWrap:"wrap", gap:8, alignItems:"center" }}>
+        {[
+          { label:"Supplier", key:"supplier", opts: uniqueSuppliers },
+          { label:"Stage", key:"stage", opts: STAGE_FLOW, names: STAGE_NAMES },
+          { label:"QC Status", key:"qcStatus", opts:["Pending","In_Progress","Completed","Failed"] },
+          { label:"Financial Status", key:"finStatus", opts:["Pending","Partial","Reconciled","Written_Off"] },
+          { label:"Return Type", key:"returnType", opts:["Material Return","Damaged","Wrong Item","Excess Qty","Quality Issue"] },
+        ].map(f => (
+          <select key={f.key} value={filters[f.key]} onChange={e=>setFilter(f.key,e.target.value)}
+            style={{ padding:"6px 10px", border:"1px solid #e5e7eb", borderRadius:8, fontSize:12, background:"#fff", color: filters[f.key]?"#111":"#6b7280" }}>
+            <option value="">All {f.label}s</option>
+            {f.opts.map(o => <option key={o} value={o}>{f.names?f.names[o]:o.replace(/_/g," ")}</option>)}
+          </select>
+        ))}
+        <div style={{ flex:1, minWidth:200, position:"relative" }}>
+          <Search size={13} style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:"#9ca3af" }}/>
+          <input value={search} onChange={e=>setSearchReset(e.target.value)} placeholder="Search MR ID, Invoice, Product, Supplier..."
+            style={{ width:"100%", paddingLeft:28, paddingRight:10, paddingTop:6, paddingBottom:6, border:"1px solid #e5e7eb", borderRadius:8, fontSize:12, boxSizing:"border-box" }} />
+        </div>
+        {(search || Object.values(filters).some(v=>v)) && (
+          <button onClick={handleRefresh} style={{ padding:"6px 12px", background:"#fee2e2", color:"#dc2626", border:"1px solid #fca5a5", borderRadius:8, fontSize:12, cursor:"pointer", fontWeight:700, display:"flex", alignItems:"center", gap:4 }}>
+            <X size={12}/> Clear
+          </button>
+        )}
+      </div>
+
+      {/* KPI Cards */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(8,1fr)", gap:10, marginBottom:16 }}>
+        {kpiCards.map((k,i) => (
+          <div key={i} style={{ background:"#fff", borderRadius:10, padding:"12px", border:"1px solid #f3f4f6" }}>
+            <div style={{ width:34, height:34, borderRadius:8, background:k.bg, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:8 }}>
+              <k.Icon size={16} color={k.color}/>
+            </div>
+            <div style={{ fontSize:10, color:"#6b7280", marginBottom:2 }}>{k.label}</div>
+            <div style={{ fontSize:19, fontWeight:800, color: k.color, lineHeight:1 }}>{k.val}</div>
+            <div style={{ fontSize:10, color:"#9ca3af", marginTop:3 }}>{k.sub}</div>
           </div>
         ))}
       </div>
 
-      {/* Tab Content */}
-      {activeTab === 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <div className="text-sm font-bold text-gray-800 mb-3.5">Return Requests</div>
-            {returns.length === 0 ? (
-              <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>No returns yet. Create one to get started.</div>
-            ) : (
-              <div className="overflow-x-auto rounded-xl border border-gray-200">
-                <table className="w-full">
-                  <thead>
-                    <tr>{['MR ID', 'Docket', 'Supplier', 'Stage', 'Value'].map(h => (
-                      <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
-                    ))}</tr>
-                  </thead>
-                  <tbody>
-                    {returns.map((r, i) => (
-                      <tr key={i} onClick={() => setSelected(r)}
-                        className={`border-b border-gray-50 last:border-0 cursor-pointer transition-colors ${selected?._id === r._id ? 'bg-red-50/60' : 'hover:bg-red-50/40'}`}>
-                        <td className="px-4 py-3 font-semibold text-red-700">{r.mrId}</td>
-                        <td className="px-4 py-3 font-mono text-[11px]">{r.docketId}</td>
-                        <td className="px-4 py-3 font-semibold">{r.supplierName}</td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ background: stageColor[r.stage] }}>{r.stage}</span>
-                        </td>
-                        <td className="px-4 py-3 font-bold">₹{(r.value || 0).toLocaleString('en-IN')}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+      {/* Table + Detail Panel */}
+      <div style={{ display:"grid", gridTemplateColumns: selected ? "1fr 1fr" : "1fr", gap:14, marginBottom:16 }}>
+
+        {/* Table Card */}
+        <div style={{ background:"#fff", borderRadius:12, border:"1px solid #e5e7eb", overflow:"hidden", display:"flex", flexDirection:"column" }}>
+          <div style={{ padding:"10px 14px", borderBottom:"1px solid #e5e7eb", background:"#fafafa", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <span style={{ fontWeight:800, fontSize:14, color:"#111" }}>
+              Material Returns <span style={{ color:"#dc2626" }}>({filtered.length})</span>
+            </span>
+            <span style={{ fontSize:11, color:"#6b7280" }}>
+              Page {page} of {totalPages}
+            </span>
           </div>
 
-          {selected && (
-            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-        <div className="flex items-center mb-6 overflow-x-auto pb-1">
-                {STAGES.map((s, i) => {
-                  const cur = stageIdx(selected.stage);
-                  const done = i < cur; const active = i === cur;
-                  return (
-                    <div key={s} className="flex items-center flex-shrink-0">
-                      <div className="flex flex-col items-center">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 ${done ? 'bg-green-500 border-green-500 text-white' : active ? 'border-red-600 text-red-700 bg-red-50' : 'border-gray-200 text-gray-400 bg-white'}`}>
-                          {done ? '✓' : i + 1}
-                        </div>
-                        <div className={`text-[10px] mt-1 font-semibold whitespace-nowrap ${active ? 'text-red-700' : done ? 'text-green-600' : 'text-gray-400'}`}>{s}</div>
+          <div style={{ overflowX:"auto", flex:1 }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+              <thead>
+                <tr style={{ background:"#f9fafb" }}>
+                  {["MR ID","Docket ID","Invoice No","Supplier","Product","Qty","Stage","QC Status","Fin. Status","Priority","Value","Actions"].map(h => (
+                    <th key={h} style={{ padding:"8px 10px", textAlign:"left", color:"#6b7280", fontWeight:700, fontSize:10, borderBottom:"1px solid #e5e7eb", whiteSpace:"nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {paginated.length === 0 ? (
+                  <tr><td colSpan={12} style={{ padding:"30px", textAlign:"center", color:"#9ca3af", fontSize:13 }}>{loading ? "Loading material returns..." : "No material returns found"}</td></tr>
+                ) : paginated.map((r) => (
+                  <tr key={r.mrId}
+                    onClick={() => setSelected(p => p?.mrId===r.mrId ? null : r)}
+                    style={{ borderBottom:"1px solid #f3f4f6", cursor:"pointer", background: selected?.mrId===r.mrId?"#fef2f2":"transparent" }}
+                    onMouseEnter={e => { if(selected?.mrId!==r.mrId) e.currentTarget.style.background="#f9fafb"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = selected?.mrId===r.mrId?"#fef2f2":"transparent"; }}>
+                    <td style={{ padding:"8px 10px", fontWeight:800, color:"#dc2626", whiteSpace:"nowrap", fontSize:11 }}>{r.mrId}</td>
+                    <td style={{ padding:"8px 10px", fontFamily:"monospace", fontSize:10, color:"#6b7280", whiteSpace:"nowrap" }}>{r.docketId}</td>
+                    <td style={{ padding:"8px 10px", fontFamily:"monospace", fontSize:10, color:"#6b7280", whiteSpace:"nowrap" }}>{r.invoiceNo}</td>
+                    <td style={{ padding:"8px 10px", whiteSpace:"nowrap", fontSize:11 }}>{r.supplierName}</td>
+                    <td style={{ padding:"8px 10px", whiteSpace:"nowrap", fontSize:11 }}>{r.productName}</td>
+                    <td style={{ padding:"8px 10px", fontWeight:700, textAlign:"center", fontSize:11 }}>{r.returnQty}</td>
+                    <td style={{ padding:"8px 10px" }}><StageBadge stage={r.stage} /></td>
+                    <td style={{ padding:"8px 10px" }}><QCBadge s={r.qcStatus} /></td>
+                    <td style={{ padding:"8px 10px" }}><FinBadge s={r.finStatus} /></td>
+                    <td style={{ padding:"8px 10px" }}><PriBadge s={r.priority} /></td>
+                    <td style={{ padding:"8px 10px", fontWeight:700, whiteSpace:"nowrap", fontSize:11 }}>₹{r.value?.toLocaleString("en-IN")}</td>
+                    <td style={{ padding:"8px 10px" }}>
+                      <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+                        <button onClick={e=>{e.stopPropagation();setSelected(r);}} title="View" style={{ background:"none", border:"none", cursor:"pointer", color:"#3b82f6", display:"flex", padding:3 }}><Eye size={14}/></button>
+                        <button onClick={e=>{e.stopPropagation();showToast("Edit coming soon!");}} title="Edit" style={{ background:"none", border:"none", cursor:"pointer", color:"#6b7280", display:"flex", padding:3 }}><Pencil size={13}/></button>
+                        <button onClick={e=>{e.stopPropagation();showToast("More options coming soon!");}} title="More" style={{ background:"none", border:"none", cursor:"pointer", color:"#6b7280", display:"flex", padding:3 }}><MoreHorizontal size={14}/></button>
                       </div>
-                      {i < STAGES.length - 1 && <div className={`h-0.5 w-8 mx-1 rounded ${i < cur ? 'bg-green-400' : 'bg-gray-200'}`} />}
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="grid grid-cols-2 gap-2.5 mb-4">
-                {[['Docket ID', selected.docketId], ['Supplier', selected.supplierName], ['Items', selected.items], ['Value', `₹${(selected.value||0).toLocaleString('en-IN')}`], ['Transport', selected.transport || '—'], ['AWB No.', selected.awbNo || '—'], ['Debit Note', selected.debitNoteId || '—'], ['Credit Note', selected.creditNoteId || 'Not issued']].map(([k, v]) => (
-                  <div key={k} className="bg-gray-50 rounded-lg p-2.5">
-                    <div className="text-[10px] text-gray-500 mb-0.5">{k}</div>
-                    <div className="text-sm font-semibold">{v}</div>
-                  </div>
+                    </td>
+                  </tr>
                 ))}
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                {STAGES.indexOf(selected.stage) < STAGES.length - 1 && (
-                  <button onClick={() => handleStageUpdate(selected._id, STAGES[stageIdx(selected.stage) + 1])}
-                    className="flex-1 px-3 py-2 text-xs rounded-lg bg-gradient-to-br from-amber-300 to-amber-500 text-white font-semibold border-0 cursor-pointer font-[inherit]">
-                    → Move to {STAGES[stageIdx(selected.stage) + 1]}
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination Component */}
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalEntries={filtered.length}
+            onPageChange={setPage}
+            onPageSizeChange={(n) => { setPageSize(n); setPage(1); }}
+          />
         </div>
-      )}
 
-      
-      {activeTab === 2 && (
-        <DocketTrackingPage />
-      )}
-
-
-     
-
-      {/* Create Modal */}
-      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="New Material Return"
-        footer={<>
-          <button className="btn btn-outline" onClick={() => setShowCreate(false)} disabled={saving}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleCreate} disabled={saving}>{saving ? 'Saving...' : 'Submit'}</button>
-        </>}>
-        <div className="grid grid-cols-2 gap-4">
-          {[
-            ['Supplier *', 'supplierName', 'text', 'Supplier name'], 
-            ['Invoice Number *', 'invoiceNo', 'text', 'Invoice number'],
-            ['Product Name *', 'productName', 'text', 'Product name'], 
-            ['Return Qty', 'returnQty', 'number', '1'],
-            ['No. of Items', 'items', 'number', '1'], 
-            ['Return Value (₹)', 'value', 'number', '0'], 
-            ['Transport', 'transport', 'text', 'Courier name'], 
-            ['AWB / Tracking No.', 'awbNo', 'text', 'AWB number']
-          ].map(([label, key, type, ph]) => (
-            <div key={key} className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-gray-600">{label}</label>
-              <input type={type} className="form-input" placeholder={ph} value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))} />
-            </div>
-          ))}
-          <div className="flex flex-col gap-1.5 col-span-2">
-            <label className="text-xs font-semibold text-gray-600">Pickup Address *</label>
-            <textarea className="form-input" rows={2} placeholder="Complete pickup address..." value={form.pickupAddress} onChange={e => setForm(p => ({ ...p, pickupAddress: e.target.value }))} />
+        {/* Detail Panel */}
+        {selected && (
+          <div style={{ minHeight:400 }}>
+            <DetailPanel r={selected} onClose={() => setSelected(null)} onMoveNext={handleMoveNext} />
           </div>
-          <div className="flex flex-col gap-1.5 col-span-2">
-            <label className="text-xs font-semibold text-gray-600">Reason *</label>
-            <textarea className="form-input" rows={2} placeholder="Reason for return..." value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))} />
+        )}
+      </div>
+
+      {/* Analytics */}
+      <div style={{ background:"#fff", borderRadius:12, border:"1px solid #e5e7eb", padding:"14px 18px" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+          <span style={{ fontWeight:800, fontSize:14, color:"#111", display:"flex", alignItems:"center", gap:6 }}>
+            <BarChart2 size={15} color="#dc2626"/> Returns Analytics
+          </span>
+          <select style={{ padding:"5px 10px", border:"1px solid #e5e7eb", borderRadius:8, fontSize:12 }}>
+            <option>This Month</option><option>Last Month</option><option>Last 6 Months</option>
+          </select>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:18 }}>
+          <div>
+            <div style={{ fontWeight:700, fontSize:12, color:"#111", marginBottom:2, display:"flex", alignItems:"center", gap:5 }}><TrendingUp size={12} color="#ef4444"/> Returns Trend</div>
+            <div style={{ fontSize:10, color:"#9ca3af", marginBottom:8 }}>Last 6 months</div>
+            <TrendChart />
           </div>
-          <div className="flex flex-col gap-1.5 col-span-2">
-            <label className="text-xs font-semibold text-gray-600">Attachments (Optional)</label>
-            <input 
-              type="file" 
-              className="form-input" 
-              multiple 
-              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-              onChange={e => setForm(p => ({ ...p, attachments: Array.from(e.target.files) }))} 
-            />
-            <div className="text-xs text-gray-500">Upload invoice, photos, or supporting documents (PDF, Images, Word docs)</div>
-            {form.attachments && form.attachments.length > 0 && (
-              <div className="mt-2">
-                <div className="text-xs font-semibold text-gray-600 mb-1">Selected Files:</div>
-                {form.attachments.map((file, index) => (
-                  <div key={index} className="text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded mb-1">
-                    {file.name} ({(file.size / 1024).toFixed(1)} KB)
-                  </div>
-                ))}
-              </div>
-            )}
+          <div>
+            <div style={{ fontWeight:700, fontSize:12, color:"#111", marginBottom:2, display:"flex", alignItems:"center", gap:5 }}><Layers size={12} color="#3b82f6"/> Returns by Stage</div>
+            <div style={{ fontSize:10, color:"#9ca3af", marginBottom:8 }}>This month</div>
+            <DonutChart />
+          </div>
+          <div>
+            <div style={{ fontWeight:700, fontSize:12, color:"#111", marginBottom:2, display:"flex", alignItems:"center", gap:5 }}><BarChart2 size={12} color="#10b981"/> Top Returns by Supplier</div>
+            <div style={{ fontSize:10, color:"#9ca3af", marginBottom:12 }}>This month</div>
+            <HBarChart />
+          </div>
+          <div>
+            <div style={{ fontWeight:700, fontSize:12, color:"#111", marginBottom:2, display:"flex", alignItems:"center", gap:5 }}><DollarSign size={12} color="#8b5cf6"/> Loss vs Recovered</div>
+            <div style={{ fontSize:10, color:"#9ca3af", marginBottom:8 }}>This month</div>
+            <LossChart />
           </div>
         </div>
-      </Modal>
+      </div>
+
+      {showCreate && <CreateReturnModal onClose={() => setShowCreate(false)} onCreate={handleCreate} />}
     </div>
   );
 }

@@ -6,6 +6,7 @@ const handle = async (res) => { const d = await res.json(); if (!res.ok) throw n
 export const materialReturnApi = {
   getAll:  (p = {}) => fetch(`${BASE}/material-returns?${new URLSearchParams(p)}`, { headers: authHeaders() }).then(handle),
   getStats: ()      => fetch(`${BASE}/material-returns/stats`, { headers: authHeaders() }).then(handle),
+  getInvoiceContext: (invoiceNo) => fetch(`${BASE}/material-returns/invoice/${encodeURIComponent(invoiceNo)}/context`, { headers: authHeaders() }).then(handle),
   create:  (body)   => fetch(`${BASE}/material-returns`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   updateStage: (id, stage) => fetch(`${BASE}/material-returns/${id}/stage`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ stage }) }).then(handle),
   issueCreditNote: (id, creditNoteId) => fetch(`${BASE}/material-returns/${id}/credit-note`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ creditNoteId }) }).then(handle),

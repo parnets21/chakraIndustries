@@ -235,7 +235,7 @@ export default function DashboardPage() {
               {greeting.text} {greeting.emoji}
             </div>
             <div style={{ fontSize:20, fontWeight:800, color:'#f1f5f9', letterSpacing:'-0.4px', marginBottom:4, lineHeight:1.2 }}>
-              {user?.name ? `Welcome back, ${user.name.split(' ')[0]}` : 'Chakra Industries ERP'}
+              {user?.name ? `Welcome back, ${user.name.split(' ')[0]}` : 'Sri Chakra Industries ERP'}
             </div>
             <div style={{ fontSize:11.5, color:'#64748b' }}>{today}</div>
             {user?.role && (

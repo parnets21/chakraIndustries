@@ -149,7 +149,7 @@ export default function Sidebar({ collapsed, setCollapsed, sidebarOpen, setSideb
         {showLabels && (
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: '#1c2833', whiteSpace: 'nowrap', letterSpacing: '-0.2px' }}>
-              Chakra Industries
+              Sri Chakra Industries
             </div>
             <div style={{ fontSize: 9, fontWeight: 700, color: '#c0392b', letterSpacing: '2px', textTransform: 'uppercase', marginTop: 2 }}>
               ERP Platform

@@ -51,7 +51,6 @@ export default function StorageLocationPage({ initialTab = 0, externalShowModal 
   const [selectedRack, setSelectedRack] = useState(defaultZones[0].racks[0]);
   const [internalShowModal, setInternalShowModal] = useState(false);
   const [modalStep, setModalStep] = useState('form'); // 'form' or 'confirm'
-  const [locationForm, setLocationForm] = useState({ zone: '', rack: '', shelf: '', bins: '', sku: '' });
   const [tabForm, setTabForm] = useState({ zone: '', rack: '', shelf: '', bins: '', sku: '' });
   const [optimizedSequence, setOptimizedSequence] = useState(defaultPickingSeq);
   const [isOptimizing, setIsOptimizing] = useState(false);
@@ -173,6 +172,47 @@ export default function StorageLocationPage({ initialTab = 0, externalShowModal 
       const efficiency = Math.round((1 - (optimized.length / pickingSeq.length)) * 100) || 0;
       toast(`✓ Route optimized! Efficiency: ${efficiency}% better path`);
     }, 1500);
+  };
+
+  const handleSaveLocation = () => {
+    const { zone, rack, shelf, bins, sku } = tabForm; // Use tabForm data as that's what's in the modal
+    if (!zone || !rack || !shelf || !bins) {
+      toast('Missing required fields', 'error');
+      return;
+    }
+
+    const newShelf = {
+      id: shelf,
+      bins: Array.from({ length: parseInt(bins) }, (_, k) => `BIN-${shelf}-${String(k + 1).padStart(2, '0')}`),
+      sku: sku || `SKU-${Math.floor(Math.random() * 9000) + 1000}`,
+      qty: 0
+    };
+
+    setZones(prevZones => {
+      const updatedZones = prevZones.map(z => {
+        // Match by zone name (e.g., "Zone A" matches "Zone A — Raw Materials")
+        if (z.name.startsWith(zone)) {
+          return {
+            ...z,
+            racks: z.racks.map(r => {
+              if (r.id === rack || r.name === rack) {
+                return {
+                  ...r,
+                  shelves: [...r.shelves, newShelf]
+                };
+              }
+              return r;
+            })
+          };
+        }
+        return z;
+      });
+      return updatedZones;
+    });
+
+    toast(`Location ${shelf} added successfully`, 'success');
+    closeModal();
+    setTabForm({ zone: '', rack: '', shelf: '', bins: '', sku: '' });
   };
 
   const tabs = ['Warehouse Map', 'Picking Sequence', 'Location Config'];
@@ -344,16 +384,7 @@ export default function StorageLocationPage({ initialTab = 0, externalShowModal 
                 <input value={tabForm.sku} onChange={(e) => setTabForm(p => ({...p, sku: e.target.value}))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="SKU-XXXX" />
               </div>
               <button onClick={() => { 
-                if(!tabForm.zone || !tabForm.rack || !tabForm.shelf || !tabForm.bins || tabForm.bins === '') {
-                  toast('Please fill all required fields');
-                  return;
-                }
-                if(isNaN(tabForm.bins) || parseInt(tabForm.bins) < 1) {
-                  toast('Number of Bins must be a valid number');
-                  return;
-                }
-                setLocationForm({...tabForm}); 
-                setModalStep('confirm');
+                setModalStep('form');
                 setInternalShowModal(true); 
               }} className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">
                 + Add Location
@@ -385,7 +416,6 @@ export default function StorageLocationPage({ initialTab = 0, externalShowModal 
         open={showModal} 
         onClose={() => { 
           closeModal(); 
-          setLocationForm({ zone: '', rack: '', shelf: '', bins: '', sku: '' }); 
         }} 
         title={modalStep === 'form' ? 'Add New Location' : 'Confirm Add Location'}
         footer={
@@ -401,14 +431,13 @@ export default function StorageLocationPage({ initialTab = 0, externalShowModal 
                   toast('Number of Bins must be a valid number');
                   return;
                 }
-                setLocationForm({...tabForm}); 
                 setModalStep('confirm');
               }}>Next</button>
             </>
           ) : (
             <>
               <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]" onClick={() => { setModalStep('form'); }}>Back</button>
-              <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={() => { toast(`Location ${locationForm.shelf} added successfully`); closeModal(); setLocationForm({ zone: '', rack: '', shelf: '', bins: '', sku: '' }); setTabForm({ zone: '', rack: '', shelf: '', bins: '', sku: '' }); }}>Save Location</button>
+              <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={handleSaveLocation}>Save Location</button>
             </>
           )
         }
@@ -452,24 +481,24 @@ export default function StorageLocationPage({ initialTab = 0, externalShowModal 
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between items-center py-2 border-b border-blue-200">
                   <span className="text-gray-600 font-medium">Zone:</span>
-                  <span className="font-semibold text-gray-900 bg-white px-3 py-1 rounded-md">{locationForm.zone || '—'}</span>
+                  <span className="font-semibold text-gray-900 bg-white px-3 py-1 rounded-md">{tabForm.zone || '—'}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-blue-200">
                   <span className="text-gray-600 font-medium">Rack:</span>
-                  <span className="font-semibold text-gray-900 bg-white px-3 py-1 rounded-md">{locationForm.rack || '—'}</span>
+                  <span className="font-semibold text-gray-900 bg-white px-3 py-1 rounded-md">{tabForm.rack || '—'}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-blue-200">
                   <span className="text-gray-600 font-medium">Shelf ID:</span>
-                  <span className="font-mono font-semibold text-gray-900 bg-white px-3 py-1 rounded-md">{locationForm.shelf || '—'}</span>
+                  <span className="font-mono font-semibold text-gray-900 bg-white px-3 py-1 rounded-md">{tabForm.shelf || '—'}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-blue-200">
                   <span className="text-gray-600 font-medium">Number of Bins:</span>
-                  <span className="font-semibold text-gray-900 bg-white px-3 py-1 rounded-md">{locationForm.bins || '—'}</span>
+                  <span className="font-semibold text-gray-900 bg-white px-3 py-1 rounded-md">{tabForm.bins || '—'}</span>
                 </div>
-                {locationForm.sku && (
+                {tabForm.sku && (
                   <div className="flex justify-between items-center py-2">
                     <span className="text-gray-600 font-medium">SKU:</span>
-                    <span className="font-semibold text-red-700 bg-red-50 px-3 py-1 rounded-md">{locationForm.sku}</span>
+                    <span className="font-semibold text-red-700 bg-red-50 px-3 py-1 rounded-md">{tabForm.sku}</span>
                   </div>
                 )}
               </div>

@@ -127,7 +127,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       await new Promise(resolve => setTimeout(resolve, 100));
       
       // Batch 2: Movement and category data
-      const [movRes, catRes, ageingRes] = await Promise.all([
+      const [movRes, catRes, ageingRes, returnsRes] = await Promise.all([
         inventoryApi.getMovements(),
         categoryApi.getAll(),
         getAgeingStock(),
@@ -175,6 +175,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       const defects = defectRes.data || [];
       const pos     = poRes.data   || [];
       const ageing  = ageingRes.data || [];
+      const returns = returnsRes.data || [];
       
       console.log('Stock data received:', stock);
       if (stock.length > 0) {
@@ -1188,7 +1189,12 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       )}
 
       {/* ══ TAB 9 — Storage Locations ════════════════════════════════════════ */}
-      {activeTab === 9 && <StorageLocationPage />}
+      {activeTab === 9 && (
+        <StorageLocationPage 
+          externalShowModal={showModal} 
+          onExternalModalClose={closeModal} 
+        />
+      )}
 
       {/* ══ TAB 10 — Pincode Stock ═══════════════════════════════════════════ */}
       {activeTab === 10 && <PincodeStockPage />}

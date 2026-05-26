@@ -13,14 +13,15 @@ export default function GRNList({ onView, refresh }) {
   const [deleting, setDeleting] = useState(false);
 
   const fetchGRNs = useCallback(async () => {
+    setLoading(true);
     try {
-      // Mock data - replace with actual API call
-      setGrns([
-        { _id: '1', grnId: 'GRN-001', poId: { poId: 'PO-001' }, vendorId: { companyName: 'Vendor A' }, orderedQuantity: 100, receivedQuantity: 100, receivedDate: '2024-04-15', status: 'Completed' },
-        { _id: '2', grnId: 'GRN-002', poId: { poId: 'PO-002' }, vendorId: { companyName: 'Vendor B' }, orderedQuantity: 50, receivedQuantity: 45, receivedDate: '2024-04-14', status: 'Pending' },
-      ]);
+      const res = await grnApi.getAll();
+      setGrns(res.data || []);
     } catch (e) {
       console.error('GRN fetch error:', e.message);
+      setGrns([]);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -87,7 +88,7 @@ export default function GRNList({ onView, refresh }) {
                       {g.receivedQuantity}
                     </td>
                     <td style={{ color: '#64748b', fontSize: 12, padding: '12px' }}>{fmt(g.receivedDate)}</td>
-                    <td style={{ padding: '12px' }}><StatusBadge status={g.status} /></td>
+                    <td style={{ padding: '12px' }}><StatusBadge status={g.grnStatus || g.status} /></td>
                     <td style={{ padding: '12px' }}>
                       <StatusBadge status={g.qcStatus || 'Not Started'} />
                     </td>

@@ -118,12 +118,15 @@ export default function AppRoutes() {
       {/* Production */}
       <Route path="/production"             element={<Navigate to="/production/bom" replace />} />
       <Route path="/production/bom"         element={<P element={<ProductionSubPage tab="bom" />} />} />
-      <Route path="/production/workorders"  element={<P element={<ProductionSubPage tab="workorders" />} />} />
+      <Route path="/production/mrp"         element={<P element={<ProductionSubPage tab="mrp" />} />} />
       <Route path="/production/planning"    element={<P element={<ProductionSubPage tab="planning" />} />} />
       <Route path="/production/scheduling"  element={<P element={<ProductionSubPage tab="scheduling" />} />} />
+      <Route path="/production/workorders"  element={<P element={<ProductionSubPage tab="workorders" />} />} />
+      <Route path="/production/wip"         element={<P element={<ProductionSubPage tab="wip" />} />} />
       <Route path="/production/tracking"    element={<P element={<ProductionSubPage tab="tracking" />} />} />
-      <Route path="/production/efficiency"  element={<P element={<ProductionSubPage tab="efficiency" />} />} />
+      <Route path="/production/qc"          element={<P element={<ProductionSubPage tab="qc" />} />} />
       <Route path="/production/wastage"     element={<P element={<ProductionSubPage tab="wastage" />} />} />
+      <Route path="/production/efficiency"  element={<P element={<ProductionSubPage tab="efficiency" />} />} />
 
       {/* OEM & Orders — single pages */}
       <Route path="/oem"    element={<P element={<OEMPage />} />} />

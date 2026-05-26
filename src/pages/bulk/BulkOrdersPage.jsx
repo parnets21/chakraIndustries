@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { FiBox, FiTruck, FiPackage, FiGift, FiCheck, FiX, FiBriefcase } from 'react-icons/fi';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
@@ -53,6 +53,24 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
   const [quoteForm, setQuoteForm] = useState({ clientId: '', packaging: 'Standard Box', paymentTerms: 'Net 30', validity: '' });
   const [newClientForm, setNewClientForm] = useState({ name: '', contact: '', phone: '', email: '', city: '', tier: 'Silver', creditLimit: '', gstNumber: '', address: '' });
   const [newDeliveryForm, setNewDeliveryForm] = useState({ quotationId: '', client: '', items: '', qty: '', deliveryDate: '', slot: '', warehouse: 'WH-01', vehicle: '', status: 'Draft' });
+  const fileRef = useRef(null);
+
+  const handleExcelUpload = async (e) => {
+    const file = e?.target?.files?.[0];
+    if (!file) return;
+    try {
+      setLoading(true);
+      const res = await bulkOrderApi.importClientsFile(file);
+      toast(res.message || `Imported ${res.data?.length || 0} clients`);
+      await fetchAll();
+    } catch (err) {
+      console.error('Excel upload failed', err);
+      toast(err.message || 'Upload failed', 'error');
+    } finally {
+      setLoading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
 
   const fmtMoney = (v) => typeof v === 'number' ? `₹${v.toLocaleString('en-IN')}` : (v || '₹0');
 
@@ -181,16 +199,27 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
 
   return (
     <div>
+    <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleExcelUpload} style={{ display: 'none' }} />
       {/* Action Bar */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, marginBottom:20, flexWrap:'wrap' }}>
-        {activeTab === 0 && <button onClick={() => { setSelectedClient(null); setShowClientModal(true); }} style={{
-          display:'inline-flex', alignItems:'center', gap:6,
-          padding:'8px 16px', borderRadius:10,
-          background:'linear-gradient(135deg,#ef4444,#b91c1c)',
-          color:'#fff', border:'none', cursor:'pointer',
-          fontSize:13, fontWeight:600, fontFamily:'inherit',
-          boxShadow:'0 3px 10px rgba(185,28,28,0.3)',
-        }}>+ Add Client</button>}
+        {activeTab === 0 && <>
+          <button onClick={() => fileRef.current?.click()} style={{
+            display:'inline-flex', alignItems:'center', gap:6,
+            padding:'8px 16px', borderRadius:10,
+            background:'linear-gradient(135deg,#06b6d4,#0891b2)',
+            color:'#fff', border:'none', cursor:'pointer',
+            fontSize:13, fontWeight:600, fontFamily:'inherit',
+            boxShadow:'0 3px 10px rgba(6,182,212,0.18)'
+          }}>📥 Import Excel</button>
+          <button onClick={() => { setSelectedClient(null); setShowClientModal(true); }} style={{
+            display:'inline-flex', alignItems:'center', gap:6,
+            padding:'8px 16px', borderRadius:10,
+            background:'linear-gradient(135deg,#ef4444,#b91c1c)',
+            color:'#fff', border:'none', cursor:'pointer',
+            fontSize:13, fontWeight:600, fontFamily:'inherit',
+            boxShadow:'0 3px 10px rgba(185,28,28,0.3)',
+          }}>+ Add Client</button>
+        </>}
         {activeTab === 1 && <button onClick={() => setShowQuoteModal(true)} style={{
           display:'inline-flex', alignItems:'center', gap:6,
           padding:'8px 16px', borderRadius:10,
@@ -361,7 +390,11 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
                   <tr key={i} className={trCls}>
                     <td className={`${tdCls} font-semibold text-red-700`}>{r.scheduleId}</td>
                     <td className={`${tdCls} font-semibold`}>{r.clientName}</td>
-                    <td className={tdCls}>{r.items}</td>
+                    <td className={tdCls}>{
+                      Array.isArray(r.items)
+                        ? r.items.length
+                        : (typeof r.items === 'number' ? r.items : (r.items ? String(r.items) : '—'))
+                    }</td>
                     <td className={`${tdCls} font-bold`}>{(r.qty||0).toLocaleString()}</td>
                     <td className={tdCls}>{r.deliveryDate ? new Date(r.deliveryDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) : '—'}</td>
                     <td className={tdCls}>{r.slot}</td>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Modal from '../../../components/common/Modal';
-import { createBOM } from '../../../api/bomApi';
+import { bomApi } from '../../../api/bomApi';
 import { inventoryApi } from '../../../api/inventoryApi';
 import { toast } from '../../../components/common/Toast';
 
@@ -42,12 +42,10 @@ export default function CreateBOMModal({ open, onClose, onSaved }) {
       
       const items = (res.data || []).map(inv => ({
         _id: inv._id,
-        itemMasterId: inv.itemMasterId,
         sku: inv.sku,
         name: inv.name,
-        unit: inv.unit || 'units',
-        costPrice: inv.unitPrice || 0,
-        availableStock: inv.availableQuantity || 0
+        unit: inv.unit || 'Nos',
+        availableStock: inv.qty || 0
       }));
       
       console.log('Transformed items:', items);
@@ -74,7 +72,7 @@ export default function CreateBOMModal({ open, onClose, onSaved }) {
       if (materialId) {
         const selectedMaterial = materialsList.find(m => m._id === materialId);
         if (selectedMaterial) {
-          newMaterials[index].quantity = selectedMaterial.availableStock;
+          newMaterials[index].quantity = 1;
           newMaterials[index].availableStock = selectedMaterial.availableStock;
         }
         newMaterials[index].loadingStock = false;
@@ -149,19 +147,23 @@ export default function CreateBOMModal({ open, onClose, onSaved }) {
         type: form.type,
         uom: form.uom,
         description: form.description,
-        materials: materials.map(m => {
+        components: materials.map(m => {
           const selectedMaterial = materialsList.find(mat => mat._id === m.materialId);
           return {
-            materialId: m.materialId,
-            materialName: selectedMaterial?.name || '',
-            sku: selectedMaterial?.sku || '',
-            quantity: parseFloat(m.quantity),
-            unit: selectedMaterial?.unit || 'units'
+            inventoryItemId: m.materialId,
+            itemName: selectedMaterial?.name || '',
+            itemCode: selectedMaterial?.sku || '',
+            qty: parseFloat(m.quantity),
+            unit: selectedMaterial?.unit || 'Nos',
+            type: 'Raw',
+            level: 1,
+            unitCost: 0,
+            scrapFactor: 0
           };
         })
       };
 
-      await createBOM(payload);
+      await bomApi.create(payload);
       toast('BOM created successfully', 'success');
 
       setForm({
@@ -254,10 +256,20 @@ export default function CreateBOMModal({ open, onClose, onSaved }) {
                 onChange={e => setForm(p => ({ ...p, uom: e.target.value }))}
               >
                 <option value="">Select Unit</option>
-                <option value="KG">KG (Kilogram)</option>
-                <option value="PCS">PCS (Pieces)</option>
-                <option value="LTR">LTR (Liter)</option>
-                <option value="MTR">MTR (Meter)</option>
+                <option value="KG">KG - Kilogram</option>
+                <option value="NOS">NOS - Numbers/Pieces</option>
+                <option value="SET">SET - Set</option>
+                <option value="BOX">BOX - Box</option>
+                <option value="CTN">CTN - Carton</option>
+                <option value="PACK">PACK - Pack</option>
+                <option value="LTR">LTR - Liter</option>
+                <option value="ML">ML - Milliliter</option>
+                <option value="MTR">MTR - Meter</option>
+                <option value="CM">CM - Centimeter</option>
+                <option value="G">G - Gram</option>
+                <option value="MG">MG - Milligram</option>
+                <option value="PCS">PCS - Pieces (Legacy)</option>
+                <option value="UNIT">UNIT - Unit</option>
               </select>
             </div>
           </div>

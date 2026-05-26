@@ -1,4 +1,5 @@
-export default function LineChart({ data, color = '#c0392b', height = 180 }) {
+export default function LineChart({ data, color = '#c0392b', height = 180, gradientId }) {
+  const gId = gradientId || `lineGrad_${color.replace('#','')}`;
   const values = data.map(d => d.value);
   const max = Math.max(...values, 1);
   const min = Math.min(...values, 0);
@@ -17,12 +18,12 @@ export default function LineChart({ data, color = '#c0392b', height = 180 }) {
     <div style={{ width: '100%' }}>
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height, display: 'block' }}>
         <defs>
-          <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={gId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={color} stopOpacity="0.3" />
             <stop offset="100%" stopColor={color} stopOpacity="0.02" />
           </linearGradient>
         </defs>
-        <polygon points={areaPoints} fill="url(#lineGrad)" />
+        <polygon points={areaPoints} fill={`url(#${gId})`} />
         <polyline points={points} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" />
         {data.map((d, i) => {
           const x = i * w;

@@ -13,6 +13,14 @@ export const bulkOrderApi = {
   createClient:     (body)   => fetch(`${BASE}/bulk-orders/clients`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   updateClient:     (id, body) => fetch(`${BASE}/bulk-orders/clients/${id}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   deleteClient:     (id)     => fetch(`${BASE}/bulk-orders/clients/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
+  // Bulk import clients parsed from Excel (frontend parses xlsx and sends JSON)
+  importClients:    (clients) => fetch(`${BASE}/bulk-orders/clients/import`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ clients }) }).then(handle),
+  importClientsFile: (file) => {
+    const token = getToken();
+    const form = new FormData();
+    form.append('file', file);
+    return fetch(`${BASE}/bulk-orders/clients/import-file`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form }).then(handle);
+  },
 
   // Bulk Quotations
   getQuotations:    (p = {}) => fetch(`${BASE}/bulk-orders/quotations${q(p)}`, { headers: authHeaders() }).then(handle),

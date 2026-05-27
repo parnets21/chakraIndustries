@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import LineChart from '../../components/charts/LineChart';
 import BarChart from '../../components/charts/BarChart';
-import DonutChart from '../../components/charts/DonutChart';
 import StatusBadge from '../../components/common/StatusBadge';
 import { toast } from '../../components/common/Toast';
 import { reportsApi } from '../../api/reportsApi';
+import { inventoryApi } from '../../api/inventoryApi';
 
 const thCls = 'bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap';
 const tdCls = 'px-4 py-3 text-gray-800 align-middle';
@@ -34,11 +34,20 @@ export default function ReportsPage({ initialTab = 0 }) {
   const [returnData, setReturnData]     = useState(null);
   const [warehouseFilter, setWarehouseFilter] = useState('All Warehouses');
   const [monthFilter, setMonthFilter]   = useState(new Date().toISOString().slice(0,7));
+  const [warehouses, setWarehouses]     = useState([]);
+
+  // Fetch warehouse list once on mount
+  useEffect(() => {
+    inventoryApi.getAll().then(r => {
+      const whs = [...new Set((r.data || []).map(i => i.warehouse).filter(Boolean))];
+      setWarehouses(whs);
+    }).catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      if (activeTab === 0) {
+      if (activeTab === 0 || activeTab === 1) {
         const r = await reportsApi.getSalesAnalytics();
         setSalesData(r.data);
       } else if (activeTab === 2) {
@@ -116,7 +125,7 @@ export default function ReportsPage({ initialTab = 0 }) {
               <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
                 <div className="text-sm font-bold text-gray-800 mb-1">Monthly Revenue Trend</div>
                 <div className="text-xs text-gray-400 mt-0.5 mb-3">Current year</div>
-                {salesData.byMonth?.length > 0 ? <LineChart data={salesData.byMonth} color="#c0392b" height={180} /> : <div className="text-center py-8 text-gray-400 text-sm">No sales data yet</div>}
+                {salesData.byMonth?.length > 0 ? <LineChart data={salesData.byMonth} color="#c0392b" height={180} gradientId="grad_revenue" /> : <div className="text-center py-8 text-gray-400 text-sm">No sales data yet</div>}
               </div>
               <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
                 <div className="text-sm font-bold text-gray-800 mb-1">Sales by Customer</div>
@@ -194,6 +203,7 @@ export default function ReportsPage({ initialTab = 0 }) {
             <select className="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 font-[inherit]"
               value={warehouseFilter} onChange={e => setWarehouseFilter(e.target.value)}>
               <option>All Warehouses</option>
+              {warehouses.map(wh => <option key={wh}>{wh}</option>)}
             </select>
           </div>
           {loading ? <Spinner /> : (

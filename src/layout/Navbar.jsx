@@ -4,7 +4,7 @@ import {
   MdSearch, MdNotifications, MdKeyboardArrowDown,
   MdWarning, MdError, MdCheckCircle, MdInfo,
   MdPerson, MdSettings, MdHelpOutline, MdLogout,
-  MdMenu, MdAdd, MdRefresh,
+  MdMenu, MdAdd, MdRefresh, MdClose, MdDeleteOutline,
 } from 'react-icons/md';
 import { useAuth } from '../auth/AuthContext';
 import { ROLES } from '../auth/rbac';
@@ -114,7 +114,8 @@ export default function Navbar({ activePage, onMenuClick, isMobile }) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(null);
-  const { notifications, unreadCount, loading, hasNew, clearNew, refetch } = useNotifications();
+  const [hoveredNotificationId, setHoveredNotificationId] = useState(null);
+  const { notifications, unreadCount, loading, hasNew, clearNew, refetch, dismissNotification, clearAllNotifications } = useNotifications();
 
   const wrapRef = useRef();
 
@@ -357,9 +358,20 @@ export default function Navbar({ activePage, onMenuClick, isMobile }) {
                       <span style={{ background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 20 }}>{unreadCount}</span>
                     )}
                   </div>
-                  <button onClick={refetch} title="Refresh" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', padding: 2 }}>
-                    <MdRefresh size={15} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {notifications.length > 0 && (
+                      <button
+                        onClick={clearAllNotifications}
+                        title="Clear all notifications"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', display: 'flex', padding: 2, fontSize: 11, fontWeight: 600 }}
+                      >
+                        Clear all
+                      </button>
+                    )}
+                    <button onClick={refetch} title="Refresh" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', padding: 2 }}>
+                      <MdRefresh size={15} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* List */}
@@ -374,12 +386,13 @@ export default function Navbar({ activePage, onMenuClick, isMobile }) {
                   ) : notifications.map(n => {
                     const m = NOTIF_META[n.type] || NOTIF_META.info;
                     const timeAgo = formatTimeAgo(n.time);
+                    const hoverNotif = n.id === hoveredNotificationId;
                     return (
                       <div key={n.id}
                         onClick={() => { if (n.link) { navigate(n.link); close(); } }}
-                        style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', borderBottom: '1px solid #f8fafc', cursor: n.link ? 'pointer' : 'default' }}
-                        onMouseEnter={e => { if (n.link) e.currentTarget.style.background = '#fef2f2'; }}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        onMouseEnter={() => setHoveredNotificationId(n.id)}
+                        onMouseLeave={() => setHoveredNotificationId(null)}
+                        style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', borderBottom: '1px solid #f8fafc', cursor: n.link ? 'pointer' : 'default', background: hoverNotif ? '#fef2f2' : 'transparent', transition: 'background 0.15s' }}
                       >
                         <div style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: m.bg, border: `1px solid ${m.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: m.color }}>
                           {m.icon}
@@ -389,7 +402,19 @@ export default function Navbar({ activePage, onMenuClick, isMobile }) {
                           {n.subtext && <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>{n.subtext}</div>}
                           <div style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 2 }}>{timeAgo}</div>
                         </div>
-                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: m.color, flexShrink: 0, marginTop: 6 }} />
+                        {hoverNotif && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              dismissNotification(n.id);
+                            }}
+                            title="Dismiss notification"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', display: 'flex', padding: 4, flexShrink: 0, marginTop: 0 }}
+                          >
+                            <MdClose size={16} />
+                          </button>
+                        )}
+                        {!hoverNotif && <div style={{ width: 6, height: 6, borderRadius: '50%', background: m.color, flexShrink: 0, marginTop: 6 }} />}
                       </div>
                     );
                   })}

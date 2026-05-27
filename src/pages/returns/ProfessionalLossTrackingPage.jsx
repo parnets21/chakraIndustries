@@ -1,22 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import {
-  TrendingDown,
-  X,
-  ClipboardList,
-  Package,
-  User,
-  FileText,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  Plus,
-  Trash2,
-  Eye,
-  IndianRupee,
-  ShieldAlert,
-  Activity,
-  Loader2,
-} from 'lucide-react';
+  MdTrendingDown as TrendingDown,
+  MdClose as X,
+  MdAssignment as ClipboardList,
+  MdInventory2 as Package,
+  MdPerson as User,
+  MdDescription as FileText,
+  MdWarning as AlertTriangle,
+  MdCheckCircle as CheckCircle,
+  MdAccessTime as Clock,
+  MdAdd as Plus,
+  MdDelete as Trash2,
+  MdVisibility as Eye,
+  MdCurrencyRupee as IndianRupee,
+  MdSecurity as ShieldAlert,
+  MdShowChart as Activity,
+  MdHourglassEmpty as Loader2,
+} from 'react-icons/md';
 import { lossTrackingApi } from '../../api/lossTrackingApi';
 import { materialReturnApi } from '../../api/materialReturnApi';
 

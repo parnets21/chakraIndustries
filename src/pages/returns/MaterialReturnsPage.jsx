@@ -1,11 +1,33 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Package, Truck, Search, DollarSign, CheckSquare, AlertTriangle,
-  CheckCircle, XCircle, Download, RefreshCw, Plus, Eye,
-  Pencil, MoreHorizontal, X, Printer, MapPin, Paperclip,
-  ClipboardList, ChevronLeft, ChevronRight, ArrowRight, FileText,
-  Layers, BarChart2, TrendingUp, Activity
-} from "lucide-react";
+  MdInventory2 as Package,
+  MdLocalShipping as Truck,
+  MdSearch as Search,
+  MdAttachMoney as DollarSign,
+  MdCheckBox as CheckSquare,
+  MdWarning as AlertTriangle,
+  MdCheckCircle as CheckCircle,
+  MdCancel as XCircle,
+  MdDownload as Download,
+  MdRefresh as RefreshCw,
+  MdAdd as Plus,
+  MdVisibility as Eye,
+  MdEdit as Pencil,
+  MdMoreHoriz as MoreHorizontal,
+  MdClose as X,
+  MdPrint as Printer,
+  MdLocationOn as MapPin,
+  MdAttachFile as Paperclip,
+  MdAssignment as ClipboardList,
+  MdChevronLeft as ChevronLeft,
+  MdChevronRight as ChevronRight,
+  MdArrowForward as ArrowRight,
+  MdDescription as FileText,
+  MdLayers as Layers,
+  MdBarChart as BarChart2,
+  MdTrendingUp as TrendingUp,
+  MdShowChart as Activity,
+} from "react-icons/md";
 import { materialReturnApi } from "../../api/materialReturnApi";
 import { invoiceApi } from "../../api/invoiceApi";
 

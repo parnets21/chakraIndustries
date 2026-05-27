@@ -58,6 +58,27 @@ function Empty({ msg = 'No data found' }) {
   return <div style={{ textAlign: 'center', padding: '40px 20px', color: TEXT_LIGHT, fontSize: 13, fontWeight: 600 }}>{msg}</div>;
 }
 
+const normalizeCategory = (category, categories = []) => {
+  if (!category) return null;
+
+  if (typeof category === 'object') {
+    return {
+      ...category,
+      name: category.name || category.categoryName || category.label || '',
+    };
+  }
+
+  const value = String(category);
+  const matched = categories.find(c => String(c._id || c.id || c.name) === value);
+  return matched || { _id: value, name: value };
+};
+
+const categoryName = (category) => {
+  if (!category) return '—';
+  if (typeof category === 'string') return category;
+  return category.name || category.categoryName || category.label || '—';
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function InventoryPage({ initialTab = 0, externalShowModal = false, onExternalModalClose, externalShowReturns = false, onExternalReturnsClose }) {
   const navigate = useNavigate();
@@ -159,20 +180,21 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         poApi.getAll(),
       ]);
       
-      // Sanitize stock items — flatten any populated object fields to primitives
+      const cats    = catRes.data  || [];
+
+      // Sanitize stock items — flatten render fields and keep category displayable
       const sanitizeStock = (items) => (items || []).map(item => ({
         ...item,
         name:      typeof item.name     === 'object' ? (item.name?.name || item.sku || '—')     : (item.name     || item.sku || '—'),
         sku:       typeof item.sku      === 'object' ? (item.sku?.sku   || '—')                 : (item.sku      || '—'),
         status:    typeof item.status   === 'object' ? (item.status?.status || 'Active')         : (item.status   || 'Active'),
         warehouse: typeof item.warehouse === 'object' ? (item.warehouse?.warehouseId || item.warehouse?.id || '—') : (item.warehouse || '—'),
-        category:  item.category && typeof item.category === 'object' ? item.category : null,
+        category:  normalizeCategory(item.category, cats),
       }));
 
       const stock   = sanitizeStock(stockRes.data);
       const whs     = whRes.data   || [];
       const movs    = movRes.data  || [];
-      const cats    = catRes.data  || [];
       const picks   = pickRes.data || [];
       const sorts   = sortRes.data || [];
       const packs   = packRes.data || [];
@@ -754,7 +776,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                       </div>
                     </td>
                     <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{String(r.name || r.itemName || r.sku || '—')}</td>
-                    <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.category && r.category.name ? String(r.category.name) : '—'}</td>
+                    <td style={{ padding:'11px 16px', color: TEXT_MID }}>{categoryName(r.category)}</td>
                     <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.warehouse && typeof r.warehouse === 'object' ? (r.warehouse.warehouseId || r.warehouse.id || '—') : (r.warehouse || '—')}</td>
                     <td style={{ padding:'11px 16px' }}>
                       <span style={{ display:'inline-block', padding:'3px 10px', borderRadius:20, fontSize:12, fontWeight:700, background: r.status === 'Critical' || (r.minQty > 0 && r.qty < r.minQty) ? '#fef2f2' : '#f0fdf4', color: r.status === 'Critical' || (r.minQty > 0 && r.qty < r.minQty) ? RED_LIGHT : GREEN }}>{r.qty}</span>

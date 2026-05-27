@@ -135,12 +135,12 @@ export default function ForecastingPage({ initialTab = 0 }) {
                 <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
                   <div className="text-sm font-bold text-gray-800 mb-1">Historical Demand</div>
                   <div className="text-xs text-gray-400 mt-0.5 mb-3">Units — Last 12 months</div>
-                  {historical.length > 0 ? <LineChart data={historical} color="#c0392b" height={180} /> : <div className="text-center py-8 text-gray-400 text-sm">No historical data yet</div>}
+                  {historical.length > 0 ? <LineChart data={historical} color="#c0392b" height={180} gradientId="grad_historical" /> : <div className="text-center py-8 text-gray-400 text-sm">No historical data yet</div>}
                 </div>
                 <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
                   <div className="text-sm font-bold text-gray-800 mb-1">Demand Forecast</div>
                   <div className="text-xs text-gray-400 mt-0.5 mb-3">Projected — Next 6 months</div>
-                  {forecast.length > 0 ? <LineChart data={forecast} color="#f39c12" height={180} /> : <div className="text-center py-8 text-gray-400 text-sm">No forecast data yet</div>}
+                  {forecast.length > 0 ? <LineChart data={forecast} color="#f39c12" height={180} gradientId="grad_forecast" /> : <div className="text-center py-8 text-gray-400 text-sm">No forecast data yet</div>}
                 </div>
               </div>
               <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">

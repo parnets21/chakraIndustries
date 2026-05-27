@@ -28,8 +28,9 @@ export default function GRNDetailModal({ open, onClose, grn }) {
           ['GRN ID',       grn.grnId || '—'],
           ['PO Reference', typeof grn.poId === 'string' ? grn.poId : (grn.poId?.poId || '—')],
           ['Vendor',       typeof grn.vendorId === 'string' ? grn.vendorId : (grn.vendorId?.companyName || '—')],
+          ['Warehouse',    typeof grn.warehouseId === 'string' ? grn.warehouseId : (grn.warehouseId ? `${grn.warehouseId.warehouseId} — ${grn.warehouseId.name}` : '—')],
           ['Receipt Date', fmt(grn.receivedDate)],
-          ['Status',       grn.status || 'Unknown'],
+          ['Status',       grn.grnStatus || grn.status || 'Unknown'],
           ['Remarks',      grn.remarks || '—'],
         ].map(([label, value]) => (
           <div key={label} style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid var(--border)' }}>

@@ -5,4 +5,6 @@ const handle = async (res) => { const d = await res.json(); if (!res.ok) throw n
 
 export const notificationApi = {
   getAll: () => fetch(`${BASE}/notifications`, { headers: authHeaders() }).then(handle),
+  dismiss: (notificationId) => fetch(`${BASE}/notifications/${notificationId}/dismiss`, { method: 'POST', headers: authHeaders() }).then(handle),
+  clearAll: () => fetch(`${BASE}/notifications/clear-all`, { method: 'POST', headers: authHeaders() }).then(handle),
 };

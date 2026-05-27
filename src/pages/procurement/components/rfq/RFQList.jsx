@@ -320,21 +320,6 @@ export default function RFQList({ onCompare, refresh }) {
                             : <><MdAdd size={14} /> Add Quote</>
                           }
                         </button>
-                        {/* Generate Vendor URLs */}
-                        <button
-                          title="Generate vendor quotation URLs"
-                          onClick={() => setViewRFQ(r)}
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 4,
-                            padding: '5px 10px', borderRadius: 8, cursor: 'pointer',
-                            border: '1.5px solid #dbeafe',
-                            background: '#eff6ff',
-                            color: '#1e40af',
-                            fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
-                          }}
-                        >
-                          🔗 URLs
-                        </button>
                         <button 
                           className="rfq-action-btn rfq-action-delete" 
                           title="Delete RFQ"
@@ -670,90 +655,6 @@ export default function RFQList({ onCompare, refresh }) {
                   <span>{v.companyName}</span>
                 </div>
               ))}
-            </div>
-          </div>
-
-          {/* Vendor Quotation URLs */}
-          <div className="rfq-section">
-            <div className="rfq-section-title">Vendor Quotation URLs</div>
-            <div style={{ 
-              background: '#f8fafc', 
-              border: '1px solid #e2e8f0', 
-              borderRadius: '10px', 
-              padding: '16px',
-              fontSize: '12px',
-              color: '#64748b',
-              marginBottom: '12px'
-            }}>
-              Share these URLs with vendors to allow them to submit quotations directly:
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {viewRFQ.vendors?.map(vendor => {
-                const quotationUrl = `${window.location.origin}/vendor/quotation/${viewRFQ._id}?vendor=${vendor._id}`;
-                return (
-                  <div key={vendor._id} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    padding: '12px 16px',
-                    background: '#fff',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px'
-                  }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: '600', color: '#1e293b', marginBottom: '4px' }}>
-                        {vendor.companyName}
-                      </div>
-                      <div style={{ 
-                        fontSize: '11px', 
-                        color: '#64748b', 
-                        fontFamily: 'monospace',
-                        background: '#f8fafc',
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        wordBreak: 'break-all'
-                      }}>
-                        {quotationUrl}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(quotationUrl);
-                        alert('URL copied to clipboard!');
-                      }}
-                      style={{
-                        padding: '6px 12px',
-                        background: '#3b82f6',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      Copy URL
-                    </button>
-                    <a
-                      href={`mailto:${vendor.email}?subject=Quotation Request - ${viewRFQ.rfqId}&body=Dear ${vendor.companyName},%0D%0A%0D%0APlease submit your quotation for RFQ ${viewRFQ.rfqId} using the following link:%0D%0A${encodeURIComponent(quotationUrl)}%0D%0A%0D%0ARegards,%0D%0AChakra Industries`}
-                      style={{
-                        padding: '6px 12px',
-                        background: '#10b981',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        textDecoration: 'none',
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      Send Email
-                    </a>
-                  </div>
-                );
-              })}
             </div>
           </div>
 

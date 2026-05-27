@@ -73,17 +73,15 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
   };
 
   // Get RFQs for selected vendor
-  const getVendorRFQs = () => {
-    if (!formData.vendor) return [];
-    const selectedVendor = vendors.find(v => v._id === formData.vendor);
+  const getVendorRFQs = (vendorId = formData.vendor) => {
+    if (!vendorId) return [];
+    const selectedVendor = vendors.find(v => v._id === vendorId);
     if (!selectedVendor) return [];
 
     return rfqs.filter(rfq => {
-      if (!rfq.vendors || rfq.vendors.length === 0) return false;
-      return rfq.vendors.some(v => {
-        const vendorId = typeof v === 'object' ? v._id : v;
-        const vendorName = typeof v === 'object' ? v.companyName : v;
-        return vendorId === formData.vendor || vendorName === selectedVendor.companyName;
+      return rfq.quotations?.some(q => {
+        const qVendorId = typeof q.vendor === 'object' ? (q.vendor._id || q.vendor) : q.vendor;
+        return qVendorId === vendorId;
       });
     });
   };
@@ -108,23 +106,46 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
 
   // When vendor changes — find matching RFQ quotation and auto-fill items
   const handleVendorChange = (vendorId) => {
+    const matchingRFQs = getVendorRFQs(vendorId);
     setFormData(prev => {
-      // If an RFQ is already selected, find this vendor's quotation
+      const next = { ...prev, vendor: vendorId };
+
       if (prev.linkedRFQ) {
         const rfq = rfqs.find(r => r._id === prev.linkedRFQ);
-        const quotation = rfq?.quotations?.find(q => (q.vendor?._id || q.vendor) === vendorId);
+        const quotation = rfq?.quotations?.find(q => {
+          const qVendorId = typeof q.vendor === 'object' ? (q.vendor._id || q.vendor) : q.vendor;
+          return qVendorId === vendorId;
+        });
+
         if (quotation?.items?.length) {
           return {
-            ...prev,
-            vendor: vendorId,
+            ...next,
             items: quotation.items.map(it => ({
               name: it.name, qty: it.qty, unit: it.unit || 'Nos',
               basePrice: it.unitPrice, gst: 18,
             })),
           };
         }
+
+        return { ...next, linkedRFQ: '', items: EMPTY_FORM.items };
       }
-      return { ...prev, vendor: vendorId };
+
+      if (matchingRFQs.length === 1) {
+        const rfq = matchingRFQs[0];
+        const quotation = rfq.quotations.find(q => {
+          const qVendorId = typeof q.vendor === 'object' ? (q.vendor._id || q.vendor) : q.vendor;
+          return qVendorId === vendorId;
+        });
+        return {
+          ...next,
+          linkedRFQ: rfq._id,
+          items: quotation?.items?.length
+            ? quotation.items.map(it => ({ name: it.name, qty: it.qty, unit: it.unit || 'Nos', basePrice: it.unitPrice, gst: 18 }))
+            : rfq.items?.map(it => ({ name: it.name, qty: it.qty, unit: it.unit || 'Nos', basePrice: 0, gst: 18 })) || EMPTY_FORM.items,
+        };
+      }
+
+      return next;
     });
   };
 

@@ -47,6 +47,7 @@ export const workOrderApi = {
   recordConsumption:(id, body)    => fetch(`${BASE}/workorders/${id}/consume`,                  { method: 'PATCH',  headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   deductInventory:  (id)          => fetch(`${BASE}/workorders/${id}/deduct-inventory`,         { method: 'POST',   headers: authHeaders(), body: JSON.stringify({}) }).then(handle),
   recordQC:         (id, body)    => fetch(`${BASE}/workorders/${id}/qc`,                       { method: 'PATCH',  headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  recordWastage:    (id, body)    => fetch(`${BASE}/workorders/${id}/wastage`,                  { method: 'PATCH',  headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
 };
 
 // ── MRP ───────────────────────────────────────────────────────────────────────

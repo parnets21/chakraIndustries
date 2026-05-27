@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import Modal from '../../../../components/common/Modal';
 import { poApi } from '../../../../api/poApi';
 import { grnApi } from '../../../../api/grnApi';
+import { inventoryApi } from '../../../../api/inventoryApi';
 
 export default function CreateGRNModal({ open, onClose, onSaved }) {
   const [pos, setPOs]               = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
   const [selectedPO, setSelectedPO] = useState('');
   const [poData, setPoData]         = useState(null);
   const [receiptDate, setReceiptDate] = useState('');
@@ -14,14 +16,6 @@ export default function CreateGRNModal({ open, onClose, onSaved }) {
   const [items, setItems]             = useState([]);
   const [saving, setSaving]           = useState(false);
   const [loading, setLoading]         = useState(false);
-
-  useEffect(() => {
-    if (open) {
-      loadPOs();
-      setSelectedPO(''); setPoData(null); setItems([]);
-      setReceiptDate(''); setReceivedBy(''); setRemarks(''); setWarehouseId('');
-    }
-  }, [open]);
 
   const loadPOs = async () => {
     setLoading(true);
@@ -33,6 +27,25 @@ export default function CreateGRNModal({ open, onClose, onSaved }) {
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
+
+  const loadWarehouses = async () => {
+    try {
+      const res = await inventoryApi.getWarehouses();
+      setWarehouses(res.data || []);
+    } catch (e) { 
+      console.error('Error loading warehouses:', e);
+      setWarehouses([]);
+    }
+  };
+
+  useEffect(() => {
+    if (open) {
+      loadPOs();
+      loadWarehouses();
+      setSelectedPO(''); setPoData(null); setItems([]);
+      setReceiptDate(''); setReceivedBy(''); setRemarks(''); setWarehouseId('');
+    }
+  }, [open]);
 
   const handlePOSelect = async (poId) => {
     setSelectedPO(poId);
@@ -132,7 +145,17 @@ export default function CreateGRNModal({ open, onClose, onSaved }) {
             </div>
             <div className="form-group">
               <label className="form-label">Warehouse *</label>
-              <input className="form-input" placeholder="Warehouse ID" value={warehouseId} onChange={e => setWarehouseId(e.target.value)} />
+              <select className="form-select" value={warehouseId} onChange={e => setWarehouseId(e.target.value)}>
+                <option value="">— Select Warehouse —</option>
+                {warehouses.map(w => (
+                  <option key={w._id} value={w._id}>
+                    {w.warehouseId} — {w.name} ({w.location})
+                  </option>
+                ))}
+              </select>
+              {warehouses.length === 0 && (
+                <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>No warehouses available</div>
+              )}
             </div>
             <div className="form-group">
               <label className="form-label">Received By *</label>

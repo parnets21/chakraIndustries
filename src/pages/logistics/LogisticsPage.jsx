@@ -4,8 +4,11 @@ import Modal from '../../components/common/Modal';
 import { toast } from '../../components/common/Toast';
 import { logisticsApi } from '../../api/logisticsApi';
 import { poApi } from '../../api/poApi';
+import { materialReturnApi } from '../../api/materialReturnApi';
 import DataTable from '../../components/tables/DataTable';
 import DocketTrackingPage from './DocketTrackingPage';
+import { MdLocalShipping, MdDescription, MdCheckCircle, MdPhone, MdPlace, MdArchive } from 'react-icons/md';
+const MdInventory = MdArchive; // Use Archive as fallback for Inventory if missing
 
 // ── Style constants ───────────────────────────────────────────────────────────
 const inp = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]';
@@ -24,7 +27,7 @@ const EMPTY_DISPATCH = {
   origin:'', destination:'', items:0, weight:'',
   value:0, dispatchDate:'', expectedDelivery:'', instructions:'',
 };
-const EMPTY_VEHICLE = { type:'Truck', number:'', driver:'', capacity:'', status:'Available' };
+const EMPTY_VEHICLE = { type:'Truck', number:'', driver:'', driverMobile: '', capacity:'', status:'Available' };
 const EMPTY_SHIPMENT = { courier:'', awbNo:'', orderRef:'', customer:'', destination:'', eta:'' };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -292,6 +295,28 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm]           = useState(EMPTY_VEHICLE);
   const [saving, setSaving]       = useState(false);
+  
+  // Return Flow States
+  const [returnQueue, setReturnQueue] = useState([]);
+  const [queueLoading, setQueueLoading] = useState(false);
+  const [assignModal, setAssignModal] = useState(null); // { returnItem, vehicle }
+
+  const loadReturnQueue = useCallback(async () => {
+    setQueueLoading(true);
+    try {
+      const res = await materialReturnApi.getWarehouseQueue();
+      // Only show returns that need assignment (DOCKET_CREATED)
+      setReturnQueue(res.data?.filter(r => r.currentStage === 'DOCKET_CREATED') || []);
+    } catch (error) {
+      console.error('Failed to load return queue', error);
+    } finally {
+      setQueueLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadReturnQueue();
+  }, [loadReturnQueue]);
 
   const handleCreate = async () => {
     if (!form.number || !form.driver) {
@@ -325,63 +350,278 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
     } catch { toast('Failed to delete vehicle', 'error'); }
   };
 
+  const handleAssignVehicle = async (returnItem, vehicle) => {
+    if (!vehicle) {
+      toast('Please select a vehicle first', 'error');
+      return;
+    }
+    
+    try {
+      setSaving(true);
+      await materialReturnApi.updateTransport(returnItem._id, {
+        vehicleNo: vehicle.number,
+        driverName: vehicle.driver,
+        driverMobile: vehicle.driverMobile || '—',
+        stage: 'VEHICLE_ASSIGNED',
+        trackingStatus: 'Vehicle Assigned'
+      });
+
+      await logisticsApi.updateVehicle(vehicle._id, { 
+        status: 'Assigned',
+        currentDocket: returnItem.docketId,
+        currentRoute: `${returnItem.pickupAddress || 'Customer'} → ${returnItem.warehouseName || 'Warehouse'}`,
+        currentLoad: `${returnItem.productName} (${returnItem.returnQty})`
+      });
+
+      toast(`Vehicle ${vehicle.number} assigned to Return ${returnItem.mrId}`);
+      loadReturnQueue();
+      onRefresh();
+      setAssignModal(null);
+    } catch (error) {
+      toast(error.message || 'Failed to assign vehicle', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTransportAction = async (v, action) => {
+    try {
+      let stage, trackingStatus, vehicleStatus;
+      if (action === 'out_for_pickup') {
+        stage = 'OUT_FOR_PICKUP'; trackingStatus = 'Out for Pickup'; vehicleStatus = 'Assigned';
+      } else if (action === 'pickup') {
+        stage = 'PICKED_UP'; trackingStatus = 'Picked Up'; vehicleStatus = 'In Transit';
+      } else if (action === 'transit') {
+        stage = 'IN_TRANSIT'; trackingStatus = 'In Transit'; vehicleStatus = 'In Transit';
+      } else if (action === 'arrive') {
+        stage = 'ARRIVED_AT_WAREHOUSE'; trackingStatus = 'Arrived'; vehicleStatus = 'Available';
+      }
+
+      // Find MR by docket
+      const returns = await materialReturnApi.getAll({ search: v.currentDocket });
+      const mr = returns.data?.find(r => r.docketId === v.currentDocket);
+      if (!mr) throw new Error('Return request not found for this docket');
+
+      await materialReturnApi.updateTransport(mr._id, { 
+        stage, 
+        trackingStatus,
+        currentLocation: action === 'arrive' ? mr.warehouseName : 'In Transit'
+      });
+
+      await logisticsApi.updateVehicle(v._id, {
+        status: vehicleStatus,
+        currentDocket: action === 'arrive' ? '' : v.currentDocket,
+        currentRoute: action === 'arrive' ? '' : v.currentRoute,
+        currentLoad: action === 'arrive' ? '' : v.currentLoad
+      });
+
+      toast(`Transport updated: ${trackingStatus}`);
+      onRefresh();
+      loadReturnQueue();
+    } catch (e) { 
+      console.error('Transport Action Error:', e);
+      toast(e.message || 'Failed to update transport', 'error'); 
+    }
+  };
+
   return (
-    <div>
-      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:16 }}>
+    <div className="flex flex-col gap-6">
+      {/* Top Actions */}
+      <div className="flex justify-end">
         <button style={primaryBtn} onClick={() => setShowModal(true)}>+ Add Vehicle</button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Fleet Status */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="text-sm font-bold text-gray-800 mb-3.5">Fleet Status</div>
-          {loading ? <Spinner /> : vehicles.length === 0 ? (
-            <div className="text-center py-8 text-gray-400 text-sm">No vehicles found</div>
-          ) : vehicles.map((v, i) => (
-            <div key={v._id} className={`flex items-center justify-between py-3 ${i < vehicles.length - 1 ? 'border-b border-gray-100' : ''}`}>
-              <div className="flex gap-3 items-center">
-                <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-lg">🚛</div>
-                <div>
-                  <div className="font-bold text-sm">{v.number}</div>
-                  <div className="text-[11px] text-gray-500">{v.type} · {v.capacity} · {v.driver}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <StatusBadge status={v.status} />
-                <select
-                  value={v.status}
-                  onChange={e => handleStatusChange(v._id, e.target.value)}
-                  className="text-xs border border-gray-200 rounded-lg px-2 py-1 outline-none bg-white font-[inherit] cursor-pointer"
-                >
-                  <option>Available</option>
-                  <option>In Transit</option>
-                  <option>Maintenance</option>
-                  <option>Inactive</option>
-                </select>
-                <button onClick={() => handleDelete(v._id)} className="px-2 py-1 text-[11px] rounded-lg bg-red-50 text-red-600 border border-red-200 cursor-pointer font-[inherit]">✕</button>
-              </div>
+      {/* Fleet Summary: 4 Cards in one row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Total Vehicles', value: vehicles.length, color: '#1c2833', icon: <MdLocalShipping /> },
+          { label: 'Available', value: vehicles.filter(v => v.status === 'Available').length, color: '#10b981', icon: <MdCheckCircle /> },
+          { label: 'In Transit', value: vehicles.filter(v => v.status === 'In Transit').length, color: '#3b82f6', icon: <MdLocalShipping /> },
+          { label: 'Assigned', value: vehicles.filter(v => v.status === 'Assigned').length, color: '#f59e0b', icon: <MdLocalShipping /> },
+        ].map((k, i) => (
+          <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{ background: `${k.color}10`, color: k.color }}>
+              {k.icon}
             </div>
-          ))}
+            <div>
+              <div className="text-2xl font-black" style={{ color: k.color }}>{k.value}</div>
+              <div className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">{k.label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Left: Active Fleet Status */}
+        <div className="xl:col-span-2 space-y-6">
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2 px-1">
+              <MdLocalShipping className="text-red-600" /> Active Fleet Status
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {loading ? <Spinner /> : vehicles.length === 0 ? (
+                <div className="col-span-2 text-center py-12 bg-white rounded-2xl border border-dashed border-gray-300 text-gray-400 text-sm">No vehicles registered in fleet</div>
+              ) : vehicles.map((v) => (
+                <div key={v._id} className="bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-md transition-shadow relative overflow-hidden group">
+                  <div className={`absolute top-0 left-0 w-1 h-full ${
+                    v.status === 'Available' ? 'bg-green-500' :
+                    v.status === 'Assigned' ? 'bg-amber-500' :
+                    v.status === 'In Transit' ? 'bg-blue-500' : 'bg-gray-400'
+                  }`} />
+                  
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-xl shadow-inner group-hover:scale-110 transition-transform">
+                        🚚
+                      </div>
+                      <div>
+                        <div className="font-black text-sm text-gray-800 tracking-tight">{v.number}</div>
+                        <div className="text-[11px] text-gray-500 font-bold uppercase">{v.type} • {v.capacity}</div>
+                      </div>
+                    </div>
+                    <StatusBadge status={v.status} />
+                  </div>
+
+                  {v.status !== 'Available' && v.currentDocket && (
+                    <div className="grid grid-cols-1 gap-2 mb-4 border-t border-gray-50 pt-3">
+                      <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-[10px] text-gray-400 uppercase font-bold">Active Docket</span>
+                          <span className="text-[10px] font-mono font-bold text-red-600 bg-red-50 px-1.5 rounded">{v.currentDocket}</span>
+                        </div>
+                        <div className="text-[11px] font-bold text-gray-700 truncate">{v.currentRoute}</div>
+                        <div className="mt-2 flex gap-1.5">
+                          {v.status === 'Assigned' && (
+                            <button onClick={() => handleTransportAction(v, 'out_for_pickup')} className="flex-1 py-1.5 bg-gray-900 text-white text-[10px] font-bold rounded-lg hover:bg-red-600 transition-colors">Out for Pickup</button>
+                          )}
+                          {v.status === 'Assigned' && (
+                            <button onClick={() => handleTransportAction(v, 'pickup')} className="flex-1 py-1.5 bg-green-700 text-white text-[10px] font-bold rounded-lg">Picked Up</button>
+                          )}
+                          {v.status === 'In Transit' && (
+                            <>
+                              <button onClick={() => handleTransportAction(v, 'transit')} className="flex-1 py-1.5 bg-blue-600 text-white text-[10px] font-bold rounded-lg">Update Location</button>
+                              <button onClick={() => handleTransportAction(v, 'arrive')} className="flex-1 py-1.5 bg-green-600 text-white text-[10px] font-bold rounded-lg">Mark Arrived</button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between gap-2 border-t border-gray-50 pt-3">
+                    <div className="flex items-center gap-2 text-xs font-bold text-gray-600">
+                      <MdPhone className="text-gray-400" /> {v.driverMobile || 'No Mobile'}
+                    </div>
+                    <div className="flex gap-2">
+                      <select
+                        value={v.status}
+                        onChange={e => handleStatusChange(v._id, e.target.value)}
+                        className="text-[11px] border border-gray-200 rounded-lg px-2 py-1 outline-none bg-gray-50 font-bold cursor-pointer"
+                      >
+                        <option>Available</option>
+                        <option>Assigned</option>
+                        <option>In Transit</option>
+                        <option>Maintenance</option>
+                        <option>Inactive</option>
+                      </select>
+                      <button onClick={() => handleDelete(v._id)} className="w-8 h-8 rounded-lg bg-red-50 text-red-600 border border-red-100 flex items-center justify-center hover:bg-red-600 hover:text-white transition-all">✕</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {/* Active Dispatches as Allocations */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="text-sm font-bold text-gray-800 mb-3.5">Fleet Summary</div>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label:'Total Vehicles',  value: vehicles.length,                                        color:'#1c2833' },
-              { label:'Available',       value: vehicles.filter(v => v.status === 'Available').length,  color:'#10b981' },
-              { label:'In Transit',      value: vehicles.filter(v => v.status === 'In Transit').length, color:'#3b82f6' },
-              { label:'Maintenance',     value: vehicles.filter(v => v.status === 'Maintenance').length,color:'#f59e0b' },
-            ].map((k, i) => (
-              <div key={i} className="bg-gray-50 rounded-xl p-4">
-                <div className="text-xl font-black" style={{ color: k.color }}>{k.value}</div>
-                <div className="text-xs text-gray-500 mt-0.5">{k.label}</div>
-              </div>
-            ))}
+        {/* Right: Return Pickup Queue */}
+        <div className="xl:col-span-1 space-y-4">
+          <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2 px-1">
+            <MdInventory className="text-red-600" /> Return Pickup Queue
+          </h3>
+          
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="max-h-[650px] overflow-y-auto custom-scrollbar">
+              {queueLoading ? <Spinner /> : returnQueue.length === 0 ? (
+                <div className="p-10 text-center text-gray-400 text-sm">No pending return pickups</div>
+              ) : returnQueue.map((item) => (
+                <div key={item._id} className="p-4 border-b border-gray-50 hover:bg-red-50/30 transition-colors group">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-xs font-black text-red-700 tracking-tighter">{item.mrId}</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      item.priority === 'Critical' ? 'bg-red-100 text-red-700' :
+                      item.priority === 'High' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {item.priority}
+                    </span>
+                  </div>
+                  <div className="text-xs font-bold text-gray-800 mb-1">{item.supplierName || item.customerName}</div>
+                  <div className="text-[11px] text-gray-500 mb-3 flex items-center gap-1">
+                    <MdDescription size={12} className="text-gray-400" /> {item.docketId} • {item.returnQty} Qty
+                  </div>
+                  <div className="text-[10px] text-gray-400 uppercase font-bold mb-1">Pickup Location</div>
+                  <div className="text-[11px] text-gray-600 font-semibold mb-4 bg-gray-50 p-2 rounded-lg border border-gray-100 truncate italic">
+                    <MdPlace className="inline mr-1" /> {item.pickupAddress || 'Location not specified'}
+                  </div>
+                  
+                  <button 
+                    onClick={() => setAssignModal(item)}
+                    className="w-full py-2.5 bg-gray-900 text-white rounded-xl text-[11px] font-bold shadow-md hover:bg-red-600 transition-all flex items-center justify-center gap-2"
+                  >
+                    <MdLocalShipping size={14} /> Assign Vehicle
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Vehicle Assignment Modal */}
+      <Modal
+        open={!!assignModal}
+        onClose={() => setAssignModal(null)}
+        title="Assign Logistics Vehicle"
+        footer={
+          <button className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-bold text-gray-600" onClick={() => setAssignModal(null)}>Cancel</button>
+        }
+      >
+        {assignModal && (
+          <div className="space-y-4">
+            <div className="bg-red-50 p-4 rounded-2xl border border-red-100">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-black text-red-700">{assignModal.mrId}</span>
+                <span className="text-xs font-bold text-gray-600">{assignModal.docketId}</span>
+              </div>
+              <div className="text-xs text-gray-700 font-bold mb-1">{assignModal.supplierName}</div>
+              <div className="text-[11px] text-gray-500">{assignModal.pickupAddress}</div>
+            </div>
+
+            <div className="text-xs font-bold text-gray-800 px-1">Select Available Vehicle</div>
+            <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto pr-2">
+              {vehicles.filter(v => v.status === 'Available').length === 0 ? (
+                <div className="text-center py-6 text-gray-400 text-xs bg-gray-50 rounded-xl border border-dashed border-gray-200">No available vehicles in fleet</div>
+              ) : vehicles.filter(v => v.status === 'Available').map(v => (
+                <button
+                  key={v._id}
+                  onClick={() => handleAssignVehicle(assignModal, v)}
+                  disabled={saving}
+                  className="flex items-center justify-between p-3 rounded-xl border border-gray-100 bg-white hover:border-red-300 hover:bg-red-50/50 transition-all text-left group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-lg group-hover:scale-110 transition-transform">🚚</div>
+                    <div>
+                      <div className="font-bold text-sm text-gray-800">{v.number}</div>
+                      <div className="text-[10px] text-gray-500 uppercase font-bold">{v.driver} • {v.type}</div>
+                    </div>
+                  </div>
+                  <div className="text-red-600 font-black text-xs">Assign →</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Add Vehicle Modal */}
       <Modal 
@@ -390,7 +630,7 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
         title="Add New Vehicle"
         footer={
           <>
-            <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold cursor-pointer font-[inherit]" onClick={() => { setShowModal(false); setForm(EMPTY_VEHICLE); }}>Cancel</button>
+            <button className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-bold text-gray-600" onClick={() => { setShowModal(false); setForm(EMPTY_VEHICLE); }}>Cancel</button>
             <button style={primaryBtn} onClick={handleCreate} disabled={saving}>{saving ? 'Adding...' : 'Add Vehicle'}</button>
           </>
         }
@@ -399,26 +639,24 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-gray-600">Vehicle Type</label>
             <select className={inp} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
-              <option>Truck</option><option>Mini Truck</option><option>Tempo</option><option>Van</option>
+              <option>Mini Truck</option><option>Truck</option><option>Tempo</option><option>Container</option>
             </select>
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-gray-600">Vehicle Number *</label>
-            <input className={inp} placeholder="e.g. MH-12-AB-1234" value={form.number} onChange={e => setForm(f => ({ ...f, number: e.target.value }))} />
+            <input className={inp} placeholder="e.g. KA-01-AB-1234" value={form.number} onChange={e => setForm(f => ({ ...f, number: e.target.value }))} />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-gray-600">Driver Name *</label>
-            <input className={inp} placeholder="Driver name" value={form.driver} onChange={e => setForm(f => ({ ...f, driver: e.target.value }))} />
+            <input className={inp} placeholder="Ramesh Kumar" value={form.driver} onChange={e => setForm(f => ({ ...f, driver: e.target.value }))} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-gray-600">Driver Mobile</label>
+            <input className={inp} placeholder="9876543210" value={form.driverMobile} onChange={e => setForm(f => ({ ...f, driverMobile: e.target.value }))} />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-gray-600">Capacity</label>
             <input className={inp} placeholder="e.g. 5 Ton" value={form.capacity} onChange={e => setForm(f => ({ ...f, capacity: e.target.value }))} />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-gray-600">Status</label>
-            <select className={inp} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-              <option>Available</option><option>In Transit</option><option>Maintenance</option><option>Inactive</option>
-            </select>
           </div>
         </div>
       </Modal>

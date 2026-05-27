@@ -8,11 +8,21 @@ export const getPincodeStock = async () => {
     const res = await fetch(`${BASE}/inventory-data/pincode`, {
       headers: { Authorization: `Bearer ${getToken()}` },
     });
+
+    if (res.status === 401) {
+      console.warn('Unauthorized: Token invalid or expired. Redirecting to login...');
+      localStorage.removeItem('chakra_token');
+      sessionStorage.removeItem('chakra_token');
+      window.location.href = '/login?expired=true';
+      return { success: false, data: [], message: 'Session expired' };
+    }
+
     const data = await res.json();
     console.log('Raw API response:', data);
     return {
       success: data.success === true,
       data: Array.isArray(data.data) ? data.data : [],
+      message: data.message || ''
     };
   } catch (error) {
     console.error('Error fetching pincode stock:', error);

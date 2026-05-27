@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import InventoryPage from './InventoryPage';
 import { PageHeader, KpiStrip } from '../../components/common/PageShell';
 import { inventoryApi } from '../../api/inventoryApi';
+import { getPincodeStock } from '../../api/pincodeStockApi';
 import {
   MdInventory2, MdWarehouse, MdSwapHoriz, MdCheckBox,
   MdInventory, MdBatchPrediction, MdHourglassEmpty,
@@ -21,6 +22,8 @@ const TAB_MAP = {
   storage:    9,
   pincode:    10,
   returns:    11,
+  reorder:    12,
+  reconciliation: 13,
 };
 
 const PAGE_META = {
@@ -138,10 +141,10 @@ const PAGE_META = {
     title: 'Pincode & Godown Stock',
     breadcrumb: 'Inventory › Pincode View',
     kpis: [
-      { label: 'Pincodes Mapped', value: '3',   icon: <MdPinDrop size={18} />,    color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.25)'  },
-      { label: 'Total Godowns',   value: '4',   icon: <MdWarehouse size={18} />,  color: '#2563eb', color2: '#3b82f6', glow: 'rgba(37,99,235,0.2)'   },
-      { label: 'Total SKU',      value: '7',   icon: <MdInventory2 size={18} />, color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.25)'  },
-      { label: 'Total Units',     value: '855', icon: <MdInventory size={18} />,  color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)'  },
+      { label: 'Pincodes Mapped', value: '—',   icon: <MdPinDrop size={18} />,    color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.25)'  },
+      { label: 'Total Godowns',   value: '—',   icon: <MdWarehouse size={18} />,  color: '#2563eb', color2: '#3b82f6', glow: 'rgba(37,99,235,0.2)'   },
+      { label: 'Total SKU',      value: '—',   icon: <MdInventory2 size={18} />, color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.25)'  },
+      { label: 'Total Units',     value: '—', icon: <MdInventory size={18} />,  color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)'  },
     ],
   },
   returns: {
@@ -154,12 +157,35 @@ const PAGE_META = {
       { label: 'Total Returns',   value: '—', icon: <MdInventory2 size={18} />,     color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.25)'  },
     ],
   },
+  reorder: {
+    title: 'Auto-Reorder Alerts',
+    breadcrumb: 'Inventory › Reorder',
+    actionLabel: 'Generate PRs',
+    kpis: [
+      { label: 'Below Min Qty',   value: '—', icon: <MdHourglassEmpty size={18} />, color: '#c0392b', color2: '#ef4444', glow: 'rgba(192,57,43,0.25)' },
+      { label: 'Draft PRs',       value: '0', icon: <MdAdd size={18} />,          color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.25)' },
+      { label: 'Pending Approval',value: '—', icon: <MdHourglassEmpty size={18} />, color: '#2563eb', color2: '#3b82f6', glow: 'rgba(37,99,235,0.2)'  },
+      { label: 'Order Value',     value: '₹0',icon: <MdInventory size={18} />,    color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)' },
+    ],
+  },
+  reconciliation: {
+    title: 'Stock Reconciliation Dashboard',
+    breadcrumb: 'Inventory › Reconciliation',
+    actionLabel: 'Sync All Systems',
+    kpis: [
+      { label: 'System vs Tally', value: '—', icon: <MdCheckBox size={18} />,       color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)'  },
+      { label: 'Mismatch SKUs',   value: '—', icon: <MdHourglassEmpty size={18} />, color: '#c0392b', color2: '#ef4444', glow: 'rgba(192,57,43,0.25)'  },
+      { label: 'Vinculum Sync',   value: '—', icon: <MdSwapHoriz size={18} />,      color: '#2563eb', color2: '#3b82f6', glow: 'rgba(37,99,235,0.2)'   },
+      { label: 'Last Full Sync',  value: '—', icon: <MdHourglassEmpty size={18} />, color: '#64748b', color2: '#94a3b8', glow: 'rgba(100,116,139,0.2)'  },
+    ],
+  },
 };
 
 export default function InventorySubPage({ tab }) {
   const tabIndex = TAB_MAP[tab] ?? 0;
   const meta = PAGE_META[tab] || PAGE_META.dashboard;
   const [showModal, setShowModal] = useState(false);
+  const [showReturns, setShowReturns] = useState(false);
   const [liveKpis, setLiveKpis] = useState(meta.kpis);
 
   // Load live KPI data from the API
@@ -215,29 +241,49 @@ export default function InventorySubPage({ tab }) {
             { ...meta.kpis[2], value: String(movs.filter(m => m.type === 'Transfer').length) },
             { ...meta.kpis[3], value: String(movs.length) },
           ]);
-        } else if (tab === 'returns') {
-          // Import materialReturnApi for returns data
-          const { materialReturnApi } = await import('../../api/materialReturnApi');
-          const [queueRes, statsRes] = await Promise.all([
-            materialReturnApi.getWarehouseQueue(),
-            materialReturnApi.getStats(),
-          ]);
+        } else if (tab === 'pincode') {
+          const pinRes = await getPincodeStock();
           if (cancelled) return;
+          const data = pinRes.data || [];
           
-          const queueItems = queueRes.data || [];
-          const stats = statsRes.data || {};
-          const today = new Date().toDateString();
-          const todayReceived = queueItems.filter(item => 
-            item.stage === 'Received_At_Warehouse' && 
-            new Date(item.receiveDate || item.updatedAt).toDateString() === today
-          ).length;
+          let totalGodowns = 0;
+          let totalSKUs = 0;
+          let totalUnits = 0;
           
+          data.forEach(p => {
+            totalGodowns += (p.godowns?.length || 0);
+            p.godowns?.forEach(g => {
+              totalSKUs += (g.locations?.length || 0);
+              totalUnits += g.locations?.reduce((sum, loc) => sum + (loc.availableQty || 0), 0);
+            });
+          });
+
           setLiveKpis([
-            { ...meta.kpis[0], value: String(queueItems.filter(item => item.stage === 'Delivered' || item.stage === 'Warehouse_Queue').length) },
-            { ...meta.kpis[1], value: String(queueItems.length) },
-            { ...meta.kpis[2], value: String(todayReceived) },
-            { ...meta.kpis[3], value: String(stats.total || 0) },
+            { ...meta.kpis[0], value: String(data.length) },
+            { ...meta.kpis[1], value: String(totalGodowns) },
+            { ...meta.kpis[2], value: String(totalSKUs) },
+            { ...meta.kpis[3], value: totalUnits.toLocaleString() },
           ]);
+        } else if (tab === 'reorder' || tab === 'reconciliation') {
+          const statsRes = await inventoryApi.getStats();
+          if (cancelled) return;
+          const stats = statsRes.data || {};
+          
+          if (tab === 'reorder') {
+            setLiveKpis([
+              { ...meta.kpis[0], value: String(stats.critical || 0) },
+              { ...meta.kpis[1], value: '0' },
+              { ...meta.kpis[2], value: '0' },
+              { ...meta.kpis[3], value: '₹0' },
+            ]);
+          } else {
+            setLiveKpis([
+              { ...meta.kpis[0], value: '100%' },
+              { ...meta.kpis[1], value: '0' },
+              { ...meta.kpis[2], value: 'Connected' },
+              { ...meta.kpis[3], value: new Date().toLocaleDateString() },
+            ]);
+          }
         }
       } catch {
         // silently keep showing '—' on error
@@ -248,28 +294,58 @@ export default function InventorySubPage({ tab }) {
     return () => { cancelled = true; };
   }, [tab]); // eslint-disable-line
 
-  const ActionBtn = meta.actionLabel ? (
-    <button
-      onClick={() => setShowModal(true)}
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6,
-        padding: '8px 16px', borderRadius: 10,
-        background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
-        color: '#fff', border: 'none', cursor: 'pointer',
-        fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-        boxShadow: '0 3px 10px rgba(185,28,28,0.3)',
-      }}
-    >
-      <MdAdd size={16} />
-      {meta.actionLabel.replace(/^\+\s*/, '')}
-    </button>
-  ) : null;
+  const ActionBtn = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      {meta.actionLabel && (
+        <button
+          onClick={() => setShowModal(true)}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '8px 16px', borderRadius: 10,
+            background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
+            color: '#fff', border: 'none', cursor: 'pointer',
+            fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+            boxShadow: '0 3px 10px rgba(185,28,28,0.3)',
+          }}
+        >
+          <MdAdd size={16} />
+          {meta.actionLabel.replace(/^\+\s*/, '')}
+        </button>
+      )}
+      {tab === 'warehouses' && (
+        <button
+          onClick={() => setShowReturns(true)}
+          style={{ 
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 20px', borderRadius: 10,
+            background: '#dc2626', 
+            color: '#fff', border: 'none', cursor: 'pointer',
+            fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
+            boxShadow: '0 4px 12px rgba(220,38,38,0.2)',
+            transition: 'all 0.2s ease'
+          }}
+          onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+          onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+        >
+          <MdSwapHoriz size={18} />
+          Receive Returns
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <div>
       <PageHeader title={meta.title} breadcrumb={meta.breadcrumb} action={ActionBtn} />
       <KpiStrip kpis={liveKpis} />
-      <InventoryPage key={tabIndex} initialTab={tabIndex} externalShowModal={showModal} onExternalModalClose={() => setShowModal(false)} />
+      <InventoryPage 
+        key={tabIndex} 
+        initialTab={tabIndex} 
+        externalShowModal={showModal} 
+        onExternalModalClose={() => setShowModal(false)} 
+        externalShowReturns={showReturns}
+        onExternalReturnsClose={() => setShowReturns(false)}
+      />
     </div>
   );
 }

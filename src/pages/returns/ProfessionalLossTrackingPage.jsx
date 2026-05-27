@@ -185,6 +185,7 @@ const normalizeLossRecord = (r) => {
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function LossTrackingPage({ linkedReturns = [] }) {
   const [records, setRecords] = useState([]);
+  const [allReturns, setAllReturns] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [selected, setSelected] = useState(null);
@@ -192,7 +193,10 @@ export default function LossTrackingPage({ linkedReturns = [] }) {
   const [filter, setFilter] = useState({ status: '', priority: '', lossType: '' });
   const { toasts, show: toast } = useToast();
 
+  const generateLossId = () => `LOSS-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000) + 1000}`;
+
   const blankForm = {
+    lossId: generateLossId(),
     mrId: '',
     party: '',
     invoiceNumber: '',
@@ -218,14 +222,67 @@ export default function LossTrackingPage({ linkedReturns = [] }) {
         materialReturnApi.getAll().catch(() => ({ data: [] })),
       ]);
       const lossRows = (lossRes.data || []).map(normalizeLossRecord);
-      const returns = [...linkedReturns, ...(returnRes.data || [])];
-      const derivedRows = returns
-        .filter(r => !lossRows.some(l => l.mrId === r.mrId))
-        .map(normalizeLossRecord);
-      setRecords(lossRows.length || derivedRows.length ? [...lossRows, ...derivedRows] : SEED);
-    } catch {
-      const derivedRows = linkedReturns.map(normalizeLossRecord);
-      setRecords(derivedRows.length ? derivedRows : SEED);
+      
+      // Fetch all returns from the same API as /returns/requests to ensure consistency
+      const returns = returnRes.data || [];
+      
+      setAllReturns(returns);
+
+      // Only show loss records from the backend
+      setRecords(lossRows);
+    } catch (err) {
+      console.error("Load records error", err);
+      setRecords([]);
+    }
+  };
+
+  const handleMrSelect = async (mrId) => {
+    if (!mrId) {
+      setForm(prev => ({ 
+        ...prev, 
+        mrId: '', 
+        party: '', 
+        invoiceNumber: '', 
+        products: [{ productName: '', skuCode: '', batchNo: '', damagedQty: 0, unitRate: 0 }] 
+      }));
+      return;
+    }
+
+    // Check local state first, then fetch full details to ensure all fields like productName are present
+    let ret = allReturns.find(r => r.mrId === mrId || r._id === mrId);
+    
+    try {
+      const res = await materialReturnApi.getById(ret?._id || mrId);
+      if (res.success) ret = res.data;
+    } catch (e) {
+      console.error("Failed to fetch full MR details", e);
+    }
+
+    if (ret) {
+      const productName = ret.productName || ret.productSku || '—';
+      const skuCode = ret.productSku || ret.skuCode || '—';
+      // Use QC rejected quantity if available, else return quantity
+      const qty = Number(ret.qcRejectedQty || ret.rejectedQty || ret.returnQty || 0);
+      const rate = Number(ret.unitPrice || (ret.value / (ret.returnQty || 1)) || 0);
+
+      setForm(prev => ({
+        ...prev,
+        mrId: ret.mrId || mrId,
+        party: ret.supplierName || ret.customerName || '',
+        invoiceNumber: ret.invoiceNo || '',
+        products: [{
+          productName,
+          skuCode,
+          batchNo: ret.batchNo || '-',
+          damagedQty: qty,
+          unitRate: rate
+        }],
+        lossAmount: ret.value || (qty * rate),
+        rootCause: ret.qcFinalRemarks || ret.returnReason || ret.reason || prev.rootCause,
+        responsibleDepartment: ret.qcStatus === 'Failed' ? 'Quality' : 'Logistics',
+        priority: ret.priority || 'Medium'
+      }));
+      toast(`Auto-filled all details from Return Request: ${ret.mrId || mrId}`, 'success');
     }
   };
 
@@ -259,7 +316,6 @@ export default function LossTrackingPage({ linkedReturns = [] }) {
       return;
     }
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 600));
     const lossAmount = form.products.reduce((s, p) => s + p.damagedQty * p.unitRate, 0);
     const recAmt =
       form.recoveryStatus === 'Full Recovery'
@@ -267,31 +323,40 @@ export default function LossTrackingPage({ linkedReturns = [] }) {
         : form.recoveryStatus === 'Partial Recovery'
         ? Math.round(lossAmount * 0.6)
         : 0;
-    const yr = new Date().getFullYear();
-    const seq = String(Math.floor(Math.random() * 9000) + 1000);
-    const newRec = {
-      _id: Date.now().toString(),
-      lossId: `LOSS-${yr}-${seq}`,
-      createdDate: new Date().toISOString().split('T')[0],
+    
+    const payload = {
+      ...form,
       lossAmount,
       recoverableAmount: recAmt,
-      ...form,
+      createdDate: new Date().toISOString()
     };
+
     try {
-      const response = await lossTrackingApi.create(newRec);
-      setRecords((p) => [normalizeLossRecord(response.data || newRec), ...p]);
-    } catch {
-      setRecords((p) => [newRec, ...p]);
+      const response = await lossTrackingApi.create(payload);
+      if (response.success) {
+        toast('Loss record created successfully!', 'success');
+        setShowCreate(false);
+        setForm({ ...blankForm, lossId: generateLossId() });
+        loadRecords(); // Reload from backend
+      }
+    } catch (err) {
+      toast(err.message || 'Failed to create loss record', 'error');
+    } finally {
+      setSaving(false);
     }
-    toast('Loss record created successfully!', 'success');
-    setShowCreate(false);
-    setForm(blankForm);
-    setSaving(false);
   };
 
-  const handleDelete = (id) => {
-    setRecords((p) => p.filter((r) => r._id !== id));
-    toast('Record deleted', 'info');
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this record?')) return;
+    try {
+      const res = await lossTrackingApi.delete(id);
+      if (res.success) {
+        toast('Record deleted', 'info');
+        loadRecords();
+      }
+    } catch (err) {
+      toast('Failed to delete record', 'error');
+    }
   };
 
   return (
@@ -322,7 +387,10 @@ export default function LossTrackingPage({ linkedReturns = [] }) {
           </p>
         </div>
         <button
-          onClick={() => setShowCreate(true)}
+          onClick={() => {
+            setForm({ ...blankForm, lossId: generateLossId() });
+            setShowCreate(true);
+          }}
           className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow transition-all"
         >
           <Plus size={16} />
@@ -550,20 +618,27 @@ export default function LossTrackingPage({ linkedReturns = [] }) {
           {/* Section 1: Basic Info */}
           <Section title="Basic Information" icon={<ClipboardList size={15} />} color="blue">
             <div className="grid grid-cols-2 gap-4">
-              <ReadonlyField
-                label="Loss ID (Auto Generated)"
-                value={`LOSS-${new Date().getFullYear()}-AUTO`}
-                source="System"
-              />
-              <FormField label="MR ID *" source="Return Module">
+              <FormField label="Loss ID *" source="">
                 <input
                   className={inp}
-                  value={form.mrId}
-                  onChange={(e) => setForm((p) => ({ ...p, mrId: e.target.value }))}
-                  placeholder="MR-2026-XXXX"
+                  value={form.lossId}
+                  onChange={(e) => setForm((p) => ({ ...p, lossId: e.target.value }))}
+                  placeholder="LOSS-2026-XXXX"
                 />
               </FormField>
-              <FormField label="Party / Supplier" source="Invoice / Vendor">
+              <FormField label="MR ID *" source="">
+                <select
+                  className={inp}
+                  value={form.mrId}
+                  onChange={(e) => handleMrSelect(e.target.value)}
+                >
+                  <option value="">— Select MR ID —</option>
+                  {allReturns.map(r => (
+                    <option key={r._id} value={r._id || r.mrId}>{r.mrId} — {r.customerName || r.supplierName}</option>
+                  ))}
+                </select>
+              </FormField>
+              <FormField label=" Supplier" source="">
                 <input
                   className={inp}
                   value={form.party}
@@ -571,7 +646,7 @@ export default function LossTrackingPage({ linkedReturns = [] }) {
                   placeholder="Supplier name"
                 />
               </FormField>
-              <FormField label="Invoice Number" source="Purchase Module">
+              <FormField label="Invoice Number" source="">
                 <input
                   className={inp}
                   value={form.invoiceNumber}
@@ -579,18 +654,18 @@ export default function LossTrackingPage({ linkedReturns = [] }) {
                   placeholder="INV-2026-XXXX"
                 />
               </FormField>
-              <FormField label="Loss Type" source="QC / Transport">
+              <FormField label="Loss Type" source="">
                 <select
                   className={inp}
                   value={form.lossType}
                   onChange={(e) => setForm((p) => ({ ...p, lossType: e.target.value }))}
                 >
-                  {['Transit Damage', 'QC Rejected', 'Courier Lost', 'Theft'].map((v) => (
+                  {['Transit Damage', 'QC Rejected', 'Courier Lost', 'Theft', 'Material Shortage', 'Documentation Error'].map((v) => (
                     <option key={v}>{v}</option>
                   ))}
                 </select>
               </FormField>
-              <FormField label="Root Cause" source="QC Inspection">
+              <FormField label="Root Cause" source="">
                 <select
                   className={inp}
                   value={form.rootCause}
@@ -602,6 +677,8 @@ export default function LossTrackingPage({ linkedReturns = [] }) {
                     'Transport Mishandling',
                     'Documentation Error',
                     'Theft in Transit',
+                    'Weight Mismatch',
+                    'Invoice Mismatch'
                   ].map((v) => (
                     <option key={v}>{v}</option>
                   ))}
@@ -705,7 +782,7 @@ export default function LossTrackingPage({ linkedReturns = [] }) {
           </Section>
 
           {/* Section 3: Assignment & Status */}
-          <Section title="Assignment & Workflow" icon={<User size={15} />} color="purple">
+          <Section title="Assignment" icon={<User size={15} />} color="purple">
             <div className="grid grid-cols-3 gap-4">
               <FormField label="Responsible Dept" source="System Logic">
                 <select
@@ -719,12 +796,24 @@ export default function LossTrackingPage({ linkedReturns = [] }) {
                 </select>
               </FormField>
               <FormField label="Assigned To *" source="Task Module">
-                <input
+                <select
                   className={inp}
                   value={form.assignedTo}
                   onChange={(e) => setForm((p) => ({ ...p, assignedTo: e.target.value }))}
-                  placeholder="Person name"
-                />
+                >
+                  <option value="">— Select Person —</option>
+                  {[
+                    'Ramesh Gupta (Purchase)',
+                    'Priya Sharma (Management)',
+                    'Sunil Das (Production)',
+                    'Amit Kumar (Logistics)',
+                    'Suresh Singh (Quality)',
+                    'Kiran Sharma (Accounts)',
+                    'Self (Returns Team)'
+                  ].map((v) => (
+                    <option key={v}>{v}</option>
+                  ))}
+                </select>
               </FormField>
               <FormField label="Priority" source="Workflow Engine">
                 <select

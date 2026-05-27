@@ -5,10 +5,11 @@ import {
   MdLayers, MdLoop, MdTag, MdApproval, MdWarehouse, MdSearch,
   MdDownload, MdPerson, MdAttachFile, MdArrowForward,
   MdBolt, MdCurrencyRupee, MdBarChart,
-  MdError, MdCheckCircleOutline, MdInfoOutline
+  MdError, MdCheckCircleOutline, MdInfoOutline, MdFactCheck
 } from 'react-icons/md';
 import { materialReturnApi } from '../../api/materialReturnApi';
 import { invoiceApi } from '../../api/invoiceApi';
+import { logisticsApi } from '../../api/logisticsApi';
 import { toast } from '../../components/common/Toast';
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
@@ -44,38 +45,35 @@ function Modal({ open, onClose, title, children, footer, size = 'lg' }) {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const RETURN_STAGES = [
-  { key: 'Invoice_Select',                Icon: MdDescription,    },
-  { key: 'Invoice_API_Fetch',             Icon: MdRefresh,       },
-  { key: 'Supplier_Products_Auto_Fetch',    Icon: MdLayers,       },
-  { key: 'Return_Request_Create',          Icon: MdLoop,          },
-  { key: 'MR_ID_Generate',                     Icon: MdTag,            },
-  { key: 'Manager_Approval',                  Icon: MdApproval,      },
-  { key: 'Docket_Create',                    Icon: MdLocalShipping,  },
-  { key: 'Transport_Tracking',          Icon: MdInventory,      },
-  { key: 'Warehouse_Receive',               Icon: MdWarehouse,      },
-  { key: 'QC_Verification',                      Icon: MdVerifiedUser,  },
-  { key: 'Finance_Reconciliation',           Icon: MdCurrencyRupee,  },
-  { key: 'Tally_Sync',                       Icon: MdRefresh,       },
-  { key: 'Closed',                               Icon: MdCheckCircle, },
+  { key: 'REQUEST_RAISED',          Icon: MdAdd,             label: 'Request Raised' },
+  { key: 'APPROVED',                Icon: MdCheckCircle,     label: 'Approved' },
+  { key: 'DOCKET_CREATED',          Icon: MdDescription,     label: 'Docket Created' },
+  { key: 'VEHICLE_ASSIGNED',        Icon: MdLocalShipping,   label: 'Vehicle Assigned' },
+  { key: 'PICKED_UP',               Icon: MdLocalShipping,   label: 'Picked Up' },
+  { key: 'IN_TRANSIT',              Icon: MdLocalShipping,   label: 'In Transit' },
+  { key: 'ARRIVED_AT_WAREHOUSE',    Icon: MdWarehouse,       label: 'Arrived at Warehouse' },
+  { key: 'RECEIVED',                Icon: MdCheckCircle,     label: 'Received' },
+  { key: 'QC_PENDING',              Icon: MdFactCheck || MdVerifiedUser, label: 'QC Pending' },
+  { key: 'QC_PASSED',               Icon: MdCheckCircle,     label: 'QC Passed' },
+  { key: 'QC_FAILED',               Icon: MdError,           label: 'QC Failed' },
+  { key: 'FINANCE_PENDING',         Icon: MdCurrencyRupee,   label: 'Finance Pending' },
+  { key: 'CLOSED',                  Icon: MdCheckCircle,     label: 'Closed' },
 ];
 
 const STAGE_BADGE = {
-  Invoice_Select: 'bg-slate-100 text-slate-700',
-  Invoice_API_Fetch: 'bg-blue-100 text-blue-700',
-  Supplier_Products_Auto_Fetch: 'bg-teal-100 text-teal-700',
-  Return_Request_Create: 'bg-red-100 text-red-700',
-  MR_ID_Generate: 'bg-violet-100 text-violet-700',
-  Manager_Approval: 'bg-green-100 text-green-700',
-  Docket_Create: 'bg-orange-100 text-orange-700',
-  Transport_Tracking: 'bg-blue-100 text-blue-700',
-  Warehouse_Receive: 'bg-emerald-100 text-emerald-700',
-  QC_Verification: 'bg-purple-100 text-purple-700',
-  Finance_Reconciliation: 'bg-yellow-100 text-yellow-700',
-  Tally_Sync: 'bg-lime-100 text-lime-700',
-  Closed: 'bg-gray-100 text-gray-700',
-  Initiated: 'bg-orange-100 text-orange-700',
-  Approved: 'bg-green-100 text-green-700',
-  In_Transit: 'bg-blue-100 text-blue-700',
+  REQUEST_RAISED: 'bg-slate-100 text-slate-700',
+  APPROVED: 'bg-green-100 text-green-700',
+  DOCKET_CREATED: 'bg-blue-100 text-blue-700',
+  VEHICLE_ASSIGNED: 'bg-purple-100 text-purple-700',
+  PICKED_UP: 'bg-yellow-100 text-yellow-700',
+  IN_TRANSIT: 'bg-blue-100 text-blue-700',
+  ARRIVED_AT_WAREHOUSE: 'bg-emerald-100 text-emerald-700',
+  RECEIVED: 'bg-green-100 text-green-700',
+  QC_PENDING: 'bg-orange-100 text-orange-700',
+  QC_PASSED: 'bg-green-100 text-green-700',
+  QC_FAILED: 'bg-red-100 text-red-700',
+  FINANCE_PENDING: 'bg-yellow-100 text-yellow-700',
+  CLOSED: 'bg-gray-100 text-gray-700',
 };
 
 const PRIORITY_BADGE = {
@@ -182,21 +180,29 @@ function daysSince(dateStr) {
 
 function workflowAssignee(stage) {
   const map = {
-    Invoice_Select: 'Returns Desk', Invoice_API_Fetch: 'System',
-    Supplier_Products_Auto_Fetch: 'System', Return_Request_Create: 'Returns Desk',
-    MR_ID_Generate: 'System', Manager_Approval: 'Manager',
-    Docket_Create: 'Logistics', Transport_Tracking: 'Logistics',
-    Warehouse_Receive: 'Warehouse', QC_Verification: 'QC Team',
-    Finance_Reconciliation: 'Accounts', Tally_Sync: 'Accounts', Closed: 'Closed',
+    REQUEST_RAISED: 'Returns Desk',
+    APPROVED: 'Logistics',
+    DOCKET_CREATED: 'Logistics',
+    VEHICLE_ASSIGNED: 'Logistics',
+    PICKED_UP: 'Logistics',
+    IN_TRANSIT: 'Transport',
+    ARRIVED_AT_WAREHOUSE: 'Warehouse',
+    RECEIVED: 'Warehouse',
+    QC_PENDING: 'QC Team',
+    QC_PASSED: 'Inventory',
+    QC_FAILED: 'Returns Desk',
+    FINANCE_PENDING: 'Accounts',
+    CLOSED: 'System',
   };
   return map[stage] || 'Workflow Engine';
 }
 
 function normalizeReturn(r) {
-  const stage = LEGACY_STAGE_MAP[r.stage] || r.currentWorkflowStage || r.stage || 'Return_Request_Create';
+  const stage = r.currentStage || r.stage || 'REQUEST_RAISED';
   const itemList = Array.isArray(r.items) ? r.items : [];
   const skuCount = Number(r.skuCount || itemList.length || 0);
   const value = Number(r.value || r.refundAmount || itemList.reduce((s, i) => s + Number(i.total || 0), 0));
+  
   return {
     ...r,
     _id: r._id || r.id || r.mrId,
@@ -209,17 +215,18 @@ function normalizeReturn(r) {
     address: r.address || r.supplierAddress || '',
     invoiceNo: r.invoiceNo || '',
     invoiceAmount: Number(r.invoiceAmount || r.value || 0),
-    value, skuCount,
+    value, 
+    skuCount,
     returnQty: Number(r.returnQty || r.expectedQty || 0),
     stage,
     transportStatus: r.transportStatus || 'Pending',
     warehouseStatus: r.warehouseStatus || 'Pending',
     qcStatus: r.qcStatus || 'Pending',
     financeStatus: r.financeStatus || 'Pending',
-    aging: Number.isFinite(Number(r.aging)) ? Number(r.aging) : daysSince(r.createdAt),
+    aging: Number.isFinite(Number(r.aging)) ? Number(r.aging) : daysSince(r.createdAt || r.createdDate),
     priority: r.priority || 'Medium',
     assignedTo: r.assignedTo || workflowAssignee(stage),
-    lastUpdated: r.lastUpdated || r.updatedAt || r.createdAt,
+    lastUpdated: timeAgo(r.updatedAt || r.lastUpdated),
     createdAt: r.createdAt || r.returnDate,
     createdBy: r.createdBy || r.requestedBy || 'System',
     items: itemList,
@@ -240,7 +247,7 @@ function Pill({ label, className = '' }) {
   );
 }
 
-function SectionBox({ title, icon, color = 'blue', children }) {
+function SectionBox({ title, icon, color = 'blue', children, headerRight }) {
   const colorMap = {
     blue:   'bg-blue-50 border-blue-200 text-blue-700',
     green:  'bg-green-50 border-green-200 text-green-700',
@@ -250,7 +257,10 @@ function SectionBox({ title, icon, color = 'blue', children }) {
   };
   return (
     <div className={`rounded-xl border p-4 ${colorMap[color]}`}>
-      <div className="flex items-center gap-2 text-xs font-bold mb-3">{icon}{title}</div>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2 text-xs font-bold">{icon}{title}</div>
+        {headerRight && <div>{headerRight}</div>}
+      </div>
       <div className="text-gray-800">{children}</div>
     </div>
   );
@@ -462,18 +472,54 @@ function CreateReturnModal({ open, onClose, onSave, saving, invoices = [] }) {
   const [fetchStatus, setFetchStatus] = useState(FETCH_STATUS.IDLE);   // for Invoice API fetch
   const [fetchError,  setFetchError]  = useState('');
   const [transportFetchStatus, setTransportFetchStatus] = useState(FETCH_STATUS.IDLE);
+  const [couriers, setCouriers] = useState([]);
+  const [shipments, setShipments] = useState([]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  // Reset on close
-  useEffect(() => {
-    if (!open) {
-      setForm(BLANK_FORM);
-      setFetchStatus(FETCH_STATUS.IDLE);
-      setFetchError('');
-      setTransportFetchStatus(FETCH_STATUS.IDLE);
+  // ── Transport API fetch ──────────────────────────────────────────────────
+  const runTransportFetch = useCallback(async (trackingRef, courierName) => {
+    if (!trackingRef?.trim() || trackingRef === 'Manual') return;
+    setTransportFetchStatus(FETCH_STATUS.LOADING);
+    try {
+      const res = await logisticsApi.trackCourier(trackingRef, courierName);
+      const transportData = res?.data || {};
+      
+      setForm(f => ({
+        ...f,
+        docketNo:         transportData.awbNo            || transportData.docketNo || transportData.shipmentId || f.docketNo,
+        estimatedPickup:  transportData.estimatedDelivery || transportData.estimatedPickup || f.estimatedPickup,
+        logisticsPartner: transportData.courier          || transportData.logisticsPartner || f.logisticsPartner,
+        transport:        transportData.courier          || transportData.carrier || f.transport,
+      }));
+      setTransportFetchStatus(FETCH_STATUS.SUCCESS);
+    } catch {
+      setTransportFetchStatus(FETCH_STATUS.ERROR);
     }
-  }, [open]);
+  }, []);
+
+  // ── AWB Selection ────────────────────────────────────────────────────────
+  const handleAwbSelect = useCallback((awbNo) => {
+    if (!awbNo) {
+      setForm(f => ({ ...f, awbNo: '', docketNo: '', estimatedPickup: '', logisticsPartner: '' }));
+      return;
+    }
+    const shipment = shipments.find(s => s.awbNo === awbNo);
+    if (shipment) {
+      setForm(f => ({
+        ...f,
+        awbNo,
+        transport:        shipment.courier || f.transport,
+        logisticsPartner: shipment.courier || f.logisticsPartner,
+        pickupAddress:    shipment.destination || f.pickupAddress,
+        docketNo:         shipment.shipmentId || f.docketNo,
+        estimatedPickup:  shipment.eta ? new Date(shipment.eta).toLocaleDateString() : f.estimatedPickup,
+      }));
+      runTransportFetch(awbNo, shipment.courier);
+    } else {
+      set('awbNo', awbNo);
+    }
+  }, [shipments, runTransportFetch]);
 
   // ── Invoice fetch (Stage 2 + 3) ──────────────────────────────────────────
   const runInvoiceFetch = useCallback(async (invoiceNo, source = 'manual') => {
@@ -485,6 +531,7 @@ function CreateReturnModal({ open, onClose, onSave, saving, invoices = [] }) {
     // Clear previous auto-filled data before refetch
     setForm(f => ({
       ...f,
+      invoiceNo, // keep the number
       supplierName: '', supplierType: '', contactNumber: '', email: '',
       address: '', productName: '', skuCount: '', value: '', invoiceAmount: '',
       invoiceItems: [], awbNo: '', pickupAddress: '', transport: '',
@@ -493,110 +540,147 @@ function CreateReturnModal({ open, onClose, onSave, saving, invoices = [] }) {
 
     try {
       let data = {};
-
-      // Try materialReturnApi first, fallback to invoiceApi
       try {
         const res = source === 'manual'
           ? await materialReturnApi.getInvoiceContext(invoiceNo)
           : await invoiceApi.getByInvoiceNo(invoiceNo);
         data = res?.data || {};
       } catch {
-        try {
-          const res2 = await invoiceApi.getByInvoiceNo(invoiceNo);
-          data = res2?.data || {};
-        } catch { /* will show error below */ }
+        const res2 = await invoiceApi.getByInvoiceNo(invoiceNo);
+        data = res2?.data || {};
       }
 
-      // Resolve fields — check all common backend key variations
-      const supplierName    = data.supplierName    || data.partyName       || data.vendorName     || '';
-      const supplierType    = data.supplierType    || data.partyType       || data.vendorType     || '';
-      const contactNumber   = data.contactNumber   || data.mobileNumber    || data.phone          || '';
-      const email           = data.email           || data.supplierEmail   || data.vendorEmail    || '';
-      const address         = data.address         || data.supplierAddress || data.pickupAddress  || data.vendorAddress || '';
-      const productName     = data.productName     || (data.items?.[0]?.productName) || '';
-      const skuCount        = data.skuCount        ?? data.items?.length   ?? '';
-      const value           = data.value           || data.grandTotal      || data.totalAmount    || '';
-      const invoiceAmount   = data.invoiceAmount   || data.subtotal        || value               || '';
-      const invoiceItems    = Array.isArray(data.items) ? data.items : [];
+      // Resolve fields
+      const supplierName    = data.supplierName    || data.customerName    || data.partyName       || data.vendorName     || '';
+      const supplierType    = data.supplierType    || data.partyType       || data.vendorType     || 'Dealer';
+      const contactNumber   = data.mobileNumber    || data.partyPhone      || data.contactNumber   || data.phone || '';
+      const email           = data.email           || data.partyEmail      || data.supplierEmail   || data.vendorEmail || '';
+      const address         = data.pickupAddress   || data.address         || data.partyAddress    || data.supplierAddress || data.vendorAddress || '';
+      const productSku      = data.productSku      || data.skuCode         || data.biPartNumber    || (data.items?.[0]?.sku) || (data.items?.[0]?.skuCode) || '';
+      const productName     = data.productName     || (data.items?.[0]?.productName) || (data.items?.[0]?.description) || data.brandName || '';
+      const skuCount        = data.skuCount        ?? data.items?.length   ?? 0;
+      const value           = data.value           || data.grandTotal      || data.totalAmount    || 0;
+      const invoiceAmount   = data.invoiceAmount   || data.grandTotal      || data.subtotal       || 0;
       const awbNo           = data.awbNo           || data.lrNo            || data.trackingNo     || '';
-      const transport       = data.transport       || data.courierPartner  || data.carrier        || '';
-      // Transport / logistics API fields
-      const docketNo        = data.docketNo        || data.docketNumber    || '';
-      const estimatedPickup = data.estimatedPickup || data.pickupDate      || '';
-      const logisticsPartner = data.logisticsPartner || data.logisticsVendor || '';
+      const transport       = data.transport       || data.courierName     || data.courierPartner || '';
+      
+      // MR ID logic
+      const currentYear = new Date().getFullYear();
+      const nextMrId = data.mrId || data.returnRequestId || `MR-${currentYear}-00${Math.floor(Math.random() * 100)}`;
 
       setForm(f => ({
         ...f,
         supplierName, supplierType, contactNumber, email,
-        pickupAddress: f.pickupAddress || address, // don't overwrite if user already typed
-        address,
-        productName, skuCount: skuCount !== '' ? String(skuCount) : '',
-        value: value !== '' ? String(value) : '',
-        invoiceAmount: invoiceAmount !== '' ? String(invoiceAmount) : '',
-        invoiceItems,
-        awbNo:           f.awbNo     || awbNo,           // keep user-typed value if any
+        pickupAddress: f.pickupAddress || address,
+        address, productName, productSku, 
+        skuCount: String(skuCount),
+        value: String(value),
+        invoiceAmount: String(invoiceAmount),
+        invoiceItems: data.items || [],
+        awbNo:           f.awbNo     || awbNo,
         transport:       f.transport || transport,
-        docketNo, estimatedPickup, logisticsPartner,
+        mrId:            nextMrId,
       }));
 
       setFetchStatus(FETCH_STATUS.SUCCESS);
-      toast('Stage 2 + 3 complete — Supplier, SKU & value auto-filled from Invoice API', 'success');
-
-      // Trigger transport API fetch if logistics data is present
-      if (awbNo || docketNo) {
-        runTransportFetch(awbNo || docketNo);
-      }
+      toast('Invoice details auto-fetched', 'success');
 
     } catch (err) {
       setFetchStatus(FETCH_STATUS.ERROR);
-      setFetchError(err?.message || 'Invoice fetch failed — please fill manually');
-      toast('Invoice API fetch failed. Fill details manually.', 'error');
+      setFetchError(err?.message || 'Invoice fetch failed');
     }
   }, []);
 
-  // ── Transport API fetch (Stage 7–8) ──────────────────────────────────────
-  const runTransportFetch = useCallback(async (trackingRef) => {
-    if (!trackingRef?.trim()) return;
+  // ── Manual Logistics Sync ────────────────────────────────────────────────
+  const syncLogistics = useCallback(async () => {
     setTransportFetchStatus(FETCH_STATUS.LOADING);
     try {
-      // Replace with your actual transport API call
-      let transportData = {};
-      if (materialReturnApi.getTransportStatus) {
-        const res = await materialReturnApi.getTransportStatus(trackingRef);
-        transportData = res?.data || {};
+      const sRes = await logisticsApi.getShipments();
+      const latestShipments = sRes.data || [];
+      setShipments(latestShipments);
+      
+      if (form.invoiceNo) {
+        const match = latestShipments.find(s => s.orderRef === form.invoiceNo);
+        if (match) {
+          handleAwbSelect(match.awbNo);
+          toast('Logistics data synchronized with Courier page', 'success');
+        } else {
+          toast('No matching shipment found in Logistics', 'info');
+        }
       }
+    } catch (err) {
+      console.error('Sync error:', err);
+      toast('Failed to sync with Logistics API', 'error');
+    } finally {
+      setTransportFetchStatus(FETCH_STATUS.IDLE);
+    }
+  }, [form.invoiceNo, latestShipments => latestShipments, handleAwbSelect]);
+
+  // Reset on close
+  useEffect(() => {
+    if (!open) {
+      setForm(BLANK_FORM);
+      setFetchStatus(FETCH_STATUS.IDLE);
+      setFetchError('');
+      setTransportFetchStatus(FETCH_STATUS.IDLE);
+    } else {
+      // Fetch couriers and shipments when modal opens
+      const fetchData = async () => {
+        try {
+          const [cRes, sRes] = await Promise.all([
+            vendorApi.getAll({ category: 'Logistics' }),
+            logisticsApi.getShipments()
+          ]);
+          setCouriers(cRes.data || []);
+          setShipments(sRes.data || []);
+        } catch (err) {
+          console.error('Failed to fetch logistics data:', err);
+        }
+      };
+      fetchData();
+    }
+  }, [open]);
+
+  // ── Auto-link Logistics when invoice or shipments change ──────────────────
+  useEffect(() => {
+    if (!form.invoiceNo || shipments.length === 0 || fetchStatus !== FETCH_STATUS.SUCCESS) return;
+
+    // Search for a matching shipment by orderRef (Invoice No) or existing AWB
+    const match = shipments.find(s => 
+      s.orderRef === form.invoiceNo || 
+      (form.awbNo && s.awbNo === form.awbNo)
+    );
+
+    if (match && match.awbNo !== form.awbNo) {
       setForm(f => ({
         ...f,
-        docketNo:         transportData.docketNo         || f.docketNo,
-        estimatedPickup:  transportData.estimatedPickup  || f.estimatedPickup,
-        logisticsPartner: transportData.logisticsPartner || f.logisticsPartner,
-        transport:        transportData.carrier          || f.transport,
+        awbNo:           match.awbNo,
+        transport:       match.courier,
+        logisticsPartner: match.courier,
+        pickupAddress:    match.destination || f.pickupAddress,
+        docketNo:         match.shipmentId,
+        estimatedPickup:  match.eta ? new Date(match.eta).toLocaleDateString() : f.estimatedPickup,
       }));
-      setTransportFetchStatus(FETCH_STATUS.SUCCESS);
-    } catch {
-      setTransportFetchStatus(FETCH_STATUS.ERROR);
+      toast(`Logistics data auto-linked for AWB: ${match.awbNo}`, 'success');
+      runTransportFetch(match.awbNo, match.courier);
     }
-  }, []);
-
-  // ── Invoice dropdown selection ────────────────────────────────────────────
-  const handleInvoiceDropdownChange = (invoiceNo) => {
-    set('invoiceNo', invoiceNo);
-    setFetchStatus(FETCH_STATUS.IDLE);
-    if (invoiceNo) runInvoiceFetch(invoiceNo, 'dropdown');
-  };
+  }, [form.invoiceNo, shipments, fetchStatus, runTransportFetch]);
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = () => {
     if (!form.invoiceNo.trim())              { toast('Invoice number is required', 'error');  return; }
     if (!form.returnQty || Number(form.returnQty) < 1) { toast('Return qty is required', 'error'); return; }
     if (!form.reason.trim())                { toast('Return reason is required', 'error');   return; }
-    onSave(form);
+    
+    const finalForm = { ...form };
+    if (finalForm.transport === 'Other' && finalForm.manualTransport) finalForm.transport = finalForm.manualTransport;
+    if (finalForm.awbNo === 'Manual' && finalForm.manualAwb) finalForm.awbNo = finalForm.manualAwb;
+    
+    onSave(finalForm);
   };
 
-  // Derived preview MR ID (actual one generated on backend save)
-  const previewMrId = form.invoiceNo
-    ? `MR-${new Date().getFullYear()}-XXX (auto on save)`
-    : '';
+  // ── Modal UI ──────────────────────────────────────────────────────────────
+  const previewMrId = form.mrId || (form.invoiceNo ? `MR-${new Date().getFullYear()}-XXX` : '');
 
   // ── Fetch status banner helper ────────────────────────────────────────────
   const FetchBanner = () => {
@@ -606,12 +690,7 @@ function CreateReturnModal({ open, onClose, onSave, saving, invoices = [] }) {
         Stage 2: Invoice API fetching... Stage 3: Supplier + Products auto-populating...
       </div>
     );
-    if (fetchStatus === FETCH_STATUS.SUCCESS) return (
-      <div className="mt-3 rounded-lg px-4 py-2.5 text-xs font-medium flex items-center gap-2 bg-green-100 text-green-700 border border-green-200">
-        <MdCheckCircleOutline className="w-3.5 h-3.5" />
-        Stage 2 + 3 Complete — Supplier, SKU count &amp; Return Value auto-filled from Invoice API
-      </div>
-    );
+    if (fetchStatus === FETCH_STATUS.SUCCESS) return null;
     if (fetchStatus === FETCH_STATUS.ERROR) return (
       <div className="mt-3 rounded-lg px-4 py-2.5 text-xs font-medium flex items-center gap-2 bg-red-100 text-red-700 border border-red-200">
         <MdError className="w-3.5 h-3.5" />
@@ -621,7 +700,7 @@ function CreateReturnModal({ open, onClose, onSave, saving, invoices = [] }) {
     return (
       <div className="mt-3 rounded-lg px-4 py-2.5 text-xs font-medium flex items-center gap-2 bg-gray-100 text-gray-500 border border-gray-200">
         <MdInfoOutline className="w-3.5 h-3.5" />
-        Select or enter invoice → Stage 2 (Invoice API Fetch) + Stage 3 (Supplier/SKU Auto Fetch) will run
+        Select or enter invoice → Details will auto-fetch from Invoice API
       </div>
     );
   };
@@ -633,9 +712,9 @@ function CreateReturnModal({ open, onClose, onSave, saving, invoices = [] }) {
       size="xl"
       footer={
         <div className="flex items-center justify-between">
-          <div className="text-xs text-blue-600 flex items-center gap-1.5">
+          <div className="text-xs text-blue-600 flex items-center gap-1.5 font-medium">
             <MdBolt className="w-4 h-4 text-blue-500" />
-            Blue fields with bolt icon are auto-populated from APIs / Workflow Engine
+            Blue fields are auto-populated from ERP / Logistics APIs
           </div>
           <div className="flex gap-3">
             <button
@@ -647,7 +726,7 @@ function CreateReturnModal({ open, onClose, onSave, saving, invoices = [] }) {
             <button
               onClick={handleSubmit}
               disabled={saving || fetchStatus === FETCH_STATUS.LOADING}
-              className="flex items-center gap-2 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold text-sm disabled:opacity-50 transition-all"
+              className="flex items-center gap-2 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold text-sm disabled:opacity-50 transition-all shadow-lg shadow-red-100"
             >
               {saving
                 ? <><Spinner size={14} />Creating...</>
@@ -661,7 +740,7 @@ function CreateReturnModal({ open, onClose, onSave, saving, invoices = [] }) {
 
         {/* ── Section 1: Invoice Entry ──────────────────────────────────── */}
         <SectionBox
-          title="Step 1 — Invoice Entry (triggers auto-fetch)"
+          title="Step 1 — Invoice Entry"
           icon={<MdDescription className="w-4 h-4" />}
           color="red"
         >
@@ -672,11 +751,15 @@ function CreateReturnModal({ open, onClose, onSave, saving, invoices = [] }) {
               <select
                 className={inp}
                 value={form.invoiceNo}
-                onChange={e => handleInvoiceDropdownChange(e.target.value)}
+                onChange={e => {
+                  set('invoiceNo', e.target.value);
+                  setFetchStatus(FETCH_STATUS.IDLE);
+                  if (e.target.value) runInvoiceFetch(e.target.value, 'dropdown');
+                }}
               >
                 <option value="">— Select invoice —</option>
-                {invoices.map(inv => (
-                  <option key={inv._id || inv.invoiceNo} value={inv.invoiceNo}>
+                {invoices.map((inv, i) => (
+                  <option key={`${inv._id || inv.invoiceNo}-${i}`} value={inv.invoiceNo}>
                     {inv.invoiceNo} — {inv.partyName || inv.supplierName || 'Party'}
                   </option>
                 ))}
@@ -713,9 +796,9 @@ function CreateReturnModal({ open, onClose, onSave, saving, invoices = [] }) {
           <FetchBanner />
         </SectionBox>
 
-        {/* ── Section 2: Stage 2–3 Auto-Fetched Supplier & Product ─────── */}
+        {/* ── Section 2: Auto-Fetched Supplier & Product ─────── */}
         <SectionBox
-          title="Stage 2–3 Auto-Fetched: Supplier & Product (Read Only — from Invoice API)"
+          title="Supplier & Product"
           icon={<MdBolt className="w-4 h-4" />}
           color="blue"
         >
@@ -736,83 +819,55 @@ function CreateReturnModal({ open, onClose, onSave, saving, invoices = [] }) {
             <>
               <div className="grid grid-cols-3 gap-4">
                 {[
-                  { label: 'Supplier Name',        val: form.supplierName,                                         placeholder: 'Auto-filled on invoice fetch'  },
-                  { label: 'Supplier Type',     val: form.supplierType,                                         placeholder: 'Dealer / Distributor / Retailer' },
-                  { label: 'Contact Number',   val: form.contactNumber,                                        placeholder: 'Auto: supplier phone'          },
-                  { label: 'Email',         val: form.email,                                                placeholder: 'Auto: supplier email'          },
-                  { label: 'Product / SKUs',     val: form.productName,                                          placeholder: 'Auto-filled from invoice items' },
-                  { label: 'SKU Count',        val: form.skuCount ? `${form.skuCount} SKUs` : '',              placeholder: 'Auto: count from invoice'      },
-                  { label: 'Invoice Amount ₹',        val: form.invoiceAmount ? `₹ ${Number(form.invoiceAmount).toLocaleString('en-IN')}` : '', placeholder: 'Auto: invoice total' },
-                  { label: 'Return Value ₹',    val: form.value ? `₹ ${Number(form.value).toLocaleString('en-IN')}` : '',             placeholder: 'Auto: calculated return value' },
-                  { label: 'MR ID', val: previewMrId,                                               placeholder: 'Auto-generated on save'        },
-                ].map(({ label, note, val, placeholder }) => (
-                  <div key={label}>
-                    <label className={lblAuto}>
-                      <MdBolt className="w-3 h-3 text-blue-500" />
-                      {label}
-                      <span className="text-blue-400 font-normal text-[10px]">({note})</span>
-                    </label>
-                    <input
-                      className={inpAuto}
-                      readOnly
-                      value={val}
-                      placeholder={placeholder}
-                    />
+                  { label: 'Supplier Name',     val: form.supplierName,      placeholder: 'Auto-filled'  },
+                  { label: 'Supplier Type',     val: form.supplierType,      type: 'select', placeholder: 'Dealer/Retailer' },
+                  { label: 'Contact Number',   val: form.contactNumber,     placeholder: 'Auto-filled'  },
+                  { label: 'Email',             val: form.email,             placeholder: 'Auto-filled'  },
+                  { label: 'Product Name',      val: form.productName,       placeholder: 'Auto-filled'  },
+                  { label: 'Product SKU',       val: form.productSku,        placeholder: 'Auto-filled'  },
+                  { label: 'SKU Count',         val: form.skuCount ? `${form.skuCount} SKUs` : '', placeholder: 'Auto-filled' },
+                  { label: 'Invoice Amount ₹',  val: form.invoiceAmount ? `₹ ${Number(form.invoiceAmount).toLocaleString('en-IN')}` : '', placeholder: 'Auto-filled' },
+                  { label: 'Return Value ₹',    val: form.value ? `₹ ${Number(form.value).toLocaleString('en-IN')}` : '', placeholder: 'Auto-filled' },
+                  { label: 'MR ID',             val: previewMrId,            placeholder: 'Auto-generated' },
+                ].map(({ label, val, type, placeholder }, i) => (
+                  <div key={`${label}-${i}`}>
+                    <label className={lblAuto}>{label}</label>
+                    {type === 'select' ? (
+                      <select
+                        className={inpAuto}
+                        value={val || ''}
+                        onChange={e => set('supplierType', e.target.value)}
+                      >
+                        <option value="">— Select Type —</option>
+                        {['Dealer', 'Distributor', 'Retailer', 'OEM', 'Vendor'].map(opt => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        className={inpAuto}
+                        readOnly
+                        value={val || ''}
+                        placeholder={placeholder}
+                      />
+                    )}
                   </div>
                 ))}
               </div>
 
-              {/* Invoice line items table — shown when fetched */}
-              {fetchStatus === FETCH_STATUS.SUCCESS && form.invoiceItems.length > 0 && (
-                <div className="mt-4">
-                  <div className="text-xs font-semibold text-blue-700 mb-2 flex items-center gap-1">
-                    <MdBolt className="w-3 h-3" /> Invoice Line Items (Auto-fetched)
-                  </div>
-                  <div className="overflow-x-auto rounded-lg border border-blue-200">
-                    <table className="w-full text-xs">
-                      <thead className="bg-blue-100">
-                        <tr>
-                          {['SKU', 'Product', 'Qty', 'Unit Price', 'Total'].map(h => (
-                            <th key={h} className="text-left px-3 py-2 text-blue-700 font-semibold">{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-blue-50">
-                        {form.invoiceItems.map((item, i) => (
-                          <tr key={i}>
-                            <td className="px-3 py-1.5 font-mono text-gray-600">{item.sku || item.skuCode || '—'}</td>
-                            <td className="px-3 py-1.5 text-gray-700">{item.productName || item.name || '—'}</td>
-                            <td className="px-3 py-1.5 text-gray-700">{item.qty ?? item.quantity ?? '—'}</td>
-                            <td className="px-3 py-1.5 text-gray-700">₹{Number(item.unitPrice || item.rate || 0).toLocaleString('en-IN')}</td>
-                            <td className="px-3 py-1.5 font-semibold text-red-600">₹{Number(item.total || item.amount || 0).toLocaleString('en-IN')}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
+              {/* Invoice line items table */}
+              
               {/* Supplier address — full-width */}
               {form.address && (
                 <div className="mt-4">
                   <label className={lblAuto}>
-                    <MdBolt className="w-3 h-3 text-blue-500" />
                     Supplier Address
-                    <span className="text-blue-400 font-normal text-[10px]">(Auto: Vendor Master)</span>
+                    <span className="text-blue-400 font-normal text-[10px] ml-1"></span>
                   </label>
                   <input className={inpAuto} readOnly value={form.address} />
                 </div>
               )}
             </>
-          )}
-
-          {/* Empty state when idle / error */}
-          {(fetchStatus === FETCH_STATUS.IDLE || fetchStatus === FETCH_STATUS.ERROR) && (
-            <div className="py-6 text-center text-sm text-blue-400 border border-dashed border-blue-200 rounded-xl bg-white">
-              <MdBolt className="w-6 h-6 mx-auto mb-1 opacity-40" />
-              Enter / select an invoice above to auto-fill supplier &amp; product details
-            </div>
           )}
         </SectionBox>
 
@@ -857,156 +912,118 @@ function CreateReturnModal({ open, onClose, onSave, saving, invoices = [] }) {
         {/* ── Section 4: Transport & Logistics ─────────────────────────── */}
         <SectionBox
           title="Transport & Logistics"
-          icon={<MdLocalShipping className="w-4 h-4" />}
           color="blue"
+          headerRight={
+            <button
+              onClick={syncLogistics}
+              disabled={transportFetchStatus === FETCH_STATUS.LOADING}
+              className="flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 rounded text-[10px] font-bold hover:bg-blue-100 transition-all border border-blue-200"
+            >
+              {transportFetchStatus === FETCH_STATUS.LOADING ? <Spinner size={10} /> : <MdRefresh className="w-3 h-3" />}
+             
+            </button>
+          }
         >
           <div className="grid grid-cols-2 gap-4">
 
-            {/* Courier — user input (may be auto-filled from invoice) */}
-            <div>
-              <label className={form.transport ? lblAuto : lbl}>
-                {form.transport
-                  ? <><MdBolt className="w-3 h-3 text-blue-500" />Courier / Transport <span className="text-blue-400 font-normal text-[10px]">(Auto: Invoice API)</span></>
-                  : 'Courier / Transport'}
-              </label>
-              <input
-                className={form.transport && fetchStatus === FETCH_STATUS.SUCCESS ? inpAuto : inp}
-                placeholder="e.g. VRL Logistics, Delhivery"
-                value={form.transport}
-                readOnly={!!(form.transport && fetchStatus === FETCH_STATUS.SUCCESS)}
-                onChange={e => set('transport', e.target.value)}
-              />
-            </div>
-
-            {/* AWB / LR No — auto from invoice or user-entered */}
+            {/* AWB Dropdown */}
             <div>
               <label className={lblAuto}>
-                <MdBolt className="w-3 h-3 text-blue-500" />
                 AWB / LR No.
-                <span className="text-blue-400 font-normal text-[10px]">(Auto: Invoice if present)</span>
+                <span className="text-blue-400 font-normal text-[10px] ml-1"></span>
               </label>
               <div className="flex gap-2">
-                <input
-                  className={form.awbNo && fetchStatus === FETCH_STATUS.SUCCESS ? inpAuto : inp}
-                  placeholder="Auto-filled from invoice or enter manually"
+                <select
+                  className={form.awbNo && form.awbNo !== 'Manual' ? inpAuto : inp}
                   value={form.awbNo}
-                  onChange={e => set('awbNo', e.target.value)}
-                />
-                {/* Manual transport fetch button */}
-                {form.awbNo && (
+                  onChange={e => handleAwbSelect(e.target.value)}
+                >
+                  <option value="">— Select AWB —</option>
+                  {shipments.map((s, i) => (
+                    <option key={`${s._id || s.awbNo}-${i}`} value={s.awbNo}>
+                      {s.awbNo} — {s.courier} (Ref: {s.orderRef})
+                    </option>
+                  ))}
+                </select>
+                {form.awbNo && form.awbNo !== 'Manual' && (
                   <button
                     type="button"
-                    onClick={() => runTransportFetch(form.awbNo)}
+                    onClick={() => runTransportFetch(form.awbNo, form.transport)}
                     disabled={transportFetchStatus === FETCH_STATUS.LOADING}
-                    className="px-2.5 py-2 rounded-lg bg-blue-100 text-blue-700 text-xs font-bold whitespace-nowrap flex items-center gap-1 hover:bg-blue-200 disabled:opacity-50"
+                    className="p-2 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:opacity-50"
                   >
-                    {transportFetchStatus === FETCH_STATUS.LOADING
-                      ? <Spinner size={12} />
-                      : <MdRefresh className="w-3 h-3" />}
+                    <MdRefresh className="w-4 h-4" />
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Pickup Address — full width */}
+            {/* Courier Dropdown — now dependent on AWB or manual selection */}
+            <div>
+              <label className={form.transport ? lblAuto : lbl}>
+                Courier / Transport {form.transport && <span className="text-blue-400 font-normal text-[10px] ml-1">(Auto: Logistics API)</span>}
+              </label>
+              <select
+                className={form.transport && form.awbNo ? inpAuto : inp}
+                value={form.transport}
+                onChange={e => set('transport', e.target.value)}
+              >
+                <option value="">— Select Courier —</option>
+                {couriers.map((c, i) => (
+                  <option key={`${c._id || c.companyName}-${i}`} value={c.companyName}>{c.companyName}</option>
+                ))}
+                {/* Fallback for shipment courier not in master list */}
+                {form.transport && !couriers.some(c => c.companyName === form.transport) && (
+                  <option value={form.transport}>{form.transport}</option>
+                )}
+              </select>
+            </div>
+
+            {/* Pickup Address */}
             <div className="col-span-2">
               <label className={lblAuto}>
-                <MdBolt className="w-3 h-3 text-blue-500" />
                 Pickup Address
-                <span className="text-blue-400 font-normal text-[10px]">(Auto: Vendor Master)</span>
+                <span className="text-blue-400 font-normal text-[10px] ml-1"></span>
               </label>
               <textarea
                 rows={2}
                 className={form.pickupAddress && fetchStatus === FETCH_STATUS.SUCCESS ? inpAuto : inp}
-                placeholder="Auto-filled from supplier address or enter manually"
                 value={form.pickupAddress}
-                readOnly={!!(form.pickupAddress && fetchStatus === FETCH_STATUS.SUCCESS)}
                 onChange={e => set('pickupAddress', e.target.value)}
+                placeholder="Auto-filled address"
               />
-              {/* Allow override even if auto-filled */}
-              {form.pickupAddress && fetchStatus === FETCH_STATUS.SUCCESS && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    // Make editable by clearing the auto-lock
-                    setForm(f => ({ ...f, pickupAddress: f.pickupAddress }));
-                    // Trick: re-render as editable by toggling fetch status awareness
-                    toast('You can now edit the pickup address', 'success');
-                  }}
-                  className="mt-1 text-[11px] text-blue-500 hover:text-blue-700 underline"
-                >
-                  Edit manually
-                </button>
-              )}
             </div>
 
-            {/* Transport API auto-fields — shown if fetched */}
-            {(form.docketNo || form.estimatedPickup || form.logisticsPartner || transportFetchStatus === FETCH_STATUS.LOADING) && (
+            {/* Auto Fields */}
+            {(form.docketNo || form.estimatedPickup || transportFetchStatus === FETCH_STATUS.LOADING) && (
               <>
                 <div>
                   <label className={lblAuto}>
-                    <MdBolt className="w-3 h-3 text-blue-500" />
                     Docket No.
-                    <span className="text-blue-400 font-normal text-[10px]">(Auto: Logistics API)</span>
+                    <span className="text-blue-400 font-normal text-[10px] ml-1">(Auto: Logistics API)</span>
                   </label>
                   {transportFetchStatus === FETCH_STATUS.LOADING
                     ? <div className="h-9 bg-blue-100 rounded-lg animate-pulse" />
-                    : <input className={inpAuto} readOnly value={form.docketNo || ''} placeholder="Auto: Logistics API" />
+                    : <input className={inpAuto} readOnly value={form.docketNo || ''} />
                   }
                 </div>
                 <div>
                   <label className={lblAuto}>
-                    <MdBolt className="w-3 h-3 text-blue-500" />
                     Estimated Pickup
-                    <span className="text-blue-400 font-normal text-[10px]">(Auto: Logistics API)</span>
+                    <span className="text-blue-400 font-normal text-[10px] ml-1">(Auto: Logistics API)</span>
                   </label>
                   {transportFetchStatus === FETCH_STATUS.LOADING
                     ? <div className="h-9 bg-blue-100 rounded-lg animate-pulse" />
-                    : <input className={inpAuto} readOnly value={form.estimatedPickup || ''} placeholder="Auto: scheduled pickup date" />
+                    : <input className={inpAuto} readOnly value={form.estimatedPickup || ''} />
                   }
                 </div>
-                {form.logisticsPartner && (
-                  <div>
-                    <label className={lblAuto}>
-                      <MdBolt className="w-3 h-3 text-blue-500" />
-                      Logistics Partner
-                      <span className="text-blue-400 font-normal text-[10px]">(Auto: Logistics API)</span>
-                    </label>
-                    <input className={inpAuto} readOnly value={form.logisticsPartner} placeholder="Auto: assigned courier" />
-                  </div>
-                )}
               </>
             )}
           </div>
         </SectionBox>
 
         {/* ── Section 5: Workflow Auto Read-only ───────────────────────── */}
-        <SectionBox
-          title="Stage 4–13 Auto-Managed by Workflow Engine (Read Only)"
-          icon={<MdBolt className="w-4 h-4" />}
-          color="gray"
-        >
-          <div className="grid grid-cols-4 gap-4">
-            {[
-              { label: 'Stage',            val: 'Return_Request_Create',                  },
-              { label: 'Transport Status', val: 'Pending → Logistics API',                 },
-              { label: 'Aging',            val: '0 Days',                                },
-              { label: 'Assigned To',      val: workflowAssignee('Return_Request_Create'),  },
-              { label: 'Finance Status',   val: 'CN Pending',                           },
-              { label: 'Tally Sync',       val: 'Pending',                               },
-              { label: 'Warehouse Status', val: 'Pending',                                },
-              { label: 'QC Status',        val: 'Pending',                                   },
-            ].map(({ label, val, note }) => (
-              <div key={label}>
-                <label className={lblAuto}>
-                  <MdBolt className="w-3 h-3 text-blue-400" />{label}
-                </label>
-                <input className={inpAuto} readOnly value={val} title={note} />
-                <span className="text-[10px] text-blue-500 font-medium">{note}</span>
-              </div>
-            ))}
-          </div>
-        </SectionBox>
+       
 
         {/* ── Section 6: Attachments ────────────────────────────────────── */}
         <SectionBox

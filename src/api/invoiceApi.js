@@ -16,4 +16,5 @@ export const invoiceApi = {
   delete:       (id)          => fetch(`${BASE}/invoices/${id}`,                 { method: 'DELETE', headers: authHeaders() }).then(handle),
   deleteAll:    ()            => fetch(`${BASE}/invoices/delete-all`,             { method: 'POST',   headers: authHeaders() }).then(handle),
   sendEmail:    (id, body)    => fetch(`${BASE}/invoices/${id}/send-email`,       { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  getByInvoiceNo: (invoiceNo) => fetch(`${BASE}/invoices/no/${invoiceNo}`,        { headers: authHeaders() }).then(handle),
 };

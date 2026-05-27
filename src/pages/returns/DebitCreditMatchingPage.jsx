@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   MdRefresh, MdAdd, MdEdit, MdDelete, MdSync, 
   MdReceipt, MdCheckCircle, MdWarning, MdInfo,
   MdClose, MdSearch, MdCurrencyRupee, MdPerson,
   MdDescription, MdLocalShipping, MdVerifiedUser
 } from 'react-icons/md';
+import { materialReturnApi } from '../../api/materialReturnApi';
 
 // ─── Toast Component ───────────────────────────────────────────────────────────
 const Toast = ({ message, type, onClose }) => {
@@ -48,115 +49,6 @@ const Toast = ({ message, type, onClose }) => {
   );
 };
 
-// ─── Complete Seed Data (No API dependency) ─────────────────────────────────
-const SEED_DATA = [
-  {
-    id: 'MR-2026-00101',
-    party: 'Rajesh Traders',
-    invoice: 'INV-2026-1001',
-    invoiceDate: '2026-04-10',
-    creditNote: 'CN-2026-501',
-    cnAmount: 15000,
-    debitNote: 'DN-2026-301',
-    dnAmount: 15000,
-    difference: 0,
-    matchStatus: 'Matched',
-    tallySync: 'Synced',
-    returnValue: 15000,
-    returnType: 'Material Return',
-    gst: '18%',
-    financeStatus: 'Closed',
-    voucherNo: 'V-2026-801',
-    assignedTo: 'Amit Kumar',
-    lastUpdated: '2026-04-15',
-    aging: '35 days',
-  },
-  {
-    id: 'MR-2026-00102',
-    party: 'Sunita Enterprises',
-    invoice: 'INV-2026-1002',
-    invoiceDate: '2026-04-12',
-    creditNote: 'CN-2026-502',
-    cnAmount: 22000,
-    debitNote: 'DN-2026-302',
-    dnAmount: 20000,
-    difference: 2000,
-    matchStatus: 'Partial',
-    tallySync: 'Not synced',
-    returnValue: 22000,
-    returnType: 'Sales Return',
-    gst: '12%',
-    financeStatus: 'Pending',
-    voucherNo: '—',
-    assignedTo: 'Kiran Sharma',
-    lastUpdated: '2026-04-20',
-    aging: '28 days',
-  },
-  {
-    id: 'MR-2026-00103',
-    party: 'Mehta & Co.',
-    invoice: 'INV-2026-1003',
-    invoiceDate: '2026-04-18',
-    creditNote: 'Not generated',
-    cnAmount: 0,
-    debitNote: '—',
-    dnAmount: 0,
-    difference: 8500,
-    matchStatus: 'Open',
-    tallySync: 'Not synced',
-    returnValue: 8500,
-    returnType: 'Damage Return',
-    gst: '18%',
-    financeStatus: 'Pending',
-    voucherNo: '—',
-    assignedTo: 'Self',
-    lastUpdated: '2026-04-18',
-    aging: '12 days',
-  },
-  {
-    id: 'MR-2026-00104',
-    party: 'Patel Distributors',
-    invoice: 'INV-2026-1004',
-    invoiceDate: '2026-03-25',
-    creditNote: 'CN-2026-503',
-    cnAmount: 31000,
-    debitNote: 'DN-2026-303',
-    dnAmount: 31000,
-    difference: 0,
-    matchStatus: 'Matched',
-    tallySync: 'Synced',
-    returnValue: 31000,
-    returnType: 'Material Return',
-    gst: '18%',
-    financeStatus: 'Closed',
-    voucherNo: 'V-2026-802',
-    assignedTo: 'Adarsh Singh',
-    lastUpdated: '2026-04-02',
-    aging: '55 days',
-  },
-  {
-    id: 'MR-2026-00105',
-    party: 'Verma Suppliers',
-    invoice: 'INV-2026-1005',
-    invoiceDate: '2026-05-01',
-    creditNote: 'Not generated',
-    cnAmount: 0,
-    debitNote: '—',
-    dnAmount: 0,
-    difference: 12750,
-    matchStatus: 'Open',
-    tallySync: 'Not synced',
-    returnValue: 12750,
-    returnType: 'Sales Return',
-    gst: '5%',
-    financeStatus: 'Pending',
-    voucherNo: '—',
-    assignedTo: 'Self',
-    lastUpdated: '2026-05-01',
-    aging: '0 days',
-  },
-];
-
 // ─── Helper Functions ─────────────────────────────────────────────────────────
 function getMatchStatusColor(status) {
   switch (status) {
@@ -191,333 +83,146 @@ function Field({ label, children }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function DebitCreditMatchingPage({ linkedReturns = [] }) {
+export default function DebitCreditMatchingPage() {
   const [matchingData, setMatchingData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
+  const [rawReturns, setRawReturns] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
   const [toast, setToast] = useState(null);
+  const [saving, setSaving] = useState(false);
 
-  const [stats, setStats] = useState({
-    fullyMatched: 0,
-    partialMismatch: 0,
-    cnNotGenerated: 0,
-    totalLossAmount: 0,
-  });
-
-  const showToast = (message, type = 'info') => {
+  const showToast = useCallback((message, type = 'info') => {
     setToast({ message, type, id: Date.now() });
-  };
+  }, []);
 
-  const emptyEntry = () => {
-    const today = new Date().toISOString().split('T')[0];
-    return {
-      docket: `MR-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`,
-      returnType: 'Material Return',
-      party: '',
-      invoiceNo: `INV-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000) + 1000}`,
-      invoiceDate: today,
-      cnNo: 'Not generated',
-      cnAmount: 0,
-      dnNo: '—',
-      dnAmount: 0,
-      difference: 0,
-      gst: '18%',
-      financeStatus: 'Pending',
-      matchStatus: 'Open',
-      tallySync: 'Not synced',
-      voucherNo: '—',
-      assignedTo: 'Self',
-      lastUpdated: today,
-      returnValue: '',
-    };
-  };
-
-  const [newEntry, setNewEntry] = useState(emptyEntry);
-  const [editForm, setEditForm] = useState(null);
-
-  // ─── Load Data from Local Storage or Seed Data ────────────────────────────────
-  const loadMatchingData = useCallback(() => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const savedData = localStorage.getItem('debit_credit_matching_data');
-      
-      if (savedData && JSON.parse(savedData).length > 0) {
-        const parsedData = JSON.parse(savedData);
-        setMatchingData(parsedData);
-        showToast(`Loaded ${parsedData.length} records from local storage`, 'success');
-      } else if (linkedReturns && linkedReturns.length > 0) {
-        const linkedRows = linkedReturns.map(r => ({
-          id: r.mrId || r.id,
-          party: r.supplierName || r.customerName || 'Unknown',
-          invoice: r.invoiceNo || '',
-          invoiceDate: r.invoiceDate || new Date().toISOString().split('T')[0],
-          creditNote: 'Not generated',
-          cnAmount: 0,
-          debitNote: '—',
+      const res = await materialReturnApi.getAll();
+      if (res.success) {
+        setRawReturns(res.data || []);
+        const reconciliationItems = (res.data || []).filter(item => 
+          ['QC_PASSED', 'QC_FAILED', 'FINANCE_PENDING', 'CLOSED'].includes(item.currentStage)
+        ).map(item => ({
+          _id: item._id,
+          id: item.mrId,
+          party: item.supplierName || item.customerName,
+          invoice: item.invoiceNo,
+          invoiceDate: item.invoiceDate ? new Date(item.invoiceDate).toLocaleDateString() : '—',
+          creditNote: item.creditNoteNo || 'Not generated',
+          cnAmount: item.refundAmount || 0,
+          debitNote: item.debitNoteNo || '—',
           dnAmount: 0,
-          difference: r.value || 0,
-          matchStatus: 'Open',
-          tallySync: 'Not synced',
-          returnValue: r.value || 0,
-          returnType: r.returnType || 'Material Return',
+          difference: (item.value || 0) - (item.refundAmount || 0),
+          matchStatus: item.currentStage === 'CLOSED' ? 'Matched' : 
+                       item.refundAmount > 0 ? 'Partial' : 'Open',
+          tallySync: item.tallySyncStatus === 'Synced' ? 'Synced' : 'Not synced',
+          returnValue: item.value || 0,
+          returnType: item.returnReason || 'Material Return',
           gst: '18%',
-          financeStatus: 'Pending',
-          voucherNo: '—',
-          assignedTo: 'Accounts',
-          lastUpdated: new Date().toISOString().split('T')[0],
-          aging: '0 days',
+          financeStatus: item.currentStage === 'CLOSED' ? 'Closed' : 'Pending',
+          voucherNo: item.voucherNo || '—',
+          assignedTo: item.qcBy || 'Self',
+          lastUpdated: new Date(item.updatedAt).toLocaleDateString(),
+          aging: `${Math.floor((new Date() - new Date(item.createdAt)) / (1000 * 60 * 60 * 24))} days`,
         }));
-        setMatchingData(linkedRows);
-        showToast(`Loaded ${linkedRows.length} records from linked returns`, 'info');
-      } else {
-        setMatchingData(SEED_DATA);
-        showToast('Using sample data', 'info');
+        setMatchingData(reconciliationItems);
       }
     } catch (err) {
-      console.error('loadMatchingData error:', err);
-      setMatchingData(SEED_DATA);
-      showToast('Error loading data. Using sample data.', 'error');
+      showToast(err.message, 'error');
     } finally {
       setLoading(false);
     }
-  }, [linkedReturns]);
+  }, [showToast]);
 
-  // ─── Save to Local Storage ──────────────────────────────────────────────────
-  const saveToLocalStorage = useCallback((data) => {
+  useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    const lowSearch = searchTerm.toLowerCase();
+    const filtered = matchingData.filter(item => {
+      const matchesSearch = 
+        item.id.toLowerCase().includes(lowSearch) ||
+        item.party.toLowerCase().includes(lowSearch) ||
+        item.invoice.toLowerCase().includes(lowSearch);
+      const matchesStatus = statusFilter === 'All' || item.matchStatus === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+    setFilteredData(filtered);
+  }, [searchTerm, statusFilter, matchingData]);
+
+  const stats = useMemo(() => ({
+    fullyMatched: matchingData.filter(d => d.matchStatus === 'Matched').length,
+    partialMismatch: matchingData.filter(d => d.matchStatus === 'Partial').length,
+    cnNotGenerated: matchingData.filter(d => d.matchStatus === 'Open').length,
+    totalLossAmount: matchingData.reduce((sum, d) => sum + (d.difference || 0), 0),
+  }), [matchingData]);
+
+  const emptyEntry = () => ({ mrId: '', refundAmount: '', creditNoteNo: '', debitNoteNo: '', remarks: '' });
+  const [newEntry, setNewEntry] = useState(emptyEntry);
+
+  const handleMrSelect = async (mrId) => {
+    const item = rawReturns.find(r => r._id === mrId || r.mrId === mrId);
+    if (item) {
+      setNewEntry(prev => ({
+        ...prev,
+        mrId: item.mrId,
+        refundAmount: item.value || '',
+        creditNoteNo: item.creditNoteNo || `CN-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000) + 1000}`,
+        debitNoteNo: item.debitNoteNo || `DN-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000) + 1000}`
+      }));
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!newEntry.mrId) { showToast('Please select a Return Request', 'error'); return; }
+    setSaving(true);
     try {
-      localStorage.setItem('debit_credit_matching_data', JSON.stringify(data));
+      const targetMr = rawReturns.find(r => r.mrId === newEntry.mrId);
+      const res = await materialReturnApi.processReconciliation(targetMr._id, {
+        refundAmount: Number(newEntry.refundAmount),
+        creditNoteNo: newEntry.creditNoteNo,
+        debitNoteNo: newEntry.debitNoteNo,
+        remarks: newEntry.remarks
+      });
+      if (res.success) {
+        showToast('Reconciliation processed successfully', 'success');
+        setShowCreateModal(false);
+        setNewEntry(emptyEntry());
+        loadData();
+      }
     } catch (err) {
-      console.error('Save to localStorage failed:', err);
-    }
-  }, []);
-
-  // ─── updateStats ─────────────────────────────────────────────────────────────
-  const updateStats = useCallback((data) => {
-    setStats({
-      fullyMatched: data.filter(r => r.matchStatus === 'Matched').length,
-      partialMismatch: data.filter(r => r.matchStatus === 'Partial').length,
-      cnNotGenerated: data.filter(r => r.creditNote === 'Not generated' || r.cnAmount === 0).length,
-      totalLossAmount: data.reduce((acc, r) => acc + (Number(r.difference) || 0), 0),
-    });
-  }, []);
-
-  // ─── filterData ──────────────────────────────────────────────────────────────
-  const filterData = useCallback(() => {
-    let result = [...matchingData];
-
-    if (statusFilter !== 'All') {
-      result = result.filter(r => r.matchStatus === statusFilter);
-    }
-
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase();
-      result = result.filter(r =>
-        (r.id || '').toLowerCase().includes(q) ||
-        (r.party || '').toLowerCase().includes(q) ||
-        (r.invoice || '').toLowerCase().includes(q) ||
-        (r.creditNote || '').toLowerCase().includes(q)
-      );
-    }
-
-    setFilteredData(result);
-    updateStats(matchingData);
-  }, [matchingData, searchTerm, statusFilter, updateStats]);
-
-  // ─── handleGenerateCreditNote ────────────────────────────────────────────────
-  const handleGenerateCreditNote = (id) => {
-    setMatchingData(prev => {
-      const updated = prev.map(r => {
-        if (r.id !== id) return r;
-        const cnNo = `CN-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000) + 1000}`;
-        const cnAmount = r.returnValue || r.cnAmount || 0;
-        const diff = Math.abs(cnAmount - (r.dnAmount || 0));
-        return {
-          ...r,
-          creditNote: cnNo,
-          cnAmount: cnAmount,
-          difference: diff,
-          matchStatus: diff === 0 ? 'Matched' : 'Partial',
-          lastUpdated: new Date().toISOString().split('T')[0],
-        };
-      });
-      saveToLocalStorage(updated);
-      return updated;
-    });
-    showToast(`Credit Note generated for ${id}`, 'success');
-  };
-
-  // ─── handleSyncWithTally ─────────────────────────────────────────────────────
-  const handleSyncWithTally = (id) => {
-    setMatchingData(prev => {
-      const updated = prev.map(r => {
-        if (r.id !== id) return r;
-        const vNo = `V-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000) + 1000}`;
-        return {
-          ...r,
-          tallySync: 'Synced',
-          voucherNo: vNo,
-          financeStatus: 'Closed',
-          lastUpdated: new Date().toISOString().split('T')[0],
-        };
-      });
-      saveToLocalStorage(updated);
-      return updated;
-    });
-    showToast(`Tally sync successful for ${id}`, 'success');
-  };
-
-  // ─── handleEdit ──────────────────────────────────────────────────────────────
-  const handleEdit = (item) => {
-    setEditingItem(item);
-    setEditForm({
-      id: item.id,
-      party: item.party,
-      invoice: item.invoice,
-      invoiceDate: item.invoiceDate,
-      returnValue: item.returnValue,
-      returnType: item.returnType,
-      gst: item.gst,
-      assignedTo: item.assignedTo,
-      creditNote: item.creditNote,
-      cnAmount: item.cnAmount,
-      debitNote: item.debitNote,
-      dnAmount: item.dnAmount,
-      matchStatus: item.matchStatus,
-      tallySync: item.tallySync,
-      financeStatus: item.financeStatus,
-      voucherNo: item.voucherNo,
-    });
-    setShowEditModal(true);
-  };
-
-  // ─── handleUpdateSubmit ──────────────────────────────────────────────────────
-  const handleUpdateSubmit = (e) => {
-    e.preventDefault();
-    
-    setMatchingData(prev => {
-      const updated = prev.map(r => {
-        if (r.id !== editingItem.id) return r;
-        const diff = Math.abs((editForm.cnAmount || 0) - (editForm.dnAmount || 0));
-        return {
-          ...r,
-          party: editForm.party,
-          invoice: editForm.invoice,
-          invoiceDate: editForm.invoiceDate,
-          returnValue: parseFloat(editForm.returnValue) || 0,
-          returnType: editForm.returnType,
-          gst: editForm.gst,
-          assignedTo: editForm.assignedTo,
-          creditNote: editForm.creditNote,
-          cnAmount: parseFloat(editForm.cnAmount) || 0,
-          debitNote: editForm.debitNote,
-          dnAmount: parseFloat(editForm.dnAmount) || 0,
-          difference: diff,
-          matchStatus: diff === 0 && editForm.creditNote !== 'Not generated' ? 'Matched' : diff > 0 ? 'Partial' : 'Open',
-          tallySync: editForm.tallySync,
-          financeStatus: editForm.financeStatus,
-          voucherNo: editForm.voucherNo,
-          lastUpdated: new Date().toISOString().split('T')[0],
-        };
-      });
-      saveToLocalStorage(updated);
-      return updated;
-    });
-    
-    setShowEditModal(false);
-    setEditingItem(null);
-    setEditForm(null);
-    showToast(`Record ${editingItem.id} updated successfully`, 'success');
-  };
-
-  // ─── handleDelete ────────────────────────────────────────────────────────────
-  const handleDelete = (id) => {
-    if (window.confirm(`Are you sure you want to delete ${id}?`)) {
-      setMatchingData(prev => {
-        const updated = prev.filter(r => r.id !== id);
-        saveToLocalStorage(updated);
-        return updated;
-      });
-      showToast(`Record ${id} deleted successfully`, 'success');
+      showToast(err.message, 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ─── handleCreateNew ─────────────────────────────────────────────────────────
-  const handleCreateNew = () => {
-    setNewEntry(emptyEntry());
-    setShowCreateModal(true);
-  };
-
-  // ─── handleSubmitCreate ──────────────────────────────────────────────────────
-  const handleSubmitCreate = (e) => {
-    e.preventDefault();
-
-    if (!newEntry.party || !newEntry.returnValue) {
-      showToast('Party Name and Return Value are required', 'error');
-      return;
-    }
-
-    const item = {
-      id: newEntry.docket,
-      party: newEntry.party,
-      invoice: newEntry.invoiceNo,
-      invoiceDate: newEntry.invoiceDate,
-      creditNote: newEntry.cnNo,
-      cnAmount: parseFloat(newEntry.cnAmount) || 0,
-      debitNote: newEntry.dnNo,
-      dnAmount: parseFloat(newEntry.dnAmount) || 0,
-      difference: parseFloat(newEntry.difference) || 0,
-      matchStatus: newEntry.matchStatus,
-      tallySync: newEntry.tallySync,
-      returnValue: parseFloat(newEntry.returnValue) || 0,
-      returnType: newEntry.returnType,
-      gst: newEntry.gst,
-      financeStatus: newEntry.financeStatus,
-      voucherNo: newEntry.voucherNo,
-      assignedTo: newEntry.assignedTo,
-      lastUpdated: newEntry.lastUpdated,
-      aging: '0 days',
-    };
-
-    setMatchingData(prev => {
-      const updated = [item, ...prev];
-      saveToLocalStorage(updated);
-      return updated;
-    });
-    setShowCreateModal(false);
-    showToast('New Debit/Credit Matching created successfully!', 'success');
-  };
-
-  // ─── handleResetData ─────────────────────────────────────────────────────────
-  const handleResetData = () => {
-    if (window.confirm('Reset all data to default sample data?')) {
-      setMatchingData(SEED_DATA);
-      saveToLocalStorage(SEED_DATA);
-      showToast('Data reset to default sample data', 'info');
+  const handleSyncWithTally = async (id, item) => {
+    try {
+      const res = await materialReturnApi.updateStage(item._id, 'TALLY_SYNCED');
+      if (res.success) {
+        showToast(`Tally sync successful for ${id}`, 'success');
+        loadData();
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
     }
   };
 
-  // ─── Effects ─────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    loadMatchingData();
-  }, [loadMatchingData]);
-
-  useEffect(() => {
-    filterData();
-  }, [filterData]);
-
-  // ─── Loading state ───────────────────────────────────────────────────────────
-  if (loading && matchingData.length === 0) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-gray-500 text-lg">Loading matching data...</div>
-      </div>
-    );
-  }
+  const handleDelete = async (id, item) => {
+    if (window.confirm(`Delete reconciliation for ${id}?`)) {
+      try {
+        await materialReturnApi.updateStage(item._id, 'INVENTORY_UPDATED'); // Revert stage
+        showToast(`Record ${id} reset to inventory stage`, 'info');
+        loadData();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+  };
 
   // ─── JSX ────────────────────────────────────────────────────────────────────
   return (
@@ -543,16 +248,16 @@ export default function DebitCreditMatchingPage({ linkedReturns = [] }) {
         </div>
         <div className="flex gap-3">
           <button
-            onClick={handleResetData}
+            onClick={loadData}
             className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white font-semibold rounded-xl flex items-center gap-2 transition-colors shadow-sm"
           >
-            <MdRefresh size={18} /> Reset Data
+            <MdRefresh size={18} /> Refresh
           </button>
           <button
-            onClick={handleCreateNew}
+            onClick={() => setShowCreateModal(true)}
             className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl flex items-center gap-2 transition-colors shadow-sm"
           >
-            <MdAdd size={18} /> New Entry
+            <MdAdd size={18} /> Process Reconciliation
           </button>
         </div>
       </div>
@@ -659,18 +364,9 @@ export default function DebitCreditMatchingPage({ linkedReturns = [] }) {
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex gap-1.5 flex-nowrap">
-                        {r.creditNote === 'Not generated' && (
-                          <button
-                            onClick={() => handleGenerateCreditNote(r.id)}
-                            className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg whitespace-nowrap transition-colors flex items-center gap-1"
-                            title="Generate Credit Note"
-                          >
-                            <MdReceipt size={12} /> Gen CN
-                          </button>
-                        )}
                         {r.tallySync !== 'Synced' && r.creditNote !== 'Not generated' && (
                           <button
-                            onClick={() => handleSyncWithTally(r.id)}
+                            onClick={() => handleSyncWithTally(r.id, r)}
                             className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded-lg whitespace-nowrap transition-colors flex items-center gap-1"
                             title="Sync with Tally"
                           >
@@ -678,18 +374,11 @@ export default function DebitCreditMatchingPage({ linkedReturns = [] }) {
                           </button>
                         )}
                         <button
-                          onClick={() => handleEdit(r)}
-                          className="px-2 py-1 bg-yellow-500 hover:bg-yellow-600 text-white text-xs rounded-lg whitespace-nowrap transition-colors flex items-center gap-1"
-                          title="Edit Record"
+                          onClick={() => handleDelete(r.id, r)}
+                          className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs rounded-lg whitespace-nowrap transition-colors flex items-center gap-1"
+                          title="Reset Reconciliation"
                         >
-                          <MdEdit size={12} /> Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(r.id)}
-                          className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded-lg whitespace-nowrap transition-colors flex items-center gap-1"
-                          title="Delete Record"
-                        >
-                          <MdDelete size={12} /> Del
+                          <MdRefresh size={12} /> Reset
                         </button>
                       </div>
                     </td>
@@ -704,246 +393,97 @@ export default function DebitCreditMatchingPage({ linkedReturns = [] }) {
       {/* Create Modal */}
       {showCreateModal && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4"
           onClick={(e) => { if (e.target === e.currentTarget) setShowCreateModal(false); }}
         >
-          <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl">
+          <div className="bg-white rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
             <div className="p-6 border-b flex justify-between items-center bg-white">
-              <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                 <MdAdd className="text-red-600" size={24} />
-                Create New Debit / Credit Matching
+                Process Reconciliation
               </h2>
-              <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
                 <MdClose size={24} />
               </button>
             </div>
 
-            <form onSubmit={handleSubmitCreate} className="p-6 overflow-y-auto max-h-[75vh] bg-white">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <Field label="Docket (Auto-generated)">
-                  <input type="text" readOnly value={newEntry.docket}
-                    className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-lg text-gray-500 text-sm" />
-                </Field>
-
-                <Field label="Return Type">
-                  <select value={newEntry.returnType}
-                    onChange={e => setNewEntry({...newEntry, returnType: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none">
-                    <option>Material Return</option>
-                    <option>Sales Return</option>
-                    <option>Damage Return</option>
+            <div className="p-6 space-y-5 bg-white">
+              <div className="grid grid-cols-2 gap-5">
+                <Field label="Return Request (MR ID) *">
+                  <select 
+                    required 
+                    value={newEntry.mrId}
+                    onChange={e => handleMrSelect(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                  >
+                    <option value="">— Select MR ID —</option>
+                    {rawReturns.filter(r => r.currentStage === 'INVENTORY_UPDATED' || r.currentStage === 'FINANCE_PENDING').map(r => (
+                      <option key={r._id} value={r._id}>{r.mrId} — {r.supplierName || r.customerName}</option>
+                    ))}
                   </select>
                 </Field>
 
-                <Field label="Supplier / Party *">
-                  <input type="text" required placeholder="e.g. Rajesh Traders"
-                    value={newEntry.party}
-                    onChange={e => setNewEntry({...newEntry, party: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none" />
+                <Field label="Reconciliation Amount (₹)">
+                  <input 
+                    type="number" 
+                    value={newEntry.refundAmount}
+                    onChange={e => setNewEntry({...newEntry, refundAmount: e.target.value})}
+                    placeholder="Enter amount"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-red-500 outline-none transition-all font-semibold text-green-700" 
+                  />
                 </Field>
 
-                <Field label="Invoice No">
-                  <input type="text" value={newEntry.invoiceNo}
-                    onChange={e => setNewEntry({...newEntry, invoiceNo: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none" />
+                <Field label="Credit Note No.">
+                  <input 
+                    type="text" 
+                    value={newEntry.creditNoteNo}
+                    onChange={e => setNewEntry({...newEntry, creditNoteNo: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-red-500 outline-none transition-all font-mono" 
+                  />
                 </Field>
 
-                <Field label="Invoice Date">
-                  <input type="date" value={newEntry.invoiceDate}
-                    onChange={e => setNewEntry({...newEntry, invoiceDate: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none" />
-                </Field>
-
-                <Field label="GST (%)">
-                  <select value={newEntry.gst}
-                    onChange={e => setNewEntry({...newEntry, gst: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none">
-                    <option>5%</option><option>12%</option><option>18%</option><option>28%</option>
-                  </select>
-                </Field>
-
-                <Field label="Return Value (₹) *">
-                  <input type="number" required placeholder="50000" min="1"
-                    value={newEntry.returnValue}
-                    onChange={e => {
-                      const val = e.target.value;
-                      setNewEntry({...newEntry, returnValue: val});
-                    }}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none" />
-                </Field>
-
-                <Field label="Assigned To">
-                  <input type="text" value={newEntry.assignedTo}
-                    onChange={e => setNewEntry({...newEntry, assignedTo: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none" />
-                </Field>
-
-                <Field label="CN No (Auto)">
-                  <input type="text" readOnly value="Not generated"
-                    className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-lg text-gray-500 text-sm" />
-                </Field>
-                <Field label="DN No (Auto)">
-                  <input type="text" readOnly value="—"
-                    className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-lg text-gray-500 text-sm" />
+                <Field label="Debit Note No.">
+                  <input 
+                    type="text" 
+                    value={newEntry.debitNoteNo}
+                    onChange={e => setNewEntry({...newEntry, debitNoteNo: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-red-500 outline-none transition-all font-mono" 
+                  />
                 </Field>
               </div>
 
-              <div className="flex gap-4 mt-8">
-                <button type="button" onClick={() => setShowCreateModal(false)}
-                  className="flex-1 py-3.5 border border-gray-300 rounded-xl font-semibold hover:bg-gray-50 transition-colors text-sm">
+              <Field label="Remarks / Notes">
+                <textarea 
+                  value={newEntry.remarks}
+                  onChange={e => setNewEntry({...newEntry, remarks: e.target.value})}
+                  rows={3}
+                  placeholder="Enter reconciliation notes..."
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                />
+              </Field>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-6 py-2.5 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors"
+                >
                   Cancel
                 </button>
-                <button type="submit"
-                  className="flex-1 py-3.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold transition-colors text-sm flex items-center justify-center gap-2">
-                  <MdAdd size={18} /> Create Entry
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={handleCreate}
+                  className="px-8 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-200 transition-all flex items-center gap-2 disabled:opacity-50"
+                >
+                  {saving ? 'Processing...' : 'Submit Reconciliation'}
                 </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Modal */}
-      {showEditModal && editForm && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setShowEditModal(false); }}
-        >
-          <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl">
-            <div className="p-6 border-b flex justify-between items-center bg-white">
-              <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-                <MdEdit className="text-blue-600" size={24} />
-                Edit Debit / Credit Matching
-              </h2>
-              <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600">
-                <MdClose size={24} />
-              </button>
             </div>
-
-            <form onSubmit={handleUpdateSubmit} className="p-6 overflow-y-auto max-h-[75vh] bg-white">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <Field label="Docket">
-                  <input type="text" readOnly value={editForm.id}
-                    className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-lg text-gray-500 text-sm" />
-                </Field>
-
-                <Field label="Return Type">
-                  <select value={editForm.returnType}
-                    onChange={e => setEditForm({...editForm, returnType: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none">
-                    <option>Material Return</option>
-                    <option>Sales Return</option>
-                    <option>Damage Return</option>
-                  </select>
-                </Field>
-
-                <Field label="Supplier / Party *">
-                  <input type="text" required value={editForm.party}
-                    onChange={e => setEditForm({...editForm, party: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none" />
-                </Field>
-
-                <Field label="Invoice No">
-                  <input type="text" value={editForm.invoice}
-                    onChange={e => setEditForm({...editForm, invoice: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none" />
-                </Field>
-
-                <Field label="Invoice Date">
-                  <input type="date" value={editForm.invoiceDate}
-                    onChange={e => setEditForm({...editForm, invoiceDate: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none" />
-                </Field>
-
-                <Field label="GST (%)">
-                  <select value={editForm.gst}
-                    onChange={e => setEditForm({...editForm, gst: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none">
-                    <option>5%</option><option>12%</option><option>18%</option><option>28%</option>
-                  </select>
-                </Field>
-
-                <Field label="Return Value (₹)">
-                  <input type="number" value={editForm.returnValue}
-                    onChange={e => setEditForm({...editForm, returnValue: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none" />
-                </Field>
-
-                <Field label="Assigned To">
-                  <input type="text" value={editForm.assignedTo}
-                    onChange={e => setEditForm({...editForm, assignedTo: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none" />
-                </Field>
-
-                <Field label="Credit Note No">
-                  <input type="text" value={editForm.creditNote}
-                    onChange={e => setEditForm({...editForm, creditNote: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none" />
-                </Field>
-
-                <Field label="Credit Note Amount (₹)">
-                  <input type="number" value={editForm.cnAmount}
-                    onChange={e => setEditForm({...editForm, cnAmount: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none" />
-                </Field>
-
-                <Field label="Debit Note No">
-                  <input type="text" value={editForm.debitNote}
-                    onChange={e => setEditForm({...editForm, debitNote: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none" />
-                </Field>
-
-                <Field label="Debit Note Amount (₹)">
-                  <input type="number" value={editForm.dnAmount}
-                    onChange={e => setEditForm({...editForm, dnAmount: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none" />
-                </Field>
-
-                <Field label="Match Status">
-                  <select value={editForm.matchStatus}
-                    onChange={e => setEditForm({...editForm, matchStatus: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none">
-                    <option>Open</option><option>Partial</option><option>Matched</option>
-                  </select>
-                </Field>
-
-                <Field label="Finance Status">
-                  <select value={editForm.financeStatus}
-                    onChange={e => setEditForm({...editForm, financeStatus: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none">
-                    <option>Pending</option><option>Closed</option>
-                  </select>
-                </Field>
-
-                <Field label="Tally Sync">
-                  <select value={editForm.tallySync}
-                    onChange={e => setEditForm({...editForm, tallySync: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none">
-                    <option>Not synced</option><option>Synced</option>
-                  </select>
-                </Field>
-
-                <Field label="Voucher No">
-                  <input type="text" value={editForm.voucherNo}
-                    onChange={e => setEditForm({...editForm, voucherNo: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 outline-none" />
-                </Field>
-              </div>
-
-              <div className="flex gap-4 mt-8">
-                <button type="button" onClick={() => setShowEditModal(false)}
-                  className="flex-1 py-3.5 border border-gray-300 rounded-xl font-semibold hover:bg-gray-50 transition-colors text-sm">
-                  Cancel
-                </button>
-                <button type="submit"
-                  className="flex-1 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors text-sm flex items-center justify-center gap-2">
-                  <MdEdit size={18} /> Update Entry
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}
+
     </div>
   );
 }

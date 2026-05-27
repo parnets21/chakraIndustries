@@ -7,7 +7,8 @@ import Modal from '../../components/common/Modal';
 import StorageLocationPage from './StorageLocationPage';
 import PincodeStockPage from './PincodeStockPage';
 import WarehouseReceivePage from '../returns/WarehouseReceivePage';
-import { MdWarehouse, MdLocationOn, MdFileDownload as MdDownload, MdSwapHoriz, MdCheckCircle, MdWarning, MdArrowForward, MdOpenInNew } from 'react-icons/md';
+import WarehouseReturnReceivePage from '../returns/WarehouseReturnReceivePage';
+import { MdWarehouse, MdLocationOn, MdFileDownload as MdDownload, MdSwapHoriz, MdCheckCircle, MdWarning, MdArrowForward, MdOpenInNew, MdInventory } from 'react-icons/md';
 import { toast } from '../../components/common/Toast';
 import { inventoryApi } from '../../api/inventoryApi';
 import { categoryApi } from '../../api/categoryApi';
@@ -19,7 +20,6 @@ import { defectiveStockApi } from '../../api/defectiveStockApi';
 import { grnApi } from '../../api/grnApi';
 import { poApi } from '../../api/poApi';
 import { getAgeingStock } from '../../api/ageingStockApi';
-import { materialReturnApi } from '../../api/materialReturnApi';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const BG_CARD = '#ffffff';
@@ -59,7 +59,7 @@ function Empty({ msg = 'No data found' }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function InventoryPage({ initialTab = 0, externalShowModal = false, onExternalModalClose }) {
+export default function InventoryPage({ initialTab = 0, externalShowModal = false, onExternalModalClose, externalShowReturns = false, onExternalReturnsClose }) {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -71,12 +71,15 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const [stats,         setStats]         = useState(null);
   const [loading,       setLoading]       = useState(true);
   const [ageingData,    setAgeingData]    = useState([]);
-  const [returnRequests, setReturnRequests] = useState([]);
 
   // ── Modal state ────────────────────────────────────────────────────────────
   const [internalModal, setInternalModal] = useState(false);
+  const [internalShowReturns, setInternalShowReturns] = useState(false);
   const showModal = externalShowModal || internalModal;
+  const showReturnReceive = externalShowReturns || internalShowReturns;
+
   const closeModal = () => { setInternalModal(false); onExternalModalClose?.(); };
+  const closeReturns = () => { setInternalShowReturns(false); onExternalReturnsClose?.(); };
 
   // ── Forms ──────────────────────────────────────────────────────────────────
   const [stockForm,  setStockForm]  = useState({ sku:'', name:'', qty:'', minQty:'', warehouse:'', unit:'Nos', category:'', batch:'', remarks:'' });
@@ -85,6 +88,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const [movForm,    setMovForm]    = useState({ type:'Inward', sku:'', from:'Supplier', to:'', qty:'', ref:'' });
   const [adjustItem, setAdjustItem] = useState(null);
   const [adjustQty, setAdjustQty] = useState('');
+  const [adjustMode, setAdjustMode] = useState('add');
   const [moveItem, setMoveItem] = useState(null);
   const [moveToWH, setMoveToWH] = useState('');
 
@@ -94,6 +98,8 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const [stockSearch, setStockSearch] = useState('');
   const [movTab,      setMovTab]      = useState('Inward');
   const [selectedWH,  setSelectedWH]  = useState(null);
+  const [selectedDefectId, setSelectedDefectId] = useState(null);
+  const [logsLoading, setLogsLoading] = useState(false);
   const [grnList,     setGrnList]     = useState([]);
   const [poList,      setPoList]      = useState([]);
   const [poItems,     setPoItems]     = useState({});
@@ -127,11 +133,10 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       await new Promise(resolve => setTimeout(resolve, 100));
       
       // Batch 2: Movement and category data
-      const [movRes, catRes, ageingRes, returnsRes] = await Promise.all([
+      const [movRes, catRes, ageingRes] = await Promise.all([
         inventoryApi.getMovements(),
         categoryApi.getAll(),
         getAgeingStock(),
-        materialReturnApi.getWarehouseQueue().catch(() => ({ data: [] })) // Fallback if returns API fails
       ]);
       
       // Small delay to prevent rate limiting
@@ -175,7 +180,6 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       const defects = defectRes.data || [];
       const pos     = poRes.data   || [];
       const ageing  = ageingRes.data || [];
-      const returns = returnsRes.data || [];
       
       console.log('Stock data received:', stock);
       if (stock.length > 0) {
@@ -201,7 +205,6 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       setPoList(pos);
       setPoItems(poItemsMap);
       setAgeingData(ageing);
-      setReturnRequests(returns);
       setStats(statsRes.data || null);
       if (whs.length > 0 && !selectedWH) setSelectedWH(whs[0]);
     } catch (e) {
@@ -340,10 +343,42 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const handleAdjustQty = async () => {
     if (!adjustQty) { toast('Enter a quantity', 'error'); return; }
     try {
-      await inventoryApi.adjust(adjustItem._id, { qty: adjustQty });
-      toast(`${adjustItem.sku} quantity updated to ${adjustQty}`);
-      setAdjustItem(null); setAdjustQty(''); loadAll();
+      const val = parseInt(adjustQty) || 0;
+      await inventoryApi.adjust(adjustItem._id, { 
+        qty: val,
+        mode: adjustMode 
+      });
+      const final = adjustMode === 'add' ? (Number(adjustItem.qty || 0) + val) : val;
+      toast(`${adjustItem.sku} quantity updated to ${final}`);
+      setAdjustItem(null); setAdjustQty(''); setAdjustMode('add'); loadAll();
     } catch (e) { toast(e.message || 'Failed to adjust', 'error'); }
+  };
+
+  const fetchDefectLogs = async (id) => {
+    try {
+      setLogsLoading(true);
+      setSelectedDefectId(id);
+      const res = await defectiveStockApi.getLogs(id);
+      const logs = (res.data || []).map(l => ({
+        title: l.title || l.actionType,
+        description: l.description,
+        time: new Date(l.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+        date: new Date(l.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+        currentStatus: l.currentStatus || 'Update',
+        user: l.performedBy || 'System',
+        warehouse: l.warehouse || 'N/A',
+        color: l.currentStatus === 'Approved' || l.currentStatus === 'QC Approved' ? GREEN : 
+               l.currentStatus === 'QC Hold' || l.currentStatus === 'Pending' ? AMBER : 
+               l.currentStatus === 'Scrap' || l.currentStatus === 'Rejected' ? RED_LIGHT : 
+               l.currentStatus === 'Processing' ? BLUE : '#64748b'
+      }));
+      setDefectLog(logs);
+    } catch (e) {
+      console.error('Error fetching logs:', e);
+      toast('Failed to load defect logs', 'error');
+    } finally {
+      setLogsLoading(false);
+    }
   };
 
   const handleMoveStock = async () => {
@@ -522,7 +557,6 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
 
   return (
     <div>
-
       {/* ══ TAB 0 — Stock Dashboard ══════════════════════════════════════════ */}
       {activeTab === 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1146,7 +1180,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     {defectList.map((d, i) => {
                       const createdDate = d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-IN', {day:'2-digit', month:'short'}) : d.date;
                       return (
-                      <tr key={i} style={{ borderBottom:'1px solid #f1f5f9' }}>
+                      <tr key={i} onClick={() => fetchDefectLogs(d._id)} style={{ borderBottom:'1px solid #f1f5f9', cursor: 'pointer', background: selectedDefectId === d._id ? '#fef2f2' : 'transparent' }} onMouseEnter={e => !selectedDefectId || selectedDefectId !== d._id ? e.currentTarget.style.background = '#f8fafc' : null} onMouseLeave={e => !selectedDefectId || selectedDefectId !== d._id ? e.currentTarget.style.background = 'transparent' : null}>
                         <td style={{ padding:'10px 14px', fontFamily:'monospace', fontWeight:700, color: RED_LIGHT }}>{d.defectId || d.id}</td>
                         <td style={{ padding:'10px 14px', fontFamily:'monospace', fontSize:12, color: RED }}>{d.sku}</td>
                         <td style={{ padding:'10px 14px', fontWeight:600, color: TEXT_DARK }}>{d.itemName || d.item}</td>
@@ -1178,12 +1212,56 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
           </div>
           <div style={{ ...card(), overflow: 'hidden' }}>
             <div style={{ padding: '14px 20px', borderBottom: BORDER }}><div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK }}>Defect Log</div></div>
-            {defectLog.length === 0 ? <Empty msg="No log entries yet" /> : defectLog.map((l, i) => (
-              <div key={i} style={{ padding: '12px 20px', borderBottom: i < defectLog.length - 1 ? BORDER : 'none', borderLeft: `4px solid ${l.color}`, background: l.color + '08' }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: TEXT_DARK }}>{l.event}</div>
-                <div style={{ fontSize: 11, color: TEXT_LIGHT, marginTop: 3 }}>{l.time} · {l.stage}</div>
+            <div style={{ maxHeight: 500, overflowY: 'auto', paddingRight: 4 }}>
+              {logsLoading ? (
+                <div style={{ padding: 20, textAlign: 'center', color: TEXT_LIGHT, fontSize: 13 }}>Loading logs...</div>
+              ) : defectLog.length === 0 ? (
+                <Empty msg="Select an item to view logs" />
+              ) : defectLog.map((l, i) => (
+                <div key={i} style={{ 
+                  padding: '16px 20px', 
+                  borderBottom: i < defectLog.length - 1 ? BORDER : 'none', 
+                  borderLeft: `4px solid ${l.color}`, 
+                  background: l.color + '05',
+                  transition: 'background 0.2s'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: TEXT_LIGHT, background: '#f1f5f9', padding: '2px 8px', borderRadius: 4 }}>
+                      {l.time}
+                    </div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: l.color, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                      {l.currentStatus}
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK, marginBottom: 4 }}>
+                    {l.title}
+                  </div>
+
+                  <div style={{ fontSize: 12, color: TEXT_MID, lineHeight: 1.5, marginBottom: 10 }}>
+                    {l.description}
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 8, borderTop: '1px dashed #e2e8f0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                      <span style={{ color: TEXT_LIGHT }}>Performed By:</span>
+                      <span style={{ fontWeight: 600, color: TEXT_DARK }}>{l.user}</span>
+                    </div>
+                    {l.warehouse && l.warehouse !== 'N/A' && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                        <span style={{ color: TEXT_LIGHT }}>Warehouse:</span>
+                        <span style={{ fontWeight: 600, color: TEXT_DARK }}>{l.warehouse}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {defectLog.length > 0 && (
+              <div style={{ padding: '10px 20px', background: '#f8fafc', borderTop: BORDER, textAlign: 'center' }}>
+                <span style={{ fontSize: 11, color: TEXT_LIGHT, fontWeight: 600 }}>Total Entries: {defectLog.length}</span>
               </div>
-            ))}
+            )}
           </div>
         </div>
       )}
@@ -1191,8 +1269,8 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       {/* ══ TAB 9 — Storage Locations ════════════════════════════════════════ */}
       {activeTab === 9 && (
         <StorageLocationPage 
-          externalShowModal={showModal} 
-          onExternalModalClose={closeModal} 
+          externalShowModal={externalShowModal} 
+          onExternalModalClose={onExternalModalClose} 
         />
       )}
 
@@ -1482,8 +1560,8 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               <strong>{adjustItem.name}</strong> · Current qty: <strong style={{ color: RED }}>{adjustItem.qty}</strong> · Min: {adjustItem.minQty}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>New Quantity *</label>
-              <input type="number" value={adjustQty} onChange={e => setAdjustQty(e.target.value)} style={inp} autoFocus />
+              <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Adjustment Quantity (+/-) *</label>
+              <input type="number" placeholder="e.g. 20 to add 20" value={adjustQty} onChange={e => setAdjustQty(e.target.value)} style={inp} autoFocus />
             </div>
           </div>
         )}
@@ -1507,6 +1585,14 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
           </div>
         )}
       </Modal>
+
+      {/* Warehouse Return Receive Page Overlay */}
+      {showReturnReceive && (
+        <WarehouseReturnReceivePage onClose={() => {
+          closeReturns();
+          loadAll(); // Refresh data after closing
+        }} />
+      )}
     </div>
   );
 }

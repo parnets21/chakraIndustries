@@ -1,18 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  MdSearch, 
-  MdAdd, 
-  MdVisibility, 
-  MdEdit, 
-  MdDelete, 
-  MdDownload,
-  MdFilterList,
-  MdRefresh,
-  MdLocalShipping,
-  MdInventory,
-  MdAccessTime,
-  MdCheckCircle,
-  MdWarning
+  MdSearch, MdVisibility, MdRefresh, MdLocalShipping, MdInventory, MdCheckCircle, 
+  MdWarning, MdLocationOn, MdHistory, MdPrint, MdMap, MdPerson, MdPhone, MdAssignment
 } from 'react-icons/md';
 import PageShell from '../../components/common/PageShell';
 import DataTable from '../../components/tables/DataTable';
@@ -26,18 +15,16 @@ const DocketTrackingPage = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [showTimelineModal, setShowTimelineModal] = useState(false);
   const [selectedDocket, setSelectedDocket] = useState(null);
 
-  // Fetch dockets
-  const fetchDockets = async () => {
+  const fetchDockets = useCallback(async () => {
     try {
       setLoading(true);
       const response = await docketTrackingApi.getAllDockets({
         search: searchTerm,
-        status: statusFilter !== 'all' ? statusFilter : undefined
+        stage: statusFilter !== 'all' ? statusFilter : undefined
       });
       setDockets(response.data || []);
     } catch (error) {
@@ -45,184 +32,114 @@ const DocketTrackingPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchTerm, statusFilter]);
 
   useEffect(() => {
     fetchDockets();
-  }, [searchTerm, statusFilter]);
+  }, [fetchDockets]);
 
-  const handleDelete = async (docketId) => {
-    if (window.confirm('Are you sure you want to delete this docket?')) {
-      try {
-        await docketTrackingApi.deleteDocket(docketId);
-        toast('Docket deleted successfully');
-        fetchDockets();
-      } catch (error) {
-        toast('Error deleting docket', 'error');
-      }
-    }
-  };
-
-  const handleStatusUpdate = async (docketId, newStatus) => {
-    try {
-      await docketTrackingApi.updateDocketStatus(docketId, newStatus);
-      toast('Status updated successfully');
-      fetchDockets();
-    } catch (error) {
-      toast('Error updating status', 'error');
-    }
-  };
-  const getStatusIcon = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'dispatched':
-        return <MdLocalShipping className="w-4 h-4" />;
-      case 'in_transit':
-        return <MdInventory className="w-4 h-4" />;
-      case 'delivered':
-        return <MdCheckCircle className="w-4 h-4" />;
-      case 'delayed':
-        return <MdWarning className="w-4 h-4" />;
-      default:
-        return <MdAccessTime className="w-4 h-4" />;
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'dispatched':
-        return 'blue';
-      case 'in_transit':
-        return 'yellow';
-      case 'delivered':
-        return 'green';
-      case 'delayed':
-        return 'red';
-      default:
-        return 'gray';
-    }
+  const getStageColor = (stage) => {
+    const s = stage?.toUpperCase();
+    if (s.includes('DOCKET')) return 'blue';
+    if (s.includes('ASSIGN')) return 'amber';
+    if (s.includes('PICKUP') || s.includes('TRANSIT')) return 'orange';
+    if (s.includes('ARRIVED') || s.includes('RECEIVED')) return 'green';
+    return 'gray';
   };
 
   const columns = [
     {
       key: 'docketId',
       label: 'Docket ID',
-      sortable: true,
-      render: (value) => (
-        <span className="font-medium text-blue-600">{value}</span>
-      )
+      render: (v) => <span className="font-bold text-blue-700">{v || 'TBD'}</span>
     },
     {
       key: 'mrId',
       label: 'MR ID',
-      sortable: true,
-      render: (value) => (
-        <span className="font-medium">{value}</span>
-      )
+      render: (v) => <span className="font-bold">{v}</span>
     },
     {
       key: 'supplierName',
-      label: 'Supplier Name',
-      sortable: true
+      label: 'Supplier/Party',
+      render: (v, row) => (
+        <div>
+          <div className="font-bold text-gray-800">{v || row.customerName}</div>
+          <div className="text-[10px] text-gray-500 uppercase">{row.invoiceNo}</div>
+        </div>
+      )
     },
     {
-      key: 'transporter',
-      label: 'Transporter',
-      sortable: true
+      key: 'pickupAddress',
+      label: 'Source/Dest',
+      render: (v, row) => (
+        <div className="text-[11px]">
+          <div className="flex items-center gap-1 text-gray-600"><MdLocationOn size={12} className="text-red-500" /> {v || 'Source'}</div>
+          <div className="flex items-center gap-1 text-gray-400 mt-1"><MdLocationOn size={12} /> {row.warehouseName || 'Destination'}</div>
+        </div>
+      )
     },
     {
-      key: 'lrNumber',
-      label: 'LR Number',
-      sortable: true,
-      render: (value) => (
-        <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">{value}</span>
+      key: 'productName',
+      label: 'Product/Qty',
+      render: (v, row) => (
+        <div>
+          <div className="text-[11px] font-bold truncate max-w-[150px]">{v}</div>
+          <div className="text-[10px] text-gray-500">{row.returnQty} Units • ₹{row.value?.toLocaleString()}</div>
+        </div>
       )
     },
     {
       key: 'vehicleNo',
-      label: 'Vehicle No',
-      sortable: true,
-      render: (value) => (
-        <span className="font-mono text-sm">{value}</span>
+      label: 'Logistics',
+      render: (v, row) => (
+        <div className="text-[11px]">
+          <div className="font-bold">{v || row.courierName || 'Unassigned'}</div>
+          <div className="text-gray-500">{row.driverName || row.awbNo || '-'}</div>
+        </div>
       )
     },
     {
-      key: 'dispatchDate',
-      label: 'Dispatch Date',
-      sortable: true,
-      render: (value) => (
-        <span>{new Date(value).toLocaleDateString()}</span>
+      key: 'currentStage',
+      label: 'Stage/Status',
+      render: (v, row) => (
+        <div>
+          <StatusBadge status={v?.replace(/_/g, ' ')} color={getStageColor(v)} />
+          <div className="text-[10px] text-gray-400 mt-1 italic">{row.trackingStatus || 'No status'}</div>
+        </div>
       )
     },
     {
-      key: 'expectedArrival',
-      label: 'Expected Arrival',
-      sortable: true,
-      render: (value) => (
-        <span>{new Date(value).toLocaleDateString()}</span>
-      )
-    },
-    {
-      key: 'materialStatus',
-      label: 'Material Status',
-      render: (value) => (
-        <StatusBadge 
-          status={value} 
-          color={getStatusColor(value)}
-          icon={getStatusIcon(value)}
-        />
-      )
+      key: 'createdAt',
+      label: 'Aging',
+      render: (v) => {
+        const days = Math.floor((new Date() - new Date(v)) / (1000 * 60 * 60 * 24));
+        return <span className={`text-xs font-bold ${days > 3 ? 'text-red-600' : 'text-gray-600'}`}>{days} Days</span>
+      }
     },
     {
       key: 'actions',
       label: 'Actions',
       render: (_, row) => (
-        <div className="flex space-x-2">
-          <button
-            onClick={() => {
-              setSelectedDocket(row);
-              setShowViewModal(true);
-            }}
-            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-            title="View Details"
-          >
-            <MdVisibility className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => {
-              setSelectedDocket(row);
-              setShowEditModal(true);
-            }}
-            className="p-1 text-green-600 hover:bg-green-50 rounded"
-            title="Edit"
-          >
-            <MdEdit className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleDelete(row.id)}
-            className="p-1 text-red-600 hover:bg-red-50 rounded"
-            title="Delete"
-          >
-            <MdDelete className="w-4 h-4" />
-          </button>
+        <div className="flex gap-1">
+          <button onClick={() => { setSelectedDocket(row); setShowViewModal(true); }} className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all" title="View Details"><MdVisibility size={14} /></button>
+          <button onClick={() => { setSelectedDocket(row); setShowTimelineModal(true); }} className="p-1.5 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-600 hover:text-white transition-all" title="View Timeline"><MdHistory size={14} /></button>
+          <button onClick={() => window.print()} className="p-1.5 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-900 hover:text-white transition-all" title="Print Docket"><MdPrint size={14} /></button>
         </div>
       )
     }
   ];
+
   return (
-    <PageShell
-      title="Docket Tracking"
-      subtitle="Track and manage material shipment dockets"
-    >
-      {/* Header Actions */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+    <PageShell title="Docket Tracking" subtitle="Enterprise Logistics & Return Lifecycle Monitoring">
+      <div className="flex flex-col sm:flex-row gap-4 mb-6 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
         <div className="flex-1 relative">
-          <MdSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <MdSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by Docket ID, MR ID, Supplier..."
+            placeholder="Search Docket ID, MR ID, Supplier..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500"
           />
         </div>
         
@@ -230,430 +147,88 @@ const DocketTrackingPage = () => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 bg-gray-50 border-none rounded-xl text-sm font-bold text-gray-600 outline-none"
           >
-            <option value="all">All Status</option>
-            <option value="dispatched">Dispatched</option>
-            <option value="in_transit">In Transit</option>
-            <option value="delivered">Delivered</option>
-            <option value="delayed">Delayed</option>
+            <option value="all">All Stages</option>
+            <option value="DOCKET_CREATED">Docket Created</option>
+            <option value="VEHICLE_ASSIGNED">Vehicle Assigned</option>
+            <option value="OUT_FOR_PICKUP">Out for Pickup</option>
+            <option value="PICKED_UP">Picked Up</option>
+            <option value="IN_TRANSIT">In Transit</option>
+            <option value="ARRIVED">Arrived</option>
+            <option value="RECEIVED">Received</option>
           </select>
           
-          <button
-            onClick={fetchDockets}
-            className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
-          >
-            <MdRefresh className="w-4 h-4" />
-            Refresh
-          </button>
-          
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-          >
-            <MdAdd className="w-4 h-4" />
-            Add Docket
-          </button>
+          <button onClick={fetchDockets} className="p-2.5 bg-gray-50 text-gray-600 rounded-xl hover:bg-gray-100 transition-all"><MdRefresh size={20} /></button>
         </div>
       </div>
 
-      {/* Data Table */}
-      <div className="bg-white rounded-lg shadow">
-        <DataTable
-          columns={columns}
-          data={dockets}
-          loading={loading}
-          emptyMessage="No dockets found"
-        />
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden">
+        <DataTable columns={columns} data={dockets} loading={loading} emptyMessage="No active dockets found in logistics pipeline" />
       </div>
 
-      {/* Modals */}
-      {showCreateModal && (
-        <CreateDocketModal
-          isOpen={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
-          onSuccess={() => {
-            setShowCreateModal(false);
-            fetchDockets();
-            toast('Docket created successfully');
-          }}
-        />
-      )}
+      {/* View Details Modal */}
+      <Modal open={showViewModal} onClose={() => setShowViewModal(false)} title={`Docket Details: ${selectedDocket?.docketId}`} size="xl">
+        {selectedDocket && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-4">
+              <h4 className="text-xs font-black text-blue-600 uppercase tracking-widest border-b pb-2">Material Info</h4>
+              <DetailItem label="MR ID" value={selectedDocket.mrId} />
+              <DetailItem label="Invoice No" value={selectedDocket.invoiceNo} />
+              <DetailItem label="Product" value={selectedDocket.productName} />
+              <DetailItem label="Qty" value={`${selectedDocket.returnQty} Units`} />
+              <DetailItem label="Value" value={`₹${selectedDocket.value?.toLocaleString()}`} />
+            </div>
+            <div className="space-y-4">
+              <h4 className="text-xs font-black text-amber-600 uppercase tracking-widest border-b pb-2">Logistics Info</h4>
+              <DetailItem label="Vehicle No" value={selectedDocket.vehicleNo || 'TBD'} />
+              <DetailItem label="Driver" value={selectedDocket.driverName || 'TBD'} />
+              <DetailItem label="Driver Mobile" value={selectedDocket.driverMobile || 'TBD'} />
+              <DetailItem label="Courier/AWB" value={selectedDocket.courierName ? `${selectedDocket.courierName} / ${selectedDocket.awbNo}` : 'TBD'} />
+              <DetailItem label="ETA" value={selectedDocket.eta ? new Date(selectedDocket.eta).toLocaleDateString() : 'TBD'} />
+            </div>
+            <div className="space-y-4">
+              <h4 className="text-xs font-black text-green-600 uppercase tracking-widest border-b pb-2">Status & Locations</h4>
+              <DetailItem label="Current Stage" value={selectedDocket.currentStage?.replace(/_/g, ' ')} />
+              <DetailItem label="Live Status" value={selectedDocket.trackingStatus} />
+              <DetailItem label="Pickup From" value={selectedDocket.pickupAddress} />
+              <DetailItem label="Destination" value={selectedDocket.warehouseName} />
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Timeline Modal */}
+      <Modal open={showTimelineModal} onClose={() => setShowTimelineModal(false)} title="Tracking Timeline" size="lg">
+        {selectedDocket && (
+          <div className="space-y-6 py-4">
+            {selectedDocket.stageTimeline?.map((step, i) => (
+              <div key={i} className="flex gap-4 relative">
+                {i !== selectedDocket.stageTimeline.length - 1 && <div className="absolute left-2.5 top-6 bottom-[-24px] w-0.5 bg-gray-100" />}
+                <div className={`w-5 h-5 rounded-full mt-1 z-10 flex items-center justify-center border-4 border-white shadow-sm ${i === selectedDocket.stageTimeline.length - 1 ? 'bg-green-500 animate-pulse' : 'bg-blue-400'}`} />
+                <div>
+                  <div className="text-sm font-bold text-gray-800">{step.stage?.replace(/_/g, ' ')}</div>
+                  <div className="text-[11px] text-gray-500 flex items-center gap-2 mt-0.5">
+                    <span>{new Date(step.timestamp).toLocaleString()}</span>
+                    <span>•</span>
+                    <span className="font-bold text-blue-600">{step.user}</span>
+                  </div>
+                  <div className="text-xs text-gray-600 mt-2 bg-gray-50 p-2 rounded-lg border border-gray-100 italic">{step.remarks}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
     </PageShell>
   );
 };
-// Create Docket Modal Component
-const CreateDocketModal = ({ isOpen, onClose, onSuccess }) => {
-  const [formData, setFormData] = useState({
-    // Return Details (Auto Filled)
-    mrId: '',
-    supplierName: '',
-    invoiceNo: '',
-    returnQty: '',
-    returnAmount: '',
-    dispatchLocation: '',
-    
-    // Logistics Details
-    transporter: '',
-    lrNumber: '',
-    vehicleNo: '',
-    driverName: '',
-    driverMobile: '',
-    dispatchDate: '',
-    expectedArrival: '',
-    transportCost: '',
-    
-    // Material Status
-    materialStatus: 'in_transit',
-    remarks: '',
-    
-    // Attachments
-    lrCopy: null,
-    otherDocuments: null
-  });
-  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      setLoading(true);
-      
-      // Generate docket ID automatically
-      const docketId = `DKT-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
-      
-      const docketData = {
-        ...formData,
-        docketId
-      };
-      
-      await docketTrackingApi.createDocket(docketData);
-      onSuccess();
-    } catch (error) {
-      console.error('Error creating docket:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFileChange = (field, file) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: file
-    }));
-  };
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Create Docket" size="xl">
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Return Details Section */}
-        <div>
-          <h3 className="text-lg font-semibold text-blue-600 mb-4">Return Details (Auto Filled)</h3>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                MR ID
-              </label>
-              <input
-                type="text"
-                value={formData.mrId}
-                onChange={(e) => setFormData({...formData, mrId: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="MR-2026-004"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Supplier Name
-              </label>
-              <input
-                type="text"
-                value={formData.supplierName}
-                onChange={(e) => setFormData({...formData, supplierName: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="Amit Traders"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Invoice No.
-              </label>
-              <input
-                type="text"
-                value={formData.invoiceNo}
-                onChange={(e) => setFormData({...formData, invoiceNo: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="INV-7624764"
-              />
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-3 gap-4 mt-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Return Qty
-              </label>
-              <input
-                type="text"
-                value={formData.returnQty}
-                onChange={(e) => setFormData({...formData, returnQty: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="5 Items"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Return Amount
-              </label>
-              <input
-                type="text"
-                value={formData.returnAmount}
-                onChange={(e) => setFormData({...formData, returnAmount: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="₹24.00"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Dispatch Location
-              </label>
-              <input
-                type="text"
-                value={formData.dispatchLocation}
-                onChange={(e) => setFormData({...formData, dispatchLocation: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="Main Warehouse"
-              />
-            </div>
-          </div>
-        </div>
-        {/* Logistics Details Section */}
-        <div>
-          <h3 className="text-lg font-semibold text-blue-600 mb-4">Logistics Details</h3>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Transporter *
-              </label>
-              <select
-                value={formData.transporter}
-                onChange={(e) => setFormData({...formData, transporter: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                required
-              >
-                <option value="">Select Transporter</option>
-                <option value="VRL Logistics">VRL Logistics</option>
-                <option value="Delhivery">Delhivery</option>
-                <option value="Blue Dart Freight">Blue Dart Freight</option>
-                <option value="Transport Co.">Transport Co.</option>
-                <option value="Express Logistics">Express Logistics</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                LR Number *
-              </label>
-              <input
-                type="text"
-                value={formData.lrNumber}
-                onChange={(e) => setFormData({...formData, lrNumber: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="LR-889977"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Vehicle No *
-              </label>
-              <input
-                type="text"
-                value={formData.vehicleNo}
-                onChange={(e) => setFormData({...formData, vehicleNo: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="KA01AB1234"
-                required
-              />
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-3 gap-4 mt-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Driver Name
-              </label>
-              <input
-                type="text"
-                value={formData.driverName}
-                onChange={(e) => setFormData({...formData, driverName: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="Ramesh Kumar"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Driver Mobile
-              </label>
-              <input
-                type="tel"
-                value={formData.driverMobile}
-                onChange={(e) => setFormData({...formData, driverMobile: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="9876543210"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Transport Cost
-              </label>
-              <input
-                type="number"
-                value={formData.transportCost}
-                onChange={(e) => setFormData({...formData, transportCost: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="1200.00"
-              />
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4 mt-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Dispatch Date *
-              </label>
-              <input
-                type="date"
-                value={formData.dispatchDate}
-                onChange={(e) => setFormData({...formData, dispatchDate: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Expected Arrival *
-              </label>
-              <input
-                type="date"
-                value={formData.expectedArrival}
-                onChange={(e) => setFormData({...formData, expectedArrival: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-          </div>
-        </div>
-        {/* Material Status Section */}
-        <div>
-          <h3 className="text-lg font-semibold text-blue-600 mb-4">Material Status</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Current Status
-              </label>
-              <select
-                value={formData.materialStatus}
-                onChange={(e) => setFormData({...formData, materialStatus: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="dispatched">Dispatched</option>
-                <option value="in_transit">In Transit</option>
-                <option value="delivered">Delivered</option>
-                <option value="delayed">Delayed</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Remarks
-              </label>
-              <textarea
-                value={formData.remarks}
-                onChange={(e) => setFormData({...formData, remarks: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                rows="3"
-                placeholder="Material dispatched from our warehouse."
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Attachments Section */}
-        <div>
-          <h3 className="text-lg font-semibold text-blue-600 mb-4">Attachments</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                LR Copy
-              </label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                <input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={(e) => handleFileChange('lrCopy', e.target.files[0])}
-                  className="hidden"
-                  id="lrCopy"
-                />
-                <label htmlFor="lrCopy" className="cursor-pointer">
-                  <div className="text-gray-500">
-                    {formData.lrCopy ? formData.lrCopy.name : 'Choose File'}
-                  </div>
-                  <div className="text-xs text-gray-400 mt-1">
-                    {formData.lrCopy ? 'File selected' : 'LR_889977.pdf'}
-                  </div>
-                </label>
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Other Documents
-              </label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                <input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={(e) => handleFileChange('otherDocuments', e.target.files[0])}
-                  className="hidden"
-                  id="otherDocs"
-                />
-                <label htmlFor="otherDocs" className="cursor-pointer">
-                  <div className="text-gray-500">
-                    {formData.otherDocuments ? formData.otherDocuments.name : 'Choose File'}
-                  </div>
-                  <div className="text-xs text-gray-400 mt-1">
-                    {formData.otherDocuments ? 'File selected' : 'No file chosen'}
-                  </div>
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex justify-end space-x-3 pt-6 border-t">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-6 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="px-6 py-2 text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50"
-          >
-            Save Draft
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            {loading ? 'Creating...' : 'Create Docket'}
-          </button>
-        </div>
-      </form>
-    </Modal>
-  );
-};
+const DetailItem = ({ label, value }) => (
+  <div>
+    <div className="text-[10px] text-gray-400 font-black uppercase tracking-tighter">{label}</div>
+    <div className="text-sm font-bold text-gray-700 mt-0.5">{value || '—'}</div>
+  </div>
+);
 
 export default DocketTrackingPage;

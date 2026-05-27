@@ -116,12 +116,19 @@ export default function StorageLocationPage({ initialTab = 0, externalShowModal 
     loadStorageData();
   }, []);
 
-  // Merge external and internal modal triggers
-  const showModal = externalShowModal || internalShowModal;
+  // Sync external modal state from parent
+  useEffect(() => {
+    if (externalShowModal) {
+      setModalStep('form');
+      setInternalShowModal(true);
+    }
+  }, [externalShowModal]);
+
+  const showModal = internalShowModal || externalShowModal;
+
   const closeModal = () => {
     setInternalShowModal(false);
-    setModalStep('form');
-    onExternalModalClose?.();
+    if (onExternalModalClose) onExternalModalClose();
   };
 
   const optimizeRoute = () => {

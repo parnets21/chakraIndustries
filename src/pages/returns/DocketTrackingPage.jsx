@@ -8,6 +8,8 @@ import {
 } from 'react-icons/md';
 import { materialReturnApi } from '../../api/materialReturnApi';
 import { invoiceApi } from '../../api/invoiceApi';
+import { logisticsApi } from '../../api/logisticsApi';
+import { inventoryApi } from '../../api/inventoryApi';
 import { toast } from '../../components/common/Toast';
 
 // ============================================
@@ -158,6 +160,10 @@ const DocketModal = ({ isOpen, onClose, onSuccess, editData, returnsList = [], i
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [fetchingData, setFetchingData] = useState(false);
+  const [allReturns, setAllReturns] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
+  const [shipments, setShipments] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
 
   useEffect(() => {
     if (isOpen && editData) {
@@ -180,7 +186,7 @@ const DocketModal = ({ isOpen, onClose, onSuccess, editData, returnsList = [], i
         shipmentWeight: editData.shipmentWeight || '',
         packagesCount: editData.packagesCount || '',
         transportCost: editData.transportCost || '',
-        estimatedDelivery: editData.estimatedDelivery || '',
+        estimatedDelivery: editData.estimatedDelivery ? new Date(editData.estimatedDelivery).toISOString().split('T')[0] : '',
         assignedTeam: editData.assignedTeam || '',
         invoiceNo: editData.invoiceNo || ''
       });
@@ -196,12 +202,117 @@ const DocketModal = ({ isOpen, onClose, onSuccess, editData, returnsList = [], i
     setErrors({});
   }, [isOpen, editData]);
 
+  useEffect(() => {
+    const loadInitialData = async () => {
+      setFetchingData(true);
+      try {
+        const [rRes, wRes, sRes, vRes] = await Promise.all([
+          materialReturnApi.getAll(),
+          inventoryApi.getWarehouses(),
+          logisticsApi.getShipments(),
+          logisticsApi.getVehicles()
+        ]);
+        setAllReturns(rRes.data || []);
+        setWarehouses(wRes.data || []);
+        setShipments(sRes.data || []);
+        setVehicles(vRes.data || []);
+      } catch (err) {
+        console.error('Failed to load modal data:', err);
+      } finally {
+        setFetchingData(false);
+      }
+    };
+    if (isOpen) loadInitialData();
+  }, [isOpen]);
+
+  const handleVehicleSelect = (vehicleNo) => {
+    if (!vehicleNo) {
+      setForm(prev => ({ ...prev, vehicleNumber: '', driverName: '', driverMobile: '' }));
+      return;
+    }
+    // Match by 'number' key from Vehicle model as seen in http://localhost:5173/logistics/vehicles
+    const vehicle = vehicles.find(v => v.number === vehicleNo);
+    if (vehicle) {
+      setForm(prev => ({
+        ...prev,
+        vehicleNumber: vehicle.number,
+        driverName: vehicle.driver || prev.driverName,
+        // Using 'driverMobile' or fallback to 'phone' if present in data
+        driverMobile: vehicle.driverMobile || vehicle.phone || prev.driverMobile,
+      }));
+      toast(`Vehicle ${vehicleNo} & Driver details auto-fetched`, 'success');
+    } else {
+      setField('vehicleNumber', vehicleNo);
+    }
+  };
+
+  const handleReturnSelect = (mrId) => {
+    if (!mrId) return;
+    const returnData = allReturns.find(r => r.mrId === mrId || r._id === mrId);
+    if (returnData) {
+      // Find matching shipment from logistics/courier data
+      const matchingShipment = shipments.find(s => s.orderRef === returnData.invoiceNo || s.awbNo === returnData.awbNo);
+
+      setForm(prev => ({
+        ...prev,
+        mrId: returnData.mrId,
+        supplier: returnData.supplierName || prev.supplier,
+        productName: returnData.productName || prev.productName,
+        productSku: returnData.productSku || prev.productSku,
+        qty: returnData.returnQty || prev.qty,
+        shipmentValue: returnData.value || prev.shipmentValue,
+        invoiceNo: returnData.invoiceNo || prev.invoiceNo,
+        sourceLocation: returnData.address || returnData.pickupAddress || prev.sourceLocation,
+        destWarehouse: returnData.destWarehouse || returnData.warehouseName || prev.destWarehouse,
+        returnType: returnData.returnType || prev.returnType,
+        courierPartner: matchingShipment?.courier || returnData.transport || prev.courierPartner,
+        awbLrNumber: matchingShipment?.awbNo || returnData.awbNo || prev.awbLrNumber,
+        // Auto-fill driver details if shipment exists
+        driverName: matchingShipment?.driverName || prev.driverName,
+        driverMobile: matchingShipment?.driverMobile || prev.driverMobile,
+        vehicleNumber: matchingShipment?.vehicleNo || prev.vehicleNumber,
+      }));
+
+      if (matchingShipment) {
+        toast(`Linked with Logistics AWB: ${matchingShipment.awbNo}`, 'success');
+      } else {
+        toast(`Details auto-fetched for ${mrId}`, 'success');
+      }
+    }
+  };
+
+  const handleProductSelect = (productName) => {
+    if (!productName) return;
+    const returnData = allReturns.find(r => r.productName === productName);
+    if (returnData) {
+      setForm(prev => ({
+        ...prev,
+        productName: returnData.productName,
+        productSku: returnData.productSku || prev.productSku,
+        qty: returnData.returnQty || prev.qty,
+        shipmentValue: returnData.value || prev.shipmentValue,
+        mrId: returnData.mrId || prev.mrId,
+        supplier: returnData.supplierName || prev.supplier,
+        invoiceNo: returnData.invoiceNo || prev.invoiceNo,
+        destWarehouse: returnData.destWarehouse || returnData.warehouseName || prev.destWarehouse,
+      }));
+      toast(`Details auto-fetched for product: ${productName}`, 'success');
+    }
+  };
+
   const fetchReturnDetails = async (mrId) => {
     if (!mrId) return;
     setFetchingData(true);
     try {
-      const response = await materialReturnApi.getByMrId(mrId);
-      const returnData = response.data;
+      // Use materialReturnApi.getAll() and find the matching MR ID if getByMrId doesn't exist
+      let returnData = null;
+      try {
+        const response = await materialReturnApi.getAll({ search: mrId });
+        returnData = response.data?.find(r => r.mrId === mrId || r._id === mrId);
+      } catch {
+        // Fallback or handle error
+      }
+
       if (returnData) {
         setForm(prev => ({
           ...prev,
@@ -211,11 +322,15 @@ const DocketModal = ({ isOpen, onClose, onSuccess, editData, returnsList = [], i
           qty: returnData.returnQty || prev.qty,
           shipmentValue: returnData.value || prev.shipmentValue,
           invoiceNo: returnData.invoiceNo || prev.invoiceNo,
-          sourceLocation: returnData.sourceLocation || prev.sourceLocation,
+          sourceLocation: returnData.address || returnData.pickupAddress || prev.sourceLocation,
           destWarehouse: returnData.destWarehouse || prev.destWarehouse,
           returnType: returnData.returnType || prev.returnType,
+          courierPartner: returnData.transport || prev.courierPartner,
+          awbLrNumber: returnData.awbNo || prev.awbLrNumber,
         }));
         toast(`Return details fetched for ${mrId}`, 'success');
+      } else {
+        toast(`No return request found for ${mrId}`, 'info');
       }
     } catch (err) {
       toast(err.message || 'Failed to fetch return details', 'error');
@@ -228,16 +343,16 @@ const DocketModal = ({ isOpen, onClose, onSuccess, editData, returnsList = [], i
     if (!invoiceNo) return;
     setFetchingData(true);
     try {
-      const response = await invoiceApi.getByNumber(invoiceNo);
+      const response = await invoiceApi.getByInvoiceNo(invoiceNo);
       const invoiceData = response.data;
       if (invoiceData) {
         setForm(prev => ({
           ...prev,
-          supplier: invoiceData.partyName || prev.supplier,
-          productName: invoiceData.productName || prev.productName,
-          productSku: invoiceData.skuCode || prev.productSku,
-          qty: invoiceData.quantity || prev.qty,
-          shipmentValue: invoiceData.totalValue || prev.shipmentValue,
+          supplier: invoiceData.partyName || invoiceData.supplierName || prev.supplier,
+          productName: invoiceData.productName || (invoiceData.items?.[0]?.productName) || prev.productName,
+          productSku: invoiceData.biPartNumber || invoiceData.productSku || (invoiceData.items?.[0]?.sku) || prev.productSku,
+          qty: invoiceData.skuCount || (invoiceData.items?.[0]?.qty) || prev.qty,
+          shipmentValue: invoiceData.invoiceAmount || invoiceData.value || prev.shipmentValue,
         }));
         toast(`Invoice details fetched for ${invoiceNo}`, 'success');
       }
@@ -269,10 +384,14 @@ const DocketModal = ({ isOpen, onClose, onSuccess, editData, returnsList = [], i
   const handleSubmit = async () => {
     if (!validate()) return;
     setLoading(true);
-    setTimeout(() => {
-      onSuccess(form);
+    try {
+      await onSuccess(form);
+      // onClose is handled by onSuccess calling setShowCreate(false) in parent
+    } catch (err) {
+      toast(err.message || 'Operation failed', 'error');
+    } finally {
       setLoading(false);
-    }, 300);
+    }
   };
 
   if (!isOpen) return null;
@@ -311,13 +430,63 @@ const DocketModal = ({ isOpen, onClose, onSuccess, editData, returnsList = [], i
             </div>
             
             <div>
+              <label style={{ fontSize: 11, fontWeight: 700 }}>Supplier *</label>
+              <select 
+                style={inputStyle(errors.supplier)} 
+                value={form.supplier} 
+                onChange={e => {
+                  const selectedSupplier = e.target.value;
+                  const matchingReturn = allReturns.find(r => r.supplierName === selectedSupplier);
+                  if (matchingReturn) {
+                    handleReturnSelect(matchingReturn.mrId);
+                  } else {
+                    setField('supplier', selectedSupplier);
+                  }
+                }}
+              >
+                <option value="">— Select Supplier —</option>
+                {[...new Set(allReturns.map(r => r.supplierName))].map(name => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
               <label style={{ fontSize: 11, fontWeight: 700 }}>MR ID *</label>
               <div style={{ display: 'flex', gap: 8 }}>
-                <input style={inputStyle(errors.mrId)} value={form.mrId} onChange={e => setField('mrId', e.target.value)} placeholder="MR-1060" />
+                <select 
+                  style={inputStyle(errors.mrId)} 
+                  value={form.mrId} 
+                  onChange={e => handleReturnSelect(e.target.value)}
+                >
+                  <option value="">— Select MR ID —</option>
+                  {allReturns.map(r => (
+                    <option key={r._id} value={r.mrId}>{r.mrId} ({r.supplierName})</option>
+                  ))}
+                </select>
                 <button onClick={() => fetchReturnDetails(form.mrId)} style={{ padding: '0 12px', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
                   <MdRefresh size={16} />
                 </button>
               </div>
+            </div>
+            
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700 }}>Source Location *</label>
+              <input style={inputStyle(errors.sourceLocation)} value={form.sourceLocation} onChange={e => setField('sourceLocation', e.target.value)} placeholder="Mumbai Plant" />
+            </div>
+            
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700 }}>Destination Warehouse *</label>
+              <select 
+                style={inputStyle(errors.destWarehouse)} 
+                value={form.destWarehouse} 
+                onChange={e => setField('destWarehouse', e.target.value)}
+              >
+                <option value="">— Select Warehouse —</option>
+                {warehouses.map(wh => (
+                  <option key={wh._id} value={wh.name || wh.warehouseName}>{wh.name || wh.warehouseName}</option>
+                ))}
+              </select>
             </div>
             
             <div>
@@ -338,21 +507,6 @@ const DocketModal = ({ isOpen, onClose, onSuccess, editData, returnsList = [], i
               </select>
             </div>
             
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 700 }}>Supplier *</label>
-              <input style={inputStyle(errors.supplier)} value={form.supplier} onChange={e => setField('supplier', e.target.value)} placeholder="Tata Steel" />
-            </div>
-            
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 700 }}>Source Location *</label>
-              <input style={inputStyle(errors.sourceLocation)} value={form.sourceLocation} onChange={e => setField('sourceLocation', e.target.value)} placeholder="Mumbai Plant" />
-            </div>
-            
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 700 }}>Destination Warehouse *</label>
-              <input style={inputStyle(errors.destWarehouse)} value={form.destWarehouse} onChange={e => setField('destWarehouse', e.target.value)} placeholder="BLR-WH-01" />
-            </div>
-            
             <div style={{ gridColumn: '1/-1', display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
               <div style={{ width: 3, height: 16, background: '#059669' }} />
               <span style={{ fontSize: 10, fontWeight: 800 }}>PRODUCT DETAILS (Auto-fetched from API)</span>
@@ -360,7 +514,16 @@ const DocketModal = ({ isOpen, onClose, onSuccess, editData, returnsList = [], i
             
             <div>
               <label style={{ fontSize: 11, fontWeight: 700 }}>Product Name *</label>
-              <input style={inputStyle(errors.productName)} value={form.productName} onChange={e => setField('productName', e.target.value)} placeholder="HR Coil 5mm" />
+              <select 
+                style={inputStyle(errors.productName)} 
+                value={form.productName} 
+                onChange={e => handleProductSelect(e.target.value)}
+              >
+                <option value="">— Select Product —</option>
+                {[...new Set(allReturns.map(r => r.productName))].map(name => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
             </div>
             
             <div>
@@ -385,22 +548,121 @@ const DocketModal = ({ isOpen, onClose, onSuccess, editData, returnsList = [], i
             
             <div>
               <label style={{ fontSize: 11, fontWeight: 700 }}>Courier Partner *</label>
-              <select style={inputStyle(errors.courierPartner)} value={form.courierPartner} onChange={e => setField('courierPartner', e.target.value)}>
-                <option value="">Select</option>
-                <option>VRL Logistics</option><option>Delhivery</option>
-                <option>Blue Dart</option><option>DTDC</option><option>FedEx</option>
-                <option>Gati</option><option>XpressBees</option><option>Ecom Express</option>
-              </select>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select 
+                  style={inputStyle(errors.courierPartner)} 
+                  value={form.courierPartner} 
+                  onChange={async (e) => {
+                    const cp = e.target.value;
+                    setField('courierPartner', cp);
+                    
+                    // Auto-fetch logistics details if AWB is present
+                    if (cp && form.awbLrNumber) {
+                      setFetchingData(true);
+                      try {
+                        const res = await logisticsApi.trackCourier(form.awbLrNumber, cp);
+                        if (res.data) {
+                          setForm(f => ({
+                            ...f,
+                            vehicleNumber: res.data.vehicleNo || f.vehicleNumber,
+                            driverName: res.data.driverName || f.driverName,
+                            driverMobile: res.data.driverMobile || f.driverMobile,
+                            estimatedDelivery: res.data.estimatedDelivery ? new Date(res.data.estimatedDelivery).toISOString().split('T')[0] : f.estimatedDelivery,
+                            sourceLocation: res.data.origin || f.sourceLocation,
+                            destWarehouse: res.data.destination || f.destWarehouse
+                          }));
+                          toast(`Dynamic logistics details fetched for ${cp}`, 'success');
+                        }
+                      } catch { console.error('Logistics auto-fetch failed'); }
+                      finally { setFetchingData(false); }
+                    }
+                  }}
+                >
+                  <option value="">Select</option>
+                  {/* Courier Partners from API if available, else static list */}
+                  {[...new Set(shipments.map(s => s.courier))].filter(Boolean).map(c => <option key={c}>{c}</option>)}
+                  <option>VRL Logistics</option><option>Delhivery</option>
+                  <option>Blue Dart</option><option>DTDC</option><option>FedEx</option>
+                  <option>Gati</option><option>XpressBees</option><option>Ecom Express</option>
+                </select>
+                <button 
+                  onClick={async () => {
+                    setFetchingData(true);
+                    try {
+                      const res = await logisticsApi.trackCourier(form.awbLrNumber, form.courierPartner);
+                      if (res.data) {
+                        setForm(f => ({
+                          ...f,
+                          vehicleNumber: res.data.vehicleNo || f.vehicleNumber,
+                          driverName: res.data.driverName || f.driverName,
+                          driverMobile: res.data.driverMobile || f.driverMobile,
+                          estimatedDelivery: res.data.estimatedDelivery ? new Date(res.data.estimatedDelivery).toISOString().split('T')[0] : f.estimatedDelivery,
+                          sourceLocation: res.data.origin || f.sourceLocation,
+                          destWarehouse: res.data.destination || f.destWarehouse
+                        }));
+                        toast('Live logistics data synchronized', 'success');
+                      }
+                    } catch { toast('Logistics sync failed', 'error'); }
+                    finally { setFetchingData(false); }
+                  }}
+                  disabled={!form.awbLrNumber || !form.courierPartner}
+                  style={{ padding: '0 12px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', opacity: (!form.awbLrNumber || !form.courierPartner) ? 0.5 : 1 }}
+                >
+                  <MdRefresh size={16} />
+                </button>
+              </div>
             </div>
             
             <div>
               <label style={{ fontSize: 11, fontWeight: 700 }}>AWB/LR Number *</label>
-              <input style={inputStyle(errors.awbLrNumber)} value={form.awbLrNumber} onChange={e => setField('awbLrNumber', e.target.value)} placeholder="AWB123456" />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select 
+                  style={inputStyle(errors.awbLrNumber)} 
+                  value={form.awbLrNumber} 
+                  onChange={e => {
+                    const awb = e.target.value;
+                    const shipment = shipments.find(s => s.awbNo === awb);
+                    if (shipment) {
+                      setForm(f => ({
+                        ...f,
+                        awbLrNumber: awb,
+                        courierPartner: shipment.courier || f.courierPartner,
+                        driverName: shipment.driverName || f.driverName,
+                        driverMobile: shipment.driverMobile || f.driverMobile,
+                        vehicleNumber: shipment.vehicleNo || f.vehicleNumber,
+                        estimatedDelivery: shipment.eta ? new Date(shipment.eta).toISOString().split('T')[0] : f.estimatedDelivery,
+                        sourceLocation: shipment.origin || f.sourceLocation,
+                        destWarehouse: shipment.destination || f.destWarehouse
+                      }));
+                      toast(`Linked with Logistics AWB: ${awb}`, 'success');
+                    } else {
+                      setField('awbLrNumber', awb);
+                    }
+                  }}
+                >
+                  <option value="">— Select AWB —</option>
+                  {shipments.map(s => (
+                    <option key={s._id} value={s.awbNo}>{s.awbNo} ({s.courier})</option>
+                  ))}
+                  {form.awbLrNumber && !shipments.some(s => s.awbNo === form.awbLrNumber) && (
+                    <option value={form.awbLrNumber}>{form.awbLrNumber}</option>
+                  )}
+                </select>
+              </div>
             </div>
             
             <div>
               <label style={{ fontSize: 11, fontWeight: 700 }}>Vehicle Number</label>
-              <input style={inputStyle()} value={form.vehicleNumber} onChange={e => setField('vehicleNumber', e.target.value)} placeholder="KA05AB1234" />
+              <select 
+                style={inputStyle()} 
+                value={form.vehicleNumber} 
+                onChange={e => handleVehicleSelect(e.target.value)}
+              >
+                <option value="">— Select Vehicle —</option>
+                {vehicles.map(v => (
+                  <option key={v._id} value={v.number}>{v.number} ({v.type})</option>
+                ))}
+              </select>
             </div>
             
             <div>
@@ -665,61 +927,65 @@ const DocketTrackingPage = () => {
     }
   };
 
-  // Load dockets from API/localStorage
+  // Load dockets from API
   const loadDockets = async () => {
     setLoading(true);
     try {
-      const saved = localStorage.getItem('dockets_data_dynamic');
-      if (saved) {
-        setDockets(JSON.parse(saved));
-      } else {
-        // Create sample dockets from return data
-        const returnsData = await loadReturns();
-        const sampleDockets = returnsData.slice(0, 5).map((ret, idx) => ({
-          id: Date.now() + idx,
-          docketId: `DKT-2025-${String(idx + 1).padStart(3, '0')}`,
-          mrId: ret.mrId || `MR-${1000 + idx}`,
-          invoiceNo: ret.invoiceNo || '',
-          returnType: ret.returnType || 'Material Return',
-          supplier: ret.supplierName || 'Unknown Supplier',
-          sourceLocation: ret.sourceLocation || 'Supplier Location',
-          destWarehouse: ret.destWarehouse || 'Main Warehouse',
-          productName: ret.productName || 'Product',
-          productSku: ret.productSku || '',
-          qty: ret.returnQty || 1,
-          shipmentValue: ret.value || 0,
-          courierPartner: 'VRL Logistics',
-          vehicleNumber: '',
-          awbLrNumber: `AWB${Date.now()}`,
-          transportStatus: 'pickup_pending',
-          lastScanLocation: null,
-          lastScanTime: null,
-          estimatedDelivery: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-          aging: 0,
-          warehouseStatus: 'Not Started',
-          qcStatus: 'Pending',
-          financeStatus: 'Not Initiated',
-          assignedTeam: 'Logistics-A',
-          lastActivity: new Date().toISOString(),
-          isDelayed: false,
-          priority: ret.priority || 'Medium',
-          driverName: '',
-          driverMobile: '',
-          shipmentWeight: 0,
-          packagesCount: 1,
-          transportCost: 0,
-          podStatus: 'pending',
-          actualDeliveryDate: null,
-          delayReason: null,
-          attachments: [],
-          trackingHistory: []
-        }));
-        setDockets(sampleDockets);
-        localStorage.setItem('dockets_data_dynamic', JSON.stringify(sampleDockets));
-      }
+      const returnsData = await loadReturns();
+      console.log('Returns Data for Dockets:', returnsData);
+      const mappedDockets = returnsData
+        .filter(ret => ['APPROVED', 'DOCKET_CREATED', 'VEHICLE_ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'ARRIVED_AT_WAREHOUSE', 'RECEIVED'].includes(ret.currentStage))
+        .map((ret, idx) => {
+          const stage = ret.currentStage;
+          let transportStatus = 'pickup_pending';
+          if (stage === 'PICKED_UP' || stage === 'IN_TRANSIT') transportStatus = 'in_transit';
+          if (stage === 'ARRIVED_AT_WAREHOUSE' || stage === 'RECEIVED') transportStatus = 'received';
+
+          return {
+            id: ret._id,
+            docketId: ret.docketId || `DKT-${new Date().getFullYear()}-${String(idx + 1).padStart(3, '0')}`,
+            mrId: ret.mrId,
+            invoiceNo: ret.invoiceNo || '',
+            returnType: ret.returnType || 'Material Return',
+            supplier: ret.customerName || ret.supplierName || 'Unknown Supplier',
+            sourceLocation: ret.pickupAddress || ret.address || 'Supplier Location',
+            destWarehouse: ret.warehouseName || 'Main Warehouse',
+            productName: ret.productName || 'Product',
+            productSku: ret.productSku || ret.skuCode || '',
+            qty: ret.returnQty || 1,
+            shipmentValue: ret.value || 0,
+            courierPartner: ret.transport || 'VRL Logistics',
+            vehicleNumber: ret.vehicleNo || '',
+            awbLrNumber: ret.awbNo || `AWB-${String(Date.now()).slice(-6)}`,
+            transportStatus,
+            lastScanLocation: ret.currentLocation || 'Not scanned',
+            lastScanTime: ret.updatedAt,
+            estimatedDelivery: ret.estimatedDelivery || new Date(Date.now() + 86400000 * 3).toISOString(),
+            aging: Math.floor((Date.now() - new Date(ret.createdAt).getTime()) / 86400000),
+            warehouseStatus: (stage === 'ARRIVED_AT_WAREHOUSE' || stage === 'RECEIVED') ? 'Received' : 'Awaited',
+            qcStatus: ['QC_PASSED', 'QC_FAILED', 'CLOSED'].includes(stage) ? 'Completed' : 'Pending',
+            financeStatus: ret.creditNoteNo ? 'Credit Note Issued' : 'Not Initiated',
+            assignedTeam: ret.assignedTeam || 'Logistics Team',
+            lastActivity: ret.updatedAt,
+            isDelayed: false,
+            priority: ret.priority || 'Medium',
+            driverName: ret.driverName || '',
+            driverMobile: ret.driverMobile || '',
+            shipmentWeight: ret.shipmentWeight || 0,
+            packagesCount: ret.packagesCount || 1,
+            transportCost: ret.transportCost || 0,
+            podStatus: 'pending',
+            actualDeliveryDate: null,
+            delayReason: null,
+            attachments: [],
+            trackingHistory: ret.stageTimeline || []
+          };
+        });
+      console.log('Mapped Dockets:', mappedDockets);
+      setDockets(mappedDockets);
     } catch (err) {
       console.error('Failed to load dockets:', err);
-      showToast('Failed to load dockets', 'error');
+      showToast('Error loading docket data', 'error');
     } finally {
       setLoading(false);
     }
@@ -729,12 +995,6 @@ const DocketTrackingPage = () => {
     loadDockets();
     loadInvoices();
   }, []);
-
-  useEffect(() => {
-    if (dockets.length > 0) {
-      localStorage.setItem('dockets_data_dynamic', JSON.stringify(dockets));
-    }
-  }, [dockets]);
 
   const stats = useMemo(() => ({
     total: dockets.length,
@@ -767,89 +1027,105 @@ const DocketTrackingPage = () => {
     setExpandedRows(newSet);
   };
 
-  const handleCreate = (formData) => {
-    const newId = `DKT-2025-${String(dockets.length + 1).padStart(3, '0')}`;
-    const newDoc = {
-      id: Date.now(),
-      docketId: newId,
-      mrId: formData.mrId,
-      invoiceNo: formData.invoiceNo,
-      returnType: formData.returnType,
-      supplier: formData.supplier,
-      sourceLocation: formData.sourceLocation,
-      destWarehouse: formData.destWarehouse,
-      productName: formData.productName,
-      productSku: formData.productSku,
-      qty: Number(formData.qty) || 0,
-      shipmentValue: Number(formData.shipmentValue) || 0,
-      courierPartner: formData.courierPartner,
-      vehicleNumber: formData.vehicleNumber,
-      awbLrNumber: formData.awbLrNumber,
-      transportStatus: 'pickup_pending',
-      lastScanLocation: null,
-      lastScanTime: null,
-      estimatedDelivery: formData.estimatedDelivery || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-      aging: 0,
-      warehouseStatus: 'Not Started',
-      qcStatus: 'Pending',
-      financeStatus: 'Not Initiated',
-      assignedTeam: formData.assignedTeam,
-      lastActivity: new Date().toISOString(),
-      isDelayed: false,
-      priority: formData.priority,
-      driverName: formData.driverName,
-      driverMobile: formData.driverMobile,
-      shipmentWeight: Number(formData.shipmentWeight) || 0,
-      packagesCount: Number(formData.packagesCount) || 0,
-      transportCost: Number(formData.transportCost) || 0,
-      podStatus: 'pending',
-      actualDeliveryDate: null,
-      delayReason: null,
-      attachments: [],
-      trackingHistory: [{
-        status: 'pickup_pending',
-        location: formData.sourceLocation,
-        timestamp: new Date().toISOString(),
-        remarks: 'Docket created'
-      }]
-    };
-    setDockets(prev => [newDoc, ...prev]);
-    setShowCreate(false);
-    showToast(`Docket ${newId} created!`, 'success');
+  const handleCreate = async (formData) => {
+    setLoading(true);
+    try {
+      // Find return request from 'returns' state
+      const returnRequest = returns.find(r => r.mrId === formData.mrId);
+      if (!returnRequest) {
+        // Fallback: fetch returns again if state is empty
+        const freshReturns = await loadReturns();
+        const found = freshReturns.find(r => r.mrId === formData.mrId);
+        if (!found) throw new Error(`Return request ${formData.mrId} not found`);
+        returnRequest = found;
+      }
+
+      const payload = {
+        vehicleNo: formData.vehicleNumber,
+        driverName: formData.driverName,
+        driverMobile: formData.driverMobile,
+        trackingStatus: 'pickup_pending',
+        currentLocation: formData.sourceLocation,
+        awbNo: formData.awbLrNumber,
+        transport: formData.courierPartner,
+        destWarehouse: formData.destWarehouse,
+        priority: formData.priority,
+        shipmentWeight: formData.shipmentWeight,
+        packagesCount: formData.packagesCount,
+        transportCost: formData.transportCost,
+        estimatedDelivery: formData.estimatedDelivery,
+        assignedTeam: formData.assignedTeam,
+        stage: 'VEHICLE_ASSIGNED'
+      };
+
+      await materialReturnApi.updateTransport(returnRequest._id, payload);
+
+      showToast('New docket created and synchronized', 'success');
+      setShowCreate(false);
+      
+      // Reload dockets to reflect changes
+      loadDockets();
+      
+    } catch (err) {
+      showToast(err.message || 'Failed to create docket', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleEdit = (formData) => {
-    setDockets(prev => prev.map(d => d.id === editDocket.id ? {
-      ...d,
-      ...formData,
-      qty: Number(formData.qty) || d.qty,
-      shipmentValue: Number(formData.shipmentValue) || d.shipmentValue,
-      shipmentWeight: Number(formData.shipmentWeight) || d.shipmentWeight,
-      packagesCount: Number(formData.packagesCount) || d.packagesCount,
-      transportCost: Number(formData.transportCost) || d.transportCost,
-      lastActivity: new Date().toISOString(),
-      trackingHistory: [...(d.trackingHistory || []), {
-        status: 'updated',
-        location: formData.sourceLocation,
-        timestamp: new Date().toISOString(),
-        remarks: 'Docket updated'
-      }]
-    } : d));
-    setEditDocket(null);
-    showToast(`Docket ${editDocket.docketId} updated!`, 'success');
+  const handleEdit = async (formData) => {
+    if (!editDocket) return;
+    setLoading(true);
+    try {
+      const payload = {
+        vehicleNo: formData.vehicleNumber,
+        driverName: formData.driverName,
+        driverMobile: formData.driverMobile,
+        awbNo: formData.awbLrNumber,
+        transport: formData.courierPartner,
+        destWarehouse: formData.destWarehouse,
+        currentLocation: formData.sourceLocation,
+        priority: formData.priority,
+        shipmentWeight: formData.shipmentWeight,
+        packagesCount: formData.packagesCount,
+        transportCost: formData.transportCost,
+        estimatedDelivery: formData.estimatedDelivery,
+        assignedTeam: formData.assignedTeam,
+      };
+
+      await materialReturnApi.updateTransport(editDocket.id, payload);
+      showToast('Docket updated successfully', 'success');
+      setEditDocket(null);
+      loadDockets();
+    } catch (err) {
+      showToast(err.message || 'Failed to update docket', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDelete = (id) => {
-    const dkt = dockets.find(d => d.id === id);
-    setDockets(prev => prev.filter(d => d.id !== id));
-    setConfirmDelete(null);
-    showToast(`Docket ${dkt?.docketId} deleted`, 'error');
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this docket? This will remove transport info.')) return;
+    setLoading(true);
+    try {
+      await materialReturnApi.updateTransport(id, {
+        vehicleNo: '', driverName: '', driverMobile: '', awbNo: '', transport: '', currentLocation: '',
+        stage: 'APPROVED'
+      });
+      
+      showToast('Docket removed and return reset to Approved stage', 'success');
+      setConfirmDelete(null);
+      setTimeout(() => { loadDockets(); }, 300);
+    } catch (err) {
+      showToast(err.message || 'Failed to delete docket', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const resetData = () => {
-    localStorage.removeItem('dockets_data_dynamic');
     loadDockets();
-    showToast('Data reset to initial state', 'info');
+    toast('Data refreshed from server', 'info');
   };
 
   const setFilter = (key, value) => setFilters(prev => ({ ...prev, [key]: value }));

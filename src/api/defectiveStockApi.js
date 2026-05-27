@@ -8,6 +8,7 @@ const q = (p = {}) => { const s = new URLSearchParams(p).toString(); return s ? 
 export const defectiveStockApi = {
   getAll: (params = {}) => fetch(`${BASE}/defective-stock${q(params)}`, { headers: authHeaders() }).then(handle),
   getById: (id) => fetch(`${BASE}/defective-stock/${id}`, { headers: authHeaders() }).then(handle),
+  getLogs: (id) => fetch(`${BASE}/defective-stock/${id}/logs`, { headers: authHeaders() }).then(handle),
   create: (body) => fetch(`${BASE}/defective-stock`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   update: (id, body) => fetch(`${BASE}/defective-stock/${id}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   delete: (id) => fetch(`${BASE}/defective-stock/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),

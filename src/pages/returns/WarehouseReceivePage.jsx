@@ -83,11 +83,12 @@ export default function WarehouseReceivePage() {
 
   const getStatusColor = (stage) => {
     const colors = {
-      'Delivered': '#f59e0b',
-      'Warehouse_Queue': '#3b82f6',
-      'Received_At_Warehouse': '#10b981',
-      'QC_In_Progress': '#8b5cf6',
-      'QC_Completed': '#059669'
+      'IN_TRANSIT': '#f59e0b',
+      'ARRIVED_AT_WAREHOUSE': '#3b82f6',
+      'RECEIVED': '#10b981',
+      'QC_PENDING': '#8b5cf6',
+      'QC_PASSED': '#059669',
+      'QC_FAILED': '#ef4444'
     };
     return colors[stage] || '#6b7280';
   };
@@ -146,14 +147,14 @@ export default function WarehouseReceivePage() {
                     <td className="px-4 py-3">
                       <span 
                         className="text-xs font-bold px-2 py-1 rounded-full text-white"
-                        style={{ backgroundColor: getStatusColor(item.stage) }}
+                        style={{ backgroundColor: getStatusColor(item.currentStage) }}
                       >
-                        {item.stage}
+                        {item.currentStage}
                       </span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
-                        {(item.stage === 'Delivered' || item.stage === 'Warehouse_Queue') && (
+                        {(item.currentStage === 'IN_TRANSIT' || item.currentStage === 'ARRIVED_AT_WAREHOUSE') && (
                           <button
                             onClick={() => handleReceiveReturn(item._id)}
                             className="px-3 py-1 text-xs font-semibold bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
@@ -161,7 +162,7 @@ export default function WarehouseReceivePage() {
                             Receive
                           </button>
                         )}
-                        {(item.stage === 'Received_At_Warehouse') && (
+                        {(item.currentStage === 'RECEIVED') && (
                           <button
                             onClick={() => openQCModal(item)}
                             className="px-3 py-1 text-xs font-semibold bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"

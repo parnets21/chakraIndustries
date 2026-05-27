@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Modal from '../../components/common/Modal';
 import { materialReturnApi } from '../../api/materialReturnApi';
 import { invoiceApi } from '../../api/invoiceApi';
@@ -22,28 +22,27 @@ import {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STAGES = [
-  'Invoice_Select', 'Invoice_API_Fetch', 'Supplier_Products_Auto_Fetch',
-  'Return_Request_Create', 'MR_ID_Generate', 'Manager_Approval',
-  'Docket_Create', 'Transport_Tracking', 'Warehouse_Receive',
-  'QC_Verification', 'Finance_Reconciliation', 'Tally_Sync', 'Closed'
+  'REQUEST_RAISED', 'APPROVED', 'PICKUP_PENDING', 'IN_TRANSIT', 
+  'ARRIVED', 'VERIFICATION_PENDING', 'RECEIVED', 
+  'QC_PENDING', 'QC_COMPLETED', 'FINANCE_PENDING', 'CLOSED'
 ];
 
 const STAGE_ABBR = [
-  'Inv', 'API', 'Auto', 'RR', 'MR', 'Mgr',
-  'Docket', 'Track', 'WH', 'QC', 'Fin', 'Tally', 'Closed'
+  'Raised', 'Appr', 'Pickup', 'Transit', 'Arriv', 'Verify', 'Recvd', 'QC', 'QC-Ok', 'Fin', 'Closed'
 ];
 
 const stageColor = {
-  Invoice_Select: '#64748b', Invoice_API_Fetch: '#2563eb',
-  Supplier_Products_Auto_Fetch: '#0d9488', Return_Request_Create: '#dc2626',
-  MR_ID_Generate: '#7c3aed', Manager_Approval: '#059669',
-  Docket_Create: '#ea580c', Transport_Tracking: '#3b82f6',
-  Warehouse_Receive: '#10b981', QC_Verification: '#8b5cf6',
-  Finance_Reconciliation: '#ca8a04', Tally_Sync: '#16a34a',
-  Initiated: '#6b7280', Approved: '#059669', Transport_Pickup: '#f59e0b',
-  In_Transit: '#3b82f6', Out_For_Delivery: '#8b5cf6', Delivered: '#f59e0b',
-  Warehouse_Queue: '#3b82f6', Received_At_Warehouse: '#10b981',
-  QC_In_Progress: '#8b5cf6', QC_Completed: '#059669', Closed: '#10b981'
+  REQUEST_RAISED: '#64748b',
+  APPROVED: '#059669',
+  PICKUP_PENDING: '#f59e0b',
+  IN_TRANSIT: '#2563eb',
+  ARRIVED: '#8b5cf6',
+  VERIFICATION_PENDING: '#ca8a04',
+  RECEIVED: '#10b981',
+  QC_PENDING: '#8b5cf6',
+  QC_COMPLETED: '#059669',
+  FINANCE_PENDING: '#ca8a04',
+  CLOSED: '#10b981'
 };
 
 const LEGACY_STAGE_MAP = {
@@ -60,14 +59,14 @@ const LEGACY_STAGE_MAP = {
 };
 
 const DUMMY_RETURNS = [
-  { mrId: 'MR-2026-0024', docketId: 'DKT-789456', invoiceNo: 'INV-2026-1234', supplierName: 'ABC Suppliers Pvt Ltd', productName: 'Industrial Bearing (BRG-7644)', productSku: 'BRG-7644', returnQty: 10, stage: 'In_Transit',             qcStatus: 'Pending',     finStatus: 'Partial',     priority: 'High',   value: 12500, created: '12 May, 2026 10:30 AM' },
-  { mrId: 'MR-2026-0023', docketId: 'DKT-789455', invoiceNo: 'INV-2026-1233', supplierName: 'XYZ Industries',          productName: 'Copper Wire',                  productSku: 'CW-200',    returnQty: 25, stage: 'Received_At_Warehouse', qcStatus: 'Completed',   finStatus: 'Reconciled', priority: 'Medium', value: 18750, created: '10 May, 2026 09:15 AM' },
-  { mrId: 'MR-2026-0022', docketId: 'DKT-789454', invoiceNo: 'INV-2026-1232', supplierName: 'Global Components',       productName: 'Aluminium Frame 5',            productSku: 'AF-005',    returnQty: 5,  stage: 'QC_In_Progress',       qcStatus: 'In Progress', finStatus: 'Pending',     priority: 'High',   value: 7250,  created: '09 May, 2026 02:00 PM' },
-  { mrId: 'MR-2026-0021', docketId: 'DKT-789453', invoiceNo: 'INV-2026-1231', supplierName: 'Tech Solutions Ltd',      productName: 'Motor Housing',               productSku: 'MH-101',    returnQty: 8,  stage: 'Approved',             qcStatus: 'Pending',     finStatus: 'Pending',     priority: 'Medium', value: 8400,  created: '08 May, 2026 11:45 AM' },
-  { mrId: 'MR-2026-0020', docketId: 'DKT-789452', invoiceNo: 'INV-2026-1230', supplierName: 'ABC Suppliers Pvt Ltd',   productName: 'Bearing Set',                 productSku: 'BS-400',    returnQty: 12, stage: 'Closed',               qcStatus: 'Completed',   finStatus: 'Reconciled', priority: 'Low',    value: 10200, created: '05 May, 2026 03:30 PM' },
-  { mrId: 'MR-2026-0019', docketId: 'DKT-789451', invoiceNo: 'INV-2026-1229', supplierName: 'Prime Components',        productName: 'Gear Box',                    productSku: 'GB-220',    returnQty: 3,  stage: 'Transport_Pickup',     qcStatus: 'Pending',     finStatus: 'Partial',     priority: 'High',   value: 6400,  created: '04 May, 2026 10:00 AM' },
-  { mrId: 'MR-2026-0018', docketId: 'DKT-789450', invoiceNo: 'INV-2026-1228', supplierName: 'STZ Industries',          productName: 'Steel Rod',                   productSku: 'SR-500',    returnQty: 20, stage: 'Out_For_Delivery',     qcStatus: 'Pending',     finStatus: 'Partial',     priority: 'Medium', value: 22000, created: '03 May, 2026 09:00 AM' },
-  { mrId: 'MR-2026-0017', docketId: 'DKT-789449', invoiceNo: 'INV-2026-1227', supplierName: 'ABC Suppliers Pvt Ltd',   productName: 'Electric Motor',              productSku: 'EM-110',    returnQty: 4,  stage: 'Initiated',            qcStatus: 'Pending',     finStatus: 'Pending',     priority: 'Low',    value: 9800,  created: '01 May, 2026 08:30 AM' },
+  { mrId: 'MR-2026-0024', docketId: 'DKT-789456', invoiceNo: 'INV-2026-1234', supplierName: 'ABC Suppliers Pvt Ltd', productName: 'Industrial Bearing (BRG-7644)', productSku: 'BRG-7644', returnQty: 10, stage: 'In_Transit',             qcStatus: 'Pending',     approvalStatus: 'Completed', finStatus: 'Partial',     priority: 'High',   value: 12500, created: '12 May, 2026 10:30 AM' },
+  { mrId: 'MR-2026-0023', docketId: 'DKT-789455', invoiceNo: 'INV-2026-1233', supplierName: 'XYZ Industries',          productName: 'Copper Wire',                  productSku: 'CW-200',    returnQty: 25, stage: 'Received_At_Warehouse', qcStatus: 'Completed',   approvalStatus: 'Completed', finStatus: 'Reconciled', priority: 'Medium', value: 18750, created: '10 May, 2026 09:15 AM' },
+  { mrId: 'MR-2026-0022', docketId: 'DKT-789454', invoiceNo: 'INV-2026-1232', supplierName: 'Global Components',       productName: 'Aluminium Frame 5',            productSku: 'AF-005',    returnQty: 5,  stage: 'QC_In_Progress',       qcStatus: 'In Progress', approvalStatus: 'Completed', finStatus: 'Pending',     priority: 'High',   value: 7250,  created: '09 May, 2026 02:00 PM' },
+  { mrId: 'MR-2026-0021', docketId: 'DKT-789453', invoiceNo: 'INV-2026-1231', supplierName: 'Tech Solutions Ltd',      productName: 'Motor Housing',               productSku: 'MH-101',    returnQty: 8,  stage: 'Approved',             qcStatus: 'Pending',     approvalStatus: 'Pending',   finStatus: 'Pending',     priority: 'Medium', value: 8400,  created: '08 May, 2026 11:45 AM' },
+  { mrId: 'MR-2026-0020', docketId: 'DKT-789452', invoiceNo: 'INV-2026-1230', supplierName: 'ABC Suppliers Pvt Ltd',   productName: 'Bearing Set',                 productSku: 'BS-400',    returnQty: 12, stage: 'Closed',               qcStatus: 'Completed',   approvalStatus: 'Completed', finStatus: 'Reconciled', priority: 'Low',    value: 10200, created: '05 May, 2026 03:30 PM' },
+  { mrId: 'MR-2026-0019', docketId: 'DKT-789451', invoiceNo: 'INV-2026-1229', supplierName: 'Prime Components',        productName: 'Gear Box',                    productSku: 'GB-220',    returnQty: 3,  stage: 'Transport_Pickup',     qcStatus: 'Pending',     approvalStatus: 'Completed', finStatus: 'Partial',     priority: 'High',   value: 6400,  created: '04 May, 2026 10:00 AM' },
+  { mrId: 'MR-2026-0018', docketId: 'DKT-789450', invoiceNo: 'INV-2026-1228', supplierName: 'STZ Industries',          productName: 'Steel Rod',                   productSku: 'SR-500',    returnQty: 20, stage: 'Out_For_Delivery',     qcStatus: 'Pending',     approvalStatus: 'Completed', finStatus: 'Partial',     priority: 'Medium', value: 22000, created: '03 May, 2026 09:00 AM' },
+  { mrId: 'MR-2026-0017', docketId: 'DKT-789449', invoiceNo: 'INV-2026-1227', supplierName: 'ABC Suppliers Pvt Ltd',   productName: 'Electric Motor',              productSku: 'EM-110',    returnQty: 4,  stage: 'Initiated',            qcStatus: 'Pending',     approvalStatus: 'Pending',   finStatus: 'Pending',     priority: 'Low',    value: 9800,  created: '01 May, 2026 08:30 AM' },
 ];
 
 // ─── Badge Helpers ─────────────────────────────────────────────────────────────
@@ -108,6 +107,7 @@ const formatDateTime = (value) => {
 };
 
 const normalizeReturn = (record) => {
+  if (!record) return {};
   const stage = LEGACY_STAGE_MAP[record.stage] || record.stage || 'Return_Request_Create';
   return {
     ...record,
@@ -120,6 +120,7 @@ const normalizeReturn = (record) => {
     productSku: record.productSku || record.skuCode || '',
     returnQty: Number(record.returnQty || record.expectedQty || 1),
     qcStatus: record.qcStatus || 'Pending',
+    approvalStatus: record.approvalStatus || 'Pending',
     finStatus: record.reconciliationStatus === 'Completed' || record.ledgerStatus === 'Reconciled' ? 'Reconciled' : 'Pending',
     priority: record.priority || 'Medium',
     value: Number(record.value || record.refundAmount || 0),
@@ -183,7 +184,7 @@ const LifecycleBar = ({ currentStage }) => {
 
 const DETAIL_TABS = ['Product Details', 'Transport Tracking', 'QC Details', 'Finance & Reconciliation', 'Loss-End Tracking', 'Activity Logs'];
 
-const DetailPanel = ({ record, onClose, onStageMove }) => {
+const DetailPanel = ({ record, onClose, onStageMove, onApprovalUpdate }) => {
   const [activeTab, setActiveTab] = useState('Product Details');
   const [nextStage, setNextStage] = useState('');
 
@@ -205,18 +206,33 @@ const DetailPanel = ({ record, onClose, onStageMove }) => {
           <button className="p-1 text-gray-400 hover:text-gray-600"><MdClose size={16} onClick={onClose} /></button>
         </div>
       </div>
-      <div className="grid grid-cols-5 gap-3 px-5 py-3 border-b bg-gray-50 text-xs">
-        <div><div className="text-gray-400 mb-0.5">MR ID</div><div className="font-semibold text-red-600">{record.mrId}</div></div>
-        <div><div className="text-gray-400 mb-0.5">Docket ID</div><div className="font-mono text-xs">{record.docketId}</div></div>
-        <div><div className="text-gray-400 mb-0.5">Priority</div><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${prioBadge(record.priority)}`}>{record.priority}</span></div>
-        <div><div className="text-gray-400 mb-0.5">Financial Status</div><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${finBadge(record.finStatus)}`}>{record.finStatus}</span></div>
-        <div><div className="text-gray-400 mb-0.5">Recovery Status</div><span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">In Progress</span></div>
+
+      {/* Approval Quick Actions */}
+      <div className="px-5 py-3 border-b bg-red-50 flex items-center justify-between">
+        <div className="flex flex-col">
+          <span className="text-[10px] uppercase font-bold text-red-400 tracking-wider">Approval Status</span>
+          <span className={`text-xs font-bold ${record.approvalStatus === 'Completed' ? 'text-green-600' : 'text-amber-600'}`}>
+            {record.approvalStatus || 'Pending'}
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => onApprovalUpdate(record.mrId, 'Pending')}
+            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${record.approvalStatus === 'Pending' ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}
+          >
+            Mark Pending
+          </button>
+          <button 
+            onClick={() => onApprovalUpdate(record.mrId, 'Approved')}
+            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${record.approvalStatus === 'Approved' ? 'bg-green-600 text-white shadow-sm' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}
+          >
+            {record.approvalStatus === 'Approved' ? '✓ Approved' : 'Approve Return'}
+          </button>
+        </div>
       </div>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-3 px-5 py-3 border-b text-xs">
-        <div><div className="text-gray-400 mb-0.5">Party</div><div className="font-medium">{record.supplierName}</div></div>
-        <div><div className="text-gray-400 mb-0.5">Product</div><div className="font-medium">{record.productName}</div></div>
-        <div><div className="text-gray-400 mb-0.5">Invoice No</div><div className="font-mono">{record.invoiceNo}</div></div>
-        <div><div className="text-gray-400 mb-0.5">Return Qty</div><div className="font-medium">{record.returnQty}</div></div>
+
+      <div className="grid grid-cols-5 gap-3 px-5 py-3 border-b bg-gray-50 text-xs">
+        <div><div className="text-gray-400 mb-0.5">Quantity</div><div className="font-medium">{record.returnQty}</div></div>
         <div><div className="text-gray-400 mb-0.5">Return Type</div><div className="font-medium">Material Return</div></div>
         <div><div className="text-gray-400 mb-0.5">Return Value</div><div className="font-semibold text-red-600">₹{record.value.toLocaleString('en-IN')}</div></div>
         <div><div className="text-gray-400 mb-0.5">Created On</div><div className="font-medium">{record.created}</div></div>
@@ -253,7 +269,7 @@ const DetailPanel = ({ record, onClose, onStageMove }) => {
                     <td className="px-2 py-2">BATCH 80</td>
                     <td className="px-2 py-2">{record.returnQty}</td>
                     <td className="px-2 py-2">Nos</td>
-                    <td className="px-2 py-2">₹{Math.round(record.value / record.returnQty).toLocaleString('en-IN')}</td>
+                    <td className="px-2 py-2">₹{Math.round(record.value / (record.returnQty || 1)).toLocaleString('en-IN')}</td>
                     <td className="px-2 py-2">₹{record.value.toLocaleString('en-IN')}</td>
                     <td className="px-2 py-2">5%</td>
                     <td className="px-2 py-2">Damaged During Transit</td>
@@ -348,7 +364,7 @@ const DetailPanel = ({ record, onClose, onStageMove }) => {
 // ─── Create Return Modal Form ──────────────────────────────────────────────────
 
 const CreateReturnModal = ({ open, onClose, onCreate, invoices = [], onInvoiceFetch, saving }) => {
-  const empty = { supplierName: '', supplierType: 'Dealer', invoiceNo: '', invoiceDate: '', productName: '', productSku: '', returnQty: '', returnValue: '', priority: 'Medium', returnType: 'Material Return', reason: '', supplierEmail: '', supplierPincode: '', supplierGSTNo: '', supplierAddress: '', transport: '', awbNo: '' };
+  const empty = { supplierName: '', supplierType: 'Dealer', invoiceNo: '', invoiceDate: '', productName: '', productSku: '', returnQty: '', returnValue: '', priority: 'Medium', returnType: 'Material Return', reason: '', status: 'Pending', supplierEmail: '', supplierPincode: '', supplierGSTNo: '', supplierAddress: '', transport: '', awbNo: '' };
   const [form, setForm] = useState(empty);
   const [fetchingInvoice, setFetchingInvoice] = useState(false);
 
@@ -357,6 +373,13 @@ const CreateReturnModal = ({ open, onClose, onCreate, invoices = [], onInvoiceFe
   const handleInvoiceSelect = async (invoiceNo) => {
     set('invoiceNo', invoiceNo);
     if (!invoiceNo) return;
+
+    // Proactively set supplier name from the list we already have
+    const inv = invoices.find(i => i.invoiceNo === invoiceNo);
+    if (inv) {
+      set('supplierName', inv.partyName || inv.supplierName || '');
+    }
+
     setFetchingInvoice(true);
     try {
       const context = await onInvoiceFetch(invoiceNo);
@@ -374,18 +397,33 @@ const CreateReturnModal = ({ open, onClose, onCreate, invoices = [], onInvoiceFe
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.supplierName || !form.invoiceNo || !form.productName) {
       toast('Supplier, Invoice & Product are required', 'error');
       return;
     }
-    Promise.resolve(onCreate(form)).then(() => setForm(empty));
+    
+    // Explicitly mapping keys for the API
+    const payload = {
+      ...form,
+      customerName: form.supplierName, // Backend uses customerName/supplierName interchangeably
+      skuCode: form.productSku,
+      expectedQty: Number(form.returnQty),
+      value: Number(form.returnValue),
+    };
+
+    try {
+      await onCreate(payload);
+      setForm(empty);
+    } catch (error) {
+      // Error is already toasted in onCreate parent
+    }
   };
 
   if (!open) return null;
 
   return (
-    <Modal open={open} onClose={onClose} title="New Material Return">
+    <Modal open={open} onClose={onClose} title="New Return Request">
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -394,12 +432,6 @@ const CreateReturnModal = ({ open, onClose, onCreate, invoices = [], onInvoiceFe
               <option value="">Select invoice</option>
               {invoices.map(inv => <option key={inv._id || inv.invoiceNo} value={inv.invoiceNo}>{inv.invoiceNo} - {inv.partyName || inv.supplierName || 'Party'}</option>)}
             </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Invoice API Fetch</label>
-            <div className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600">
-              {fetchingInvoice ? 'Fetching invoice details...' : form.invoiceNo ? 'Supplier + Products auto fetched' : 'Select invoice to fetch'}
-            </div>
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-600 mb-1 block">Supplier Name *</label>
@@ -437,6 +469,18 @@ const CreateReturnModal = ({ open, onClose, onCreate, invoices = [], onInvoiceFe
               <option>Material Return</option><option>Damaged</option><option>Quality Issue</option>
             </select>
           </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">Approval Status *</label>
+            <select 
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white" 
+              value={form.status} 
+              onChange={e => set('status', e.target.value)}
+            >
+              <option value="Pending">PENDING</option>
+              <option value="Approved">APPROVED</option>
+               <option value="Approved">COMPLETED</option>
+            </select>
+          </div>
           <div className="col-span-2">
             <label className="text-xs font-semibold text-gray-600 mb-1 block">Reason for Return</label>
             <textarea rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Describe reason..." value={form.reason} onChange={e => set('reason', e.target.value)} />
@@ -465,7 +509,7 @@ export default function ReturnsPage({ initialTab = 0 }) {
   const [showCreate, setShowCreate]     = useState(false);
   const [searchTerm, setSearchTerm]     = useState('');
 
-  const loadReturns = async () => {
+  const loadReturns = useCallback(async () => {
     setLoading(true);
     try {
       const response = await materialReturnApi.getAll();
@@ -478,7 +522,7 @@ export default function ReturnsPage({ initialTab = 0 }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const loadInvoices = async () => {
     try {
@@ -493,7 +537,7 @@ export default function ReturnsPage({ initialTab = 0 }) {
   useEffect(() => {
     loadReturns();
     loadInvoices();
-  }, []);
+  }, [loadReturns]);
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
@@ -514,10 +558,11 @@ export default function ReturnsPage({ initialTab = 0 }) {
         returnQty: Number(form.returnQty) || 1, expectedQty: Number(form.returnQty) || 1,
         value: Number(form.returnValue || form.value) || 0, priority: form.priority,
         reason: form.reason || form.returnType || 'Material Return',
-        returnStatus: 'Pending', approvalStatus: 'Pending', qcStatus: 'Pending',
+        returnStatus: 'Pending', approvalStatus: form.status || 'Pending', qcStatus: 'Pending',
         ledgerStatus: 'Pending', reconciliationStatus: 'Pending',
         transport: form.transport, awbNo: form.awbNo,
-        stage: 'Return_Request_Create', currentWorkflowStage: 'Return_Request_Create',
+        stage: form.status === 'Completed' ? 'Manager_Approval' : 'Return_Request_Create',
+        currentWorkflowStage: form.status === 'Completed' ? 'Manager_Approval' : 'Return_Request_Create',
       };
       const response = await materialReturnApi.create(payload);
       const created = normalizeReturn(response.data);
@@ -549,6 +594,36 @@ export default function ReturnsPage({ initialTab = 0 }) {
       toast(`Stage updated to ${newStage.replace(/_/g, ' ')}`, 'success');
     } catch (err) {
       toast(err.message || 'Stage update failed', 'error');
+    }
+  };
+
+  const handleApprovalUpdate = async (mrId, status) => {
+    const record = returns.find(r => r.mrId === mrId);
+    if (!record?._id) {
+      setReturns(prev => prev.map(r => r.mrId === mrId ? { ...r, approvalStatus: status } : r));
+      setSelected(prev => prev && prev.mrId === mrId ? { ...prev, approvalStatus: status } : prev);
+      toast(`Approval status set to ${status}`, 'success');
+      return;
+    }
+    try {
+      let response;
+      if (status === 'Approved') {
+        response = await materialReturnApi.approve(record._id);
+        toast('Return Request Approved! Workflow moved to Pickup Pending.', 'success');
+      } else {
+        response = await materialReturnApi.updateStatus(record._id, { 
+          approvalStatus: status,
+          stage: record.stage 
+        });
+        toast(`Return marked as ${status}`, 'success');
+      }
+      
+      const updated = normalizeReturn(response.data);
+      setReturns(prev => prev.map(r => r.mrId === mrId ? updated : r));
+      setSelected(prev => prev && prev.mrId === mrId ? updated : prev);
+      loadReturns();
+    } catch (err) {
+      toast(err.message || 'Approval update failed', 'error');
     }
   };
 
@@ -584,25 +659,25 @@ export default function ReturnsPage({ initialTab = 0 }) {
           <input type="text" defaultValue="01 May 2025 - 31 May 2025" className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs" />
         </div>
         {[
-          { label: 'Return Type',         options: ['All', 'Material Return', 'Damaged', 'Quality Issue'] },
-          { label: 'Supplier / Customer', options: ['All', 'ABC Suppliers', 'XYZ Industries', 'Global Components'] },
-          { label: 'Return Stage',        options: ['All', ...STAGES] },
-          { label: 'Financial Status',    options: ['All', 'Pending', 'Partial', 'Reconciled'] },
-          { label: 'QC Status',           options: ['All', 'Pending', 'In Progress', 'Completed'] },
+          { label: 'Return Type', options: ['All', 'Material Return', 'Damaged', 'Quality Issue'] },
+          { label: 'Supplier',    options: ['All', 'ABC Suppliers', 'XYZ Industries', 'Global Components'] },
+          { label: 'Return Stage', options: ['All', ...STAGES] },
+          { label: 'Financial Status', options: ['All', 'Pending', 'Partial', 'Reconciled'] },
+          { label: 'QC Status',    options: ['All', 'Pending', 'In Progress', 'Completed'] },
         ].map(({ label, options }) => (
-          <div key={label} className="flex flex-col gap-1">
+          <div key={label} className="flex flex-col gap-1 min-w-[120px]">
             <label className="text-xs text-gray-500 font-medium">{label}</label>
-            <select className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs bg-white min-w-[110px]">
-              {options.map(o => <option key={o}>{o}</option>)}
+            <select className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs bg-white">
+              {options.map(o => <option key={o}>{o.replace(/_/g, ' ')}</option>)}
             </select>
           </div>
         ))}
-        <div className="relative flex-1 min-w-[160px]">
+        <div className="flex-1 min-w-[200px] relative">
           <MdSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
           <input type="text" placeholder="Search MR ID, Invoice, Docket..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg text-xs" />
         </div>
-        <button onClick={() => setShowCreate(true)} className="ml-auto px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap">
-          <MdAdd size={16} /> Create Return Request
+        <button onClick={() => setShowCreate(true)} className="ml-auto px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shadow-sm active:scale-95 transition-all">
+          <MdAdd size={16} /> New Return Request
         </button>
       </div>
 
@@ -621,8 +696,7 @@ export default function ReturnsPage({ initialTab = 0 }) {
 
       <div className={`grid gap-4 ${selected ? 'grid-cols-1 lg:grid-cols-12' : 'grid-cols-1'}`}>
         <div className={`${selected ? 'lg:col-span-7' : ''} bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden`}>
-          <div className="px-5 py-3 border-b flex justify-between items-center">
-            <span className="font-semibold text-sm">Return Requests ({filtered.length})</span>
+          <div className="px-5 py-3 border-b flex justify-end items-center">
             <div className="flex items-center gap-2">
               <button className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-50"><MdDownload size={14} /> Export</button>
               <button onClick={loadReturns} className="p-1.5 border border-gray-300 rounded-lg text-gray-500 hover:bg-gray-50"><MdRefresh size={14} /></button>
@@ -632,13 +706,13 @@ export default function ReturnsPage({ initialTab = 0 }) {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  {['MR ID', 'Docket ID', 'Invoice No', 'Party', 'Product', 'Return Qty', 'Stage', 'QC Status', 'Financial Status', 'Priority', 'Return Value', 'Actions'].map(h => (
+                  {['MR ID', 'Docket ID', 'Invoice No', 'Party', 'Product', 'Return Qty', 'Approval', 'Stage', 'QC Status', 'Financial Status', 'Priority', 'Value', 'Actions'].map(h => (
                     <th key={h} className="px-3 py-3 text-left text-xs font-medium text-gray-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {loading && <tr><td colSpan={12} className="px-3 py-8 text-center text-xs text-gray-500">Loading backend returns...</td></tr>}
+                {loading && <tr><td colSpan={13} className="px-3 py-8 text-center text-xs text-gray-500">Loading backend returns...</td></tr>}
                 {filtered.map((r) => (
                   <tr key={r.mrId} onClick={() => setSelected(s => s?.mrId === r.mrId ? null : r)}
                     className={`hover:bg-gray-50 cursor-pointer transition-colors ${selected?.mrId === r.mrId ? 'bg-red-50' : ''}`}>
@@ -648,6 +722,13 @@ export default function ReturnsPage({ initialTab = 0 }) {
                     <td className="px-3 py-3 text-xs max-w-[120px] truncate">{r.supplierName}</td>
                     <td className="px-3 py-3 text-xs max-w-[120px] truncate">{r.productName}</td>
                     <td className="px-3 py-3 text-xs text-center font-semibold">{r.returnQty}</td>
+                    <td className="px-3 py-3">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${
+                        r.approvalStatus === 'Approved' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {r.approvalStatus || 'Pending'}
+                      </span>
+                    </td>
                     <td className="px-3 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${stageBadge(r.stage)}`}>{r.stage.replace(/_/g, ' ')}</span></td>
                     <td className="px-3 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${qcBadge(r.qcStatus)}`}>{r.qcStatus}</span></td>
                     <td className="px-3 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${finBadge(r.finStatus)}`}>{r.finStatus}</span></td>
@@ -680,7 +761,7 @@ export default function ReturnsPage({ initialTab = 0 }) {
         </div>
         {selected && (
           <div className="lg:col-span-5">
-            <DetailPanel record={selected} onClose={() => setSelected(null)} onStageMove={handleStageMove} />
+            <DetailPanel record={selected} onClose={() => setSelected(null)} onStageMove={handleStageMove} onApprovalUpdate={handleApprovalUpdate} />
           </div>
         )}
       </div>
@@ -691,16 +772,6 @@ export default function ReturnsPage({ initialTab = 0 }) {
 
   return (
     <div className="p-6">
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6 flex-wrap border-b pb-4">
-        {['Return Requests', 'Stage Tracker', 'Docket Tracking', 'Debit/Credit Matching', 'Loss Tracking'].map((label, i) => (
-          <button key={i} onClick={() => setActiveTab(i)}
-            className={`px-6 py-2.5 rounded-lg font-medium text-sm transition-all ${activeTab === i ? 'bg-red-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
-            {label}
-          </button>
-        ))}
-      </div>
-
       {/* Tab Content */}
       {activeTab === 0 && renderReturnRequests()}
       {activeTab === 1 && <StageTrackerPage returns={returns} onStageUpdate={() => {}} />}

@@ -7,16 +7,54 @@ import {
   Layers, BarChart2, TrendingUp, Activity
 } from "lucide-react";
 import { materialReturnApi } from "../../api/materialReturnApi";
+import { invoiceApi } from "../../api/invoiceApi";
 
-const STAGE_FLOW = ["Initiated","Approved","Transport_Pickup","In_Transit","Out_For_Delivery","Delivered","Warehouse_Queue","Received_At_Warehouse","QC_In_Progress","QC_Completed","Closed"];
-const STAGE_NAMES = { Initiated:"Initiated", Approved:"Approved", Transport_Pickup:"Transport Pickup", In_Transit:"In Transit", Out_For_Delivery:"Out For Delivery", Delivered:"Delivered", Warehouse_Queue:"Warehouse Queue", Received_At_Warehouse:"Received At Warehouse", QC_In_Progress:"QC In Progress", QC_Completed:"QC Completed", Closed:"Closed" };
+const STAGE_FLOW = [
+  "REQUEST_RAISED", 
+  "APPROVED", 
+  "DOCKET_CREATED", 
+  "VEHICLE_ASSIGNED", 
+  "PICKED_UP", 
+  "IN_TRANSIT", 
+  "ARRIVED_AT_WAREHOUSE", 
+  "RECEIVED", 
+  "QC_PENDING", 
+  "QC_PASSED", 
+  "QC_FAILED", 
+  "FINANCE_PENDING", 
+  "CLOSED"
+];
+
+const STAGE_NAMES = { 
+  REQUEST_RAISED: "Request Raised", 
+  APPROVED: "Approved", 
+  DOCKET_CREATED: "Docket Created", 
+  VEHICLE_ASSIGNED: "Vehicle Assigned", 
+  PICKED_UP: "Picked Up", 
+  IN_TRANSIT: "In Transit", 
+  ARRIVED_AT_WAREHOUSE: "Arrived At Warehouse", 
+  RECEIVED: "Received", 
+  QC_PENDING: "QC Pending", 
+  QC_PASSED: "QC Passed", 
+  QC_FAILED: "QC Failed", 
+  FINANCE_PENDING: "Finance Pending", 
+  CLOSED: "Closed" 
+};
+
 const STAGE_COLORS = {
-  Initiated:{bg:"#f3f4f6",text:"#6b7280"}, Approved:{bg:"#d1fae5",text:"#065f46"},
-  Transport_Pickup:{bg:"#fef3c7",text:"#92400e"}, In_Transit:{bg:"#dbeafe",text:"#1d4ed8"},
-  Out_For_Delivery:{bg:"#ede9fe",text:"#6d28d9"}, Delivered:{bg:"#fef3c7",text:"#92400e"},
-  Warehouse_Queue:{bg:"#dbeafe",text:"#1d4ed8"}, Received_At_Warehouse:{bg:"#d1fae5",text:"#065f46"},
-  QC_In_Progress:{bg:"#ede9fe",text:"#6d28d9"}, QC_Completed:{bg:"#d1fae5",text:"#065f46"},
-  Closed:{bg:"#f3f4f6",text:"#374151"}
+  REQUEST_RAISED:{bg:"#f3f4f6",text:"#6b7280"}, 
+  APPROVED:{bg:"#d1fae5",text:"#065f46"},
+  DOCKET_CREATED:{bg:"#dbeafe",text:"#1d4ed8"}, 
+  VEHICLE_ASSIGNED:{bg:"#fef3c7",text:"#92400e"}, 
+  PICKED_UP:{bg:"#fef3c7",text:"#92400e"}, 
+  IN_TRANSIT:{bg:"#dbeafe",text:"#1d4ed8"},
+  ARRIVED_AT_WAREHOUSE:{bg:"#d1fae5",text:"#065f46"}, 
+  RECEIVED:{bg:"#d1fae5",text:"#065f46"}, 
+  QC_PENDING:{bg:"#fef3c7",text:"#92400e"},
+  QC_PASSED:{bg:"#d1fae5",text:"#065f46"},
+  QC_FAILED:{bg:"#fee2e2",text:"#991b1b"},
+  FINANCE_PENDING:{bg:"#fef3c7",text:"#92400e"},
+  CLOSED:{bg:"#f3f4f6",text:"#374151"}
 };
 
 const INIT_RETURNS = [
@@ -630,14 +668,50 @@ const EMPTY_FORM = {
 function CreateReturnModal({ onClose, onCreate }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState({});
+  const [fetching, setFetching] = useState(false);
+  const [invoices, setInvoices] = useState([]);
+  
+  useEffect(() => {
+    invoiceApi.getAll({ limit: 100 }).then(res => {
+      setInvoices(res.data || []);
+    }).catch(err => console.error("Failed to load invoices", err));
+  }, []);
+  
   const upd = (k,v) => { setForm(p=>({...p,[k]:v})); setErrors(e=>({...e,[k]:""})); };
+
+  const handleInvoiceChange = async (invoiceNo) => {
+    if (!invoiceNo) {
+      setForm(EMPTY_FORM);
+      return;
+    }
+    
+    upd("invoiceNo", invoiceNo);
+    setFetching(true);
+    try {
+      const res = await materialReturnApi.getInvoiceContext(invoiceNo);
+      if (res.success && res.data) {
+        setForm(prev => ({ 
+          ...prev, 
+          ...res.data,
+          invoiceNo, // Ensure invoiceNo stays the same
+          customerName: res.data.customerName || res.data.partyName || "",
+          supplierName: res.data.supplierName || res.data.partyName || "",
+          value: res.data.value || res.data.grandTotal || ""
+        }));
+      }
+    } catch (err) {
+      console.error("Fetch failed", err);
+    } finally {
+      setFetching(false);
+    }
+  };
 
   const validate = () => {
     const e = {};
-    if (!form.supplierName.trim()) e.supplierName = "Required";
-    if (!form.invoiceNo.trim()) e.invoiceNo = "Required";
-    if (!form.productName.trim()) e.productName = "Required";
-    if (!form.pickupAddress.trim()) e.pickupAddress = "Required";
+    if (!form.customerName?.trim() && !form.supplierName?.trim()) e.customerName = "Required";
+    if (!form.invoiceNo?.trim()) e.invoiceNo = "Required";
+    if (!form.productName?.trim()) e.productName = "Required";
+    if (!form.pickupAddress?.trim()) e.pickupAddress = "Required";
     return e;
   };
 
@@ -665,22 +739,26 @@ function CreateReturnModal({ onClose, onCreate }) {
     >
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
         <div>
-          <label style={{ fontSize:11, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>MR ID <span style={{ color:"#9ca3af", fontWeight:400 }}>(Auto)</span></label>
-          <input disabled value="MR-2026-XXXX" {...inp({ background:"#f9fafb", color:"#9ca3af" })} />
-        </div>
-        <div>
-          <label style={{ fontSize:11, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>Docket ID <span style={{ color:"#9ca3af", fontWeight:400 }}>(Auto)</span></label>
-          <input disabled value="DKT-XXXXXX" {...inp({ background:"#f9fafb", color:"#9ca3af" })} />
-        </div>
-        <div>
           <label style={{ fontSize:11, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>Invoice No *</label>
-          <input value={form.invoiceNo} onChange={e=>upd("invoiceNo",e.target.value)} placeholder="INV-2026-XXXX" {...inp(errors.invoiceNo?{borderColor:"#dc2626"}:{})} />
+          <select 
+            value={form.invoiceNo} 
+            onChange={e => handleInvoiceChange(e.target.value)} 
+            {...inp(errors.invoiceNo?{borderColor:"#dc2626"}:{})}
+            disabled={fetching}
+          >
+            <option value="">— Select Invoice —</option>
+            {invoices.map(inv => (
+              <option key={inv._id} value={inv.invoiceNo}>
+                {inv.invoiceNo} — {inv.partyName}
+              </option>
+            ))}
+          </select>
           {errors.invoiceNo && <div style={errStyle}>{errors.invoiceNo}</div>}
         </div>
         <div>
-          <label style={{ fontSize:11, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>Supplier Name *</label>
-          <input value={form.supplierName} onChange={e=>upd("supplierName",e.target.value)} placeholder="Enter supplier name" {...inp(errors.supplierName?{borderColor:"#dc2626"}:{})} />
-          {errors.supplierName && <div style={errStyle}>{errors.supplierName}</div>}
+          <label style={{ fontSize:11, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>Party Name *</label>
+          <input value={form.customerName || form.supplierName} onChange={e=>upd("customerName",e.target.value)} placeholder="Customer/Supplier" {...inp(errors.customerName?{borderColor:"#dc2626"}:{})} />
+          {errors.customerName && <div style={errStyle}>{errors.customerName}</div>}
         </div>
         <div>
           <label style={{ fontSize:11, fontWeight:700, color:"#374151", display:"block", marginBottom:4 }}>Product Name *</label>
@@ -902,7 +980,7 @@ function Pagination({ page, totalPages, pageSize, totalEntries, onPageChange, on
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function MaterialReturnsPage() {
-  const [returns, setReturns] = useState(INIT_RETURNS.map(normalizeMaterialReturn));
+  const [returns, setReturns] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState("");
@@ -911,21 +989,25 @@ export default function MaterialReturnsPage() {
   const [toast, setToast] = useState(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [stats, setStats] = useState({ total: 0, inTransit: 0, pendingQC: 0, pendingFinance: 0, closed: 0, returnValue: 0, lossValue: 0 });
 
   const loadReturns = async () => {
     setLoading(true);
     try {
-      const response = await materialReturnApi.getAll();
+      const response = await materialReturnApi.getAll({ search, stage: filters.stage });
       const data = (response.data || []).map(normalizeMaterialReturn);
-      setReturns(data.length ? data : INIT_RETURNS.map(normalizeMaterialReturn));
-    } catch {
-      setReturns(INIT_RETURNS.map(normalizeMaterialReturn));
+      setReturns(data);
+      
+      const statsRes = await materialReturnApi.getStats();
+      if (statsRes.success) setStats(statsRes.data);
+    } catch (err) {
+      console.error("Failed to load returns:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { loadReturns(); }, []);
+  useEffect(() => { loadReturns(); }, [search, filters.stage]);
 
   const showToast = (msg, type="success") => {
     setToast({ msg, type });
@@ -951,13 +1033,53 @@ export default function MaterialReturnsPage() {
   const setFilter = (k,v) => { setFilters(p=>({...p,[k]:v})); setPage(1); };
   const setSearchReset = (v) => { setSearch(v); setPage(1); };
 
+  const handleProcessQC = async (qcData) => {
+    try {
+      const res = await materialReturnApi.processQC(selected._id || selected.id, qcData);
+      if (res.success) {
+        showToast("QC Processed Successfully");
+        loadReturns();
+        setSelected(normalizeMaterialReturn(res.data));
+      }
+    } catch (err) {
+      showToast(err.message || "Failed to process QC", "error");
+    }
+  };
+
+  const handleProcessReconciliation = async (reconData) => {
+    try {
+      const res = await materialReturnApi.processReconciliation(selected._id || selected.id, reconData);
+      if (res.success) {
+        showToast("Reconciliation Processed Successfully");
+        loadReturns();
+        setSelected(normalizeMaterialReturn(res.data));
+      }
+    } catch (err) {
+      showToast(err.message || "Failed to process reconciliation", "error");
+    }
+  };
+
+  const handleUpdateTransport = async (transportData) => {
+    try {
+      const res = await materialReturnApi.updateTransport(selected._id || selected.id, transportData);
+      if (res.success) {
+        showToast("Transport Details Updated");
+        loadReturns();
+        setSelected(normalizeMaterialReturn(res.data));
+      }
+    } catch (err) {
+      showToast(err.message || "Failed to update transport", "error");
+    }
+  };
+
   const kpis = {
-    total: returns.length,
-    inTransit: returns.filter(r=>r.stage==="In_Transit").length,
-    pendingQC: returns.filter(r=>r.qcStatus==="Pending").length,
-    finPending: returns.filter(r=>r.finStatus==="Pending").length,
-    closed: returns.filter(r=>r.stage==="Closed").length,
-    critical: returns.filter(r=>r.priority==="High"&&r.stage!=="Closed").length,
+    total: stats.total,
+    inTransit: stats.inTransit,
+    pendingQC: stats.pendingQC,
+    finPending: stats.pendingFinance,
+    closed: stats.closed,
+    returnValue: stats.returnValue,
+    lossValue: stats.lossValue
   };
 
   const kpiCards = [

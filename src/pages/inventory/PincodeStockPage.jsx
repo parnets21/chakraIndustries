@@ -57,9 +57,14 @@ export default function PincodeStockPage() {
                   .filter(loc => loc && typeof loc === 'object')
                   .map(loc => ({
                     sku: String(loc.sku || 'N/A'),
-                    name: String(loc.name || 'Item'),
-                    qty: Number(loc.qty) || 0,
-                    loc: String(loc.loc || 'N/A')
+                    name: String(loc.itemName || loc.name || 'Item'),
+                    availableQty: Number(loc.availableQty || loc.qty || 0),
+                    reservedQty: Number(loc.reservedQty || 0),
+                    defectiveQty: Number(loc.defectiveQty || 0),
+                    batchNo: String(loc.batchNo || 'N/A'),
+                    loc: String(loc.loc || 'N/A'),
+                    unit: String(loc.unit || 'Nos'),
+                    lastUpdated: String(loc.lastUpdated || 'N/A')
                   }))
               }))
           }));
@@ -145,12 +150,12 @@ export default function PincodeStockPage() {
                   }}
                   className={`p-3 rounded-lg mb-2 cursor-pointer border-2 transition-all ${
                     selectedPincode?.pincode === p.pincode
-                      ? 'border-red-600 bg-red-50/60'
-                      : 'border-gray-200 hover:border-red-300'
+                      ? 'border-red-600 bg-red-50/60 shadow-sm'
+                      : 'border-gray-100 hover:border-red-200 bg-white'
                   }`}
                 >
-                  <div className="font-bold text-sm text-red-700">{p.pincode}</div>
-                  <div className="text-xs text-gray-500">
+                  <div className="font-black text-sm text-red-700">{p.pincode}</div>
+                  <div className="text-[11px] text-gray-500 font-medium">
                     {p.city} · {p.godowns?.length || 0} godown{p.godowns?.length !== 1 ? 's' : ''}
                   </div>
                 </div>
@@ -199,45 +204,62 @@ export default function PincodeStockPage() {
             {selectedGodown?.locations && selectedGodown.locations.length > 0 ? (
               <>
                 {selectedGodown.locations.map((loc, i) => {
-                  const qty = Number(loc.qty) || 0;
+                  const available = Number(loc.availableQty) || 0;
+                  const reserved = Number(loc.reservedQty) || 0;
+                  const defective = Number(loc.defectiveQty) || 0;
+                  const total = available + reserved + defective;
+                  
                   return (
                     <div
                       key={`location-${i}`}
                       className={`p-3 rounded-xl border mb-2 ${
-                        qty === 0
+                        available === 0
                           ? 'border-red-200 bg-red-50/30'
                           : 'border-gray-200 bg-gray-50'
                       }`}
                     >
                       <div className="flex justify-between items-start mb-1">
-                        <span className="font-semibold text-sm text-red-700">
+                        <span className="font-bold text-sm text-red-700">
                           {loc.sku || 'N/A'}
                         </span>
-                        <span
-                          className={`text-sm font-extrabold ${
-                            qty === 0
-                              ? 'text-red-500'
-                              : qty < 20
-                              ? 'text-amber-500'
-                              : 'text-green-600'
-                          }`}
-                        >
-                          {qty} units
-                        </span>
+                        <div className="text-right">
+                          <div className={`text-sm font-extrabold ${
+                            available === 0 ? 'text-red-500' : available < 20 ? 'text-amber-500' : 'text-green-600'
+                          }`}>
+                            {available} {loc.unit || 'units'}
+                          </div>
+                          {reserved > 0 && <div className="text-[10px] text-blue-600 font-bold">Reserved: {reserved}</div>}
+                          {defective > 0 && <div className="text-[10px] text-red-500 font-bold">Defective: {defective}</div>}
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-600 font-medium">
-                        {loc.name || 'Unknown'}
+                      <div className="text-xs text-gray-800 font-bold">
+                        {loc.name || 'Unknown Item'}
                       </div>
-                      <div className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
-                        <MdLocationOn size={12} /> {loc.loc || 'N/A'}
+                      
+                      <div className="grid grid-cols-2 gap-x-2 mt-2 pt-2 border-t border-gray-100">
+                        <div className="text-[10px] text-gray-500">
+                          <span className="font-semibold">Batch:</span> {loc.batchNo || 'N/A'}
+                        </div>
+                        <div className="text-[10px] text-gray-500 text-right">
+                          <span className="font-semibold">Location:</span> {loc.loc || 'N/A'}
+                        </div>
+                      </div>
+                      
+                      <div className="text-[9px] text-gray-400 mt-1 flex justify-between items-center">
+                        <div className="flex items-center gap-1">
+                          <MdLocationOn size={10} /> {selectedPincode?.city} ({selectedPincode?.pincode})
+                        </div>
+                        <div>
+                          Updated: {loc.lastUpdated || 'N/A'}
+                        </div>
                       </div>
                     </div>
                   );
                 })}
                 <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between text-sm">
-                  <span className="text-gray-500">Total Units</span>
-                  <span className="font-extrabold text-gray-800">
-                    {selectedGodown.locations.reduce((sum, loc) => sum + (Number(loc.qty) || 0), 0)}
+                  <span className="text-gray-500 font-medium">Total Available Units</span>
+                  <span className="font-extrabold text-red-700">
+                    {selectedGodown.locations.reduce((sum, loc) => sum + (Number(loc.availableQty) || 0), 0)}
                   </span>
                 </div>
               </>

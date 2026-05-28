@@ -36,7 +36,7 @@ export default function TallyPage({ initialTab = 0 }) {
   const [config, setConfig]             = useState({
     serverUrl: 'http://localhost', port: '9000', companyName: '',
     authType: 'None', autoSync: true, syncInterval: 'Every 15 minutes',
-    syncDirection: 'ERP → Tally',
+    syncDirection: 'Bi-directional',
     syncPrefs: { masterData:true, purchaseVouchers:true, salesVouchers:true, paymentVouchers:true, receiptVouchers:true, journalVouchers:false },
   });
 
@@ -69,7 +69,12 @@ export default function TallyPage({ initialTab = 0 }) {
   }, [logTypeFilter, logStatusFilter]);
 
   const loadConfig = useCallback(async () => {
-    try { const r = await tallyApi.getConfig(); if (r.data) setConfig(prev => ({ ...prev, ...r.data })); } catch (_) {}
+    try {
+      // Auto-migrate: if DB still has 'ERP → Tally', flip it to Bi-directional
+      await tallyApi.fixConfig().catch(() => {});
+      const r = await tallyApi.getConfig();
+      if (r.data) setConfig(prev => ({ ...prev, ...r.data }));
+    } catch (_) {}
   }, []);
 
   useEffect(() => {
@@ -82,7 +87,11 @@ export default function TallyPage({ initialTab = 0 }) {
     setSyncing(true);
     try {
       const r = await tallyApi.triggerSync({ type });
-      toast(r.message || `${type} sync completed`);
+      if (r.offline) {
+        toast('Tally is not reachable. Open Tally and enable HTTP Server on port 9000.', 'warning');
+      } else {
+        toast(r.message || `${type} sync completed`, r.success !== false ? 'success' : 'error');
+      }
       loadStats(); loadMasterData(); loadTransactions();
       if (activeTab === 3) loadLogs();
     } catch (e) { toast(e.message || 'Sync failed', 'error'); }
@@ -92,9 +101,14 @@ export default function TallyPage({ initialTab = 0 }) {
   const handleTestConnection = async () => {
     try {
       const r = await tallyApi.testConnection();
-      setStats(prev => ({ ...prev, connectionStatus: r.data?.status }));
-      toast(r.message || 'Connection tested', r.data?.status === 'Connected' ? 'success' : 'warning');
-    } catch (e) { toast(e.message || 'Connection failed', 'error'); }
+      const status = r.data?.status;
+      setStats(prev => ({ ...prev, connectionStatus: status }));
+      if (status === 'Connected') {
+        toast('Tally connected successfully', 'success');
+      } else {
+        toast(r.message || 'Tally is not reachable. Check that Tally is open and HTTP port 9000 is enabled.', 'error');
+      }
+    } catch (e) { toast(e.message || 'Connection test failed', 'error'); }
   };
 
   const handleSaveConfig = async () => {
@@ -121,9 +135,25 @@ export default function TallyPage({ initialTab = 0 }) {
 
   return (
     <div>
+      {/* Top action bar */}
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold px-3 py-1 rounded-full border"
+            style={{ background: stats.syncDirection === 'Bi-directional' ? '#dcfce7' : '#dbeafe', color: stats.syncDirection === 'Bi-directional' ? '#166534' : '#1e40af', borderColor: stats.syncDirection === 'Bi-directional' ? '#86efac' : '#93c5fd' }}>
+            {stats.syncDirection || config.syncDirection || 'Bi-directional'}
+          </span>
+          {stats.autoSync && (
+            <span className="text-xs font-semibold px-3 py-1 rounded-full bg-purple-100 text-purple-700 border border-purple-200">
+              Auto-Sync: {stats.syncInterval || config.syncInterval || 'Every 15 minutes'}
+            </span>
+          )}
+        </div>
+        <button className={btnPrimary} onClick={() => handleManualSync('Full')} disabled={syncing}>
+          {syncing ? '⏳ Syncing...' : '🔄 Full Bidirectional Sync'}
+        </button>
+      </div>
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-        {kpis.map((k, i) => (
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">        {kpis.map((k, i) => (
           <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-2xl">{k.icon}</span>
@@ -137,6 +167,28 @@ export default function TallyPage({ initialTab = 0 }) {
       {/* Tab 0: Sync Dashboard */}
       {activeTab === 0 && (
         <div>
+          {/* Offline / not-connected banner */}
+          {stats.connectionStatus && stats.connectionStatus !== 'Connected' && (
+            <div className="bg-white rounded-2xl border border-amber-200 p-4 mb-4 shadow-sm" style={{ borderLeft: '4px solid #f59e0b' }}>
+              <div className="flex items-start gap-3">
+                <span style={{ fontSize: 22, flexShrink: 0 }}>⚠️</span>
+                <div style={{ flex: 1 }}>
+                  <div className="text-sm font-bold text-amber-800 mb-1">
+                    Tally is {stats.connectionStatus === 'Disconnected' ? 'not reachable' : 'status unknown'} — sync is paused
+                  </div>
+                  <div className="text-xs text-amber-700 leading-relaxed">
+                    To enable bidirectional sync, open <strong>Tally Prime</strong> → press <strong>F12</strong> → <strong>Configure</strong> → <strong>Advanced Configuration</strong> → set <strong>Enable ODBC / HTTP Server: Yes</strong> → Port: <strong>9000</strong>. Then click <strong>Test Connection</strong> below.
+                  </div>
+                  <button
+                    className="mt-2 text-xs font-bold text-amber-800 underline cursor-pointer bg-transparent border-0 p-0 font-[inherit]"
+                    onClick={handleTestConnection}
+                  >
+                    Test Connection Now →
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
             {[
               { label:'Total Syncs Today', value: stats.todayTotal || 0, subtext:`${stats.todaySuccess || 0} success`, color:'#3b82f6' },
@@ -348,8 +400,21 @@ export default function TallyPage({ initialTab = 0 }) {
               <input className={inputCls} value={config.port || ''} onChange={e => setConfig(p => ({ ...p, port: e.target.value }))} placeholder="Default: 9000" />
             </div>
             <div className={fieldCls}>
-              <label className={labelCls}>Company Name *</label>
-              <input className={inputCls} value={config.companyName || ''} onChange={e => setConfig(p => ({ ...p, companyName: e.target.value }))} placeholder="Exact name as in Tally" />
+              <label className={labelCls}>
+                Company Name
+                <span className="ml-1 text-gray-400 font-normal">(optional — leave blank to use active company)</span>
+              </label>
+              <input className={inputCls} value={config.companyName || ''} onChange={e => setConfig(p => ({ ...p, companyName: e.target.value }))} placeholder="Leave blank OR enter exact name as in Tally" />
+              {config.companyName && (
+                <div className="text-xs text-amber-600 mt-1">
+                  ⚠️ Must match exactly as shown in Tally — including spaces and capitalisation
+                </div>
+              )}
+              {!config.companyName && (
+                <div className="text-xs text-green-600 mt-1">
+                  ✓ Blank = Tally will use whichever company is currently open
+                </div>
+              )}
             </div>
             <div className={fieldCls}>
               <label className={labelCls}>Authentication</label>

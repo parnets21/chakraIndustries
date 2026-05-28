@@ -5,6 +5,7 @@ import {
   MdClose, MdSearch, MdCurrencyRupee, MdPerson,
   MdDescription, MdLocalShipping, MdVerifiedUser
 } from 'react-icons/md';
+import { materialReturnApi } from '../../api/materialReturnApi';
 
 // ─── Toast Component ───────────────────────────────────────────────────────────
 const Toast = ({ message, type, onClose }) => {
@@ -240,12 +241,50 @@ export default function DebitCreditMatchingPage({ linkedReturns = [] }) {
   const [newEntry, setNewEntry] = useState(emptyEntry);
   const [editForm, setEditForm] = useState(null);
 
-  // ─── Load Data from Local Storage or Seed Data ────────────────────────────────
-  const loadMatchingData = useCallback(() => {
+  // ─── Load Data from Backend or Local Storage or Seed Data ───────────────────
+  const loadMatchingData = useCallback(async () => {
     setLoading(true);
     try {
+      // Try backend first — fetch material returns that have reconciliation data
+      const response = await materialReturnApi.getAll();
+      const backendData = (response.data || []);
+      if (backendData.length > 0) {
+        const mapped = backendData.map(r => ({
+          id: r.mrId || r._id,
+          _id: r._id,
+          party: r.supplierName || r.customerName || 'Unknown',
+          invoice: r.invoiceNo || '',
+          invoiceDate: r.invoiceDate ? new Date(r.invoiceDate).toISOString().split('T')[0] : '',
+          creditNote: r.creditNoteNo || 'Not generated',
+          cnAmount: r.refundAmount || 0,
+          debitNote: r.debitNoteNo || '—',
+          dnAmount: 0,
+          difference: r.creditNoteNo ? 0 : (r.value || r.refundAmount || 0),
+          matchStatus: r.reconciliationStatus === 'Completed' ? 'Matched'
+            : r.reconciliationStatus === 'In Progress' ? 'Partial' : 'Open',
+          tallySync: r.stage === 'Tally_Sync' || r.stage === 'Closed' ? 'Synced' : 'Not synced',
+          returnValue: r.value || r.refundAmount || 0,
+          returnType: r.returnType || 'Material Return',
+          gst: '18%',
+          financeStatus: r.reconciliationStatus === 'Completed' ? 'Closed' : 'Pending',
+          voucherNo: '—',
+          assignedTo: r.approvedBy || 'Accounts',
+          lastUpdated: r.updatedAt ? new Date(r.updatedAt).toISOString().split('T')[0] : '',
+          aging: r.createdAt
+            ? `${Math.floor((Date.now() - new Date(r.createdAt)) / 86400000)} days`
+            : '0 days',
+        }));
+        setMatchingData(mapped);
+        showToast(`Loaded ${mapped.length} records from backend`, 'success');
+        return;
+      }
+    } catch (err) {
+      console.warn('Backend unavailable, falling back to local storage:', err.message);
+    }
+
+    // Fallback: localStorage or seed data
+    try {
       const savedData = localStorage.getItem('debit_credit_matching_data');
-      
       if (savedData && JSON.parse(savedData).length > 0) {
         const parsedData = JSON.parse(savedData);
         setMatchingData(parsedData);

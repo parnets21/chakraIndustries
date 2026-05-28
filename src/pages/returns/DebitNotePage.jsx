@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import Modal from '../../components/common/Modal';
-// import { debitNoteApi } from '../../api/debitNoteApi';
+import { debitNoteApi } from '../../api/debitNoteApi';
 import { grnApi } from '../../api/grnApi';
 import { poApi } from '../../api/poApi';
 import { toast } from '../../components/common/Toast';

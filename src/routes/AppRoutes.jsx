@@ -37,7 +37,6 @@ import RealTimeTrackingPage from '../pages/logistics/RealTimeTrackingPage';
 
 // Returns
 import ReturnsSubPage from '../pages/returns/ReturnsSubPage';
-import MaterialReturnsPage from '../pages/returns/MaterialReturnsPage';
 import ReturnRequestDetailPage from '../pages/returns/ReturnRequestDetailPage';
 
 // Finance
@@ -152,14 +151,17 @@ export default function AppRoutes() {
       <Route path="/logistics/livetrack" element={<P element={<RealTimeTrackingPage />} />} />
 
       {/* Returns */}
-      <Route path="/returns"           element={<Navigate to="/returns/requests" replace />} />
-      <Route path="/returns/requests"  element={<P element={<ReturnsSubPage tab="requests" />} />} />
-      <Route path="/returns/tracker"   element={<P element={<ReturnsSubPage tab="tracker" />} />} />
-      <Route path="/returns/docket"    element={<P element={<ReturnsSubPage tab="docket" />} />} />
-      <Route path="/returns/matching"  element={<P element={<ReturnsSubPage tab="matching" />} />} />
-      <Route path="/returns/loss"      element={<P element={<ReturnsSubPage tab="loss" />} />} />
-      <Route path="/returns/material"  element={<P element={<MaterialReturnsPage />} />} />
-      <Route path="/returns/detail/:id" element={<P element={<ReturnRequestDetailPage />} />} />
+      <Route path="/returns"                element={<Navigate to="/returns/dashboard" replace />} />
+      <Route path="/returns/dashboard"      element={<P element={<ReturnsSubPage tab="dashboard" />} />} />
+      <Route path="/returns/requests"       element={<P element={<ReturnsSubPage tab="requests" />} />} />
+      <Route path="/returns/approval"       element={<P element={<ReturnsSubPage tab="approval" />} />} />
+      <Route path="/returns/transport"      element={<P element={<ReturnsSubPage tab="transport" />} />} />
+      <Route path="/returns/warehouse"      element={<P element={<ReturnsSubPage tab="warehouse" />} />} />
+      <Route path="/returns/qc"             element={<P element={<ReturnsSubPage tab="qc" />} />} />
+      <Route path="/returns/debitcredit"    element={<P element={<ReturnsSubPage tab="debitcredit" />} />} />
+      <Route path="/returns/reconciliation" element={<P element={<ReturnsSubPage tab="reconciliation" />} />} />
+      <Route path="/returns/loss"           element={<P element={<ReturnsSubPage tab="loss" />} />} />
+      <Route path="/returns/detail/:id"     element={<P element={<ReturnRequestDetailPage />} />} />
 
       {/* Finance */}
       <Route path="/finance"           element={<Navigate to="/finance/ledger" replace />} />

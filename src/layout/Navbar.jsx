@@ -1,14 +1,16 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   MdSearch, MdNotifications, MdKeyboardArrowDown,
   MdWarning, MdError, MdCheckCircle, MdInfo,
   MdPerson, MdSettings, MdHelpOutline, MdLogout,
   MdMenu, MdAdd, MdRefresh, MdClose, MdDeleteOutline,
+  MdSync, MdCloudDone, MdCloudOff, MdOpenInNew,
 } from 'react-icons/md';
 import { useAuth } from '../auth/AuthContext';
 import { ROLES } from '../auth/rbac';
 import { useNotifications } from '../hooks/useNotifications';
+import { tallyApi } from '../api/tallyApi';
 
 const PAGE_LABELS = {
   dashboard: 'Dashboard', procurement: 'Procurement', inventory: 'Inventory',
@@ -116,6 +118,94 @@ export default function Navbar({ activePage, onMenuClick, isMobile }) {
   const [open, setOpen] = useState(null);
   const [hoveredNotificationId, setHoveredNotificationId] = useState(null);
   const { notifications, unreadCount, loading, hasNew, clearNew, refetch, dismissNotification, clearAllNotifications } = useNotifications();
+
+  // ── Tally Sync state ──────────────────────────────────────────────────────
+  const [tallySyncing, setTallySyncing]     = useState(false);
+  const [tallyStatus, setTallyStatus]       = useState({ connectionStatus: 'Unknown', lastSyncAt: null, todayTotal: 0, todayFailed: 0 });
+  const [tallySyncMsg, setTallySyncMsg]     = useState('');
+  const [tallySyncOk, setTallySyncOk]       = useState(null);   // true | false | null
+  const [tallyOfflineMsg, setTallyOfflineMsg] = useState('');   // shown when Tally is not reachable
+
+  const loadTallyStats = useCallback(async () => {
+    try {
+      const r = await tallyApi.getSyncStats();
+      if (r.data) setTallyStatus(r.data);
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => {
+    // One-time migration: ensure DB config is Bi-directional
+    tallyApi.fixConfig().catch(() => {});
+    loadTallyStats();
+    const id = setInterval(loadTallyStats, 60_000);
+    return () => clearInterval(id);
+  }, [loadTallyStats]);
+
+  const handleTallySync = async () => {
+    if (tallySyncing) return;
+    setTallySyncing(true);
+    setTallySyncMsg('');
+    setTallySyncOk(null);
+    setTallyOfflineMsg('');
+    try {
+      const r = await tallyApi.triggerSync({ type: 'Full' });
+      if (r.offline) {
+        // Tally not reachable — show setup hint, don't count as error
+        setTallyOfflineMsg(r.message || 'Tally is not reachable');
+        setTallySyncOk(null);
+      } else {
+        setTallySyncMsg(r.message || 'Sync completed');
+        setTallySyncOk(r.success !== false);
+      }
+      await loadTallyStats();
+    } catch (e) {
+      setTallySyncMsg(e.message || 'Sync failed');
+      setTallySyncOk(false);
+    } finally {
+      setTallySyncing(false);
+      setTimeout(() => { setTallySyncMsg(''); setTallyOfflineMsg(''); }, 8000);
+    }
+  };
+
+  const handleQuickSync = async (type, label) => {
+    if (tallySyncing) return;
+    setTallySyncing(true);
+    setTallySyncMsg('');
+    setTallySyncOk(null);
+    setTallyOfflineMsg('');
+    try {
+      const r = await tallyApi.triggerSync({ type });
+      if (r.offline) {
+        setTallyOfflineMsg(r.message || 'Tally is not reachable');
+      } else {
+        setTallySyncMsg(r.message || `${label} synced`);
+        setTallySyncOk(r.success !== false);
+      }
+      await loadTallyStats();
+    } catch (e) {
+      setTallySyncMsg(e.message || 'Failed');
+      setTallySyncOk(false);
+    } finally {
+      setTallySyncing(false);
+      setTimeout(() => { setTallySyncMsg(''); setTallyOfflineMsg(''); }, 6000);
+    }
+  };
+
+  const tallyConnected    = tallyStatus.connectionStatus === 'Connected';
+  const tallyDisconnected = tallyStatus.connectionStatus === 'Disconnected';
+  const tallyUnknown      = tallyStatus.connectionStatus === 'Unknown';
+  const tallyDotColor     = tallyConnected ? '#10b981' : tallyDisconnected ? '#ef4444' : '#f59e0b';
+  const tallyLastSync     = tallyStatus.lastSyncAt
+    ? (() => {
+        const diff = Date.now() - new Date(tallyStatus.lastSyncAt).getTime();
+        const m = Math.floor(diff / 60000);
+        if (m < 1)  return 'just now';
+        if (m < 60) return `${m}m ago`;
+        const h = Math.floor(m / 60);
+        if (h < 24) return `${h}h ago`;
+        return new Date(tallyStatus.lastSyncAt).toLocaleDateString('en-IN');
+      })()
+    : 'Never';
 
   const wrapRef = useRef();
 
@@ -228,6 +318,31 @@ export default function Navbar({ activePage, onMenuClick, isMobile }) {
           .nb-profile-name { display:none !important; }
           .nb-create-label { display:none !important; }
         }
+
+        /* ── tally sync button ── */
+        .nb-tally-btn {
+          display: flex; align-items: center; gap: 5px;
+          padding: 6px 11px; border-radius: 10px;
+          border: 1.5px solid #d1fae5;
+          background: #f0fdf4; color: #065f46;
+          cursor: pointer; font-size: 12px; font-weight: 700;
+          font-family: inherit; transition: all .15s; flex-shrink: 0;
+          white-space: nowrap;
+        }
+        .nb-tally-btn:hover { background: #dcfce7; border-color: #6ee7b7; }
+        .nb-tally-btn.syncing { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+        .nb-tally-btn.error   { background: #fef2f2; border-color: #fca5a5; color: #991b1b; }
+        .nb-tally-btn.unknown { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+        @media (max-width:768px) { .nb-tally-label { display:none !important; } }
+        @media (max-width:480px) {
+          .nb-tally-panel {
+            position: fixed !important;
+            top: 64px !important;
+            left: 8px !important;
+            right: 8px !important;
+            width: auto !important;
+          }
+        }
       `}</style>
 
       <header style={{
@@ -320,6 +435,189 @@ export default function Navbar({ activePage, onMenuClick, isMobile }) {
                     {item.label}
                   </DropItem>
                 ))}
+              </Panel>
+            )}
+          </div>
+
+          {/* divider */}
+          <div style={{ width: 1, height: 20, background: '#e2e8f0', margin: '0 1px' }} />
+
+          {/* ── Tally Sync Button ── */}
+          <div style={{ position: 'relative' }}>
+            <button
+              className={`nb-tally-btn${tallySyncing ? ' syncing' : tallyDisconnected ? ' error' : tallyUnknown ? ' unknown' : ''}`}
+              onClick={() => { if (open === 'tally') { setOpen(null); } else { toggle('tally'); } }}
+              title={tallyConnected ? 'Tally Connected — Click to sync' : tallyDisconnected ? 'Tally Disconnected — Click for help' : 'Tally status unknown — Click to check'}
+            >
+              <span style={{
+                width: 7, height: 7, borderRadius: '50%',
+                background: tallySyncing ? '#3b82f6' : tallyDotColor,
+                flexShrink: 0,
+                animation: tallySyncing ? 'nbPulse .8s ease-in-out infinite' : 'none',
+              }} />
+              <MdSync size={14} style={{ animation: tallySyncing ? 'spin 1s linear infinite' : 'none', flexShrink: 0 }} />
+              <span className="nb-tally-label">Tally</span>
+            </button>
+
+            {open === 'tally' && (
+              <Panel width={290} className="nb-tally-panel">
+
+                {/* ── Header ── */}
+                <div style={{ padding: '12px 14px 10px', borderBottom: '1px solid #f1f5f9' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <span style={{ fontSize: 20 }}>📊</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Tally Sync</div>
+                        <div style={{ fontSize: 10, color: '#64748b' }}>Bidirectional • ERP ↔ Tally</div>
+                      </div>
+                    </div>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
+                      background: tallyConnected ? '#dcfce7' : tallyDisconnected ? '#fee2e2' : '#fef3c7',
+                      color:      tallyConnected ? '#166534' : tallyDisconnected ? '#991b1b' : '#92400e',
+                    }}>
+                      {tallyStatus.connectionStatus || 'Unknown'}
+                    </span>
+                  </div>
+
+                  {/* Stats row */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                    {[
+                      { label: 'Last Sync', value: tallyLastSync,              color: '#3b82f6' },
+                      { label: "Today's",   value: tallyStatus.todayTotal || 0, color: '#8b5cf6' },
+                      { label: 'Failed',    value: tallyStatus.todayFailed || 0, color: tallyStatus.todayFailed > 0 ? '#ef4444' : '#10b981' },
+                    ].map(s => (
+                      <div key={s.label} style={{ background: '#f8fafc', borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: s.color }}>{s.value}</div>
+                        <div style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600, marginTop: 1 }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* ── Offline / not-reachable banner ── */}
+                {(tallyOfflineMsg || (!tallyConnected && !tallySyncing)) && (
+                  <div style={{
+                    margin: '10px 12px 0',
+                    padding: '9px 11px',
+                    borderRadius: 9,
+                    background: tallyDisconnected ? '#fef2f2' : '#fffbeb',
+                    border: `1px solid ${tallyDisconnected ? '#fecaca' : '#fde68a'}`,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <MdCloudOff size={14} style={{ color: tallyDisconnected ? '#dc2626' : '#d97706', flexShrink: 0 }} />
+                      <span style={{ fontSize: 11, fontWeight: 700, color: tallyDisconnected ? '#991b1b' : '#92400e' }}>
+                        {tallyDisconnected ? 'Tally not reachable' : 'Tally status unknown'}
+                      </span>
+                    </div>
+                    {tallyOfflineMsg
+                      ? <div style={{ fontSize: 10, color: '#64748b', lineHeight: 1.5 }}>{tallyOfflineMsg}</div>
+                      : (
+                        <div style={{ fontSize: 10, color: '#64748b', lineHeight: 1.6 }}>
+                          To enable sync:<br />
+                          1. Open <strong>Tally Prime</strong><br />
+                          2. Press <strong>F12 → Configure</strong><br />
+                          3. Go to <strong>Advanced Configuration</strong><br />
+                          4. Set <strong>Enable ODBC Server: Yes</strong><br />
+                          5. Set port to <strong>9000</strong>
+                        </div>
+                      )
+                    }
+                  </div>
+                )}
+
+                {/* ── Success / error message after sync ── */}
+                {tallySyncMsg && (
+                  <div style={{
+                    margin: '8px 12px 0',
+                    padding: '7px 10px',
+                    borderRadius: 8,
+                    background: tallySyncOk ? '#f0fdf4' : '#fef2f2',
+                    border: `1px solid ${tallySyncOk ? '#bbf7d0' : '#fecaca'}`,
+                    fontSize: 11, fontWeight: 600,
+                    color: tallySyncOk ? '#166534' : '#991b1b',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}>
+                    {tallySyncOk ? <MdCloudDone size={14} /> : <MdCloudOff size={14} />}
+                    {tallySyncMsg}
+                  </div>
+                )}
+
+                {/* ── Sync Now button ── */}
+                <div style={{ padding: '10px 12px 8px' }}>
+                  <button
+                    onClick={handleTallySync}
+                    disabled={tallySyncing}
+                    style={{
+                      width: '100%', padding: '9px 0',
+                      background: tallySyncing
+                        ? 'linear-gradient(135deg,#93c5fd,#60a5fa)'
+                        : tallyConnected
+                          ? 'linear-gradient(135deg,#10b981,#059669)'
+                          : 'linear-gradient(135deg,#6b7280,#4b5563)',
+                      color: '#fff', border: 'none', borderRadius: 10,
+                      fontSize: 13, fontWeight: 700,
+                      cursor: tallySyncing ? 'not-allowed' : 'pointer',
+                      fontFamily: 'inherit',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                      boxShadow: tallySyncing || !tallyConnected ? 'none' : '0 2px 8px rgba(16,185,129,0.35)',
+                      transition: 'all .15s',
+                    }}
+                  >
+                    <MdSync size={15} style={{ animation: tallySyncing ? 'spin 1s linear infinite' : 'none' }} />
+                    {tallySyncing ? 'Syncing with Tally…' : tallyConnected ? '🔄 Sync Now (Full)' : '🔄 Try Sync Anyway'}
+                  </button>
+                </div>
+
+                {/* ── Quick sync grid (only when connected) ── */}
+                {tallyConnected && (
+                  <div style={{ padding: '0 12px 4px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                    {[
+                      { label: 'Master Data',  type: 'master',      icon: '📦' },
+                      { label: 'Transactions', type: 'transaction',  icon: '💳' },
+                      { label: 'Ledgers',      type: 'Ledger',       icon: '📒' },
+                      { label: 'Invoices',     type: 'Sales',        icon: '🧾' },
+                    ].map(opt => (
+                      <button
+                        key={opt.type}
+                        disabled={tallySyncing}
+                        onClick={() => handleQuickSync(opt.type, opt.label)}
+                        style={{
+                          padding: '6px 8px', borderRadius: 8,
+                          border: '1.5px solid #e2e8f0', background: '#f8fafc',
+                          fontSize: 11, fontWeight: 600, color: '#374151',
+                          cursor: tallySyncing ? 'not-allowed' : 'pointer',
+                          fontFamily: 'inherit',
+                          display: 'flex', alignItems: 'center', gap: 5,
+                          transition: 'all .12s',
+                          opacity: tallySyncing ? 0.5 : 1,
+                        }}
+                        onMouseEnter={e => { if (!tallySyncing) { e.currentTarget.style.borderColor = '#10b981'; e.currentTarget.style.background = '#f0fdf4'; } }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#f8fafc'; }}
+                      >
+                        <span>{opt.icon}</span>{opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* ── Footer ── */}
+                <div style={{ padding: '8px 14px 10px', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
+                  <button
+                    onClick={() => { navigate('/tally/dashboard'); close(); }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#10b981', fontWeight: 700, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    <MdOpenInNew size={12} /> Open Tally Dashboard
+                  </button>
+                  <button
+                    onClick={() => { navigate('/tally/config'); close(); }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#64748b', fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    <MdSettings size={12} /> Configure
+                  </button>
+                </div>
+
               </Panel>
             )}
           </div>

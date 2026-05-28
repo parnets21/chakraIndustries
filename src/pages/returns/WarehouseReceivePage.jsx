@@ -41,10 +41,11 @@ export default function WarehouseReceivePage() {
       await materialReturnApi.receiveAtWarehouse(returnId, {
         receivedBy: 'Warehouse Team',
         receivedDate: new Date().toISOString(),
-        status: 'Received_At_Warehouse'
+        warehouseStatus: 'RECEIVED',
+        currentStage: 'QC_PENDING'
       });
       await fetchWarehouseReturns();
-      toast('Return received at warehouse');
+      toast('Return received at warehouse - moved to QC Pending');
     } catch (error) {
       toast(error.message || 'Error receiving return', 'error');
     }
@@ -67,11 +68,41 @@ export default function WarehouseReceivePage() {
     if (!selectedReturn) return;
     
     try {
+      const status = qcData.qcStatus === 'Pass' ? 'QC_PASSED' : 'QC_FAILED';
       await materialReturnApi.processQC(selectedReturn._id, {
         ...qcData,
         qcBy: 'QC Team',
-        qcDate: new Date().toISOString()
+        qcDate: new Date().toISOString(),
+        currentStage: status
       });
+
+      // If QC Passed, trigger Inventory Update integration
+      if (status === 'QC_PASSED') {
+        try {
+          await materialReturnApi.inventoryUpdate(selectedReturn._id);
+          toast('QC Passed & Inventory Updated Automatically');
+        } catch (invErr) {
+          console.error('Inventory update failed:', invErr);
+          toast('QC Passed, but inventory auto-update failed', 'warning');
+        }
+      } else {
+        // If QC Failed or discrepancy found, trigger Loss Tracking integration
+        if (qcData.damageQty > 0 || qcData.missingQty > 0 || status === 'QC_FAILED') {
+          try {
+            await materialReturnApi.processLoss(selectedReturn._id, {
+              expectedQty: selectedReturn.expectedQty || selectedReturn.returnQty,
+              receivedQty: qcData.receivedQty,
+              missingQty: qcData.missingQty,
+              damagedQty: qcData.damageQty,
+              remarks: qcData.notes || 'QC Discrepancy found'
+            });
+            toast('Loss Tracking Entry Created Automatically');
+          } catch (lossErr) {
+            console.error('Loss tracking failed:', lossErr);
+          }
+        }
+      }
+
       setShowQCModal(false);
       setSelectedReturn(null);
       await fetchWarehouseReturns();

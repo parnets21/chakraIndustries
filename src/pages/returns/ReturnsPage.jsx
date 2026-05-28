@@ -561,8 +561,8 @@ export default function ReturnsPage({ initialTab = 0 }) {
         returnStatus: 'Pending', approvalStatus: form.status || 'Pending', qcStatus: 'Pending',
         ledgerStatus: 'Pending', reconciliationStatus: 'Pending',
         transport: form.transport, awbNo: form.awbNo,
-        stage: form.status === 'Completed' ? 'Manager_Approval' : 'Return_Request_Create',
-        currentWorkflowStage: form.status === 'Completed' ? 'Manager_Approval' : 'Return_Request_Create',
+        stage: 'REQUEST_RAISED',
+        currentWorkflowStage: 'REQUEST_RAISED',
       };
       const response = await materialReturnApi.create(payload);
       const created = normalizeReturn(response.data);
@@ -609,7 +609,22 @@ export default function ReturnsPage({ initialTab = 0 }) {
       let response;
       if (status === 'Approved') {
         response = await materialReturnApi.approve(record._id);
-        toast('Return Request Approved! Workflow moved to Pickup Pending.', 'success');
+        
+        // Auto-create docket after approval
+        try {
+          await materialReturnApi.generateDocket(record._id, {
+            returnId: record.mrId,
+            invoiceNo: record.invoiceNo,
+            supplier: record.supplierName,
+            productName: record.productName,
+            qty: record.returnQty,
+            status: 'PICKUP_PENDING'
+          });
+          toast('Return Request Approved & Docket Auto-Created!', 'success');
+        } catch (docketErr) {
+          console.error('Auto-docket creation failed:', docketErr);
+          toast('Approved, but auto-docket failed. Please create manually.', 'warning');
+        }
       } else {
         response = await materialReturnApi.updateStatus(record._id, { 
           approvalStatus: status,

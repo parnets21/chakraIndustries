@@ -653,16 +653,12 @@ const DocketModal = ({ isOpen, onClose, onSuccess, editData, returnsList = [], i
             
             <div>
               <label style={{ fontSize: 11, fontWeight: 700 }}>Vehicle Number</label>
-              <select 
+              <input 
                 style={inputStyle()} 
                 value={form.vehicleNumber} 
-                onChange={e => handleVehicleSelect(e.target.value)}
-              >
-                <option value="">— Select Vehicle —</option>
-                {vehicles.map(v => (
-                  <option key={v._id} value={v.number}>{v.number} ({v.type})</option>
-                ))}
-              </select>
+                onChange={e => setField('vehicleNumber', e.target.value)}
+                placeholder="e.g. KA-01-AB-1234"
+              />
             </div>
             
             <div>
@@ -1130,6 +1126,19 @@ const DocketTrackingPage = () => {
 
   const setFilter = (key, value) => setFilters(prev => ({ ...prev, [key]: value }));
 
+  const handleStageUpdate = async (id, stage, status) => {
+    setLoading(true);
+    try {
+      await materialReturnApi.updateTransport(id, { stage, trackingStatus: status });
+      showToast(`Status updated to ${stage.replace(/_/g, ' ')}`, 'success');
+      loadDockets();
+    } catch (err) {
+      showToast(err.message || 'Update failed', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const TABLE_COLUMNS = ['', 'Docket ID', 'MR ID', 'Invoice', 'Return Type', 'Supplier', 'Source', 'Dest WH', 'Product/SKU', 'Qty', 'Value', 'Courier', 'AWB', 'Stage', 'Live Status', 'ETA', 'Aging', 'WH', 'QC', 'Finance', 'Team', 'Actions'];
 
   return (
@@ -1277,15 +1286,36 @@ const DocketTrackingPage = () => {
                         <span style={{ background: '#f3f4f6', padding: '2px 8px', borderRadius: 4, fontSize: 10 }}>{row.assignedTeam || '—'}</span>
                       </td>
                       <td style={{ padding: '12px 10px' }}>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          <button onClick={() => setViewDocket(row)} style={{ padding: 6, border: 'none', background: '#dbeafe', borderRadius: 6, cursor: 'pointer' }}>
-                            <MdVisibility size={14} />
+                        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                          <button onClick={() => setViewDocket(row)} title="View Details" style={{ padding: 6, border: 'none', background: '#dbeafe', borderRadius: 6, cursor: 'pointer' }}>
+                            <MdVisibility size={14} color="#1d4ed8" />
                           </button>
-                          <button onClick={() => setEditDocket(row)} style={{ padding: 6, border: 'none', background: '#dcfce7', borderRadius: 6, cursor: 'pointer' }}>
-                            <MdEdit size={14} />
+                          
+                          {row.transportStatus === 'pickup_pending' && (
+                            <button 
+                              onClick={() => handleStageUpdate(row.id, 'PICKED_UP', 'picked_up')}
+                              title="Mark as Picked Up"
+                              style={{ padding: '6px 10px', border: 'none', background: '#fef3c7', color: '#92400e', borderRadius: 6, cursor: 'pointer', fontSize: 10, fontWeight: 700 }}
+                            >
+                              PICKUP
+                            </button>
+                          )}
+
+                          {(row.transportStatus === 'picked_up' || row.transportStatus === 'in_transit') && (
+                            <button 
+                              onClick={() => handleStageUpdate(row.id, 'ARRIVED_AT_WAREHOUSE', 'arrived')}
+                              title="Mark as Arrived"
+                              style={{ padding: '6px 10px', border: 'none', background: '#dcfce7', color: '#15803d', borderRadius: 6, cursor: 'pointer', fontSize: 10, fontWeight: 700 }}
+                            >
+                              ARRIVED
+                            </button>
+                          )}
+
+                          <button onClick={() => setEditDocket(row)} title="Edit Docket" style={{ padding: 6, border: 'none', background: '#f3f4f6', borderRadius: 6, cursor: 'pointer' }}>
+                            <MdEdit size={14} color="#4b5563" />
                           </button>
-                          <button onClick={() => setConfirmDelete(row)} style={{ padding: 6, border: 'none', background: '#fee2e2', borderRadius: 6, cursor: 'pointer' }}>
-                            <MdDelete size={14} />
+                          <button onClick={() => setConfirmDelete(row)} title="Delete Docket" style={{ padding: 6, border: 'none', background: '#fee2e2', borderRadius: 6, cursor: 'pointer' }}>
+                            <MdDelete size={14} color="#dc2626" />
                           </button>
                         </div>
                       </td>

@@ -7,7 +7,7 @@ import { poApi } from '../../api/poApi';
 import { materialReturnApi } from '../../api/materialReturnApi';
 import DataTable from '../../components/tables/DataTable';
 import DocketTrackingPage from './DocketTrackingPage';
-import { MdLocalShipping, MdDescription, MdCheckCircle, MdPhone, MdPlace, MdArchive } from 'react-icons/md';
+import { MdLocalShipping, MdDescription, MdCheckCircle, MdPhone, MdPlace, MdArchive, MdSearch } from 'react-icons/md';
 const MdInventory = MdArchive; // Use Archive as fallback for Inventory if missing
 
 // ── Style constants ───────────────────────────────────────────────────────────
@@ -296,19 +296,34 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
   const [form, setForm]           = useState(EMPTY_VEHICLE);
   const [saving, setSaving]       = useState(false);
   
+  // Fleet Search
+  const [fleetSearch, setFleetSearch] = useState('');
+  
   // Return Flow States
   const [returnQueue, setReturnQueue] = useState([]);
   const [queueLoading, setQueueLoading] = useState(false);
   const [assignModal, setAssignModal] = useState(null); // { returnItem, vehicle }
+  
+  // Dynamic Data from Dockets
+  const [docketData, setDocketData] = useState([]);
+  const [searchTerms, setSearchTerms] = useState({ number: '', driver: '', driverMobile: '', capacity: '' });
 
   const loadReturnQueue = useCallback(async () => {
     setQueueLoading(true);
     try {
-      const res = await materialReturnApi.getWarehouseQueue();
-      // Only show returns that need assignment (DOCKET_CREATED)
-      setReturnQueue(res.data?.filter(r => r.currentStage === 'DOCKET_CREATED') || []);
+      const [qRes, dRes] = await Promise.all([
+        materialReturnApi.getAll(), // Fetch all to filter by stage
+        materialReturnApi.getAll()
+      ]);
+      // Show returns in DOCKET_CREATED or APPROVED stage that need pickup
+      const pendingPickups = qRes.data?.filter(r => 
+        ['DOCKET_CREATED', 'APPROVED', 'PICKUP_PENDING'].includes(r.currentStage)
+      ) || [];
+      
+      setReturnQueue(pendingPickups);
+      setDocketData(dRes.data || []);
     } catch (error) {
-      console.error('Failed to load return queue', error);
+      console.error('Failed to load queue or docket data', error);
     } finally {
       setQueueLoading(false);
     }
@@ -316,7 +331,62 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
 
   useEffect(() => {
     loadReturnQueue();
-  }, [loadReturnQueue]);
+  }, [loadReturnQueue, vehicles]);
+
+  // Extract unique dynamic values from docketData
+  const dynamicVehicles = [...new Set(docketData.map(d => d.vehicleNo).filter(Boolean))];
+  const dynamicDrivers = [...new Set(docketData.map(d => d.driverName).filter(Boolean))];
+  const dynamicMobiles = [...new Set(docketData.map(d => d.driverMobile).filter(Boolean))];
+  const dynamicCapacities = [...new Set(docketData.map(d => d.capacity || d.shipmentWeight).filter(Boolean))];
+
+  const handleDynamicSelect = (field, value) => {
+    // Find a matching docket record based on the selected value in any field
+    const match = docketData.find(d => {
+      if (field === 'number') return d.vehicleNo === value;
+      if (field === 'driver') return d.driverName === value;
+      if (field === 'driverMobile') return d.driverMobile === value;
+      if (field === 'capacity') return (d.capacity || d.shipmentWeight) === value;
+      return false;
+    });
+
+    if (match) {
+      // Sync Capacity by combining Priority, Weight and Qty to give full context
+      const capacityParts = [];
+      if (match.priority) capacityParts.push(`Priority: ${match.priority}`);
+      if (match.shipmentWeight) capacityParts.push(`${match.shipmentWeight} kg`);
+      else if (match.capacity) capacityParts.push(match.capacity);
+      else if (match.qty) capacityParts.push(`${match.qty} Qty`);
+      
+      const syncCapacity = capacityParts.join(' | ') || '';
+
+      setForm(f => ({
+        ...f,
+        number: match.vehicleNo || match.vehicleNumber || f.number,
+        driver: match.driverName || f.driver,
+        driverMobile: match.driverMobile || f.driverMobile,
+        capacity: syncCapacity || f.capacity,
+        [field]: value 
+      }));
+      setSearchTerms({
+        number: match.vehicleNo || match.vehicleNumber || '',
+        driver: match.driverName || '',
+        driverMobile: match.driverMobile || '',
+        capacity: syncCapacity || ''
+      });
+      toast(`Details auto-filled: ${match.docketId} (${syncCapacity})`, 'success');
+      return;
+    }
+
+    setForm(f => ({ ...f, [field]: value }));
+    setSearchTerms(prev => ({ ...prev, [field]: value }));
+  };
+
+  const filteredVehicles = vehicles.filter(v => {
+    const s = fleetSearch.toLowerCase();
+    return (v.number || '').toLowerCase().includes(s) || 
+           (v.driver || '').toLowerCase().includes(s) || 
+           (v.type || '').toLowerCase().includes(s);
+  });
 
   const handleCreate = async () => {
     if (!form.number || !form.driver) {
@@ -328,7 +398,9 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
       toast('Vehicle added successfully');
       setShowModal(false);
       setForm(EMPTY_VEHICLE);
+      setSearchTerms({ number: '', driver: '', driverMobile: '', capacity: '' });
       onRefresh();
+      loadReturnQueue();
     } catch (e) { toast(e.message || 'Failed to add vehicle', 'error'); }
     finally { setSaving(false); }
   };
@@ -427,7 +499,17 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
   return (
     <div className="flex flex-col gap-6">
       {/* Top Actions */}
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center">
+        <div className="relative flex-1 max-w-md">
+          <MdSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <input 
+            type="text" 
+            placeholder="Search fleet (Number, Driver, Type)..." 
+            className={`${inp} pl-10`}
+            value={fleetSearch}
+            onChange={e => setFleetSearch(e.target.value)}
+          />
+        </div>
         <button style={primaryBtn} onClick={() => setShowModal(true)}>+ Add Vehicle</button>
       </div>
 
@@ -460,9 +542,11 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
             </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {loading ? <Spinner /> : vehicles.length === 0 ? (
-                <div className="col-span-2 text-center py-12 bg-white rounded-2xl border border-dashed border-gray-300 text-gray-400 text-sm">No vehicles registered in fleet</div>
-              ) : vehicles.map((v) => (
+              {loading ? <Spinner /> : filteredVehicles.length === 0 ? (
+                <div className="col-span-2 text-center py-12 bg-white rounded-2xl border border-dashed border-gray-300 text-gray-400 text-sm">
+                  {fleetSearch ? `No vehicles matching "${fleetSearch}"` : 'No vehicles registered in fleet'}
+                </div>
+              ) : filteredVehicles.map((v) => (
                 <div key={v._id} className="bg-white rounded-2xl border border-gray-200 p-4 hover:shadow-md transition-shadow relative overflow-hidden group">
                   <div className={`absolute top-0 left-0 w-1 h-full ${
                     v.status === 'Available' ? 'bg-green-500' :
@@ -623,40 +707,111 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
         )}
       </Modal>
 
-      {/* Add Vehicle Modal */}
       <Modal 
         open={showModal}
-        onClose={() => { setShowModal(false); setForm(EMPTY_VEHICLE); }}
+        onClose={() => { setShowModal(false); setForm(EMPTY_VEHICLE); setSearchTerms({ number: '', driver: '', driverMobile: '', capacity: '' }); }}
         title="Add New Vehicle"
         footer={
           <>
-            <button className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-bold text-gray-600" onClick={() => { setShowModal(false); setForm(EMPTY_VEHICLE); }}>Cancel</button>
+            <button className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-bold text-gray-600" onClick={() => { setShowModal(false); setForm(EMPTY_VEHICLE); setSearchTerms({ number: '', driver: '', driverMobile: '', capacity: '' }); }}>Cancel</button>
             <button style={primaryBtn} onClick={handleCreate} disabled={saving}>{saving ? 'Adding...' : 'Add Vehicle'}</button>
           </>
         }
       >
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-gray-600">Vehicle Type</label>
-            <select className={inp} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
-              <option>Mini Truck</option><option>Truck</option><option>Tempo</option><option>Container</option>
+        <div className="flex flex-col gap-5">
+          {/* Quick Sync Header */}
+          <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 mb-2">
+            <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2 block">Quick Import from Docket Tracking</label>
+            <select 
+              className={`${inp} bg-white border-blue-200`} 
+              onChange={(e) => {
+                const docket = docketData.find(d => d.docketId === e.target.value);
+                if (docket) {
+                  handleDynamicSelect('number', docket.vehicleNo);
+                }
+              }}
+            >
+              <option value="">— Select a Recent Docket to Auto-Fill —</option>
+              {docketData.filter(d => d.vehicleNo).slice(0, 10).map(d => (
+                <option key={d._id} value={d.docketId}>
+                  {d.docketId} | {d.vehicleNo} ({d.driverName})
+                </option>
+              ))}
             </select>
+            <p className="text-[10px] text-blue-400 mt-2 font-medium">Selecting a docket will automatically fill all vehicle, driver, and capacity details.</p>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-gray-600">Vehicle Number *</label>
-            <input className={inp} placeholder="e.g. KA-01-AB-1234" value={form.number} onChange={e => setForm(f => ({ ...f, number: e.target.value }))} />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-gray-600">Driver Name *</label>
-            <input className={inp} placeholder="Ramesh Kumar" value={form.driver} onChange={e => setForm(f => ({ ...f, driver: e.target.value }))} />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-gray-600">Driver Mobile</label>
-            <input className={inp} placeholder="9876543210" value={form.driverMobile} onChange={e => setForm(f => ({ ...f, driverMobile: e.target.value }))} />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-gray-600">Capacity</label>
-            <input className={inp} placeholder="e.g. 5 Ton" value={form.capacity} onChange={e => setForm(f => ({ ...f, capacity: e.target.value }))} />
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-gray-600">Vehicle Type</label>
+              <select className={inp} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
+                <option>Mini Truck</option><option>Truck</option><option>Tempo</option><option>Container</option>
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-gray-600">Vehicle Number *</label>
+              <div className="relative group">
+                <input 
+                  list="dynamic-vehicles"
+                  className={inp} 
+                  placeholder="Search vehicle number" 
+                  value={form.number} 
+                  onChange={e => handleDynamicSelect('number', e.target.value)} 
+                />
+                <datalist id="dynamic-vehicles">
+                  {dynamicVehicles.map(v => <option key={v} value={v} />)}
+                </datalist>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-gray-600">Driver Name *</label>
+              <div className="relative group">
+                <input 
+                  list="dynamic-drivers"
+                  className={inp} 
+                  placeholder="Search driver name" 
+                  value={form.driver} 
+                  onChange={e => handleDynamicSelect('driver', e.target.value)} 
+                />
+                <datalist id="dynamic-drivers">
+                  {dynamicDrivers.map(d => <option key={d} value={d} />)}
+                </datalist>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-gray-600">Driver Mobile</label>
+              <div className="relative group">
+                <input 
+                  list="dynamic-mobiles"
+                  className={inp} 
+                  placeholder="Search mobile" 
+                  value={form.driverMobile} 
+                  onChange={e => handleDynamicSelect('driverMobile', e.target.value)} 
+                />
+                <datalist id="dynamic-mobiles">
+                  {dynamicMobiles.map(m => <option key={m} value={m} />)}
+                </datalist>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-gray-600">Capacity</label>
+              <div className="relative group">
+                <input 
+                  list="dynamic-capacities"
+                  className={inp} 
+                  placeholder="Search capacity" 
+                  value={form.capacity} 
+                  onChange={e => handleDynamicSelect('capacity', e.target.value)} 
+                />
+                <datalist id="dynamic-capacities">
+                  {dynamicCapacities.map(c => <option key={c} value={c} />)}
+                </datalist>
+              </div>
+            </div>
           </div>
         </div>
       </Modal>
@@ -667,18 +822,42 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
 // ── Tab 2: Delivery Tracking ──────────────────────────────────────────────────
 function TrackingTab() {
   const [dispatches, setDispatches] = useState([]);
+  const [returns, setReturns]       = useState([]);
   const [selected, setSelected]     = useState(null);
   const [loading, setLoading]       = useState(true);
 
   useEffect(() => {
-    logisticsApi.getDispatches()
-      .then(r => {
-        const list = r.data || [];
-        setDispatches(list);
-        if (list.length > 0) setSelected(list[0]);
-      })
-      .catch(() => toast('Failed to load dispatches', 'error'))
-      .finally(() => setLoading(false));
+    const loadData = async () => {
+      try {
+        const [dRes, rRes] = await Promise.all([
+          logisticsApi.getDispatches(),
+          materialReturnApi.getAll()
+        ]);
+        
+        const dispatchList = dRes.data || [];
+        // Filter returns that are in transit or picked up
+        const returnList = (rRes.data || [])
+          .filter(r => ['VEHICLE_ASSIGNED', 'OUT_FOR_PICKUP', 'PICKED_UP', 'IN_TRANSIT'].includes(r.currentStage))
+          .map(r => ({
+            ...r,
+            dispatchId: r.docketId, // Use Docket ID as Dispatch ID for returns
+            customer: r.supplierName || r.customerName,
+            destination: r.warehouseName || 'Warehouse',
+            status: r.trackingStatus || r.currentStage,
+            isReturn: true
+          }));
+
+        const combined = [...dispatchList, ...returnList];
+        setDispatches(combined);
+        setReturns(returnList);
+        if (combined.length > 0) setSelected(combined[0]);
+      } catch (err) {
+        toast('Failed to load tracking data', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
   }, []);
 
   if (loading) return <Spinner />;

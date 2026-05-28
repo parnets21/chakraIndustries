@@ -185,10 +185,23 @@ export default function DebitCreditMatchingPage() {
         refundAmount: Number(newEntry.refundAmount),
         creditNoteNo: newEntry.creditNoteNo,
         debitNoteNo: newEntry.debitNoteNo,
-        remarks: newEntry.remarks
+        remarks: newEntry.remarks,
+        financeStatus: 'CLOSED',
+        currentStage: 'CLOSED',
+        returnStatus: 'CLOSED'
       });
+
       if (res.success) {
-        showToast('Reconciliation processed successfully', 'success');
+        showToast('Finance Reconciliation & Return Closed successfully', 'success');
+        
+        // Auto Tally Sync Integration
+        try {
+          await materialReturnApi.updateStage(targetMr._id, 'CLOSED');
+          showToast('Return synchronized to Tally automatically', 'success');
+        } catch (tallyErr) {
+          console.error('Tally sync failed:', tallyErr);
+        }
+
         setShowCreateModal(false);
         setNewEntry(emptyEntry());
         loadData();

@@ -34,7 +34,7 @@ export default function TallyPage({ initialTab = 0 }) {
   const [transactions, setTransactions] = useState([]);
   const [syncLogs, setSyncLogs]         = useState([]);
   const [config, setConfig]             = useState({
-    serverUrl: 'http://localhost', port: '9000', companyName: '',
+    serverUrl: 'https://erp.majesticmall.net', port: '9000', companyName: '',
     authType: 'None', autoSync: true, syncInterval: 'Every 15 minutes',
     syncDirection: 'Bi-directional',
     syncPrefs: { masterData:true, purchaseVouchers:true, salesVouchers:true, paymentVouchers:true, receiptVouchers:true, journalVouchers:false },
@@ -102,11 +102,12 @@ export default function TallyPage({ initialTab = 0 }) {
     try {
       const r = await tallyApi.testConnection();
       const status = r.data?.status;
+      const url = r.data?.url;
       setStats(prev => ({ ...prev, connectionStatus: status }));
       if (status === 'Connected') {
-        toast('Tally connected successfully', 'success');
+        toast(`Connected to Tally at ${url || config.serverUrl}`, 'success');
       } else {
-        toast(r.message || 'Tally is not reachable. Check that Tally is open and HTTP port 9000 is enabled.', 'error');
+        toast(r.message || 'Tally is not reachable.', 'error');
       }
     } catch (e) { toast(e.message || 'Connection test failed', 'error'); }
   };

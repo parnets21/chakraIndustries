@@ -7,6 +7,7 @@ import { vendorApi } from '../../../api/vendorApi';
 import { rfqApi } from '../../../api/rfqApi';
 import { MdVisibility, MdDeleteOutline, MdCheckCircle, MdCancel, MdSend } from 'react-icons/md';
 import { FaEdit } from 'react-icons/fa';
+import { dataEvents } from '../../../utils/dataEvents';
 
 const EMPTY_FORM = {
   vendor: '', linkedRFQ: '', deliveryDate: '',
@@ -187,6 +188,7 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
     try {
       await poApi.delete(deletePO._id);
       setDeletePO(null);
+      dataEvents.emit('po:changed');
       fetchPOs();
     } catch (e) { alert(e.message); }
     finally { setDeleting(false); }
@@ -197,6 +199,7 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
     try {
       await poApi.updateStatus(statusModal.po._id, statusModal.action);
       setStatusModal(null);
+      dataEvents.emit('po:changed');
       fetchPOs();
       onSaved?.();
     } catch (e) { alert(e.message); }
@@ -285,6 +288,7 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
         items: [{ name: '', qty: 1, unit: 'Nos', basePrice: 0, gst: 18 }],
         remarks: ''
       });
+      dataEvents.emit('po:changed');
       fetchPOs();
     } catch (e) {
       console.error('Error saving PO:', e);

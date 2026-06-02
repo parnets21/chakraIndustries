@@ -7,6 +7,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { isViewOnly } from '../../auth/rbac';
 import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShell';
 import { MdAssignment, MdHourglassEmpty, MdCheckCircle, MdCancel, MdAdd } from 'react-icons/md';
+import { useDataEvent } from '../../utils/dataEvents';
 
 
 export default function PurchaseRequisitionPage() {
@@ -33,6 +34,9 @@ export default function PurchaseRequisitionPage() {
   }, []);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
+
+  // Also re-fetch when PRList fires delete/approve events directly
+  useDataEvent('pr:changed', fetchStats);
 
   const loadDepartments = async () => {
     setLoading(true);

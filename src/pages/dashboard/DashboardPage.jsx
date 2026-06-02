@@ -9,13 +9,13 @@ import { prApi } from '../../api/prApi';
 import { poApi } from '../../api/poApi';
 import { grnApi } from '../../api/grnApi';
 import { approvalApi } from '../../api/approvalApi';
-import { rfqApi } from '../../api/rfqApi';
 import { qualityCheckApi } from '../../api/qualityCheckApi';
 import { vendorApi } from '../../api/vendorApi';
 import { inventoryApi } from '../../api/inventoryApi';
 import { inventoryFlowApi } from '../../api/inventoryFlowApi';
 import { MdProductionQuantityLimits } from 'react-icons/md';
 import { GiReturnArrow } from 'react-icons/gi';
+import { useDataEvent } from '../../utils/dataEvents';
 
 // ── Greeting helper ───────────────────────────────────────────────────────────
 function getGreeting() {
@@ -119,6 +119,15 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // Re-fetch when any ERP module changes data
+  useDataEvent('pr:changed',        fetchAll);
+  useDataEvent('po:changed',        fetchAll);
+  useDataEvent('grn:changed',       fetchAll);
+  useDataEvent('vendor:changed',    fetchAll);
+  useDataEvent('approval:changed',  fetchAll);
+  useDataEvent('qc:changed',        fetchAll);
+  useDataEvent('inventory:changed', fetchAll);
 
   const fmt = (n) => n >= 100000 ? `₹${(n/100000).toFixed(1)}L` : `₹${(n||0).toLocaleString('en-IN')}`;
 
@@ -280,7 +289,7 @@ export default function DashboardPage() {
                   background:k.gradient,
                   display:'flex', alignItems:'center', justifyContent:'center',
                   color:'#fff', flexShrink:0,
-                }}>rr
+                }}>
                   {k.icon}
                 </div>
               </div>

@@ -1,41 +1,49 @@
-import axios from 'axios';
+const BASE = import.meta.env.VITE_API_URL || 'https://chakraindustries-backend.onrender.com/api';
 
-const API_BASE = '/api/packaging';
+const getToken = () =>
+  localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
+
+const authHeaders = () => ({
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${getToken()}`,
+});
+
+const handle = async (res) => {
+  const d = await res.json();
+  if (!res.ok) throw new Error(d.message || 'Request failed');
+  return d;
+};
 
 export const packagingApi = {
-  // Get all packaging options
-  getAll: async () => {
-    const response = await axios.get(`${API_BASE}`);
-    return response.data;
-  },
+  getAll: () =>
+    fetch(`${BASE}/packaging`, { headers: authHeaders() }).then(handle),
 
-  // Get packaging by ID
-  getById: async (id) => {
-    const response = await axios.get(`${API_BASE}/${id}`);
-    return response.data;
-  },
+  getById: (id) =>
+    fetch(`${BASE}/packaging/${id}`, { headers: authHeaders() }).then(handle),
 
-  // Create new packaging option
-  create: async (data) => {
-    const response = await axios.post(`${API_BASE}`, data);
-    return response.data;
-  },
+  getActive: () =>
+    fetch(`${BASE}/packaging/active/list`, { headers: authHeaders() }).then(handle),
 
-  // Update packaging option
-  update: async (id, data) => {
-    const response = await axios.put(`${API_BASE}/${id}`, data);
-    return response.data;
-  },
+  getByType: (type) =>
+    fetch(`${BASE}/packaging/type/${type}`, { headers: authHeaders() }).then(handle),
 
-  // Delete packaging option
-  delete: async (id) => {
-    const response = await axios.delete(`${API_BASE}/${id}`);
-    return response.data;
-  },
+  create: (data) =>
+    fetch(`${BASE}/packaging`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(data),
+    }).then(handle),
 
-  // Get active packaging options
-  getActive: async () => {
-    const response = await axios.get(`${API_BASE}?status=Active`);
-    return response.data;
-  },
+  update: (id, data) =>
+    fetch(`${BASE}/packaging/${id}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify(data),
+    }).then(handle),
+
+  delete: (id) =>
+    fetch(`${BASE}/packaging/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    }).then(handle),
 };

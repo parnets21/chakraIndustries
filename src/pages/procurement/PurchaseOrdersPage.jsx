@@ -3,6 +3,7 @@ import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShel
 import PurchaseOrdersTab from './components/PurchaseOrdersTab';
 import { poApi } from '../../api/poApi';
 import { MdShoppingCart, MdHourglassEmpty, MdCheckCircle, MdLocalShipping, MdAdd } from 'react-icons/md';
+import { useDataEvent } from '../../utils/dataEvents';
 
 
 export default function PurchaseOrdersPage() {
@@ -24,6 +25,7 @@ export default function PurchaseOrdersPage() {
   }, []);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
+  useDataEvent('po:changed', fetchStats);
 
   const fmt = (n) => n >= 100000
     ? `₹${(n / 100000).toFixed(1)}L`

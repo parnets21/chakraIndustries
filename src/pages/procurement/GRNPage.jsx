@@ -3,6 +3,7 @@ import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShel
 import GRNTab from './components/GRNTab';
 import { grnApi } from '../../api/grnApi';
 import { MdInventory, MdCheckCircle, MdHourglassEmpty, MdWarning, MdAdd } from 'react-icons/md';
+import { useDataEvent } from '../../utils/dataEvents';
 
 
 export default function GRNPage() {
@@ -23,6 +24,7 @@ export default function GRNPage() {
   }, []);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
+  useDataEvent('grn:changed', fetchStats);
 
   const kpis = [
     { label: 'Total GRNs', value: stats.total,     icon: <MdInventory size={18} />,      color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.25)' },

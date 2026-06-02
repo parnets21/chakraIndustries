@@ -19,6 +19,12 @@ export const itemMasterApi = {
   
   // Dropdown - Get items for dropdown (minimal data)
   getDropdown: () => fetch(`${BASE}/item-master/dropdown`, { headers: authHeaders() }).then(handle),
+
+  // Barcode lookup — find product by barcode value
+  getByBarcode: (barcode) => fetch(`${BASE}/item-master/barcode/${encodeURIComponent(barcode)}`, { headers: authHeaders() }).then(handle),
+
+  // Admin only: regenerate barcode for an existing item
+  regenerateBarcode: (id) => fetch(`${BASE}/item-master/${id}/regenerate-barcode`, { method: 'POST', headers: authHeaders() }).then(handle),
   
   // Stats
   getStats: () => fetch(`${BASE}/item-master/stats`, { headers: authHeaders() }).then(handle),

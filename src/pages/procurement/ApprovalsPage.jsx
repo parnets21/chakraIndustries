@@ -5,6 +5,7 @@ import Modal from '../../components/common/Modal';
 import { approvalApi } from '../../api/approvalApi';
 import { useAuth } from '../../auth/AuthContext';
 import { MdPendingActions, MdCheckCircle, MdCancel, MdAccessTime } from 'react-icons/md';
+import { useDataEvent } from '../../utils/dataEvents';
 
 
 export default function ApprovalsPage() {
@@ -29,6 +30,7 @@ export default function ApprovalsPage() {
   }, [filterStatus]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+  useDataEvent('approval:changed', fetchAll);
 
   const handleAction = async () => {
     if (!actionModal) return;
@@ -42,6 +44,7 @@ export default function ApprovalsPage() {
       }
       setActionModal(null);
       setRemarks('');
+      dataEvents.emit('approval:changed');
       await fetchAll();
     } catch (e) { alert(e.message); }
     finally { setSaving(false); }

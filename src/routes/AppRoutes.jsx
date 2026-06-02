@@ -7,6 +7,10 @@ import DashboardPage from '../pages/dashboard/DashboardPage';
 import OEMPage       from '../pages/oem/OEMPage';
 import OrdersPage    from '../pages/orders/OrdersPage';
 import SettingsPage  from '../pages/settings/SettingsPage';
+import RolePermissionsPage from '../pages/settings/RolePermissionsPage';
+
+// Item Master
+import ItemMasterPage from '../pages/master/ItemMasterPage';
 
 // Procurement
 import VendorsPage             from '../pages/procurement/VendorsPage';
@@ -30,6 +34,10 @@ import ProductionSubPage from '../pages/production/ProductionSubPage';
 // Bulk Orders
 import BulkSubPage from '../pages/bulk/BulkSubPage';
 import ClientsESMEPage from '../pages/bulk/ClientsESMEPage';
+import BulkOrderFlowPage from '../pages/bulk/BulkOrderFlowPage';
+import BulkOrderCompleteFlowPage from '../pages/bulk/BulkOrderCompleteFlowPage';
+import BulkQuotationRequestPage from '../pages/bulk/BulkQuotationRequestPage';
+import VendorQuotationsPage from '../pages/bulk/VendorQuotationsPage';
 
 // Logistics
 import LogisticsSubPage from '../pages/logistics/LogisticsSubPage';
@@ -132,12 +140,16 @@ export default function AppRoutes() {
       <Route path="/orders" element={<P element={<OrdersPage />} />} />
 
       {/* Bulk Orders */}
-      <Route path="/bulk"             element={<Navigate to="/bulk/clients" replace />} />
-      <Route path="/bulk/clients"     element={<P element={<BulkSubPage tab="clients" />} />} />
-      <Route path="/bulk/clientsESME" element={<P element={<ClientsESMEPage />} />} />
-      <Route path="/bulk/quotations"  element={<P element={<BulkSubPage tab="quotations" />} />} />
-      <Route path="/bulk/packaging"   element={<P element={<BulkSubPage tab="packaging" />} />} />
-      <Route path="/bulk/delivery"    element={<P element={<BulkSubPage tab="delivery" />} />} />
+      <Route path="/bulk"                    element={<Navigate to="/bulk/clients" replace />} />
+      <Route path="/bulk/clients"            element={<P element={<BulkSubPage tab="clients" />} />} />
+      <Route path="/bulk/clientsESME"        element={<P element={<ClientsESMEPage />} />} />
+      <Route path="/bulk/quotations"         element={<P element={<BulkSubPage tab="quotations" />} />} />
+      <Route path="/bulk/packaging"          element={<P element={<BulkSubPage tab="packaging" />} />} />
+      <Route path="/bulk/delivery"           element={<P element={<BulkSubPage tab="delivery" />} />} />
+      <Route path="/bulk/order-flow"         element={<P element={<BulkOrderFlowPage />} />} />
+      <Route path="/bulk/complete-flow"      element={<P element={<BulkOrderCompleteFlowPage />} />} />
+      <Route path="/bulk/quotation-requests" element={<P element={<BulkQuotationRequestPage />} />} />
+      <Route path="/bulk/vendor-quotations"  element={<P element={<VendorQuotationsPage />} />} />
 
       {/* Logistics */}
       <Route path="/logistics"           element={<Navigate to="/logistics/dispatch" replace />} />
@@ -235,8 +247,10 @@ export default function AppRoutes() {
       <Route path="/tally/logs"         element={<P element={<TallySubPage tab="logs" />} />} />
       <Route path="/tally/config"       element={<P element={<TallySubPage tab="config" />} />} />
 
-      <Route path="/settings" element={<P element={<SettingsPage />} />} />
-      <Route path="*"         element={<Navigate to="/dashboard" replace />} />
+      <Route path="/settings"       element={<P element={<SettingsPage />} />} />
+      <Route path="/settings/roles" element={<P element={<RolePermissionsPage />} />} />
+      <Route path="/item-master"    element={<P element={<ItemMasterPage />} />} />
+      <Route path="*"               element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
 }

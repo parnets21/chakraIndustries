@@ -4,6 +4,7 @@ import Stepper from '../../../../components/common/Stepper';
 import { prApi } from '../../../../api/prApi';
 import { departmentApi } from '../../../../api/departmentApi';
 import { useAuth } from '../../../../auth/AuthContext';
+import { dataEvents } from '../../../../utils/dataEvents';
 
 const steps = ['Details', 'Items', 'Review', 'Submit'];
 const emptyItem = { name: '', qty: '', unit: 'Nos' };
@@ -62,6 +63,7 @@ export default function CreatePRModal({ open, onClose, onSaved, editData }) {
       };
       if (editData) await prApi.update(editData._id, payload);
       else await prApi.create(payload);
+      dataEvents.emit('pr:changed');
       onSaved?.();
       handleClose();
     } catch (e) { alert(e.message); }

@@ -6,6 +6,7 @@ import { logisticsApi } from '../../api/logisticsApi';
 import { poApi } from '../../api/poApi';
 import DataTable from '../../components/tables/DataTable';
 import DocketTrackingPage from './DocketTrackingPage';
+import { dataEvents } from '../../utils/dataEvents';
 
 // ── Style constants ───────────────────────────────────────────────────────────
 const inp = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]';
@@ -109,6 +110,7 @@ function DispatchTab({ vehicles }) {
       toast('Dispatch created successfully');
       setShowModal(false);
       setForm(EMPTY_DISPATCH);
+      dataEvents.emit('logistics:changed');
       load();
     } catch (e) { toast(e.message || 'Failed to create dispatch', 'error'); }
     finally { setSaving(false); }
@@ -119,6 +121,7 @@ function DispatchTab({ vehicles }) {
     try {
       await logisticsApi.deleteDispatch(id);
       toast('Dispatch deleted');
+      dataEvents.emit('logistics:changed');
       load();
     } catch { toast('Failed to delete', 'error'); }
   };
@@ -127,6 +130,7 @@ function DispatchTab({ vehicles }) {
     try {
       await logisticsApi.updateDispatchStatus(id, { status });
       toast(`Status updated to ${status}`);
+      dataEvents.emit('logistics:changed');
       load();
     } catch { toast('Failed to update status', 'error'); }
   };
@@ -303,6 +307,7 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
       toast('Vehicle added successfully');
       setShowModal(false);
       setForm(EMPTY_VEHICLE);
+      dataEvents.emit('logistics:changed');
       onRefresh();
     } catch (e) { toast(e.message || 'Failed to add vehicle', 'error'); }
     finally { setSaving(false); }
@@ -321,6 +326,7 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
     try {
       await logisticsApi.deleteVehicle(id);
       toast('Vehicle deleted');
+      dataEvents.emit('logistics:changed');
       onRefresh();
     } catch { toast('Failed to delete vehicle', 'error'); }
   };
@@ -759,6 +765,7 @@ function CourierTab() {
       toast('Shipment created successfully');
       setShowModal(false);
       setForm(EMPTY_SHIPMENT);
+      dataEvents.emit('logistics:changed');
       load();
     } catch (e) { toast(e.message || 'Failed to create shipment', 'error'); }
     finally { setSaving(false); }
@@ -769,6 +776,7 @@ function CourierTab() {
     try {
       await logisticsApi.deleteShipment(id);
       toast('Shipment deleted');
+      dataEvents.emit('logistics:changed');
       load();
     } catch { toast('Failed to delete', 'error'); }
   };
@@ -777,6 +785,7 @@ function CourierTab() {
     try {
       await logisticsApi.updateShipment(id, { status });
       toast(`Status → ${status}`);
+      dataEvents.emit('logistics:changed');
       load();
     } catch { toast('Failed to update', 'error'); }
   };
@@ -789,6 +798,7 @@ function CourierTab() {
       toast('POD submitted successfully');
       setPodModal(null);
       setPodForm({ receivedBy:'', deliveredAt:'' });
+      dataEvents.emit('logistics:changed');
       load();
     } catch { toast('Failed to submit POD', 'error'); }
     finally { setPodSaving(false); }

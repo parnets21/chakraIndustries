@@ -4,6 +4,7 @@ import StatusBadge from '../../components/common/StatusBadge';
 import { qualityCheckApi } from '../../api/qualityCheckApi';
 import { useAuth } from '../../auth/AuthContext';
 import { MdVerifiedUser, MdCheckCircle, MdCancel, MdHourglassEmpty, MdSearch } from 'react-icons/md';
+import { useDataEvent } from '../../utils/dataEvents';
 
 
 const inp = {
@@ -35,6 +36,7 @@ export default function QualityCheckPage() {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+  useDataEvent('qc:changed', fetchAll);
 
   const selectQC = async (qc) => {
     setSelectedQC(qc);
@@ -64,6 +66,7 @@ export default function QualityCheckPage() {
         remarks: batchRemarks,
       });
       setSelectedQC(res.data);
+      dataEvents.emit('qc:changed');
       await fetchAll();
     } catch (e) { alert(e.message); }
     finally { setSaving(false); }

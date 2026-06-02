@@ -17,6 +17,14 @@ const authHeaders = () => {
 };
 
 const handle = async (res) => {
+  if (res.status === 401) {
+    localStorage.removeItem('chakra_token');
+    localStorage.removeItem('chakra_user');
+    sessionStorage.removeItem('chakra_token');
+    sessionStorage.removeItem('chakra_user');
+    window.location.href = '/login';
+    throw new Error('Unauthorized – please log in again');
+  }
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Request failed');
   return data;

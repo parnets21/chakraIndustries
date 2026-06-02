@@ -1,64 +1,40 @@
-import axios from 'axios';
+const BASE = import.meta.env.VITE_API_URL || 'https://chakraindustries-backend.onrender.com/api';
+const API_URL = `${BASE}/brand-orders`;
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const getToken = () =>
+  localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
 
-// Create Brand Order
-export const createBrandOrder = async (data) => {
-  try {
-    const response = await axios.post(`${API_BASE_URL}/brand-orders`, data);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
+const authHeaders = () => ({
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${getToken()}`,
+});
+
+const handle = async (res) => {
+  const d = await res.json();
+  if (!res.ok) throw new Error(d.message || 'Request failed');
+  return d;
 };
 
-// Get all Brand Orders
-export const getBrandOrders = async (filters = {}) => {
-  try {
-    const params = new URLSearchParams(filters).toString();
-    const response = await axios.get(`${API_BASE_URL}/brand-orders${params ? `?${params}` : ''}`);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
+export const createBrandOrder = (data) =>
+  fetch(API_URL, { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }).then(handle);
+
+export const getBrandOrders = (filters = {}) => {
+  const params = new URLSearchParams(filters).toString();
+  return fetch(`${API_URL}${params ? `?${params}` : ''}`, { headers: authHeaders() }).then(handle);
 };
 
-// Get Brand Order by ID
-export const getBrandOrderById = async (id) => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/brand-orders/${id}`);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-};
+export const getBrandOrderById = (id) =>
+  fetch(`${API_URL}/${id}`, { headers: authHeaders() }).then(handle);
 
-// Update Brand Order
-export const updateBrandOrder = async (id, data) => {
-  try {
-    const response = await axios.put(`${API_BASE_URL}/brand-orders/${id}`, data);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-};
+export const updateBrandOrder = (id, data) =>
+  fetch(`${API_URL}/${id}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(data) }).then(handle);
 
-// Approve Brand Order
-export const approveBrandOrder = async (id, approvalStatus) => {
-  try {
-    const response = await axios.post(`${API_BASE_URL}/brand-orders/${id}/approve`, { approvalStatus });
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-};
+export const approveBrandOrder = (id, approvalStatus) =>
+  fetch(`${API_URL}/${id}/approve`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ approvalStatus }),
+  }).then(handle);
 
-// Cancel Brand Order
-export const cancelBrandOrder = async (id) => {
-  try {
-    const response = await axios.post(`${API_BASE_URL}/brand-orders/${id}/cancel`);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-};
+export const cancelBrandOrder = (id) =>
+  fetch(`${API_URL}/${id}/cancel`, { method: 'POST', headers: authHeaders() }).then(handle);

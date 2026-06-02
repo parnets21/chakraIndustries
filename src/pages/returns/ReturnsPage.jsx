@@ -12,7 +12,9 @@ import Modal from '../../components/common/Modal';
 import DocketTrackingPage from './DocketTrackingPage';
 import WarehouseReceivePage from './WarehouseReceivePage';
 import DebitCreditMatchingPage from './DebitCreditMatchingPage';
+import MaterialReturnsPage from './MaterialReturnsPage';
 import ProfessionalLossTrackingPage from './ProfessionalLossTrackingPage';
+import { dataEvents } from '../../utils/dataEvents';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const RETURN_TYPES = ['Sales Return', 'Purchase Return', 'Damaged Return', 'Replacement Return'];
@@ -881,7 +883,6 @@ export default function ReturnsPage({ initialTab = 0 }) {
       setReturns([]);
     } finally { setLoading(false); }
   };
-
   const loadInvoices = async () => {
     try {
       const res = await invoiceApi.getAll({ limit: 0 }); // 0 = fetch all
@@ -913,6 +914,7 @@ export default function ReturnsPage({ initialTab = 0 }) {
       const created = normalizeReturn(res.data);
       setReturns(prev => [created, ...prev]);
       toast(`Return ${created.mrId} created`, 'success');
+      dataEvents.emit('return:changed');
       setShowCreate(false);
     } catch (e) {
       toast(e.message || 'Create failed', 'error');
@@ -928,11 +930,13 @@ export default function ReturnsPage({ initialTab = 0 }) {
         const updated = normalizeReturn(res.data);
         setReturns(prev => prev.map(r => r.mrId === mrId ? updated : r));
         toast(`Stage updated to ${newStage.replace(/_/g,' ')}`, 'success');
+        dataEvents.emit('return:changed');
         return;
       } catch (e) { toast(e.message || 'Stage update failed', 'error'); return; }
     }
     setReturns(prev => prev.map(r => r.mrId === mrId ? { ...r, stage: newStage } : r));
     toast(`Stage updated to ${newStage.replace(/_/g,' ')}`, 'success');
+    dataEvents.emit('return:changed');
   };
 
   const handleDelete = async (mrId) => {
@@ -941,6 +945,7 @@ export default function ReturnsPage({ initialTab = 0 }) {
       if (record?._id) await materialReturnApi.delete(record._id);
       setReturns(prev => prev.filter(r => r.mrId !== mrId));
       toast('Return deleted', 'success');
+      dataEvents.emit('return:changed');
     } catch (e) { toast(e.message || 'Delete failed', 'error'); }
   };
 
@@ -953,7 +958,7 @@ export default function ReturnsPage({ initialTab = 0 }) {
       {activeTab === 4 && <WarehouseReceivePage />}
       {activeTab === 5 && <QCTab returns={returns} onStageMove={handleStageMove} />}
       {activeTab === 6 && <DebitCreditMatchingPage />}
-      {activeTab === 7 && <DebitCreditMatchingPage />}
+      {activeTab === 7 && <MaterialReturnsPage />}
       {activeTab === 8 && <ProfessionalLossTrackingPage />}
 
       <CreateReturnModal

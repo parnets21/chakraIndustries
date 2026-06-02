@@ -98,18 +98,25 @@ export default function TallyPage({ initialTab = 0 }) {
     finally { setSyncing(false); }
   };
 
+  const [diagInfo, setDiagInfo] = useState(null);   // stores last test-connection result
+
   const handleTestConnection = async () => {
+    setDiagInfo(null);
     try {
       const r = await tallyApi.testConnection();
-      const status = r.data?.status;
-      const url = r.data?.url;
-      setStats(prev => ({ ...prev, connectionStatus: status }));
-      if (status === 'Connected') {
-        toast(`Connected to Tally at ${url || config.serverUrl}`, 'success');
+      const d = r.data || {};
+      setDiagInfo(d);
+
+      if (d.status === 'Connected') {
+        setStats(prev => ({ ...prev, connectionStatus: 'Connected' }));
+        toast(`✅ Connected — POST ${d.url} → HTTP ${d.httpStatus || '200'}`, 'success');
       } else {
-        toast(r.message || 'Tally is not reachable.', 'error');
+        setStats(prev => ({ ...prev, connectionStatus: 'Disconnected' }));
+        toast(`❌ ${d.error || 'Tally not reachable'}`, 'error');
       }
-    } catch (e) { toast(e.message || 'Connection test failed', 'error'); }
+    } catch (e) {
+      toast(e.message || 'Connection test failed', 'error');
+    }
   };
 
   const handleSaveConfig = async () => {
@@ -427,6 +434,38 @@ export default function TallyPage({ initialTab = 0 }) {
               <button onClick={handleTestConnection} className={btnOutline}>Test Connection</button>
               <button onClick={handleSaveConfig} className={btnPrimary}>Save Configuration</button>
             </div>
+
+            {/* ── Diagnostics panel — shown after Test Connection ── */}
+            {diagInfo && (
+              <div style={{ marginTop: 14, padding: '12px 14px', borderRadius: 10,
+                background: diagInfo.status === 'Connected' ? '#f0fdf4' : '#fef2f2',
+                border: `1px solid ${diagInfo.status === 'Connected' ? '#86efac' : '#fecaca'}` }}>
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8,
+                  color: diagInfo.status === 'Connected' ? '#166534' : '#dc2626' }}>
+                  {diagInfo.status === 'Connected' ? '✅ Connected' : '❌ Not Reachable'}
+                </div>
+                <table style={{ fontSize: 11, width: '100%', borderCollapse: 'collapse' }}>
+                  {[
+                    ['URL', diagInfo.url],
+                    ['Method', diagInfo.requestMethod],
+                    ['HTTP Status', diagInfo.httpStatus || '—'],
+                    ['Error', diagInfo.error || '—'],
+                    ['Response preview', diagInfo.responsePreview || '—'],
+                  ].map(([k, v]) => (
+                    <tr key={k} style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                      <td style={{ padding: '3px 8px 3px 0', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap', verticalAlign: 'top', width: 120 }}>{k}</td>
+                      <td style={{ padding: '3px 0', fontFamily: 'monospace', color: '#1e293b', wordBreak: 'break-all' }}>{v}</td>
+                    </tr>
+                  ))}
+                </table>
+                <details style={{ marginTop: 8 }}>
+                  <summary style={{ fontSize: 11, color: '#64748b', cursor: 'pointer' }}>Request body sent to Tally</summary>
+                  <pre style={{ marginTop: 6, fontSize: 10, background: '#1e293b', color: '#94a3b8', padding: 8, borderRadius: 6, overflow: 'auto', maxHeight: 160 }}>
+                    {diagInfo.requestBody}
+                  </pre>
+                </details>
+              </div>
+            )}
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
             <div className="text-sm font-bold text-gray-800 mb-4">Auto-Sync Settings</div>

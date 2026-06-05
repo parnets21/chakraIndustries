@@ -14,6 +14,7 @@ import ItemMasterPage from '../pages/master/ItemMasterPage';
 
 // Procurement
 import VendorsPage             from '../pages/procurement/VendorsPage';
+import ClientsPage             from '../pages/procurement/ClientsPage';
 import RFQPage                 from '../pages/procurement/RFQPage';
 import PurchaseRequisitionPage from '../pages/procurement/PurchaseRequisitionPage';
 import ApprovalsPage           from '../pages/procurement/ApprovalsPage';
@@ -63,6 +64,7 @@ import InvoiceHistoryPage   from '../pages/pogenerator/InvoiceHistoryPage';
 
 // Tally Integration
 import TallySubPage from '../pages/tally/TallySubPage';
+import TallyDataPage from '../pages/tally/TallyDataPage';
 
 // Forecasting
 import ForecastingSubPage from '../pages/forecasting/ForecastingSubPage';
@@ -100,6 +102,7 @@ export default function AppRoutes() {
       {/* Procurement */}
       <Route path="/procurement"              element={<Navigate to="/procurement/vendors" replace />} />
       <Route path="/procurement/vendors"      element={<P element={<VendorsPage />} />} />
+      <Route path="/procurement/clients"      element={<P element={<ClientsPage />} />} />
       <Route path="/procurement/rfq"          element={<P element={<RFQPage />} />} />
       <Route path="/procurement/pr"           element={<P element={<PurchaseRequisitionPage />} />} />
       <Route path="/procurement/approvals"    element={<P element={<ApprovalsPage />} />} />
@@ -121,6 +124,8 @@ export default function AppRoutes() {
       <Route path="/inventory/defective"   element={<P element={<ErrorBoundary><InventorySubPage tab="defective" /></ErrorBoundary>} />} />
       <Route path="/inventory/storage"     element={<P element={<ErrorBoundary><InventorySubPage tab="storage" /></ErrorBoundary>} />} />
       <Route path="/inventory/pincode"     element={<P element={<ErrorBoundary><InventorySubPage tab="pincode" /></ErrorBoundary>} />} />
+      <Route path="/inventory/stock-items" element={<P element={<ErrorBoundary><InventorySubPage tab="stock-items" /></ErrorBoundary>} />} />
+      <Route path="/inventory/returns"     element={<P element={<ErrorBoundary><InventorySubPage tab="returns" /></ErrorBoundary>} />} />
 
       {/* Production */}
       <Route path="/production"             element={<Navigate to="/production/bom" replace />} />
@@ -240,12 +245,18 @@ export default function AppRoutes() {
       <Route path="/tasks/notifs"    element={<P element={<TasksSubPage tab="notifs" />} />} />
 
       {/* Tally Integration */}
-      <Route path="/tally"              element={<Navigate to="/tally/dashboard" replace />} />
-      <Route path="/tally/dashboard"    element={<P element={<TallySubPage tab="dashboard" />} />} />
-      <Route path="/tally/master"       element={<P element={<TallySubPage tab="master" />} />} />
-      <Route path="/tally/transactions" element={<P element={<TallySubPage tab="transactions" />} />} />
+      <Route path="/tally"              element={<Navigate to="/tally/overview" replace />} />
+      <Route path="/tally/overview"     element={<P element={<TallySubPage tab="overview" />} />} />
+      <Route path="/tally/import"       element={<P element={<TallySubPage tab="import" />} />} />
+      <Route path="/tally/export"       element={<P element={<TallySubPage tab="export" />} />} />
+      <Route path="/tally/data"         element={<P element={<TallyDataPage />} />} />
       <Route path="/tally/logs"         element={<P element={<TallySubPage tab="logs" />} />} />
-      <Route path="/tally/config"       element={<P element={<TallySubPage tab="config" />} />} />
+      <Route path="/tally/settings"     element={<P element={<TallySubPage tab="settings" />} />} />
+      {/* legacy routes — redirect to new paths */}
+      <Route path="/tally/dashboard"    element={<Navigate to="/tally/overview" replace />} />
+      <Route path="/tally/master"       element={<Navigate to="/tally/import" replace />} />
+      <Route path="/tally/transactions" element={<Navigate to="/tally/export" replace />} />
+      <Route path="/tally/config"       element={<Navigate to="/tally/settings" replace />} />
 
       <Route path="/settings"       element={<P element={<SettingsPage />} />} />
       <Route path="/settings/roles" element={<P element={<RolePermissionsPage />} />} />

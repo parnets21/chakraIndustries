@@ -1,106 +1,159 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
-import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
 import { toast } from '../../components/common/Toast';
 import CreditNoteTrackerEnhanced from './components/CreditNoteTrackerEnhanced';
+import { accountsLedgerApi } from '../../api/accountsLedgerApi';
+import { tallyApi } from '../../api/tallyApi';
 
 const tabs = ['Ledger', 'BRS', 'Payments', 'Credit / Debit Notes', 'Ledger Matching'];
 
-const brsUnmatched = [
-  { id: 'BRS-U01', date: '14 Apr', bankDesc: 'NEFT Credit — Unknown Party', bankAmt: '₹1,20,000', ledgerRef: '—', ledgerAmt: '—', diff: '₹1,20,000', status: 'Unmatched' },
-  { id: 'BRS-U02', date: '13 Apr', bankDesc: 'Cheque Debit — 004521', bankAmt: '₹45,000', ledgerRef: '—', ledgerAmt: '—', diff: '₹45,000', status: 'Unmatched' },
-  { id: 'BRS-U03', date: '12 Apr', bankDesc: 'RTGS Credit — Eicher Motors', bankAmt: '₹3,80,000', ledgerRef: 'INV-2024-086', ledgerAmt: '₹3,80,000', diff: '₹0', status: 'Matched' },
-];
+const th = 'bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap';
+const td = 'px-4 py-3 text-gray-800 align-middle';
+const tr = 'border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors';
 
-const brsMatched = [
-  { bank: 'NEFT Credit — Tata Motors', bankAmt: '₹2,84,000', ledger: 'INV-2024-089', ledgerAmt: '₹2,84,000', date: '14 Apr', status: 'Matched' },
-  { bank: 'RTGS Debit — Shree Metals', bankAmt: '₹4,95,600', ledger: 'PO-2024-089', ledgerAmt: '₹4,95,600', date: '14 Apr', status: 'Matched' },
-  { bank: 'NEFT Credit — Mahindra', bankAmt: '₹1,56,000', ledger: 'INV-2024-088', ledgerAmt: '₹1,56,000', date: '13 Apr', status: 'Matched' },
-];
+const primaryBtn = {
+  display: 'inline-flex', alignItems: 'center', gap: 6,
+  padding: '8px 16px', borderRadius: 10,
+  background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
+  color: '#fff', border: 'none', cursor: 'pointer',
+  fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+  boxShadow: '0 3px 10px rgba(185,28,28,0.3)',
+};
+const outlineBtn = {
+  display: 'inline-flex', alignItems: 'center', gap: 6,
+  padding: '8px 16px', borderRadius: 10,
+  background: 'transparent', color: '#c0392b',
+  border: '1.5px solid #c0392b', cursor: 'pointer',
+  fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+};
 
-const ledgerEntries = [
-  { date: '14 Apr', ref: 'INV-2024-089', description: 'Sales — Tata Motors', debit: '', credit: '₹2,84,000', balance: '₹48,20,000' },
-  { date: '14 Apr', ref: 'PO-2024-089', description: 'Purchase — Shree Metals', debit: '₹4,95,600', credit: '', balance: '₹43,24,400' },
-  { date: '13 Apr', ref: 'INV-2024-088', description: 'Sales — Mahindra', debit: '', credit: '₹1,56,000', balance: '₹48,20,000' },
-  { date: '13 Apr', ref: 'PAY-0234', description: 'Payment Received — Bajaj Auto', debit: '', credit: '₹4,12,000', balance: '₹46,64,000' },
-  { date: '12 Apr', ref: 'EXP-0089', description: 'Salary — April 2024', debit: '₹8,40,000', credit: '', balance: '₹42,52,000' },
-];
+function Spinner() {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
+      <div style={{ width: 28, height: 28, border: '3px solid #f1f5f9', borderTop: '3px solid #c0392b', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+}
 
-const bankEntries = [
-  { date: '14 Apr', description: 'NEFT Credit — Tata Motors', amount: '₹2,84,000', type: 'Credit' },
-  { date: '14 Apr', description: 'RTGS Debit — Shree Metals', amount: '₹4,95,600', type: 'Debit' },
-  { date: '13 Apr', description: 'NEFT Credit — Mahindra', amount: '₹1,56,000', type: 'Credit' },
-];
-
-const systemEntries = [
-  { date: '14 Apr', description: 'Invoice INV-2024-089', amount: '₹2,84,000', type: 'Credit' },
-  { date: '14 Apr', description: 'PO Payment PO-2024-089', amount: '₹4,95,600', type: 'Debit' },
-  { date: '13 Apr', description: 'Invoice INV-2024-088', amount: '₹1,56,000', type: 'Credit' },
-];
-
-const payments = [
-  { id: 'PAY-0234', party: 'Bajaj Auto', type: 'Received', amount: '₹4,12,000', mode: 'NEFT', date: '13 Apr', status: 'Completed' },
-  { id: 'PAY-0233', party: 'Shree Metals', type: 'Made', amount: '₹4,95,600', mode: 'RTGS', date: '14 Apr', status: 'Completed' },
-  { id: 'PAY-0232', party: 'Hero MotoCorp', type: 'Received', amount: '₹98,000', mode: 'Cheque', date: '12 Apr', status: 'Pending' },
-];
+function fmt(n) {
+  if (n == null) return '—';
+  return '₹' + Number(n).toLocaleString('en-IN');
+}
 
 export default function FinancePage({ initialTab = 0 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
+
+  // ── Ledger tab state ──────────────────────────────────────────────────────
+  const [ledgers, setLedgers]         = useState([]);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerSearch, setLedgerSearch]   = useState('');
+  const [ledgerGroup, setLedgerGroup]     = useState('');
+
+  // ── Payments tab state ────────────────────────────────────────────────────
+  const [vouchers, setVouchers]           = useState([]);
+  const [voucherLoading, setVoucherLoading] = useState(false);
+  const [voucherType, setVoucherType]     = useState('');
+  const [voucherSearch, setVoucherSearch] = useState('');
+
+  // ── Modal ─────────────────────────────────────────────────────────────────
   const [showPayModal, setShowPayModal] = useState(false);
-  const [ledgerList, setLedgerList] = useState(ledgerEntries);
-  const [paymentList, setPaymentList] = useState(payments);
+  const [payForm, setPayForm] = useState({ partyName: '', voucherType: 'Receipt', amount: '', narration: '', voucherDate: '' });
+  const [saving, setSaving] = useState(false);
 
-  const handleSaveEntry = () => {
-    const labels = ['Ledger entry', 'BRS statement', 'Payment', 'Credit/Debit note', 'Ledger match'];
-    toast(`${labels[activeTab] || 'Entry'} saved`);
-    setShowPayModal(false);
-  };
+  // ── KPI summary ───────────────────────────────────────────────────────────
+  const totalDebtors  = ledgers.filter(l => l.ledgerGroup === 'Sundry Debtors').reduce((s, l) => s + (l.currentBalance || l.openingBalance || 0), 0);
+  const totalCreditors = ledgers.filter(l => l.ledgerGroup === 'Sundry Creditors').reduce((s, l) => s + (l.currentBalance || l.openingBalance || 0), 0);
+  const totalReceipts  = vouchers.filter(v => v.voucherType === 'Receipt').reduce((s, v) => s + (v.amount || 0), 0);
+  const totalPayments  = vouchers.filter(v => v.voucherType === 'Payment').reduce((s, v) => s + (v.amount || 0), 0);
 
-  const handleAutoMatch = () => {
-    toast('Auto-match completed — 3 entries matched', 'success');
-  };
+  // ── Load ledgers ──────────────────────────────────────────────────────────
+  const loadLedgers = useCallback(async () => {
+    setLedgerLoading(true);
+    try {
+      const params = {};
+      if (ledgerSearch.trim()) params.search = ledgerSearch.trim();
+      if (ledgerGroup) params.ledgerGroup = ledgerGroup; // not a direct filter but passed for future use
+      const res = await accountsLedgerApi.getAll(params);
+      let data = res.data || [];
+      if (ledgerGroup) data = data.filter(l => l.ledgerGroup === ledgerGroup);
+      setLedgers(data);
+    } catch (e) {
+      toast(e.message || 'Failed to load ledgers', 'error');
+    } finally {
+      setLedgerLoading(false);
+    }
+  }, [ledgerSearch, ledgerGroup]);
 
-  const handleUploadStatement = () => {
-    toast('Upload feature coming soon', 'info');
-  };
+  // ── Load vouchers ─────────────────────────────────────────────────────────
+  const loadVouchers = useCallback(async () => {
+    setVoucherLoading(true);
+    try {
+      const params = {};
+      if (voucherType) params.type = voucherType;
+      if (voucherSearch.trim()) params.partyName = voucherSearch.trim();
+      const res = await tallyApi.getVouchers(params);
+      setVouchers(res.data || []);
+    } catch (e) {
+      toast(e.message || 'Failed to load vouchers', 'error');
+    } finally {
+      setVoucherLoading(false);
+    }
+  }, [voucherType, voucherSearch]);
 
-  const primaryBtn = {
-    display:'inline-flex', alignItems:'center', gap:6,
-    padding:'8px 16px', borderRadius:10,
-    background:'linear-gradient(135deg,#ef4444,#b91c1c)',
-    color:'#fff', border:'none', cursor:'pointer',
-    fontSize:13, fontWeight:600, fontFamily:'inherit',
-    boxShadow:'0 3px 10px rgba(185,28,28,0.3)',
-  };
-  const outlineBtn = {
-    display:'inline-flex', alignItems:'center', gap:6,
-    padding:'8px 16px', borderRadius:10,
-    background:'transparent', color:'#c0392b',
-    border:'1.5px solid #c0392b', cursor:'pointer',
-    fontSize:13, fontWeight:600, fontFamily:'inherit',
+  // Load on tab switch
+  useEffect(() => { if (activeTab === 0) loadLedgers(); }, [activeTab, loadLedgers]);
+  useEffect(() => { if (activeTab === 2) loadVouchers(); }, [activeTab, loadVouchers]);
+
+  // ── Save voucher ──────────────────────────────────────────────────────────
+  const handleSaveVoucher = async () => {
+    if (!payForm.partyName || !payForm.amount) {
+      toast('Party name and amount are required', 'error');
+      return;
+    }
+    setSaving(true);
+    try {
+      await tallyApi.createVoucher({ ...payForm, amount: Number(payForm.amount), source: 'ERP' });
+      toast('Voucher created — will sync to Tally on next sync', 'success');
+      setShowPayModal(false);
+      setPayForm({ partyName: '', voucherType: 'Receipt', amount: '', narration: '', voucherDate: '' });
+      loadVouchers();
+    } catch (e) {
+      toast(e.message || 'Failed to save', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const kpis = [
-    { label: 'Total Revenue', value: '₹48.2L', color: '#10b981' },
-    { label: 'Total Expenses', value: '₹32.1L', color: '#ef4444' },
-    { label: 'Net Profit', value: '₹16.1L', color: '#3b82f6' },
-    { label: 'Receivables', value: '₹8.4L', color: '#f59e0b' },
+    { label: 'Total Receivables',  value: fmt(totalDebtors),   color: '#10b981' },
+    { label: 'Total Payables',     value: fmt(totalCreditors),  color: '#ef4444' },
+    { label: 'Total Receipts',     value: fmt(totalReceipts),   color: '#3b82f6' },
+    { label: 'Total Payments Out', value: fmt(totalPayments),   color: '#f59e0b' },
   ];
 
   return (
     <div>
-      {/* Action Bar */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, marginBottom:20, flexWrap:'wrap' }}>
-        {activeTab === 0 && <button onClick={() => setShowPayModal(true)} style={primaryBtn}>+ Add Entry</button>}
-        {activeTab === 1 && <button onClick={handleUploadStatement} style={outlineBtn}>⬆ Upload Statement</button>}
-        {activeTab === 2 && <button onClick={() => setShowPayModal(true)} style={primaryBtn}>+ Add Payment</button>}
-        {activeTab === 3 && <>
-          <button onClick={() => setShowPayModal(true)} style={outlineBtn}>+ Debit Note</button>
-          <button onClick={() => setShowPayModal(true)} style={primaryBtn}>+ Credit Note</button>
-        </>}
-        {activeTab === 4 && <button onClick={handleAutoMatch} style={outlineBtn}>Run Auto-Match</button>}
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid #f1f5f9', flexWrap: 'wrap' }}>
+        {tabs.map((t, i) => (
+          <button key={i} onClick={() => setActiveTab(i)} style={{
+            padding: '8px 18px', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+            border: 'none', background: 'none', cursor: 'pointer', borderRadius: '8px 8px 0 0',
+            color: activeTab === i ? '#c0392b' : '#64748b',
+            borderBottom: activeTab === i ? '2px solid #c0392b' : '2px solid transparent',
+            marginBottom: -2,
+          }}>{t}</button>
+        ))}
       </div>
+
+      {/* Action bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+        {activeTab === 2 && <button onClick={() => setShowPayModal(true)} style={primaryBtn}>+ Add Voucher</button>}
+      </div>
+
+      {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         {kpis.map((k, i) => (
           <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:-translate-y-1 hover:shadow-lg transition-all">
@@ -110,223 +163,251 @@ export default function FinancePage({ initialTab = 0 }) {
         ))}
       </div>
 
+      {/* ── Tab 0: Ledger ─────────────────────────────────────────────────────── */}
       {activeTab === 0 && (
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="text-sm font-bold text-gray-800 mb-3.5">General Ledger</div>
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
-            <table className="w-full">
-              <thead>
-                <tr>
-                  {['Date','Reference','Description','Debit (₹)','Credit (₹)','Balance'].map(h => (
-                    <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {ledgerEntries.map((e, i) => (
-                  <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
-                    <td className="px-4 py-3 text-gray-800 align-middle">{e.date}</td>
-                    <td className="px-4 py-3 text-gray-800 align-middle font-semibold text-red-700">{e.ref}</td>
-                    <td className="px-4 py-3 text-gray-800 align-middle">{e.description}</td>
-                    <td className={`px-4 py-3 align-middle ${e.debit ? 'text-red-500 font-semibold' : 'text-gray-800'}`}>{e.debit || '—'}</td>
-                    <td className={`px-4 py-3 align-middle ${e.credit ? 'text-green-600 font-semibold' : 'text-gray-800'}`}>{e.credit || '—'}</td>
-                    <td className="px-4 py-3 text-gray-800 align-middle font-bold">{e.balance}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 1 && (
-        <div>
-          {/* Upload + Auto-match controls */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="md:col-span-2 bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-              <div className="text-sm font-bold text-gray-800 mb-3">Upload Bank Statement</div>
-              <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center bg-gray-50 mb-3 cursor-pointer hover:border-red-300 transition-colors">
-                <div className="text-3xl mb-1">📄</div>
-                <div className="font-semibold text-sm text-gray-700">Drag & drop bank statement or click to browse</div>
-                <div className="text-xs text-gray-400 mt-1">CSV, XLS, PDF — Max 10MB</div>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => alert('⚡ Running auto-match algorithm...')} className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]">
-                  ⚡ Auto-Match with Ledger
-                </button>
-                <button onClick={() => alert('📊 Exporting BRS report...')} className="px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]">
-                  Export BRS
-                </button>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+            <div>
+              <div className="text-sm font-bold text-gray-800">Accounts Ledger</div>
+              <div className="text-xs text-gray-400 mt-0.5">
+                {ledgers.length} ledger{ledgers.length !== 1 ? 's' : ''} — synced from Tally
               </div>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-              <div className="text-sm font-bold text-gray-800 mb-3">BRS Summary</div>
-              {[
-                { label: 'Bank Balance', value: '₹43,24,400', color: 'text-green-600' },
-                { label: 'System Balance', value: '₹43,24,400', color: 'text-blue-600' },
-                { label: 'Matched Entries', value: '3', color: 'text-green-600' },
-                { label: 'Unmatched', value: '2', color: 'text-red-500' },
-              ].map((item, i) => (
-                <div key={i} className="flex justify-between py-2 border-b border-gray-100 last:border-0 text-sm">
-                  <span className="text-gray-500">{item.label}</span>
-                  <span className={`font-bold ${item.color}`}>{item.value}</span>
-                </div>
-              ))}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <input
+                placeholder="Search name / GST..."
+                value={ledgerSearch}
+                onChange={e => setLedgerSearch(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && loadLedgers()}
+                style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'inherit', outline: 'none', width: 200 }}
+              />
+              <select
+                value={ledgerGroup}
+                onChange={e => setLedgerGroup(e.target.value)}
+                style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+              >
+                <option value="">All Groups</option>
+                <option value="Sundry Debtors">Sundry Debtors</option>
+                <option value="Sundry Creditors">Sundry Creditors</option>
+                <option value="Cash">Cash</option>
+                <option value="Bank">Bank</option>
+              </select>
+              <button onClick={loadLedgers} style={outlineBtn}>🔍 Search</button>
             </div>
           </div>
 
-          {/* Unmatched transactions */}
-          <div className="bg-white rounded-2xl border border-red-200 p-5 shadow-sm mb-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <div className="text-sm font-bold text-red-700">⚠ Unmatched Transactions</div>
-                <div className="text-xs text-gray-400 mt-0.5">Transactions in bank statement not found in ledger</div>
-              </div>
-              <button onClick={() => alert('✓ Resolving all unmatched transactions...')} className="px-3 py-1.5 text-xs rounded-lg bg-red-600 text-white font-semibold border-0 cursor-pointer font-[inherit]">Resolve All</button>
+          {ledgerLoading ? <Spinner /> : ledgers.length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>
+              No ledgers found. Sync from Tally to populate this list.
             </div>
+          ) : (
             <div className="overflow-x-auto rounded-xl border border-gray-200">
-              <table className="w-full">
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
-                  <tr>{['ID', 'Date', 'Bank Description', 'Bank Amount', 'Ledger Ref', 'Ledger Amount', 'Difference', 'Status', 'Action'].map(h => (
-                    <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
-                  ))}</tr>
+                  <tr>
+                    {['Ledger Code', 'Name', 'Group', 'Type', 'GST No.', 'Opening Bal.', 'Current Bal.', 'Tally Synced', 'Last Sync'].map(h => (
+                      <th key={h} className={th}>{h}</th>
+                    ))}
+                  </tr>
                 </thead>
                 <tbody>
-                  {brsUnmatched.map((row, i) => (
-                    <tr key={i} className={`border-b border-gray-50 last:border-0 transition-colors ${row.status === 'Unmatched' ? 'bg-red-50/30' : 'bg-green-50/20'}`}>
-                      <td className="px-4 py-3 align-middle font-mono text-xs text-red-700">{row.id}</td>
-                      <td className="px-4 py-3 align-middle text-gray-500">{row.date}</td>
-                      <td className="px-4 py-3 align-middle font-semibold">{row.bankDesc}</td>
-                      <td className="px-4 py-3 align-middle font-bold text-green-600">{row.bankAmt}</td>
-                      <td className="px-4 py-3 align-middle font-mono text-xs">{row.ledgerRef}</td>
-                      <td className="px-4 py-3 align-middle font-bold">{row.ledgerAmt}</td>
-                      <td className={`px-4 py-3 align-middle font-extrabold ${row.diff === '₹0' ? 'text-green-600' : 'text-red-500'}`}>{row.diff}</td>
-                      <td className="px-4 py-3 align-middle"><StatusBadge status={row.status} type={row.status === 'Matched' ? 'success' : 'danger'} /></td>
-                      <td className="px-4 py-3 align-middle">
-                        {row.status === 'Unmatched' ? (
-                          <div className="flex gap-1">
-                            <button onClick={() => alert(`✓ Matched ${row.id}`)} className="px-2 py-1 text-[11px] rounded bg-green-100 text-green-800 font-semibold border-0 cursor-pointer font-[inherit]">Match</button>
-                            <button onClick={() => alert(`⊘ Ignored ${row.id}`)} className="px-2 py-1 text-[11px] rounded bg-gray-100 text-gray-700 font-semibold border-0 cursor-pointer font-[inherit]">Ignore</button>
-                          </div>
-                        ) : <span className="text-green-600 text-xs font-bold">✓ Confirmed</span>}
+                  {ledgers.map((l, i) => (
+                    <tr key={l._id || i} className={tr}>
+                      <td className={td} style={{ fontFamily: 'monospace', fontWeight: 700, color: '#c0392b', fontSize: 11 }}>{l.ledgerCode}</td>
+                      <td className={td} style={{ fontWeight: 600 }}>{l.ledgerName}</td>
+                      <td className={td}>
+                        <span style={{
+                          fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
+                          background: l.ledgerGroup === 'Sundry Debtors' ? '#dbeafe' : l.ledgerGroup === 'Sundry Creditors' ? '#fce7f3' : '#f1f5f9',
+                          color: l.ledgerGroup === 'Sundry Debtors' ? '#1e40af' : l.ledgerGroup === 'Sundry Creditors' ? '#9d174d' : '#475569',
+                        }}>{l.ledgerGroup || '—'}</span>
+                      </td>
+                      <td className={td} style={{ fontSize: 12, color: '#475569' }}>{l.ledgerType || '—'}</td>
+                      <td className={td} style={{ fontFamily: 'monospace', fontSize: 12 }}>{l.gstNumber || '—'}</td>
+                      <td className={td} style={{ fontWeight: 600, color: (l.openingBalance || 0) >= 0 ? '#10b981' : '#ef4444' }}>
+                        {fmt(l.openingBalance)}
+                      </td>
+                      <td className={td} style={{ fontWeight: 700, color: (l.currentBalance || 0) >= 0 ? '#10b981' : '#ef4444' }}>
+                        {fmt(l.currentBalance)}
+                        {l.balanceType && <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 600, color: '#94a3b8' }}>{l.balanceType}</span>}
+                      </td>
+                      <td className={td}>
+                        <StatusBadge status={l.syncedWithTally ? 'Synced' : 'Pending'} type={l.syncedWithTally ? 'success' : 'warning'} />
+                      </td>
+                      <td className={td} style={{ fontSize: 11, color: '#94a3b8' }}>
+                        {l.lastTallySync ? new Date(l.lastTallySync).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
+          )}
+        </div>
+      )}
 
-          {/* Matched transactions */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[
-              { title: 'Bank Statement', entries: bankEntries, titleColor: 'text-red-700', balanceColor: 'text-green-600', balanceBg: 'bg-green-50', balance: '₹43,24,400', balanceLabel: 'Bank Balance' },
-              { title: 'System Records', entries: systemEntries, titleColor: 'text-amber-500', balanceColor: 'text-amber-500', balanceBg: 'bg-amber-50', balance: '₹43,24,400', balanceLabel: 'System Balance' }
-            ].map((section, si) => (
-              <div key={si} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-                <div className={`text-sm font-bold mb-3.5 ${section.titleColor}`}>{section.title}</div>
-                <div className="overflow-x-auto rounded-xl border border-gray-200">
-                  <table className="w-full">
-                    <thead>
-                      <tr>
-                        {['Date','Description','Amount','Type'].map(h => (
-                          <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {section.entries.map((e, i) => (
-                        <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
-                          <td className="px-4 py-3 text-gray-800 align-middle">{e.date}</td>
-                          <td className="px-4 py-3 text-gray-800 align-middle">{e.description}</td>
-                          <td className={`px-4 py-3 align-middle font-bold ${e.type === 'Credit' ? 'text-green-600' : 'text-red-500'}`}>{e.amount}</td>
-                          <td className="px-4 py-3 text-gray-800 align-middle"><StatusBadge status={e.type} type={e.type === 'Credit' ? 'success' : 'danger'} /></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className={`mt-3.5 p-3 rounded-lg flex justify-between ${section.balanceBg}`}>
-                  <span className="font-semibold text-sm">{section.balanceLabel}</span>
-                  <span className={`font-extrabold text-sm ${section.balanceColor}`}>{section.balance}</span>
-                </div>
-              </div>
-            ))}
+      {/* ── Tab 1: BRS ────────────────────────────────────────────────────────── */}
+      {activeTab === 1 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+          <div className="text-sm font-bold text-gray-800 mb-1">Bank Reconciliation Statement</div>
+          <div className="text-xs text-gray-400 mb-4">Upload your bank statement to reconcile with ERP ledger entries</div>
+          <div style={{ border: '2px dashed #e2e8f0', borderRadius: 12, padding: '32px 24px', textAlign: 'center', background: '#f8fafc' }}>
+            <div style={{ fontSize: 36, marginBottom: 8 }}>📄</div>
+            <div style={{ fontWeight: 600, fontSize: 14, color: '#334155', marginBottom: 4 }}>Drag & drop bank statement or click to browse</div>
+            <div style={{ fontSize: 12, color: '#94a3b8' }}>CSV, XLS, PDF — Max 10MB</div>
+            <button style={{ ...outlineBtn, marginTop: 16 }} onClick={() => toast('BRS upload coming soon', 'info')}>Upload Statement</button>
           </div>
         </div>
       )}
 
+      {/* ── Tab 2: Payments / Vouchers ────────────────────────────────────────── */}
       {activeTab === 2 && (
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <DataTable
-            columns={[
-              { key: 'id', label: 'Payment ID', render: v => <span className="font-semibold text-red-700">{v}</span> },
-              { key: 'party', label: 'Party' },
-              { key: 'type', label: 'Type', render: v => <StatusBadge status={v} type={v === 'Received' ? 'success' : 'info'} /> },
-              { key: 'amount', label: 'Amount', render: v => <span className="font-bold">{v}</span> },
-              { key: 'mode', label: 'Mode' },
-              { key: 'date', label: 'Date' },
-              { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
-            ]}
-            data={payments}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+            <div>
+              <div className="text-sm font-bold text-gray-800">Payment & Receipt Vouchers</div>
+              <div className="text-xs text-gray-400 mt-0.5">
+                {vouchers.length} voucher{vouchers.length !== 1 ? 's' : ''} — synced from Tally
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <input
+                placeholder="Search party..."
+                value={voucherSearch}
+                onChange={e => setVoucherSearch(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && loadVouchers()}
+                style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'inherit', outline: 'none', width: 180 }}
+              />
+              <select
+                value={voucherType}
+                onChange={e => setVoucherType(e.target.value)}
+                style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+              >
+                <option value="">All Types</option>
+                <option value="Payment">Payment</option>
+                <option value="Receipt">Receipt</option>
+                <option value="Journal">Journal</option>
+              </select>
+              <button onClick={loadVouchers} style={outlineBtn}>🔍 Filter</button>
+              <button onClick={() => setShowPayModal(true)} style={primaryBtn}>+ Add Voucher</button>
+            </div>
+          </div>
+
+          {voucherLoading ? <Spinner /> : vouchers.length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>
+              No vouchers found. They sync automatically when Tally pushes Payment / Receipt data.
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr>
+                    {['Voucher No.', 'Type', 'Party', 'Date', 'Amount', 'Narration', 'Source', 'Synced At'].map(h => (
+                      <th key={h} className={th}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {vouchers.map((v, i) => (
+                    <tr key={v._id || i} className={tr}>
+                      <td className={td} style={{ fontFamily: 'monospace', fontWeight: 700, color: '#c0392b', fontSize: 11 }}>
+                        {v.voucherNumber || '—'}
+                      </td>
+                      <td className={td}>
+                        <StatusBadge
+                          status={v.voucherType}
+                          type={v.voucherType === 'Receipt' ? 'success' : v.voucherType === 'Payment' ? 'danger' : 'info'}
+                        />
+                      </td>
+                      <td className={td} style={{ fontWeight: 600 }}>{v.partyName || v.partyLedgerName || '—'}</td>
+                      <td className={td} style={{ fontSize: 12, color: '#475569' }}>
+                        {v.voucherDate ? new Date(v.voucherDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                      </td>
+                      <td className={td} style={{ fontWeight: 700, color: v.voucherType === 'Receipt' ? '#10b981' : '#ef4444' }}>
+                        {fmt(v.amount)}
+                      </td>
+                      <td className={td} style={{ fontSize: 12, color: '#64748b', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {v.narration || '—'}
+                      </td>
+                      <td className={td}>
+                        <span style={{
+                          fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
+                          background: v.source === 'Tally' ? '#dcfce7' : '#dbeafe',
+                          color: v.source === 'Tally' ? '#166534' : '#1e40af',
+                        }}>{v.source || 'Tally'}</span>
+                      </td>
+                      <td className={td} style={{ fontSize: 11, color: '#94a3b8' }}>
+                        {v.syncedAt ? new Date(v.syncedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
-      {activeTab === 3 && (
-        <CreditNoteTrackerEnhanced />
-      )}
+      {/* ── Tab 3: Credit / Debit Notes ───────────────────────────────────────── */}
+      {activeTab === 3 && <CreditNoteTrackerEnhanced />}
 
+      {/* ── Tab 4: Ledger Matching ────────────────────────────────────────────── */}
       {activeTab === 4 && (
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <div className="text-sm font-bold text-gray-800">Ledger Matching Engine</div>
-              <div className="text-xs text-gray-400 mt-0.5">Auto-match invoices, payments and credit notes</div>
-            </div>
-            <button onClick={() => alert('⚡ Running auto-match algorithm...')} className="px-3 py-1.5 text-xs rounded-lg bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]">Run Auto-Match</button>
-          </div>
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
-            <table className="w-full">
-              <thead><tr>{['Invoice','Party','Invoice Amt','Payment Ref','Payment Amt','Credit Note','Net Balance','Match Status'].map(h => (
-                <th key={h} className="bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap">{h}</th>
-              ))}</tr></thead>
-              <tbody>
-                {[
-                  { inv: 'INV-2024-089', party: 'Tata Motors', invAmt: '₹2,84,000', payRef: 'PAY-0234', payAmt: '₹2,84,000', cn: '—', balance: '₹0', status: 'Matched' },
-                  { inv: 'INV-2024-088', party: 'Mahindra', invAmt: '₹1,56,000', payRef: 'PAY-0231', payAmt: '₹1,34,000', cn: '—', balance: '₹22,000', status: 'Partial' },
-                  { inv: 'INV-2024-087', party: 'Bajaj Auto', invAmt: '₹4,12,000', payRef: '—', payAmt: '—', cn: '—', balance: '₹4,12,000', status: 'Unmatched' },
-                  { inv: 'INV-2024-075', party: 'Hero MotoCorp', invAmt: '₹98,000', payRef: 'PAY-0228', payAmt: '₹76,000', cn: 'CN-2024-012', balance: '₹0', status: 'Matched' },
-                ].map((r, i) => (
-                  <tr key={i} className="border-b border-gray-50 last:border-0 hover:bg-red-50/40 transition-colors">
-                    <td className="px-4 py-3 align-middle font-semibold text-red-700">{r.inv}</td>
-                    <td className="px-4 py-3 align-middle font-semibold">{r.party}</td>
-                    <td className="px-4 py-3 align-middle font-bold">{r.invAmt}</td>
-                    <td className="px-4 py-3 align-middle font-mono text-xs">{r.payRef}</td>
-                    <td className="px-4 py-3 align-middle font-bold text-green-600">{r.payAmt}</td>
-                    <td className="px-4 py-3 align-middle font-mono text-xs text-green-600">{r.cn}</td>
-                    <td className={`px-4 py-3 align-middle font-extrabold ${r.balance === '₹0' ? 'text-green-600' : 'text-red-500'}`}>{r.balance}</td>
-                    <td className="px-4 py-3 align-middle"><StatusBadge status={r.status} type={r.status === 'Matched' ? 'success' : r.status === 'Partial' ? 'warning' : 'danger'} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="text-sm font-bold text-gray-800 mb-1">Ledger Matching Engine</div>
+          <div className="text-xs text-gray-400 mb-4">Auto-match invoices, payments and credit notes</div>
+          <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>
+            Coming soon — will auto-match Tally vouchers against ERP invoices.
           </div>
         </div>
       )}
 
-      <Modal open={showPayModal} onClose={() => setShowPayModal(false)} title="Add Payment"
-        footer={<>
-          <button className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 text-red-700 bg-transparent rounded-xl text-sm font-semibold hover:bg-red-700 hover:text-white transition-all cursor-pointer font-[inherit]" onClick={() => setShowPayModal(false)}>Cancel</button>
-          <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-br from-red-400 to-red-700 text-white rounded-xl text-sm font-semibold shadow-md hover:-translate-y-px transition-all border-0 cursor-pointer font-[inherit]" onClick={handleSaveEntry}>Save Payment</button>
-        </>}>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Party Name *</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="Customer / Vendor" /></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Payment Type</label><select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]"><option>Received</option><option>Made</option></select></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Amount (₹) *</label><input type="number" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="0.00" /></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Payment Mode</label><select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]"><option>NEFT</option><option>RTGS</option><option>Cheque</option><option>Cash</option></select></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Date</label><input type="date" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 font-[inherit]" /></div>
-          <div className="flex flex-col gap-1.5 mb-4"><label className="text-xs font-semibold text-gray-600">Reference No.</label><input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]" placeholder="UTR / Cheque No." /></div>
+      {/* ── Add Voucher Modal ─────────────────────────────────────────────────── */}
+      <Modal open={showPayModal} onClose={() => setShowPayModal(false)} title="Add Payment / Receipt Voucher">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+          {[
+            { label: 'Party Name *', key: 'partyName', type: 'text', placeholder: 'Customer / Vendor' },
+            { label: 'Amount (₹) *', key: 'amount', type: 'number', placeholder: '0.00' },
+            { label: 'Date', key: 'voucherDate', type: 'date', placeholder: '' },
+          ].map(({ label, key, type, placeholder }) => (
+            <div key={key}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', display: 'block', marginBottom: 6 }}>{label}</label>
+              <input
+                type={type}
+                value={payForm[key]}
+                onChange={e => setPayForm(p => ({ ...p, [key]: e.target.value }))}
+                placeholder={placeholder}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+          ))}
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', display: 'block', marginBottom: 6 }}>Voucher Type</label>
+            <select
+              value={payForm.voucherType}
+              onChange={e => setPayForm(p => ({ ...p, voucherType: e.target.value }))}
+              style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+            >
+              <option value="Receipt">Receipt</option>
+              <option value="Payment">Payment</option>
+              <option value="Journal">Journal</option>
+            </select>
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', display: 'block', marginBottom: 6 }}>Narration</label>
+            <input
+              value={payForm.narration}
+              onChange={e => setPayForm(p => ({ ...p, narration: e.target.value }))}
+              placeholder="Optional note"
+              style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+            />
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button onClick={() => setShowPayModal(false)} style={{ ...outlineBtn, padding: '8px 20px' }}>Cancel</button>
+          <button onClick={handleSaveVoucher} disabled={saving} style={{ ...primaryBtn, padding: '8px 20px', opacity: saving ? 0.7 : 1 }}>
+            {saving ? 'Saving...' : 'Save Voucher'}
+          </button>
         </div>
       </Modal>
     </div>

@@ -468,8 +468,8 @@ export default function Navbar({ activePage, onMenuClick, isMobile }) {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                       <span style={{ fontSize: 20 }}>📊</span>
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Tally Sync</div>
-                        <div style={{ fontSize: 10, color: '#64748b' }}>Bidirectional • ERP ↔ Tally</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Tally Integration</div>
+                        <div style={{ fontSize: 10, color: '#64748b' }}>Import ← Tally &nbsp;|&nbsp; Export → Tally</div>
                       </div>
                     </div>
                     <span style={{
@@ -544,57 +544,73 @@ export default function Navbar({ activePage, onMenuClick, isMobile }) {
                   </div>
                 )}
 
-                {/* ── Sync Now button ── */}
-                <div style={{ padding: '10px 12px 8px' }}>
+                {/* ── Import / Export buttons ── */}
+                <div style={{ padding: '10px 12px 8px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {/* IMPORT */}
                   <button
-                    onClick={handleTallySync}
-                    disabled={tallySyncing}
+                    onClick={() => { navigate('/tally/import'); close(); }}
                     style={{
-                      width: '100%', padding: '9px 0',
-                      background: tallySyncing
-                        ? 'linear-gradient(135deg,#93c5fd,#60a5fa)'
-                        : tallyConnected
-                          ? 'linear-gradient(135deg,#10b981,#059669)'
-                          : 'linear-gradient(135deg,#6b7280,#4b5563)',
-                      color: '#fff', border: 'none', borderRadius: 10,
-                      fontSize: 13, fontWeight: 700,
-                      cursor: tallySyncing ? 'not-allowed' : 'pointer',
-                      fontFamily: 'inherit',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                      boxShadow: tallySyncing || !tallyConnected ? 'none' : '0 2px 8px rgba(16,185,129,0.35)',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+                      padding: '11px 8px',
+                      background: 'linear-gradient(135deg,#22c55e,#15803d)',
+                      color: '#fff', border: 'none', borderRadius: 12,
+                      fontSize: 12, fontWeight: 700,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                      boxShadow: '0 3px 10px rgba(34,197,94,0.35)',
                       transition: 'all .15s',
                     }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(34,197,94,0.45)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 3px 10px rgba(34,197,94,0.35)'; }}
                   >
-                    <MdSync size={15} style={{ animation: tallySyncing ? 'spin 1s linear infinite' : 'none' }} />
-                    {tallySyncing ? 'Syncing with Tally…' : tallyConnected ? '🔄 Sync Now (Full)' : '🔄 Try Sync Anyway'}
+                    <span style={{ fontSize: 22 }}>📥</span>
+                    <span>Import from Tally</span>
+                    <span style={{ fontSize: 10, opacity: 0.82, fontWeight: 500 }}>Tally → ERP</span>
+                  </button>
+
+                  {/* EXPORT */}
+                  <button
+                    onClick={() => { navigate('/tally/export'); close(); }}
+                    style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+                      padding: '11px 8px',
+                      background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)',
+                      color: '#fff', border: 'none', borderRadius: 12,
+                      fontSize: 12, fontWeight: 700,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                      boxShadow: '0 3px 10px rgba(59,130,246,0.35)',
+                      transition: 'all .15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(59,130,246,0.45)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 3px 10px rgba(59,130,246,0.35)'; }}
+                  >
+                    <span style={{ fontSize: 22 }}>📤</span>
+                    <span>Export to Tally</span>
+                    <span style={{ fontSize: 10, opacity: 0.82, fontWeight: 500 }}>ERP → Tally</span>
                   </button>
                 </div>
 
-                {/* ── Quick sync grid (only when connected) ── */}
+                {/* ── Quick entity shortcuts ── */}
                 {tallyConnected && (
                   <div style={{ padding: '0 12px 4px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                     {[
-                      { label: 'Master Data',  type: 'master',      icon: '📦' },
-                      { label: 'Transactions', type: 'transaction',  icon: '💳' },
-                      { label: 'Ledgers',      type: 'Ledger',       icon: '📒' },
-                      { label: 'Invoices',     type: 'Sales',        icon: '🧾' },
+                      { label: 'Import Items',   path: '/tally/import', icon: '📦', clr: '#16a34a' },
+                      { label: 'Import Ledgers', path: '/tally/import', icon: '📒', clr: '#16a34a' },
+                      { label: 'Export Masters', path: '/tally/export', icon: '🗂️',  clr: '#2563eb' },
+                      { label: 'Export Invoices',path: '/tally/export', icon: '🧾', clr: '#2563eb' },
                     ].map(opt => (
                       <button
-                        key={opt.type}
-                        disabled={tallySyncing}
-                        onClick={() => handleQuickSync(opt.type, opt.label)}
+                        key={opt.label}
+                        onClick={() => { navigate(opt.path); close(); }}
                         style={{
                           padding: '6px 8px', borderRadius: 8,
-                          border: '1.5px solid #e2e8f0', background: '#f8fafc',
+                          border: `1.5px solid ${opt.clr}20`, background: `${opt.clr}08`,
                           fontSize: 11, fontWeight: 600, color: '#374151',
-                          cursor: tallySyncing ? 'not-allowed' : 'pointer',
-                          fontFamily: 'inherit',
+                          cursor: 'pointer', fontFamily: 'inherit',
                           display: 'flex', alignItems: 'center', gap: 5,
                           transition: 'all .12s',
-                          opacity: tallySyncing ? 0.5 : 1,
                         }}
-                        onMouseEnter={e => { if (!tallySyncing) { e.currentTarget.style.borderColor = '#10b981'; e.currentTarget.style.background = '#f0fdf4'; } }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#f8fafc'; }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = opt.clr; e.currentTarget.style.background = `${opt.clr}15`; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = `${opt.clr}20`; e.currentTarget.style.background = `${opt.clr}08`; }}
                       >
                         <span>{opt.icon}</span>{opt.label}
                       </button>
@@ -605,16 +621,16 @@ export default function Navbar({ activePage, onMenuClick, isMobile }) {
                 {/* ── Footer ── */}
                 <div style={{ padding: '8px 14px 10px', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
                   <button
-                    onClick={() => { navigate('/tally/dashboard'); close(); }}
+                    onClick={() => { navigate('/tally/overview'); close(); }}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#10b981', fontWeight: 700, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}
                   >
-                    <MdOpenInNew size={12} /> Open Tally Dashboard
+                    <MdOpenInNew size={12} /> Open Tally Page
                   </button>
                   <button
-                    onClick={() => { navigate('/tally/config'); close(); }}
+                    onClick={() => { navigate('/tally/settings'); close(); }}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#64748b', fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}
                   >
-                    <MdSettings size={12} /> Configure
+                    <MdSettings size={12} /> Settings
                   </button>
                 </div>
 

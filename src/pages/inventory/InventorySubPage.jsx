@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import InventoryPage from './InventoryPage';
-import { PageHeader, KpiStrip } from '../../components/common/PageShell';
+import StockItemsPage from './StockItemsPage';
+import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShell';
 import { inventoryApi } from '../../api/inventoryApi';
+import { itemMasterApi } from '../../api/itemMasterApi';
 import {
   MdInventory2, MdWarehouse, MdSwapHoriz, MdCheckBox,
   MdInventory, MdBatchPrediction, MdHourglassEmpty,
@@ -9,18 +11,19 @@ import {
 } from 'react-icons/md';
 
 const TAB_MAP = {
-  dashboard:  0,
-  stock:      1,
-  warehouses: 2,
-  movement:   3,
-  picking:    4,
-  packing:    5,
-  batch:      6,
-  ageing:     7,
-  defective:  8,
-  storage:    9,
-  pincode:    10,
-  returns:    11,
+  dashboard:    0,
+  stock:        1,
+  warehouses:   2,
+  movement:     3,
+  picking:      4,
+  packing:      5,
+  batch:        6,
+  ageing:       7,
+  defective:    8,
+  storage:      9,
+  pincode:      10,
+  returns:      11,
+  'stock-items': 12,
 };
 
 const PAGE_META = {
@@ -154,6 +157,17 @@ const PAGE_META = {
       { label: 'Total Returns',   value: '—', icon: <MdInventory2 size={18} />,     color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.25)'  },
     ],
   },
+  'stock-items': {
+    title: 'Stock Items (Item Master)',
+    breadcrumb: 'Inventory › Stock Items',
+    actionLabel: '+ Add Item',
+    kpis: [
+      { label: 'Total Items',    value: '—', icon: <MdInventory2 size={18} />,     color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.25)' },
+      { label: 'Active Items',   value: '—', icon: <MdCheckBox size={18} />,       color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)' },
+      { label: 'Inactive Items', value: '—', icon: <MdHourglassEmpty size={18} />, color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.25)' },
+      { label: 'Low Stock',      value: '—', icon: <MdBrokenImage size={18} />,    color: '#64748b', color2: '#94a3b8', glow: 'rgba(100,116,139,0.2)' },
+    ],
+  },
 };
 
 export default function InventorySubPage({ tab }) {
@@ -238,6 +252,16 @@ export default function InventorySubPage({ tab }) {
             { ...meta.kpis[2], value: String(todayReceived) },
             { ...meta.kpis[3], value: String(stats.total || 0) },
           ]);
+        } else if (tab === 'stock-items') {
+          const statsRes = await itemMasterApi.getStats();
+          if (cancelled) return;
+          const s = statsRes.data || {};
+          setLiveKpis([
+            { ...meta.kpis[0], value: String(s.total || 0) },
+            { ...meta.kpis[1], value: String(s.active || 0) },
+            { ...meta.kpis[2], value: String((s.total || 0) - (s.active || 0)) },
+            { ...meta.kpis[3], value: String(s.lowStock || s.critical || 0) },
+          ]);
         }
       } catch {
         // silently keep showing '—' on error
@@ -269,7 +293,13 @@ export default function InventorySubPage({ tab }) {
     <div>
       <PageHeader title={meta.title} breadcrumb={meta.breadcrumb} action={ActionBtn} />
       <KpiStrip kpis={liveKpis} />
-      <InventoryPage key={tabIndex} initialTab={tabIndex} externalShowModal={showModal} onExternalModalClose={() => setShowModal(false)} />
+      {tab === 'stock-items' ? (
+        <PageCard>
+          <StockItemsPage externalShowModal={showModal} onExternalModalClose={() => setShowModal(false)} />
+        </PageCard>
+      ) : (
+        <InventoryPage key={tabIndex} initialTab={tabIndex} externalShowModal={showModal} onExternalModalClose={() => setShowModal(false)} />
+      )}
     </div>
   );
 }

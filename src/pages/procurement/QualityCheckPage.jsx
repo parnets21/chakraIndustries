@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShell';
 import StatusBadge from '../../components/common/StatusBadge';
 import { qualityCheckApi } from '../../api/qualityCheckApi';
 import { useAuth } from '../../auth/AuthContext';
 import { MdVerifiedUser, MdCheckCircle, MdCancel, MdHourglassEmpty, MdSearch } from 'react-icons/md';
-import { useDataEvent } from '../../utils/dataEvents';
+import { useDataEvent, dataEvents } from '../../utils/dataEvents';
 
 
 const inp = {
@@ -19,10 +19,12 @@ export default function QualityCheckPage() {
   const [stats, setStats]           = useState({ total: 0, passed: 0, partial: 0, pending: 0, rejected: 0 });
   const [loading, setLoading]       = useState(false);
   const [saving, setSaving]         = useState(false);
+  const [selectingId, setSelectingId] = useState(null); // tracks which row is loading
   const [search, setSearch]         = useState('');
   const [selectedQC, setSelectedQC] = useState(null);
   const [itemEdits, setItemEdits]   = useState({});
   const [batchRemarks, setBatchRemarks] = useState('');
+  const panelRef = useRef(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -30,7 +32,15 @@ export default function QualityCheckPage() {
       const [qcRes, statsRes] = await Promise.all([qualityCheckApi.getAll(), qualityCheckApi.getStats()]);
       setQcs(qcRes.data || []);
       setStats(statsRes.data || {});
-      if (!selectedQC && qcRes.data?.length > 0) setSelectedQC(qcRes.data[0]);
+      if (!selectedQC && qcRes.data?.length > 0) {
+        // Fetch full detail for the first record so items are populated
+        try {
+          const firstRes = await qualityCheckApi.getById(qcRes.data[0]._id);
+          setSelectedQC(firstRes.data);
+        } catch {
+          setSelectedQC(qcRes.data[0]);
+        }
+      }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, []);
@@ -39,9 +49,20 @@ export default function QualityCheckPage() {
   useDataEvent('qc:changed', fetchAll);
 
   const selectQC = async (qc) => {
-    setSelectedQC(qc);
+    if (selectingId === qc._id) return; // already loading this one
+    setSelectingId(qc._id);
     setItemEdits({});
     setBatchRemarks('');
+    try {
+      const res = await qualityCheckApi.getById(qc._id);
+      setSelectedQC(res.data);
+      // Scroll the inspection panel into view
+      setTimeout(() => panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    } catch (e) {
+      setSelectedQC(qc); // fallback to list data
+    } finally {
+      setSelectingId(null);
+    }
   };
 
   const handleSubmit = async (forceStatus) => {
@@ -88,6 +109,7 @@ export default function QualityCheckPage() {
 
   return (
     <div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       <PageHeader title="Quality Check" breadcrumb="Procurement › Quality Check" />
       <KpiStrip kpis={kpis} />
 
@@ -131,13 +153,24 @@ export default function QualityCheckPage() {
                     <td style={{ padding: '11px 14px' }}><StatusBadge status={q.status} /></td>
                     <td style={{ padding: '11px 14px', fontSize: 12, color: '#64748b' }}>{new Date(q.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
                     <td style={{ padding: '11px 14px' }}>
-                      <button onClick={e => { e.stopPropagation(); selectQC(q); }} style={{
-                        padding: '5px 12px', fontSize: 12, borderRadius: 8,
-                        background: q.status === 'Pending' ? '#fef2f2' : '#f1f5f9',
-                        color: q.status === 'Pending' ? '#ef4444' : '#64748b',
-                        border: `1px solid ${q.status === 'Pending' ? '#fecaca' : '#e2e8f0'}`,
-                        cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit',
-                      }}>{q.status === 'Pending' ? 'Inspect' : 'View'}</button>
+                      <button
+                        onClick={e => { e.stopPropagation(); selectQC(q); }}
+                        disabled={selectingId === q._id}
+                        style={{
+                          padding: '5px 12px', fontSize: 12, borderRadius: 8,
+                          background: selectingId === q._id ? '#f1f5f9' : q.status === 'Pending' ? '#fef2f2' : '#f1f5f9',
+                          color: selectingId === q._id ? '#94a3b8' : q.status === 'Pending' ? '#ef4444' : '#64748b',
+                          border: `1px solid ${q.status === 'Pending' ? '#fecaca' : '#e2e8f0'}`,
+                          cursor: selectingId === q._id ? 'not-allowed' : 'pointer',
+                          fontWeight: 600, fontFamily: 'inherit',
+                          minWidth: 68, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                        }}
+                      >
+                        {selectingId === q._id
+                          ? <><span style={{ display:'inline-block', width:10, height:10, border:'2px solid #94a3b8', borderTopColor:'transparent', borderRadius:'50%', animation:'spin .6s linear infinite' }} />Loading</>
+                          : q.status === 'Pending' ? 'Inspect' : 'View'
+                        }
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -149,6 +182,7 @@ export default function QualityCheckPage() {
 
       {/* Inspection Panel */}
       {selectedQC && (
+        <div ref={panelRef}>
         <PageCard>
           <div style={{ fontSize: 13.5, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
             Quality Inspection — {selectedQC.qcId}
@@ -236,6 +270,7 @@ export default function QualityCheckPage() {
             </div>
           )}
         </PageCard>
+        </div>
       )}
     </div>
   );

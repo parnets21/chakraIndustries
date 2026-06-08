@@ -5,6 +5,7 @@ import { toast } from '../../components/common/Toast';
 import { logisticsApi } from '../../api/logisticsApi';
 import { poApi } from '../../api/poApi';
 import { materialReturnApi } from '../../api/materialReturnApi';
+import docketTrackingApi from '../../api/docketTrackingApi';
 import DataTable from '../../components/tables/DataTable';
 import DocketTrackingPage from './DocketTrackingPage';
 import { MdLocalShipping, MdDescription, MdCheckCircle, MdPhone, MdPlace, MdArchive, MdSearch } from 'react-icons/md';
@@ -27,7 +28,7 @@ const EMPTY_DISPATCH = {
   origin:'', destination:'', items:0, weight:'',
   value:0, dispatchDate:'', expectedDelivery:'', instructions:'',
 };
-const EMPTY_VEHICLE = { type:'Truck', number:'', driver:'', driverMobile: '', capacity:'', status:'Available' };
+const EMPTY_VEHICLE = { type:'Truck', name:'', number:'', driver:'', driverMobile: '', capacity:'', status:'Available' };
 const EMPTY_SHIPMENT = { courier:'', awbNo:'', orderRef:'', customer:'', destination:'', eta:'' };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -311,19 +312,59 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
   const loadReturnQueue = useCallback(async () => {
     setQueueLoading(true);
     try {
-      const [qRes, dRes] = await Promise.all([
-        materialReturnApi.getAll(), // Fetch all to filter by stage
-        materialReturnApi.getAll()
-      ]);
-      // Show returns in DOCKET_CREATED or APPROVED stage that need pickup
-      const pendingPickups = qRes.data?.filter(r => 
-        ['DOCKET_CREATED', 'APPROVED', 'PICKUP_PENDING'].includes(r.currentStage)
-      ) || [];
+      // Fetch dockets with pickup_pending status from docket tracking API
+      console.log('🔄 Fetching dockets from API...');
+      const dRes = await docketTrackingApi.getAllDockets();
+      const allDockets = dRes.data || [];
+      
+      console.log('✅ API Response:', dRes);
+      console.log('📦 All Dockets:', allDockets.length, allDockets);
+      
+      // Filter for pickup_pending status
+      const pendingDockets = allDockets.filter(d => {
+        console.log(`Docket ${d.docketId}: transportStatus = "${d.transportStatus}"`);
+        return d.transportStatus === 'pickup_pending';
+      });
+      
+      console.log('🚚 Pending Pickup Dockets:', pendingDockets.length, pendingDockets);
+      
+      // Map dockets to return queue format
+      const pendingPickups = pendingDockets.map(docket => ({
+        _id: docket._id,
+        mrId: docket.mrId || 'N/A',
+        docketId: docket.docketId || 'N/A',
+        supplierName: docket.supplier || 'Unknown Supplier',
+        customerName: docket.supplier || 'Unknown Supplier',
+        returnQty: docket.qty || 0,
+        pickupAddress: docket.sourceLocation || docket.pickupLocation || 'Location not specified',
+        priority: docket.priority || 'Medium',
+        vehicleNo: docket.vehicleNumber || '',
+        vehicleName: docket.vehicleName || '',
+        driverName: docket.driverName || '',
+        driverMobile: docket.driverMobile || '',
+        returnType: docket.returnType || 'Material Return',
+        courierPartner: docket.courierPartner || 'VRL Logistics',
+        capacity: docket.priority ? `${docket.priority} Priority` : '',
+        shipmentWeight: docket.shipmentWeight || 0,
+        productName: docket.productName || 'Product',
+        destWarehouse: docket.destWarehouse || 'Warehouse'
+      }));
+      
+      console.log('✨ Mapped Pending Pickups:', pendingPickups);
       
       setReturnQueue(pendingPickups);
-      setDocketData(dRes.data || []);
+      setDocketData(allDockets);
+      
+      if (pendingPickups.length === 0) {
+        console.warn('⚠️ No dockets with transportStatus="pickup_pending" found!');
+        console.log('💡 Tip: Create a docket in /returns/docket with transportStatus="pickup_pending"');
+      }
     } catch (error) {
-      console.error('Failed to load queue or docket data', error);
+      console.error('❌ Failed to load queue or docket data:', error);
+      toast('Failed to load return pickup queue', 'error');
+      // Set empty arrays on error to show empty state
+      setReturnQueue([]);
+      setDocketData([]);
     } finally {
       setQueueLoading(false);
     }
@@ -334,10 +375,10 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
   }, [loadReturnQueue, vehicles]);
 
   // Extract unique dynamic values from docketData
-  const dynamicVehicles = [...new Set(docketData.map(d => d.vehicleNo).filter(Boolean))];
+  const dynamicVehicles = [...new Set(docketData.map(d => d.vehicleNumber || d.vehicleNo).filter(Boolean))];
   const dynamicDrivers = [...new Set(docketData.map(d => d.driverName).filter(Boolean))];
   const dynamicMobiles = [...new Set(docketData.map(d => d.driverMobile).filter(Boolean))];
-  const dynamicCapacities = [...new Set(docketData.map(d => d.capacity || d.shipmentWeight).filter(Boolean))];
+  const dynamicCapacities = [...new Set(docketData.map(d => d.priority ? `${d.priority} Priority` : d.capacity || d.shipmentWeight).filter(Boolean))];
 
   const handleDynamicSelect = (field, value) => {
     // Find a matching docket record based on the selected value in any field
@@ -430,19 +471,29 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
     
     try {
       setSaving(true);
-      await materialReturnApi.updateTransport(returnItem._id, {
-        vehicleNo: vehicle.number,
+      
+      // Update docket with vehicle assignment
+      await docketTrackingApi.updateDocket(returnItem._id, {
+        vehicleNumber: vehicle.number,
+        vehicleName: vehicle.name || vehicle.number,
         driverName: vehicle.driver,
         driverMobile: vehicle.driverMobile || '—',
-        stage: 'VEHICLE_ASSIGNED',
-        trackingStatus: 'Vehicle Assigned'
+        transportStatus: 'picked_up'
       });
 
+      // Update docket status
+      await docketTrackingApi.updateDocketStatus(returnItem._id, {
+        transportStatus: 'picked_up',
+        location: returnItem.pickupAddress || 'Pickup Location',
+        remarks: `Vehicle ${vehicle.number} assigned`
+      });
+
+      // Update vehicle status
       await logisticsApi.updateVehicle(vehicle._id, { 
         status: 'Assigned',
         currentDocket: returnItem.docketId,
-        currentRoute: `${returnItem.pickupAddress || 'Customer'} → ${returnItem.warehouseName || 'Warehouse'}`,
-        currentLoad: `${returnItem.productName} (${returnItem.returnQty})`
+        currentRoute: `${returnItem.pickupAddress || 'Customer'} → ${returnItem.destWarehouse || 'Warehouse'}`,
+        currentLoad: `${returnItem.productName || 'Material'} (${returnItem.returnQty || 0})`
       });
 
       toast(`Vehicle ${vehicle.number} assigned to Return ${returnItem.mrId}`);
@@ -458,28 +509,38 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
 
   const handleTransportAction = async (v, action) => {
     try {
-      let stage, trackingStatus, vehicleStatus;
+      let transportStatus, vehicleStatus, location;
       if (action === 'out_for_pickup') {
-        stage = 'OUT_FOR_PICKUP'; trackingStatus = 'Out for Pickup'; vehicleStatus = 'Assigned';
+        transportStatus = 'out_for_delivery'; 
+        vehicleStatus = 'Assigned';
+        location = 'Out for Pickup';
       } else if (action === 'pickup') {
-        stage = 'PICKED_UP'; trackingStatus = 'Picked Up'; vehicleStatus = 'In Transit';
+        transportStatus = 'picked_up'; 
+        vehicleStatus = 'In Transit';
+        location = 'Picked Up';
       } else if (action === 'transit') {
-        stage = 'IN_TRANSIT'; trackingStatus = 'In Transit'; vehicleStatus = 'In Transit';
+        transportStatus = 'in_transit'; 
+        vehicleStatus = 'In Transit';
+        location = 'In Transit';
       } else if (action === 'arrive') {
-        stage = 'ARRIVED_AT_WAREHOUSE'; trackingStatus = 'Arrived'; vehicleStatus = 'Available';
+        transportStatus = 'delivered'; 
+        vehicleStatus = 'Available';
+        location = 'Arrived at Warehouse';
       }
 
-      // Find MR by docket
-      const returns = await materialReturnApi.getAll({ search: v.currentDocket });
-      const mr = returns.data?.find(r => r.docketId === v.currentDocket);
-      if (!mr) throw new Error('Return request not found for this docket');
+      // Find docket by docket ID
+      const dockets = await docketTrackingApi.getAllDockets({ search: v.currentDocket });
+      const docket = dockets.data?.find(d => d.docketId === v.currentDocket);
+      if (!docket) throw new Error('Docket not found for this vehicle');
 
-      await materialReturnApi.updateTransport(mr._id, { 
-        stage, 
-        trackingStatus,
-        currentLocation: action === 'arrive' ? mr.warehouseName : 'In Transit'
+      // Update docket status
+      await docketTrackingApi.updateDocketStatus(docket._id, { 
+        transportStatus,
+        location,
+        remarks: `Status updated to ${location}`
       });
 
+      // Update vehicle status
       await logisticsApi.updateVehicle(v._id, {
         status: vehicleStatus,
         currentDocket: action === 'arrive' ? '' : v.currentDocket,
@@ -487,7 +548,7 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
         currentLoad: action === 'arrive' ? '' : v.currentLoad
       });
 
-      toast(`Transport updated: ${trackingStatus}`);
+      toast(`Transport updated: ${location}`);
       onRefresh();
       loadReturnQueue();
     } catch (e) { 
@@ -719,100 +780,103 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
         }
       >
         <div className="flex flex-col gap-5">
-          {/* Quick Sync Header */}
-          <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 mb-2">
-            <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2 block">Quick Import from Docket Tracking</label>
+          {/* Quick Fill from Docket Tracking */}
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-2xl border border-green-200">
+            <label className="text-xs font-bold text-green-900 mb-2 block flex items-center gap-2">
+              <span>✅</span> Quick Fill - Select Vehicle to Auto-Fill All Fields
+            </label>
             <select 
-              className={`${inp} bg-white border-blue-200`} 
+              className="w-full px-3 py-2.5 border-2 border-green-300 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-green-500 focus:ring-2 focus:ring-green-100 font-semibold"
               onChange={(e) => {
                 const docket = docketData.find(d => d.docketId === e.target.value);
                 if (docket) {
-                  handleDynamicSelect('number', docket.vehicleNo);
+                  setForm({
+                    type: docket.returnType || 'Truck',
+                    name: docket.vehicleName || docket.vehicleName || docket.courierPartner || '',
+                    number: docket.vehicleNo || docket.vehicleNumber || '',
+                    driver: docket.driverName || '',
+                    driverMobile: docket.driverMobile || '',
+                    capacity: docket.priority ? `${docket.priority} Priority` : '',
+                    status: 'Available'
+                  });
+                  toast(`✓ Vehicle: ${docket.vehicleName || 'Unnamed'} - All fields auto-filled!`, 'success');
                 }
               }}
+              value=""
             >
-              <option value="">— Select a Recent Docket to Auto-Fill —</option>
-              {docketData.filter(d => d.vehicleNo).slice(0, 10).map(d => (
+              <option value="">— Select Vehicle Name to Auto-Fill —</option>
+              {docketData.filter(d => d.vehicleNo && d.driverName).map(d => (
                 <option key={d._id} value={d.docketId}>
-                  {d.docketId} | {d.vehicleNo} ({d.driverName})
+                  {d.vehicleName || 'Unnamed Vehicle'} - {d.vehicleNo} - {d.driverName} - {d.driverMobile || 'No Mobile'}
                 </option>
               ))}
             </select>
-            <p className="text-[10px] text-blue-400 mt-2 font-medium">Selecting a docket will automatically fill all vehicle, driver, and capacity details.</p>
+            <p className="text-[10px] text-green-700 font-bold mt-2 bg-green-100 px-2 py-1 rounded">
+              ✓ {docketData.filter(d => d.vehicleNo && d.driverName).length} vehicles available • Select to auto-fill all fields
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-gray-600">Vehicle Type</label>
+              <label className="text-xs font-semibold text-gray-600">Vehicle Type *</label>
               <select className={inp} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
+                <option value="">— Select Type —</option>
                 <option>Mini Truck</option><option>Truck</option><option>Tempo</option><option>Container</option>
               </select>
             </div>
 
             <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-gray-600">Vehicle Name *</label>
+              <input 
+                className={`${inp} bg-gray-50`}
+                placeholder="Auto-filled from Quick Fill" 
+                value={form.name || ''} 
+                readOnly
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-gray-600">Vehicle Number *</label>
-              <div className="relative group">
-                <input 
-                  list="dynamic-vehicles"
-                  className={inp} 
-                  placeholder="Search vehicle number" 
-                  value={form.number} 
-                  onChange={e => handleDynamicSelect('number', e.target.value)} 
-                />
-                <datalist id="dynamic-vehicles">
-                  {dynamicVehicles.map(v => <option key={v} value={v} />)}
-                </datalist>
-              </div>
+              <input 
+                className={`${inp} bg-gray-50`}
+                placeholder="Auto-filled from Quick Fill" 
+                value={form.number} 
+                readOnly
+              />
             </div>
 
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-gray-600">Driver Name *</label>
-              <div className="relative group">
-                <input 
-                  list="dynamic-drivers"
-                  className={inp} 
-                  placeholder="Search driver name" 
-                  value={form.driver} 
-                  onChange={e => handleDynamicSelect('driver', e.target.value)} 
-                />
-                <datalist id="dynamic-drivers">
-                  {dynamicDrivers.map(d => <option key={d} value={d} />)}
-                </datalist>
-              </div>
+              <input 
+                className={`${inp} bg-gray-50`}
+                placeholder="Auto-filled from Quick Fill" 
+                value={form.driver} 
+                readOnly
+              />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-gray-600">Driver Mobile</label>
-              <div className="relative group">
-                <input 
-                  list="dynamic-mobiles"
-                  className={inp} 
-                  placeholder="Search mobile" 
-                  value={form.driverMobile} 
-                  onChange={e => handleDynamicSelect('driverMobile', e.target.value)} 
-                />
-                <datalist id="dynamic-mobiles">
-                  {dynamicMobiles.map(m => <option key={m} value={m} />)}
-                </datalist>
-              </div>
+              <label className="text-xs font-semibold text-gray-600">Driver Mobile (10 digits)</label>
+              <input 
+                className={`${inp} bg-gray-50`}
+                placeholder="Auto-filled from Quick Fill" 
+                value={form.driverMobile} 
+                readOnly
+              />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-gray-600">Capacity</label>
-              <div className="relative group">
-                <input 
-                  list="dynamic-capacities"
-                  className={inp} 
-                  placeholder="Search capacity" 
-                  value={form.capacity} 
-                  onChange={e => handleDynamicSelect('capacity', e.target.value)} 
-                />
-                <datalist id="dynamic-capacities">
-                  {dynamicCapacities.map(c => <option key={c} value={c} />)}
-                </datalist>
-              </div>
+              <label className="text-xs font-semibold text-gray-600">Capacity (Priority)</label>
+              <input 
+                className={`${inp} bg-gray-50`}
+                placeholder="Auto-filled Priority from Docket" 
+                value={form.capacity} 
+                readOnly
+              />
             </div>
           </div>
+          
+          
         </div>
       </Modal>
     </div>

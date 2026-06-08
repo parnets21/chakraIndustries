@@ -1,41 +1,67 @@
 const BASE = import.meta.env.VITE_API_URL || 'https://chakraindustries-backend.onrender.com/api';
 const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
 const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
-const handle = async (res) => { const d = await res.json(); if (!res.ok) throw new Error(d.message || 'Request failed'); return d; };
+
+const fetchWithRetry = async (url, options = {}, retries = 2) => {
+  try {
+    const res = await fetch(url, options);
+    // Handle 304 Not Modified as success with empty data
+    if (res.status === 304) {
+      return { success: true, data: [], notModified: true };
+    }
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.message || `Request failed with status ${res.status}`);
+    }
+    return await res.json();
+  } catch (err) {
+    if (retries > 0 && (err.name === 'TypeError' || err.message.includes('Failed to fetch'))) {
+      console.warn(`Fetch failed, retrying... (${retries} left)`);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return fetchWithRetry(url, options, retries - 1);
+    }
+    throw err;
+  }
+};
+
+const getUrl = (path, params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  return query ? `${BASE}${path}?${query}` : `${BASE}${path}`;
+};
 
 export const materialReturnApi = {
   // Master Lifecycle
-  getAll:  (p = {}) => fetch(`${BASE}/returns?${new URLSearchParams(p)}`, { headers: authHeaders() }).then(handle),
-  getById: (id) => fetch(`${BASE}/returns/${id}`, { headers: authHeaders() }).then(handle),
-  getStats: () => fetch(`${BASE}/returns/dashboard`, { headers: authHeaders() }).then(handle),
-  getInvoiceContext: (invoiceNo) => fetch(`${BASE}/returns/context/${encodeURIComponent(invoiceNo)}`, { headers: authHeaders() }).then(handle),
-  create:  (body) => fetch(`${BASE}/returns/create`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
-  approve: (id) => fetch(`${BASE}/returns/${id}/approve`, { method: 'PUT', headers: authHeaders() }).then(handle),
-  generateDocket: (id, data) => fetch(`${BASE}/returns/${id}/docket`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }).then(handle),
-  createGateEntry: (id) => fetch(`${BASE}/returns/${id}/gate-entry`, { method: 'POST', headers: authHeaders() }).then(handle),
-  receiveMaterial: (id, data) => fetch(`${BASE}/returns/${id}/receive`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }).then(handle),
-  qcVerify: (id, data) => fetch(`${BASE}/returns/${id}/qc-verify`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }).then(handle),
-  inventoryUpdate: (id) => fetch(`${BASE}/returns/${id}/inventory-update`, { method: 'POST', headers: authHeaders() }).then(handle),
-  financeClose: (id, data) => fetch(`${BASE}/returns/${id}/finance-close`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }).then(handle),
-  updateStatus: (id, data) => fetch(`${BASE}/returns/${id}/status`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(data) }).then(handle),
-  updateStage: (id, stage) => fetch(`${BASE}/returns/${id}/stage`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ stage }) }).then(handle),
+  getAll:  (p = {}) => fetchWithRetry(getUrl('/returns', p), { headers: authHeaders() }),
+  getById: (id) => fetchWithRetry(getUrl(`/returns/${id}`), { headers: authHeaders() }),
+  getStats: () => fetchWithRetry(getUrl('/returns/dashboard'), { headers: authHeaders() }),
+  getInvoiceContext: (invoiceNo) => fetchWithRetry(getUrl(`/returns/invoice/${encodeURIComponent(invoiceNo)}/context`), { headers: authHeaders() }),
+  create:  (body) => fetchWithRetry(getUrl('/returns'), { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }),
+  approve: (id) => fetchWithRetry(getUrl(`/returns/${id}/approve`), { method: 'PUT', headers: authHeaders() }),
+  generateDocket: (id, data) => fetchWithRetry(getUrl(`/returns/${id}/docket`), { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }),
+  createGateEntry: (id) => fetchWithRetry(getUrl(`/returns/${id}/gate-entry`), { method: 'POST', headers: authHeaders() }),
+  receiveMaterial: (id, data) => fetchWithRetry(getUrl(`/returns/${id}/receive`), { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }),
+  qcVerify: (id, data) => fetchWithRetry(getUrl(`/returns/${id}/qc-verify`), { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }),
+  inventoryUpdate: (id) => fetchWithRetry(getUrl(`/returns/${id}/inventory-update`), { method: 'POST', headers: authHeaders() }),
+  financeClose: (id, data) => fetchWithRetry(getUrl(`/returns/${id}/finance-close`), { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }),
+  updateStatus: (id, data) => fetchWithRetry(getUrl(`/returns/${id}/status`), { method: 'PUT', headers: authHeaders(), body: JSON.stringify(data) }),
+  updateStage: (id, stage) => fetchWithRetry(getUrl(`/returns/${id}/stage`), { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ stage }) }),
   
   // Specific Module Actions
-  processQC: (id, data) => fetch(`${BASE}/returns/${id}/qc`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }).then(handle),
-  processInventory: (id) => fetch(`${BASE}/returns/${id}/inventory`, { method: 'POST', headers: authHeaders() }).then(handle),
-  processReconciliation: (id, data) => fetch(`${BASE}/returns/${id}/reconciliation`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }).then(handle),
-  processLoss: (id, data) => fetch(`${BASE}/returns/${id}/loss`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }).then(handle),
-  updateTransport: (id, data) => fetch(`${BASE}/returns/${id}/transport`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }).then(handle),
+  processQC: (id, data) => fetchWithRetry(getUrl(`/returns/${id}/qc`), { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }),
+  processInventory: (id) => fetchWithRetry(getUrl(`/returns/${id}/inventory`), { method: 'POST', headers: authHeaders() }),
+  processReconciliation: (id, data) => fetchWithRetry(getUrl(`/returns/${id}/reconciliation`), { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }),
+  processLoss: (id, data) => fetchWithRetry(getUrl(`/returns/${id}/loss`), { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }),
+  updateTransport: (id, data) => fetchWithRetry(getUrl(`/returns/${id}/transport`), { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }),
   
   // Warehouse Operations
-  getWarehouseQueue: () => fetch(`${BASE}/returns/warehouse/queue`, { headers: authHeaders() }).then(handle),
-  getWarehouseReturns: () => fetch(`${BASE}/returns/warehouse/returns`, { headers: authHeaders() }).then(handle),
-  receiveAtWarehouse: (id, data) => fetch(`${BASE}/returns/${id}/warehouse/receive`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(data) }).then(handle),
+  getWarehouseQueue: () => fetchWithRetry(getUrl('/returns/warehouse/queue'), { headers: authHeaders() }),
+  getWarehouseReturns: () => fetchWithRetry(getUrl('/returns/warehouse/returns'), { headers: authHeaders() }),
+  receiveAtWarehouse: (id, data) => fetchWithRetry(getUrl(`/returns/${id}/warehouse/receive`), { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(data) }),
 
   // Workflow tracking
-  getWorkflowStatus: (id) => fetch(`${BASE}/returns/${id}/workflow/status`, { headers: authHeaders() }).then(handle),
-  processWorkflowStage: (id, stage) => fetch(`${BASE}/returns/${id}/workflow/process`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ stage }) }).then(handle),
+  getWorkflowStatus: (id) => fetchWithRetry(getUrl(`/returns/${id}/workflow/status`), { headers: authHeaders() }),
+  processWorkflowStage: (id, stage) => fetchWithRetry(getUrl(`/returns/${id}/workflow/process`), { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ stage }) }),
 
   // Utilities
-  delete: (id) => fetch(`${BASE}/returns/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
+  delete: (id) => fetchWithRetry(getUrl(`/returns/${id}`), { method: 'DELETE', headers: authHeaders() }),
 };

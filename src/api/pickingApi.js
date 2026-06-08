@@ -6,27 +6,46 @@ const authHeaders = (isGet = false) => {
   if (!isGet) headers['Content-Type'] = 'application/json';
   return headers;
 };
-const handle = async (res) => { const d = await res.json(); if (!res.ok) throw new Error(d.message || 'Request failed'); return d; };
+
+const fetchWithRetry = async (url, options = {}, retries = 2) => {
+  try {
+    const res = await fetch(url, options);
+    if (!res.ok && res.status !== 304) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.message || `Request failed with status ${res.status}`);
+    }
+    if (res.status === 304) return { success: true, data: [] };
+    return await res.json();
+  } catch (err) {
+    if (retries > 0 && (err.name === 'TypeError' || err.message.includes('Failed to fetch') || err.message.includes('status 304'))) {
+      console.warn(`Fetch failed, retrying... (${retries} left)`);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return fetchWithRetry(url, options, retries - 1);
+    }
+    throw err;
+  }
+};
+
 const q = (p = {}) => { const s = new URLSearchParams(p).toString(); return s ? '?' + s : ''; };
 
 export const pickingApi = {
   // Get all picking lists
-  getAll: (params = {}) => fetch(`${BASE}/picking${q(params)}`, { headers: authHeaders(true) }).then(handle),
+  getAll: (params = {}) => fetchWithRetry(`${BASE}/picking${q(params)}`, { headers: authHeaders(true) }),
   
   // Get picking stats
-  getStats: () => fetch(`${BASE}/picking/stats`, { headers: authHeaders(true) }).then(handle),
+  getStats: () => fetchWithRetry(`${BASE}/picking/stats`, { headers: authHeaders(true) }),
   
   // Create picking list
-  create: (body) => fetch(`${BASE}/picking`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  create: (body) => fetchWithRetry(`${BASE}/picking`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }),
   
   // Get picking list by ID
-  getById: (id) => fetch(`${BASE}/picking/${id}`, { headers: authHeaders(true) }).then(handle),
+  getById: (id) => fetchWithRetry(`${BASE}/picking/${id}`, { headers: authHeaders(true) }),
   
   // Update picking list status
-  updateStatus: (id, body) => fetch(`${BASE}/picking/${id}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  updateStatus: (id, body) => fetchWithRetry(`${BASE}/picking/${id}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) }),
   
   // Delete picking list
-  delete: (id) => fetch(`${BASE}/picking/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
+  delete: (id) => fetchWithRetry(`${BASE}/picking/${id}`, { method: 'DELETE', headers: authHeaders() }),
 };
 
 export default pickingApi;

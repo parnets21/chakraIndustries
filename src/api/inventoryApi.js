@@ -22,33 +22,57 @@ const handle = async (res) => {
 
 const q = (p = {}) => { const s = new URLSearchParams(p).toString(); return s ? '?' + s : ''; };
 
-// Rate-limited fetch wrapper
-const rateLimitedFetch = async (url, options = {}) => {
-  await globalRateLimiter.waitIfNeeded();
-  return fetch(url, options);
+// Robust fetch with retry, rate limiting and 304 handling
+const rateLimitedFetchWithRetry = async (url, options = {}, retries = 2) => {
+  try {
+    await globalRateLimiter.waitIfNeeded();
+    const res = await fetch(url, options);
+    
+    // Handle 304 Not Modified as success (fetch ok is only 200-299)
+    if (!res.ok && res.status !== 304) {
+      if (res.status === 429) {
+        throw new Error('Too many requests. Please wait a moment and try again.');
+      }
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.message || `Request failed with status ${res.status}`);
+    }
+    
+    // If 304, there's no body, so return an empty object or handle accordingly
+    if (res.status === 304) return { success: true, data: [] };
+    
+    return await res.json();
+  } catch (err) {
+    if (retries > 0 && (err.name === 'TypeError' || err.message.includes('Failed to fetch') || err.message.includes('status 304'))) {
+      console.warn(`Fetch failed, retrying... (${retries} left)`);
+      // Wait a bit before retrying
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return rateLimitedFetchWithRetry(url, options, retries - 1);
+    }
+    throw err;
+  }
 };
 
 export const inventoryApi = {
   // ── Stock Items ────────────────────────────────────────────────────────────
-  getAll:    (params = {}) => rateLimitedFetch(`${BASE}/inventory${q(params)}`,          { headers: authHeaders(true) }).then(handle),
-  getStats:  ()            => rateLimitedFetch(`${BASE}/inventory/stats`,                 { headers: authHeaders(true) }).then(handle),
-  create:    (body)        => rateLimitedFetch(`${BASE}/inventory`,                       { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
-  adjust:    (id, body)    => rateLimitedFetch(`${BASE}/inventory/${id}/adjust`,          { method: 'PATCH',  headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
-  move:      (id, body)    => rateLimitedFetch(`${BASE}/inventory/${id}/move`,            { method: 'PATCH',  headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
-  delete:    (id)          => rateLimitedFetch(`${BASE}/inventory/${id}`,                 { method: 'DELETE', headers: authHeaders() }).then(handle),
+  getAll:    (params = {}) => rateLimitedFetchWithRetry(`${BASE}/inventory${q(params)}`,          { headers: authHeaders(true) }),
+  getStats:  ()            => rateLimitedFetchWithRetry(`${BASE}/inventory/stats`,                 { headers: authHeaders(true) }),
+  create:    (body)        => rateLimitedFetchWithRetry(`${BASE}/inventory`,                       { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }),
+  adjust:    (id, body)    => rateLimitedFetchWithRetry(`${BASE}/inventory/${id}/adjust`,          { method: 'PATCH',  headers: authHeaders(), body: JSON.stringify(body) }),
+  move:      (id, body)    => rateLimitedFetchWithRetry(`${BASE}/inventory/${id}/move`,            { method: 'PATCH',  headers: authHeaders(), body: JSON.stringify(body) }),
+  delete:    (id)          => rateLimitedFetchWithRetry(`${BASE}/inventory/${id}`,                 { method: 'DELETE', headers: authHeaders() }),
 
   // ── Warehouses ─────────────────────────────────────────────────────────────
-  getWarehouses:      ()         => rateLimitedFetch(`${BASE}/inventory/warehouses`,           { headers: authHeaders(true) }).then(handle),
-  getNextWarehouseId: ()         => rateLimitedFetch(`${BASE}/inventory/warehouses/next-id`,   { headers: authHeaders(true) }).then(handle),
-  createWarehouse:    (body)     => rateLimitedFetch(`${BASE}/inventory/warehouses`,           { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
-  updateWarehouse:    (id, body) => rateLimitedFetch(`${BASE}/inventory/warehouses/${id}`,     { method: 'PUT',    headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
-  deleteWarehouse:    (id, force = false) => rateLimitedFetch(`${BASE}/inventory/warehouses/${id}${force ? '?force=true' : ''}`,     { method: 'DELETE', headers: authHeaders() }).then(handle),
+  getWarehouses:      ()         => rateLimitedFetchWithRetry(`${BASE}/inventory/warehouses`,           { headers: authHeaders(true) }),
+  getNextWarehouseId: ()         => rateLimitedFetchWithRetry(`${BASE}/inventory/warehouses/next-id`,   { headers: authHeaders(true) }),
+  createWarehouse:    (body)     => rateLimitedFetchWithRetry(`${BASE}/inventory/warehouses`,           { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }),
+  updateWarehouse:    (id, body) => rateLimitedFetchWithRetry(`${BASE}/inventory/warehouses/${id}`,     { method: 'PUT',    headers: authHeaders(), body: JSON.stringify(body) }),
+  deleteWarehouse:    (id, force = false) => rateLimitedFetchWithRetry(`${BASE}/inventory/warehouses/${id}${force ? '?force=true' : ''}`,     { method: 'DELETE', headers: authHeaders() }),
 
   // ── Movements ──────────────────────────────────────────────────────────────
-  getMovements:    (params = {}) => rateLimitedFetch(`${BASE}/inventory/movements${q(params)}`, { headers: authHeaders(true) }).then(handle),
-  createMovement:  (body)        => rateLimitedFetch(`${BASE}/inventory/movements`,             { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
-  deleteMovement:  (id)          => rateLimitedFetch(`${BASE}/inventory/movements/${id}`,       { method: 'DELETE', headers: authHeaders() }).then(handle),
+  getMovements:    (params = {}) => rateLimitedFetchWithRetry(`${BASE}/inventory/movements${q(params)}`, { headers: authHeaders(true) }),
+  createMovement:  (body)        => rateLimitedFetchWithRetry(`${BASE}/inventory/movements`,             { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }),
+  deleteMovement:  (id)          => rateLimitedFetchWithRetry(`${BASE}/inventory/movements/${id}`,       { method: 'DELETE', headers: authHeaders() }),
 
   // ── GRN to Inventory Conversion ────────────────────────────────────────────
-  convertGRNToInventory: (grnId) => rateLimitedFetch(`${BASE}/inventory/convert-grn/${grnId}`, { method: 'POST', headers: authHeaders() }).then(handle),
+  convertGRNToInventory: (grnId) => rateLimitedFetchWithRetry(`${BASE}/inventory/convert-grn/${grnId}`, { method: 'POST', headers: authHeaders() }),
 };

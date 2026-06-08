@@ -1,74 +1,113 @@
-import axiosInstance from './axiosConfig';
-
-const API_BASE_URL = '/api/material-returns'; // Use Material Returns as base for integrated flow
+import api from './axiosConfig';
 
 const docketTrackingApi = {
-  // Get dockets (returns with DOCKET_CREATED or higher stage)
+  // Get all dockets with filtering
   getAllDockets: async (params = {}) => {
     try {
-      // If we want specific stages for Docket Tracking, we can filter them
-      const response = await axiosInstance.get(API_BASE_URL, {
-        params: {
-          ...params,
-          stages: [
-            'DOCKET_CREATED',
-            'PENDING_VEHICLE_ASSIGNMENT',
-            'VEHICLE_ASSIGNED',
-            'OUT_FOR_PICKUP',
-            'PICKED_UP',
-            'IN_TRANSIT',
-            'ARRIVED_AT_WAREHOUSE',
-            'RECEIVED'
-          ].join(',')
-        }
-      });
-      return response.data;
+      const queryParams = new URLSearchParams(params).toString();
+      const response = await api.get(`/docket-tracking${queryParams ? `?${queryParams}` : ''}`);
+      return response;
     } catch (error) {
       console.error('Error fetching dockets:', error);
       throw error;
     }
   },
 
-  // Update docket/transport info (Vehicle, Driver, Courier, AWB, LR)
-  updateDocket: async (id, data) => {
-    try {
-      const response = await axiosInstance.post(`${API_BASE_URL}/${id}/transport`, data);
-      return response.data;
-    } catch (error) {
-      console.error('Error updating docket:', error);
-      throw error;
-    }
-  },
-
-  // Update Status/Stage (for specific actions like Start Pickup, Mark Arrived)
-  updateStatus: async (id, statusData) => {
-    try {
-      const response = await axiosInstance.post(`${API_BASE_URL}/${id}/transport`, statusData);
-      return response.data;
-    } catch (error) {
-      console.error('Error updating status:', error);
-      throw error;
-    }
-  },
-
-  // Track docket by ID (returns single MR entry with timeline)
+  // Get single docket by ID
   getDocketById: async (id) => {
     try {
-      const response = await axiosInstance.get(`${API_BASE_URL}/${id}`);
-      return response.data;
+      const response = await api.get(`/docket-tracking/${id}`);
+      return response;
     } catch (error) {
       console.error('Error fetching docket details:', error);
       throw error;
     }
   },
 
-  // Delete/Cancel Docket (soft delete by changing stage or status)
+  // Create new docket
+  createDocket: async (data) => {
+    try {
+      const response = await api.post('/docket-tracking', data);
+      return response;
+    } catch (error) {
+      console.error('Error creating docket:', error);
+      throw error;
+    }
+  },
+
+  // Update docket
+  updateDocket: async (id, data) => {
+    try {
+      const response = await api.put(`/docket-tracking/${id}`, data);
+      return response;
+    } catch (error) {
+      console.error('Error updating docket:', error);
+      throw error;
+    }
+  },
+
+  // Update docket status
+  updateDocketStatus: async (id, statusData) => {
+    try {
+      const response = await api.patch(`/docket-tracking/${id}/status`, statusData);
+      return response;
+    } catch (error) {
+      console.error('Error updating docket status:', error);
+      throw error;
+    }
+  },
+
+  // Delete docket
   deleteDocket: async (id) => {
     try {
-      const response = await axiosInstance.delete(`${API_BASE_URL}/${id}`);
-      return response.data;
+      const response = await api.delete(`/docket-tracking/${id}`);
+      return response;
     } catch (error) {
       console.error('Error deleting docket:', error);
+      throw error;
+    }
+  },
+
+  // Get dashboard stats
+  getDashboardStats: async () => {
+    try {
+      const response = await api.get('/docket-tracking/stats');
+      return response;
+    } catch (error) {
+      console.error('Error fetching docket stats:', error);
+      throw error;
+    }
+  },
+
+  // Track by LR number
+  trackByLRNumber: async (lrNumber) => {
+    try {
+      const response = await api.get(`/docket-tracking/track/${lrNumber}`);
+      return response;
+    } catch (error) {
+      console.error('Error tracking by LR number:', error);
+      throw error;
+    }
+  },
+
+  // Upload POD
+  uploadPOD: async (id, podData) => {
+    try {
+      const response = await api.post(`/docket-tracking/${id}/pod`, podData);
+      return response;
+    } catch (error) {
+      console.error('Error uploading POD:', error);
+      throw error;
+    }
+  },
+
+  // Close docket
+  closeDocket: async (id, closeData) => {
+    try {
+      const response = await api.patch(`/docket-tracking/${id}/close`, closeData);
+      return response;
+    } catch (error) {
+      console.error('Error closing docket:', error);
       throw error;
     }
   }

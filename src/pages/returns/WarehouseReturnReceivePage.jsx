@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { materialReturnApi } from '../../api/materialReturnApi';
 import { inventoryApi } from '../../api/inventoryApi';
+import docketTrackingApi from '../../api/docketTrackingApi';
+import { logisticsApi } from '../../api/logisticsApi';
 import { toast } from '../../components/common/Toast';
-import { 
-  MdRefresh, MdClose, MdSearch, MdCalendarToday, 
-  MdKeyboardArrowDown, MdCheckCircle, MdLocalShipping, 
-  MdInventory, MdWarning, MdDescription, MdErrorOutline,
-  MdKeyboardArrowRight, MdMoreVert
+import {
+  MdRefresh, MdClose, MdSearch, MdCalendarToday,
+  MdCheckCircle, MdLocalShipping,
+  MdInventory, MdWarning, MdDescription,
+  MdKeyboardArrowRight, MdMoreVert, MdPhone, MdDirectionsCar
 } from 'react-icons/md';
 
 const STATUS_COLORS = {
@@ -37,10 +39,23 @@ export default function WarehouseReturnReceivePage({ onClose }) {
   
   // Detail Panel States
   const [receiveData, setReceiveData] = useState({}); // { sku: { received, damaged, missing, extra } }
+  
+  // Delivery Tracking Integration
+  const [dockets, setDockets] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
 
   useEffect(() => {
-    fetchQueue();
-    fetchWarehouses();
+    // Fetch dockets and vehicles first (for enrichment)
+    const loadData = async () => {
+      await Promise.all([
+        fetchDockets(),
+        fetchVehicles(),
+        fetchWarehouses()
+      ]);
+      // Then fetch queue after enrichment data is loaded
+      fetchQueue();
+    };
+    loadData();
   }, []);
 
   const fetchWarehouses = async () => {
@@ -52,11 +67,78 @@ export default function WarehouseReturnReceivePage({ onClose }) {
     }
   };
 
+  const fetchDockets = async () => {
+    try {
+      const res = await docketTrackingApi.getAllDockets({ limit: 500 });
+      setDockets(res.data || []);
+    } catch (error) {
+      // Silently fail - docket enrichment is optional
+      console.warn('Docket tracking data not available - continuing without enrichment');
+      setDockets([]);
+    }
+  };
+
+  const fetchVehicles = async () => {
+    try {
+      const res = await logisticsApi.getVehicles();
+      setVehicles(res.data || []);
+    } catch (error) {
+      // Silently fail - vehicle enrichment is optional
+      console.warn('Vehicle data not available - continuing without enrichment');
+      setVehicles([]);
+    }
+  };
+
   const fetchQueue = async () => {
     setLoading(true);
     try {
       const response = await materialReturnApi.getWarehouseQueue();
-      const data = response.data || [];
+      let data = response.data || [];
+
+      // Enrich queue data with docket and vehicle information (if available)
+      if (dockets.length > 0 || vehicles.length > 0) {
+        data = data.map(item => {
+          // Find matching docket by MR ID or Docket ID
+          const matchingDocket = dockets.find(d => 
+            d.mrId === item.mrId || 
+            d.docketId === item.docketId
+          );
+
+          if (matchingDocket) {
+            // Find matching vehicle by vehicle number
+            const matchingVehicle = vehicles.find(v => 
+              v.number === matchingDocket.vehicleNumber || 
+              v.number === item.vehicleNo
+            );
+
+            return {
+              ...item,
+              // Override with docket data if available
+              vehicleNo: matchingDocket.vehicleNumber || item.vehicleNo,
+              driverName: matchingDocket.driverName || item.driverName,
+              driverMobile: matchingDocket.driverMobile || item.driverMobile,
+              docketId: matchingDocket.docketId || item.docketId,
+              courierPartner: matchingDocket.courierPartner || item.transport,
+              awbNo: matchingDocket.awbLrNumber || item.awbNo,
+              priority: matchingDocket.priority || item.priority,
+              // Add vehicle details if found
+              vehicleType: matchingVehicle?.type,
+              vehicleCapacity: matchingVehicle?.capacity,
+              vehicleStatus: matchingVehicle?.status,
+              currentRoute: matchingVehicle?.currentRoute,
+              // Add tracking info
+              transportStatus: matchingDocket.transportStatus,
+              lastScanLocation: matchingDocket.lastScanLocation,
+              estimatedDelivery: matchingDocket.estimatedDelivery,
+              // Flag as enriched
+              isEnriched: true
+            };
+          }
+
+          return item;
+        });
+      }
+
       setQueue(data);
       // Auto-select first item if exists and nothing selected
       if (data.length > 0 && !selectedReturn) {
@@ -120,8 +202,44 @@ export default function WarehouseReturnReceivePage({ onClose }) {
       };
 
       await materialReturnApi.receiveMaterial(selectedReturn._id, payload);
+
+      // Update docket status to delivered if docket exists
+      if (selectedReturn.docketId) {
+        try {
+          const matchingDocket = dockets.find(d => d.docketId === selectedReturn.docketId);
+          if (matchingDocket) {
+            await docketTrackingApi.updateDocketStatus(matchingDocket._id, {
+              status: 'delivered',
+              location: selectedReturn.warehouseName || 'Warehouse',
+              remarks: 'Material received at warehouse'
+            });
+          }
+        } catch (err) {
+          console.warn('Failed to update docket status:', err);
+        }
+      }
+
+      // Update vehicle status to Available if vehicle exists
+      if (selectedReturn.vehicleNo) {
+        try {
+          const matchingVehicle = vehicles.find(v => v.number === selectedReturn.vehicleNo);
+          if (matchingVehicle && matchingVehicle.status === 'In Transit') {
+            await logisticsApi.updateVehicle(matchingVehicle._id, {
+              status: 'Available',
+              currentDocket: '',
+              currentRoute: '',
+              currentLoad: ''
+            });
+          }
+        } catch (err) {
+          console.warn('Failed to update vehicle status:', err);
+        }
+      }
+
       toast('Return received successfully. Workflow moved to QC & Inventory synced.', 'success');
       fetchQueue();
+      fetchDockets();
+      fetchVehicles();
     } catch (error) {
       toast(error.message || 'Receive failed', 'error');
     }
@@ -175,7 +293,7 @@ export default function WarehouseReturnReceivePage({ onClose }) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={fetchQueue} style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          <button onClick={() => { fetchQueue(); fetchDockets(); fetchVehicles(); }} style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} title="Refresh all data including docket & vehicle tracking">
             <MdRefresh size={20} color="#64748b" className={loading ? 'animate-spin' : ''} />
           </button>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -303,8 +421,38 @@ export default function WarehouseReturnReceivePage({ onClose }) {
                     <td style={{ padding: '12px 16px', fontWeight: 600, color: '#475569' }}>{item.docketId}</td>
                     <td style={{ padding: '12px 16px', color: '#475569' }}>{item.invoiceNo}</td>
                     <td style={{ padding: '12px 16px', fontWeight: 600, color: '#0f172a' }}>{item.supplierName}</td>
-                    <td style={{ padding: '12px 16px', color: '#475569' }}>{item.vehicleNo || '—'}</td>
-                    <td style={{ padding: '12px 16px', color: '#475569' }}>{item.driverName || '—'}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      {item.vehicleNo ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <MdDirectionsCar size={16} color={item.isEnriched ? '#22c55e' : '#94a3b8'} />
+                          <span style={{ fontWeight: 600, color: item.isEnriched ? '#0f172a' : '#475569' }}>
+                            {item.vehicleNo}
+                          </span>
+                          {item.vehicleType && (
+                            <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>
+                              ({item.vehicleType})
+                            </span>
+                          )}
+                        </div>
+                      ) : '—'}
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      {item.driverName ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <span style={{ fontWeight: 600, color: item.isEnriched ? '#0f172a' : '#475569' }}>
+                            {item.driverName}
+                          </span>
+                          {item.driverMobile && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <MdPhone size={12} color={item.isEnriched ? '#22c55e' : '#94a3b8'} />
+                              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>
+                                {item.driverMobile}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      ) : '—'}
+                    </td>
                     <td style={{ padding: '12px 16px', color: '#475569' }}>
                       {item.receiveDate ? new Date(item.receiveDate).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
                     </td>
@@ -348,16 +496,38 @@ export default function WarehouseReturnReceivePage({ onClose }) {
             </div>
             <div style={{ display: 'flex', gap: 32 }}>
               {[
-                { label: 'Docket ID', val: selectedReturn.docketId },
+                { label: 'Docket ID', val: selectedReturn.docketId, icon: <MdDescription size={14} /> },
                 { label: 'Invoice No.', val: selectedReturn.invoiceNo },
                 { label: 'Supplier / Customer', val: selectedReturn.supplierName },
-                { label: 'Vehicle No.', val: selectedReturn.vehicleNo },
-                { label: 'Driver', val: selectedReturn.driverName },
+                { 
+                  label: 'Vehicle No.', 
+                  val: selectedReturn.vehicleNo,
+                  extra: selectedReturn.vehicleType ? `(${selectedReturn.vehicleType})` : null,
+                  icon: <MdDirectionsCar size={14} />,
+                  enriched: selectedReturn.isEnriched
+                },
+                { 
+                  label: 'Driver', 
+                  val: selectedReturn.driverName,
+                  extra: selectedReturn.driverMobile ? `📞 ${selectedReturn.driverMobile}` : null,
+                  enriched: selectedReturn.isEnriched
+                },
                 { label: 'Arrival Time', val: selectedReturn.receiveDate ? new Date(selectedReturn.receiveDate).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—' },
               ].map((h, i) => (
                 <div key={i}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>{h.label}</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginTop: 2 }}>{h.val}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {h.icon}
+                    {h.label}
+                    {h.enriched && (
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} title="Auto-synced from Docket Tracking"></span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: h.enriched ? '#0f172a' : '#475569', marginTop: 2 }}>
+                    {h.val || '—'}
+                    {h.extra && (
+                      <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>{h.extra}</div>
+                    )}
+                  </div>
                 </div>
               ))}
               <MdClose size={20} color="#94a3b8" style={{ cursor: 'pointer' }} onClick={() => setSelectedReturn(null)} />

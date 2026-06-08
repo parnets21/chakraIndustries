@@ -174,11 +174,17 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       await new Promise(resolve => setTimeout(resolve, 100));
       
       // Batch 4: Additional data
-      const [batchRes, defectRes, poRes] = await Promise.all([
-        batchApi.getAll(),
-        defectiveStockApi.getAll(),
-        poApi.getAll(),
-      ]);
+      let batchRes = { data: [] }, defectRes = { data: [] }, poRes = { data: [] };
+      try {
+        const [b, d, p] = await Promise.all([
+          batchApi.getAll(),
+          defectiveStockApi.getAll(),
+          poApi.getAll(),
+        ]);
+        batchRes = b; defectRes = d; poRes = p;
+      } catch (err) {
+        console.warn('Batch 4 partial failure:', err);
+      }
       
       const cats    = catRes.data  || [];
 

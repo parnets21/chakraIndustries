@@ -5,7 +5,7 @@ import Modal from '../../components/common/Modal';
 import { approvalApi } from '../../api/approvalApi';
 import { useAuth } from '../../auth/AuthContext';
 import { MdPendingActions, MdCheckCircle, MdCancel, MdAccessTime } from 'react-icons/md';
-import { useDataEvent } from '../../utils/dataEvents';
+import { useDataEvent, dataEvents } from '../../utils/dataEvents';
 
 
 export default function ApprovalsPage() {

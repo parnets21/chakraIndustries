@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import StatusBadge from '../../../../components/common/StatusBadge';
 import Modal from '../../../../components/common/Modal';
 import { grnApi } from '../../../../api/grnApi';
+import { useDataEvent } from '../../../../utils/dataEvents';
 import { MdVisibility, MdDeleteOutline } from 'react-icons/md';
 
 const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -28,6 +29,10 @@ export default function GRNList({ onView, refresh }) {
   useEffect(() => {
     fetchGRNs();
   }, [fetchGRNs, refresh]);
+
+  // Re-fetch when QC or approval status changes so GRN table stays in sync
+  useDataEvent('qc:changed', fetchGRNs);
+  useDataEvent('approval:changed', fetchGRNs);
 
   const confirmDelete = async () => {
     setDeleting(true);

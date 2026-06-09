@@ -3,7 +3,7 @@ import StatusBadge from '../../components/common/StatusBadge';
 import Modal from '../../components/common/Modal';
 import { creditNoteApi } from '../../api/creditNoteApi';
 import { toast } from '../../components/common/Toast';
-import { useDataEvent } from '../../utils/dataEvents';
+import { useDataEvent, dataEvents } from '../../utils/dataEvents';
 
 export default function CreditNoteTrackingPage({ initialTab = 0 }) {
   const [activeTab, setActiveTab] = useState(initialTab);

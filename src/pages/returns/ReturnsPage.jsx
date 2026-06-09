@@ -5,16 +5,16 @@ import {
   MdReceipt, MdBalance, MdWarning, MdAssignment, MdArrowForward,
   MdTrendingDown,
 } from 'react-icons/md';
-import { materialReturnApi } from '../../api/materialReturnApi';
-import { invoiceApi } from '../../api/invoiceApi';
-import { toast } from '../../components/common/Toast';
-import Modal from '../../components/common/Modal';
-import DocketTrackingPage from './DocketTrackingPage';
-import WarehouseReceivePage from './WarehouseReceivePage';
-import DebitCreditMatchingPage from './DebitCreditMatchingPage';
-import MaterialReturnsPage from './MaterialReturnsPage';
-import ProfessionalLossTrackingPage from './ProfessionalLossTrackingPage';
-import { dataEvents } from '../../utils/dataEvents';
+import { materialReturnApi } from '../../api/materialReturnApi.js';
+import { invoiceApi } from '../../api/invoiceApi.js';
+import { toast } from '../../components/common/Toast.jsx';
+import Modal from '../../components/common/Modal.jsx';
+import DocketTrackingPage from './DocketTrackingPage.jsx';
+import WarehouseReceivePage from './WarehouseReceivePage.jsx';
+import DebitCreditMatchingPage from './DebitCreditMatchingPage.jsx';
+import MaterialReturnsPage from './MaterialReturnsPage.jsx';
+import ProfessionalLossTrackingPage from './ProfessionalLossTrackingPage.jsx';
+import { dataEvents } from '../../utils/dataEvents.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const RETURN_TYPES = ['Sales Return', 'Purchase Return', 'Damaged Return', 'Replacement Return'];

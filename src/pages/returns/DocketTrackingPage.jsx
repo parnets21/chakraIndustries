@@ -6,12 +6,11 @@ import {
   MdDirectionsCar, MdAttachFile,
   MdAssignment, MdWarningAmber, MdStore, MdInfo
 } from 'react-icons/md';
-import { materialReturnApi } from '../../api/materialReturnApi';
-import { invoiceApi } from '../../api/invoiceApi';
-import { logisticsApi } from '../../api/logisticsApi';
-import { inventoryApi } from '../../api/inventoryApi';
-import docketTrackingApi from '../../api/docketTrackingApi';
-import { toast } from '../../components/common/Toast';
+import { materialReturnApi } from '../../api/materialReturnApi.js';
+import { invoiceApi } from '../../api/invoiceApi.js';
+import { logisticsApi } from '../../api/logisticsApi.js';
+import { inventoryApi } from '../../api/inventoryApi.js';
+import { toast } from '../../components/common/Toast.jsx';
 
 // ============================================
 // STATUS CONFIGURATIONS
@@ -654,12 +653,16 @@ const DocketModal = ({ isOpen, onClose, onSuccess, editData, returnsList = [], i
             
             <div>
               <label style={{ fontSize: 11, fontWeight: 700 }}>Vehicle Number</label>
-              <input 
+              <select 
                 style={inputStyle()} 
                 value={form.vehicleNumber} 
-                onChange={e => setField('vehicleNumber', e.target.value)}
-                placeholder="e.g. KA-01-AB-1234"
-              />
+                onChange={e => handleVehicleSelect(e.target.value)}
+              >
+                <option value="">— Select Vehicle —</option>
+                {vehicles.map(v => (
+                  <option key={v._id} value={v.number}>{v.number} ({v.type})</option>
+                ))}
+              </select>
             </div>
             
             <div>
@@ -929,14 +932,10 @@ const DocketTrackingPage = () => {
     setLoading(true);
     try {
       const returnsData = await loadReturns();
-      const seenIds = new Set();
+      console.log('Returns Data for Dockets:', returnsData);
       const mappedDockets = returnsData
-        .filter(ret => {
-          if (!ret._id || seenIds.has(ret._id)) return false;
-          seenIds.add(ret._id);
-          return ['APPROVED', 'DOCKET_CREATED', 'VEHICLE_ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'ARRIVED_AT_WAREHOUSE', 'RECEIVED'].includes(ret.currentStage);
-        })
-        .map((ret) => {
+        .filter(ret => ['APPROVED', 'DOCKET_CREATED', 'VEHICLE_ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'ARRIVED_AT_WAREHOUSE', 'RECEIVED'].includes(ret.currentStage))
+        .map((ret, idx) => {
           const stage = ret.currentStage;
           let transportStatus = 'pickup_pending';
           if (stage === 'PICKED_UP' || stage === 'IN_TRANSIT') transportStatus = 'in_transit';
@@ -944,7 +943,7 @@ const DocketTrackingPage = () => {
 
           return {
             id: ret._id,
-            docketId: ret.docketId || `DKT-${new Date().getFullYear()}-${String(ret.mrId?.split('-').pop() || Math.random().toString(36).substr(2, 3)).padStart(3, '0')}`,
+            docketId: ret.docketId || `DKT-${new Date().getFullYear()}-${String(idx + 1).padStart(3, '0')}`,
             mrId: ret.mrId,
             invoiceNo: ret.invoiceNo || '',
             returnType: ret.returnType || 'Material Return',
@@ -1031,47 +1030,43 @@ const DocketTrackingPage = () => {
   const handleCreate = async (formData) => {
     setLoading(true);
     try {
-      // Create docket data
-      const docketData = {
-        mrId: formData.mrId,
-        returnType: formData.returnType,
-        supplier: formData.supplier,
-        sourceLocation: formData.sourceLocation,
-        destWarehouse: formData.destWarehouse,
-        productName: formData.productName,
-        productSku: formData.productSku,
-        qty: formData.qty,
-        shipmentValue: formData.shipmentValue,
-        courierPartner: formData.courierPartner,
-        vehicleName: formData.vehicleName,
-        vehicleNumber: formData.vehicleNumber,
-        awbLrNumber: formData.awbLrNumber,
-        priority: formData.priority,
+      // Find return request from 'returns' state
+      const returnRequest = returns.find(r => r.mrId === formData.mrId);
+      if (!returnRequest) {
+        // Fallback: fetch returns again if state is empty
+        const freshReturns = await loadReturns();
+        const found = freshReturns.find(r => r.mrId === formData.mrId);
+        if (!found) throw new Error(`Return request ${formData.mrId} not found`);
+        returnRequest = found;
+      }
+
+      const payload = {
+        vehicleNo: formData.vehicleNumber,
         driverName: formData.driverName,
         driverMobile: formData.driverMobile,
+        trackingStatus: 'pickup_pending',
+        currentLocation: formData.sourceLocation,
+        awbNo: formData.awbLrNumber,
+        transport: formData.courierPartner,
+        destWarehouse: formData.destWarehouse,
+        priority: formData.priority,
         shipmentWeight: formData.shipmentWeight,
         packagesCount: formData.packagesCount,
         transportCost: formData.transportCost,
         estimatedDelivery: formData.estimatedDelivery,
         assignedTeam: formData.assignedTeam,
-        invoiceNo: formData.invoiceNo,
-        transportStatus: 'pickup_pending',
-        warehouseStatus: 'Not Started',
-        qcStatus: 'Pending',
-        financeStatus: 'Not Initiated'
+        stage: 'VEHICLE_ASSIGNED'
       };
 
-      // Create docket using docket tracking API
-      await docketTrackingApi.createDocket(docketData);
+      await materialReturnApi.updateTransport(returnRequest._id, payload);
 
-      showToast('Docket created successfully', 'success');
+      showToast('New docket created and synchronized', 'success');
       setShowCreate(false);
       
       // Reload dockets to reflect changes
       loadDockets();
       
     } catch (err) {
-      console.error('Create docket error:', err);
       showToast(err.message || 'Failed to create docket', 'error');
     } finally {
       setLoading(false);
@@ -1082,37 +1077,27 @@ const DocketTrackingPage = () => {
     if (!editDocket) return;
     setLoading(true);
     try {
-      const docketData = {
-        mrId: formData.mrId,
-        returnType: formData.returnType,
-        supplier: formData.supplier,
-        sourceLocation: formData.sourceLocation,
-        destWarehouse: formData.destWarehouse,
-        productName: formData.productName,
-        productSku: formData.productSku,
-        qty: formData.qty,
-        shipmentValue: formData.shipmentValue,
-        courierPartner: formData.courierPartner,
-        vehicleName: formData.vehicleName,
-        vehicleNumber: formData.vehicleNumber,
-        awbLrNumber: formData.awbLrNumber,
-        priority: formData.priority,
+      const payload = {
+        vehicleNo: formData.vehicleNumber,
         driverName: formData.driverName,
         driverMobile: formData.driverMobile,
+        awbNo: formData.awbLrNumber,
+        transport: formData.courierPartner,
+        destWarehouse: formData.destWarehouse,
+        currentLocation: formData.sourceLocation,
+        priority: formData.priority,
         shipmentWeight: formData.shipmentWeight,
         packagesCount: formData.packagesCount,
         transportCost: formData.transportCost,
         estimatedDelivery: formData.estimatedDelivery,
         assignedTeam: formData.assignedTeam,
-        invoiceNo: formData.invoiceNo
       };
 
-      await docketTrackingApi.updateDocket(editDocket.id, docketData);
+      await materialReturnApi.updateTransport(editDocket.id, payload);
       showToast('Docket updated successfully', 'success');
       setEditDocket(null);
       loadDockets();
     } catch (err) {
-      console.error('Update docket error:', err);
       showToast(err.message || 'Failed to update docket', 'error');
     } finally {
       setLoading(false);
@@ -1120,14 +1105,18 @@ const DocketTrackingPage = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this docket?')) return;
+    if (!window.confirm('Are you sure you want to delete this docket? This will remove transport info.')) return;
     setLoading(true);
     try {
-      await docketTrackingApi.deleteDocket(id);
-      showToast('Docket deleted successfully', 'success');
-      loadDockets();
+      await materialReturnApi.updateTransport(id, {
+        vehicleNo: '', driverName: '', driverMobile: '', awbNo: '', transport: '', currentLocation: '',
+        stage: 'APPROVED'
+      });
+      
+      showToast('Docket removed and return reset to Approved stage', 'success');
+      setConfirmDelete(null);
+      setTimeout(() => { loadDockets(); }, 300);
     } catch (err) {
-      console.error('Delete docket error:', err);
       showToast(err.message || 'Failed to delete docket', 'error');
     } finally {
       setLoading(false);
@@ -1140,19 +1129,6 @@ const DocketTrackingPage = () => {
   };
 
   const setFilter = (key, value) => setFilters(prev => ({ ...prev, [key]: value }));
-
-  const handleStageUpdate = async (id, stage, status) => {
-    setLoading(true);
-    try {
-      await materialReturnApi.updateTransport(id, { stage, trackingStatus: status });
-      showToast(`Status updated to ${stage.replace(/_/g, ' ')}`, 'success');
-      loadDockets();
-    } catch (err) {
-      showToast(err.message || 'Update failed', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const TABLE_COLUMNS = ['', 'Docket ID', 'MR ID', 'Invoice', 'Return Type', 'Supplier', 'Source', 'Dest WH', 'Product/SKU', 'Qty', 'Value', 'Courier', 'AWB', 'Stage', 'Live Status', 'ETA', 'Aging', 'WH', 'QC', 'Finance', 'Team', 'Actions'];
 
@@ -1301,49 +1277,15 @@ const DocketTrackingPage = () => {
                         <span style={{ background: '#f3f4f6', padding: '2px 8px', borderRadius: 4, fontSize: 10 }}>{row.assignedTeam || '—'}</span>
                       </td>
                       <td style={{ padding: '12px 10px' }}>
-                        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                          <button onClick={() => setViewDocket(row)} title="View Details" style={{ padding: 6, border: 'none', background: '#dbeafe', borderRadius: 6, cursor: 'pointer' }}>
-                            <MdVisibility size={14} color="#1d4ed8" />
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button onClick={() => setViewDocket(row)} style={{ padding: 6, border: 'none', background: '#dbeafe', borderRadius: 6, cursor: 'pointer' }}>
+                            <MdVisibility size={14} />
                           </button>
-                          
-                          {row.transportStatus === 'pickup_pending' && (
-                            <button 
-                              onClick={() => {
-                                // Redirect or open modal for vehicle assignment in Logistics
-                                window.location.href = '/logistics/vehicles?assign=' + row.id;
-                              }}
-                              title="Assign Vehicle"
-                              style={{ padding: '6px 10px', border: 'none', background: '#e0f2fe', color: '#0369a1', borderRadius: 6, cursor: 'pointer', fontSize: 10, fontWeight: 700 }}
-                            >
-                              ASSIGN VEHICLE
-                            </button>
-                          )}
-
-                          {row.transportStatus === 'pickup_pending' && (
-                            <button 
-                              onClick={() => handleStageUpdate(row.id, 'PICKED_UP', 'picked_up')}
-                              title="Mark as Picked Up"
-                              style={{ padding: '6px 10px', border: 'none', background: '#fef3c7', color: '#92400e', borderRadius: 6, cursor: 'pointer', fontSize: 10, fontWeight: 700 }}
-                            >
-                              PICKUP
-                            </button>
-                          )}
-
-                          {(row.transportStatus === 'picked_up' || row.transportStatus === 'in_transit') && (
-                            <button 
-                              onClick={() => handleStageUpdate(row.id, 'ARRIVED_AT_WAREHOUSE', 'arrived')}
-                              title="Mark as Arrived"
-                              style={{ padding: '6px 10px', border: 'none', background: '#dcfce7', color: '#15803d', borderRadius: 6, cursor: 'pointer', fontSize: 10, fontWeight: 700 }}
-                            >
-                              ARRIVED
-                            </button>
-                          )}
-
-                          <button onClick={() => setEditDocket(row)} title="Edit Docket" style={{ padding: 6, border: 'none', background: '#f3f4f6', borderRadius: 6, cursor: 'pointer' }}>
-                            <MdEdit size={14} color="#4b5563" />
+                          <button onClick={() => setEditDocket(row)} style={{ padding: 6, border: 'none', background: '#dcfce7', borderRadius: 6, cursor: 'pointer' }}>
+                            <MdEdit size={14} />
                           </button>
-                          <button onClick={() => setConfirmDelete(row)} title="Delete Docket" style={{ padding: 6, border: 'none', background: '#fee2e2', borderRadius: 6, cursor: 'pointer' }}>
-                            <MdDelete size={14} color="#dc2626" />
+                          <button onClick={() => setConfirmDelete(row)} style={{ padding: 6, border: 'none', background: '#fee2e2', borderRadius: 6, cursor: 'pointer' }}>
+                            <MdDelete size={14} />
                           </button>
                         </div>
                       </td>

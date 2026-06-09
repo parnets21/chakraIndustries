@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Dealer API Connection</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #c62828; }
+        button {
+            background: #c62828;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover { background: #b71c1c; }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .success { background: #e8f5e9; color: #2e7d32; }
+        .error { background: #ffebee; color: #c62828; }
+        .info { background: #e3f2fd; color: #1976d2; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Dealer API Connection Test</h1>
+        <p>Test which URL works for your setup</p>
+        
+        <h3>Test URLs:</h3>
+        <button onclick="testURL('http://localhost:5000')">Test Localhost</button>
+        <button onclick="testURL('http://10.0.2.2:5000')">Test Android Emulator</button>
+        <button onclick="testURL('https://chakraindustries-backend.onrender.com')">Test Production</button>
+        
+        <h3>Custom IP Test:</h3>
+        <input type="text" id="customIP" placeholder="192.168.1.100" style="padding: 10px; width: 200px; border: 1px solid #ddd; border-radius: 4px;">
+        <button onclick="testCustomURL()">Test Custom IP</button>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function testURL(baseURL) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `<div class="result info">Testing: ${baseURL}/api/health ...</div>`;
+            
+            try {
+                const response = await fetch(`${baseURL}/api/health`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <div class="result success">
+                        ✅ SUCCESS!
+                        
+                        URL: ${baseURL}/api/health
+                        Status: ${response.status}
+                        Response: ${JSON.stringify(data, null, 2)}
+                        
+                        📱 Use this URL in your app:
+                        ${baseURL}/api/dealer
+                    </div>
+                `;
+                
+                // Now test dealer auth endpoint
+                testDealerAuth(baseURL);
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        ❌ FAILED!
+                        
+                        URL: ${baseURL}/api/health
+                        Error: ${error.message}
+                        
+                        💡 This URL won't work for your mobile app.
+                        Try another URL or check if backend is running.
+                    </div>
+                `;
+            }
+        }
+        
+        async function testDealerAuth(baseURL) {
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                const response = await fetch(`${baseURL}/api/dealer/auth/send-otp`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mobile: '9305241794' })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.innerHTML += `
+                        <div class="result success" style="margin-top: 10px;">
+                            ✅ DEALER AUTH WORKS!
+                            
+                            Dealer: ${data.dealer.name}
+                            Code: ${data.dealer.dealerCode}
+                            OTP: ${data.otp || 'Check backend logs'}
+                            
+                            🎉 Perfect! Use this URL in api.js:
+                            export const API_BASE_URL = '${baseURL}/api/dealer';
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML += `
+                        <div class="result error" style="margin-top: 10px;">
+                            ⚠️ Health check passed but auth failed
+                            Message: ${data.message}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML += `
+                    <div class="result error" style="margin-top: 10px;">
+                        ⚠️ Health check passed but couldn't test dealer auth
+                        Error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        function testCustomURL() {
+            const ip = document.getElementById('customIP').value;
+            if (!ip) {
+                alert('Please enter an IP address');
+                return;
+            }
+            testURL(`http://${ip}:5000`);
+        }
+        
+        // Auto-test on load
+        window.onload = () => {
+            document.getElementById('result').innerHTML = `
+                <div class="result info">
+                    Click a button to test which URL works for your setup.
+                    
+                    📱 For Android Emulator: Try "Test Android Emulator"
+                    📱 For iOS Simulator: Try "Test Localhost"  
+                    📱 For Real Device: Enter your computer's IP
+                    🌍 For Production: Try "Test Production"
+                </div>
+            `;
+        };
+    </script>
+</body>
+</html>

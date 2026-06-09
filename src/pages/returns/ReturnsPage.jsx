@@ -1,472 +1,304 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import Modal from '../../components/common/Modal';
+import React, { useState, useEffect } from 'react';
+import {
+  MdAdd, MdRefresh, MdSearch, MdDownload, MdVisibility, MdDelete,
+  MdCheckCircle, MdClose, MdLocalShipping, MdWarehouse, MdVerifiedUser,
+  MdReceipt, MdBalance, MdWarning, MdAssignment, MdArrowForward,
+  MdTrendingDown,
+} from 'react-icons/md';
 import { materialReturnApi } from '../../api/materialReturnApi';
 import { invoiceApi } from '../../api/invoiceApi';
 import { toast } from '../../components/common/Toast';
-
-import DebitCreditMatchingPage from './DebitCreditMatchingPage';
-import StageTrackerPage from './StageTrackerPage';
-import ProfessionalLossTrackingPage from './ProfessionalLossTrackingPage';
-
-// ✅ Import the full DocketTrackingPage component
+import Modal from '../../components/common/Modal';
 import DocketTrackingPage from './DocketTrackingPage';
-
-import {
-  MdSearch, MdRefresh, MdDownload, MdAdd,
-  MdVisibility, MdEdit, MdDelete, MdLocalShipping,
-  MdExpandMore, MdExpandLess, MdAssignment, MdAccessTime, MdCheckCircle,
-  MdClose, MdArrowForward, MdCheckCircleOutline, MdRadioButtonUnchecked,
-  MdFilterList
-} from 'react-icons/md';
+import WarehouseReceivePage from './WarehouseReceivePage';
+import DebitCreditMatchingPage from './DebitCreditMatchingPage';
+import MaterialReturnsPage from './MaterialReturnsPage';
+import ProfessionalLossTrackingPage from './ProfessionalLossTrackingPage';
+import { dataEvents } from '../../utils/dataEvents';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
+const RETURN_TYPES = ['Sales Return', 'Purchase Return', 'Damaged Return', 'Replacement Return'];
+const PRIORITIES   = ['Low', 'Medium', 'High', 'Critical'];
 
-const STAGES = [
-  'REQUEST_RAISED', 'APPROVED', 'PICKUP_PENDING', 'IN_TRANSIT', 
-  'ARRIVED', 'VERIFICATION_PENDING', 'RECEIVED', 
-  'QC_PENDING', 'QC_COMPLETED', 'FINANCE_PENDING', 'CLOSED'
-];
-
-const STAGE_ABBR = [
-  'Raised', 'Appr', 'Pickup', 'Transit', 'Arriv', 'Verify', 'Recvd', 'QC', 'QC-Ok', 'Fin', 'Closed'
-];
-
-const stageColor = {
-  REQUEST_RAISED: '#64748b',
-  APPROVED: '#059669',
-  PICKUP_PENDING: '#f59e0b',
-  IN_TRANSIT: '#2563eb',
-  ARRIVED: '#8b5cf6',
-  VERIFICATION_PENDING: '#ca8a04',
-  RECEIVED: '#10b981',
-  QC_PENDING: '#8b5cf6',
-  QC_COMPLETED: '#059669',
-  FINANCE_PENDING: '#ca8a04',
-  CLOSED: '#10b981'
+const STAGE_COLORS = {
+  Return_Request_Create: 'bg-blue-100 text-blue-700',
+  Manager_Approval:      'bg-amber-100 text-amber-700',
+  Docket_Create:         'bg-orange-100 text-orange-700',
+  Transport_Tracking:    'bg-sky-100 text-sky-700',
+  In_Transit:            'bg-sky-100 text-sky-700',
+  Warehouse_Receive:     'bg-teal-100 text-teal-700',
+  Received_At_Warehouse: 'bg-teal-100 text-teal-700',
+  QC_Verification:       'bg-purple-100 text-purple-700',
+  QC_In_Progress:        'bg-purple-100 text-purple-700',
+  Finance_Reconciliation:'bg-yellow-100 text-yellow-700',
+  Tally_Sync:            'bg-lime-100 text-lime-700',
+  Closed:                'bg-green-100 text-green-700',
+  Initiated:             'bg-gray-100 text-gray-600',
+  Approved:              'bg-green-100 text-green-700',
+  Rejected:              'bg-red-100 text-red-700',
 };
 
-const LEGACY_STAGE_MAP = {
-  Initiated: 'Return_Request_Create',
-  Approved: 'Manager_Approval',
-  Transport_Pickup: 'Docket_Create',
-  In_Transit: 'Transport_Tracking',
-  Out_For_Delivery: 'Transport_Tracking',
-  Delivered: 'Warehouse_Receive',
-  Warehouse_Queue: 'Warehouse_Receive',
-  Received_At_Warehouse: 'Warehouse_Receive',
-  QC_In_Progress: 'QC_Verification',
-  QC_Completed: 'Finance_Reconciliation',
+const PRIORITY_COLORS = {
+  Low:      'bg-green-100 text-green-700',
+  Medium:   'bg-yellow-100 text-yellow-700',
+  High:     'bg-red-100 text-red-700',
+  Critical: 'bg-red-700 text-white',
 };
 
-const DUMMY_RETURNS = [
-  { mrId: 'MR-2026-0024', docketId: 'DKT-789456', invoiceNo: 'INV-2026-1234', supplierName: 'ABC Suppliers Pvt Ltd', productName: 'Industrial Bearing (BRG-7644)', productSku: 'BRG-7644', returnQty: 10, stage: 'In_Transit',             qcStatus: 'Pending',     approvalStatus: 'Completed', finStatus: 'Partial',     priority: 'High',   value: 12500, created: '12 May, 2026 10:30 AM' },
-  { mrId: 'MR-2026-0023', docketId: 'DKT-789455', invoiceNo: 'INV-2026-1233', supplierName: 'XYZ Industries',          productName: 'Copper Wire',                  productSku: 'CW-200',    returnQty: 25, stage: 'Received_At_Warehouse', qcStatus: 'Completed',   approvalStatus: 'Completed', finStatus: 'Reconciled', priority: 'Medium', value: 18750, created: '10 May, 2026 09:15 AM' },
-  { mrId: 'MR-2026-0022', docketId: 'DKT-789454', invoiceNo: 'INV-2026-1232', supplierName: 'Global Components',       productName: 'Aluminium Frame 5',            productSku: 'AF-005',    returnQty: 5,  stage: 'QC_In_Progress',       qcStatus: 'In Progress', approvalStatus: 'Completed', finStatus: 'Pending',     priority: 'High',   value: 7250,  created: '09 May, 2026 02:00 PM' },
-  { mrId: 'MR-2026-0021', docketId: 'DKT-789453', invoiceNo: 'INV-2026-1231', supplierName: 'Tech Solutions Ltd',      productName: 'Motor Housing',               productSku: 'MH-101',    returnQty: 8,  stage: 'Approved',             qcStatus: 'Pending',     approvalStatus: 'Pending',   finStatus: 'Pending',     priority: 'Medium', value: 8400,  created: '08 May, 2026 11:45 AM' },
-  { mrId: 'MR-2026-0020', docketId: 'DKT-789452', invoiceNo: 'INV-2026-1230', supplierName: 'ABC Suppliers Pvt Ltd',   productName: 'Bearing Set',                 productSku: 'BS-400',    returnQty: 12, stage: 'Closed',               qcStatus: 'Completed',   approvalStatus: 'Completed', finStatus: 'Reconciled', priority: 'Low',    value: 10200, created: '05 May, 2026 03:30 PM' },
-  { mrId: 'MR-2026-0019', docketId: 'DKT-789451', invoiceNo: 'INV-2026-1229', supplierName: 'Prime Components',        productName: 'Gear Box',                    productSku: 'GB-220',    returnQty: 3,  stage: 'Transport_Pickup',     qcStatus: 'Pending',     approvalStatus: 'Completed', finStatus: 'Partial',     priority: 'High',   value: 6400,  created: '04 May, 2026 10:00 AM' },
-  { mrId: 'MR-2026-0018', docketId: 'DKT-789450', invoiceNo: 'INV-2026-1228', supplierName: 'STZ Industries',          productName: 'Steel Rod',                   productSku: 'SR-500',    returnQty: 20, stage: 'Out_For_Delivery',     qcStatus: 'Pending',     approvalStatus: 'Completed', finStatus: 'Partial',     priority: 'Medium', value: 22000, created: '03 May, 2026 09:00 AM' },
-  { mrId: 'MR-2026-0017', docketId: 'DKT-789449', invoiceNo: 'INV-2026-1227', supplierName: 'ABC Suppliers Pvt Ltd',   productName: 'Electric Motor',              productSku: 'EM-110',    returnQty: 4,  stage: 'Initiated',            qcStatus: 'Pending',     approvalStatus: 'Pending',   finStatus: 'Pending',     priority: 'Low',    value: 9800,  created: '01 May, 2026 08:30 AM' },
-];
-
-// ─── Badge Helpers ─────────────────────────────────────────────────────────────
-
-const stageBadge = (stage) => {
-  const map = {
-    Invoice_Select: 'bg-slate-100 text-slate-700',
-    Invoice_API_Fetch: 'bg-blue-100 text-blue-700',
-    Supplier_Products_Auto_Fetch: 'bg-teal-100 text-teal-700',
-    Return_Request_Create: 'bg-red-100 text-red-700',
-    MR_ID_Generate: 'bg-violet-100 text-violet-700',
-    Manager_Approval: 'bg-green-100 text-green-700',
-    Docket_Create: 'bg-orange-100 text-orange-700',
-    Transport_Tracking: 'bg-blue-100 text-blue-700',
-    Warehouse_Receive: 'bg-emerald-100 text-emerald-700',
-    QC_Verification: 'bg-purple-100 text-purple-700',
-    Finance_Reconciliation: 'bg-yellow-100 text-yellow-700',
-    Tally_Sync: 'bg-lime-100 text-lime-700',
-    In_Transit: 'bg-blue-100 text-blue-700', Transport_Pickup: 'bg-amber-100 text-amber-700',
-    Out_For_Delivery: 'bg-purple-100 text-purple-700', Delivered: 'bg-amber-100 text-amber-700',
-    Received_At_Warehouse: 'bg-emerald-100 text-emerald-700', Warehouse_Queue: 'bg-blue-100 text-blue-700',
-    QC_In_Progress: 'bg-purple-100 text-purple-700', QC_Completed: 'bg-green-100 text-green-700',
-    Approved: 'bg-green-100 text-green-700', Closed: 'bg-green-100 text-green-700',
-    Initiated: 'bg-gray-100 text-gray-600',
-  };
-  return map[stage] || 'bg-gray-100 text-gray-600';
+const QC_COLORS = {
+  Pending:     'bg-gray-100 text-gray-600',
+  'In Progress':'bg-blue-100 text-blue-700',
+  Passed:      'bg-green-100 text-green-700',
+  Failed:      'bg-red-100 text-red-700',
+  Completed:   'bg-green-100 text-green-700',
 };
 
-const qcBadge   = (s) => s === 'Completed' ? 'bg-green-100 text-green-700' : s === 'In Progress' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700';
-const finBadge  = (s) => s === 'Reconciled' ? 'bg-green-100 text-green-700' : s === 'Partial' ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700';
-const prioBadge = (p) => p === 'High' || p === 'Critical' ? 'bg-red-100 text-red-700' : p === 'Low' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700';
-
-const formatDateTime = (value) => {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const LEGACY_MAP = {
+  Initiated: 'Return_Request_Create', Approved: 'Manager_Approval',
+  Transport_Pickup: 'Docket_Create', In_Transit: 'Transport_Tracking',
+  Out_For_Delivery: 'Transport_Tracking', Delivered: 'Warehouse_Receive',
+  Warehouse_Queue: 'Warehouse_Receive', Received_At_Warehouse: 'Warehouse_Receive',
+  QC_In_Progress: 'QC_Verification', QC_Completed: 'Finance_Reconciliation',
 };
 
-const normalizeReturn = (record) => {
-  if (!record) return {};
-  const stage = LEGACY_STAGE_MAP[record.stage] || record.stage || 'Return_Request_Create';
-  return {
-    ...record,
-    id: record._id || record.id || record.mrId,
-    stage,
-    docketId: record.docketId || '',
-    invoiceNo: record.invoiceNo || '',
-    supplierName: record.supplierName || record.customerName || 'Unknown Party',
-    productName: record.productName || 'Invoice Item',
-    productSku: record.productSku || record.skuCode || '',
-    returnQty: Number(record.returnQty || record.expectedQty || 1),
-    qcStatus: record.qcStatus || 'Pending',
-    approvalStatus: record.approvalStatus || 'Pending',
-    finStatus: record.reconciliationStatus === 'Completed' || record.ledgerStatus === 'Reconciled' ? 'Reconciled' : 'Pending',
-    priority: record.priority || 'Medium',
-    value: Number(record.value || record.refundAmount || 0),
-    created: formatDateTime(record.createdAt || record.returnDate),
-  };
-};
+const DUMMY = [];
 
-// ─── KPI Card ──────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const fmt = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : '—';
+const stageBadge = (s) => STAGE_COLORS[s] || 'bg-gray-100 text-gray-600';
+const prioBadge  = (p) => PRIORITY_COLORS[p] || 'bg-gray-100 text-gray-600';
+const qcBadge    = (q) => QC_COLORS[q] || 'bg-gray-100 text-gray-600';
 
-const KpiCard = ({ icon: Icon, iconColor, label, value, change, warnChange }) => (
-  <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex flex-col gap-1">
-    <Icon className={`text-2xl ${iconColor} mb-1`} />
-    <div className="text-xs text-gray-500">{label}</div>
-    <div className="text-2xl font-bold leading-tight">{value}</div>
-    <div className={`text-xs font-medium ${warnChange ? 'text-amber-600' : 'text-emerald-600'}`}>{change} vs last month</div>
-  </div>
-);
+const normalizeReturn = (r) => ({
+  ...r,
+  _id: r._id || r.id,
+  mrId: r.mrId || r.returnRequestId || '',
+  stage: LEGACY_MAP[r.stage] || r.stage || 'Return_Request_Create',
+  supplierName: r.supplierName || r.customerName || 'Unknown',
+  productName: r.productName || 'Item',
+  returnQty: Number(r.returnQty || r.expectedQty || 0),
+  value: Number(r.value || r.refundAmount || 0),
+  approvalStatus: r.approvalStatus || 'Pending',
+  qcStatus: r.qcStatus || 'Pending',
+  priority: r.priority || 'Medium',
+  returnType: r.returnType || r.reason || 'Purchase Return',
+  reason: r.reason || '',
+  createdAt: r.createdAt || r.returnDate || new Date().toISOString(),
+});
 
-// ─── Lifecycle Bar ─────────────────────────────────────────────────────────────
-
-const LifecycleBar = ({ currentStage }) => {
-  const idx = STAGES.indexOf(currentStage);
+// ─── Stat Card ────────────────────────────────────────────────────────────────
+function StatCard({ icon: Icon, label, value, color, sub }) {
   return (
-    <div className="overflow-x-auto pb-1">
-      <div className="flex items-center" style={{ minWidth: 'max-content' }}>
-        {STAGES.map((s, i) => (
-          <React.Fragment key={s}>
-            <div
-              className="flex items-center justify-center rounded-full text-xs font-semibold flex-shrink-0"
-              style={{
-                width: 22, height: 22,
-                background: i < idx ? '#059669' : i === idx ? '#dc2626' : '#e5e7eb',
-                color: i <= idx ? '#fff' : '#9ca3af',
-                fontSize: 9
-              }}
-            >
-              {i < idx ? '✓' : i === idx ? '●' : '○'}
-            </div>
-            {i < STAGES.length - 1 && (
-              <div style={{ width: 18, height: 2, background: i < idx ? '#059669' : '#e5e7eb', flexShrink: 0 }} />
-            )}
-          </React.Fragment>
-        ))}
+    <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm flex items-start gap-3">
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${color}`}>
+        <Icon size={20} className="text-white" />
       </div>
-      <div className="flex mt-1" style={{ minWidth: 'max-content' }}>
-        {STAGES.map((s, i) => (
-          <div
-            key={s}
-            style={{ width: i < STAGES.length - 1 ? 40 : 22, fontSize: 8, textAlign: 'center', flexShrink: 0 }}
-            className={i === idx ? 'text-red-600 font-semibold' : 'text-gray-400'}
-          >
-            {STAGE_ABBR[i]}
-          </div>
-        ))}
+      <div>
+        <div className="text-2xl font-bold text-gray-800 leading-tight">{value}</div>
+        <div className="text-xs text-gray-500 mt-0.5">{label}</div>
+        {sub && <div className="text-xs text-emerald-600 font-medium mt-0.5">{sub}</div>}
       </div>
     </div>
   );
-};
+}
 
-// ─── Detail Panel ──────────────────────────────────────────────────────────────
+// ─── Badge ────────────────────────────────────────────────────────────────────
+function Badge({ label, cls }) {
+  return <span className={`px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${cls}`}>{label}</span>;
+}
 
-const DETAIL_TABS = ['Product Details', 'Transport Tracking', 'QC Details', 'Finance & Reconciliation', 'Loss-End Tracking', 'Activity Logs'];
-
-const DetailPanel = ({ record, onClose, onStageMove, onApprovalUpdate }) => {
-  const [activeTab, setActiveTab] = useState('Product Details');
-  const [nextStage, setNextStage] = useState('');
-
-  const stageIdx = STAGES.indexOf(record.stage);
-  const nextStages = STAGES.slice(stageIdx + 1);
-
-  const handleMove = () => {
-    if (!nextStage) return;
-    onStageMove(record.mrId, nextStage);
-    setNextStage('');
-  };
-
+// ─── Section Header ───────────────────────────────────────────────────────────
+function SectionHeader({ title, count, onAdd, addLabel, onRefresh, extra }) {
   return (
-    <div className="bg-white rounded-2xl shadow border overflow-hidden flex flex-col h-full">
-      <div className="flex justify-between items-center px-5 py-3 border-b">
-        <span className="font-semibold text-sm">Return Details — {record.mrId}</span>
-        <div className="flex items-center gap-2">
-          <button className="p-1 text-gray-400 hover:text-gray-600"><MdRefresh size={16} /></button>
-          <button className="p-1 text-gray-400 hover:text-gray-600"><MdClose size={16} onClick={onClose} /></button>
-        </div>
+    <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+      <div>
+        <h2 className="text-base font-bold text-gray-800">{title}</h2>
+        {count !== undefined && <p className="text-xs text-gray-500 mt-0.5">{count} records</p>}
       </div>
-
-      {/* Approval Quick Actions */}
-      <div className="px-5 py-3 border-b bg-red-50 flex items-center justify-between">
-        <div className="flex flex-col">
-          <span className="text-[10px] uppercase font-bold text-red-400 tracking-wider">Approval Status</span>
-          <span className={`text-xs font-bold ${record.approvalStatus === 'Completed' ? 'text-green-600' : 'text-amber-600'}`}>
-            {record.approvalStatus || 'Pending'}
-          </span>
-        </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={() => onApprovalUpdate(record.mrId, 'Pending')}
-            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${record.approvalStatus === 'Pending' ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}
-          >
-            Mark Pending
+      <div className="flex items-center gap-2">
+        {extra}
+        {onRefresh && (
+          <button onClick={onRefresh} className="p-2 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 transition-colors">
+            <MdRefresh size={16} />
           </button>
-          <button 
-            onClick={() => onApprovalUpdate(record.mrId, 'Approved')}
-            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${record.approvalStatus === 'Approved' ? 'bg-green-600 text-white shadow-sm' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'}`}
-          >
-            {record.approvalStatus === 'Approved' ? '✓ Approved' : 'Approve Return'}
+        )}
+        {onAdd && (
+          <button onClick={onAdd} className="flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm">
+            <MdAdd size={16} /> {addLabel || 'Add'}
           </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-5 gap-3 px-5 py-3 border-b bg-gray-50 text-xs">
-        <div><div className="text-gray-400 mb-0.5">Quantity</div><div className="font-medium">{record.returnQty}</div></div>
-        <div><div className="text-gray-400 mb-0.5">Return Type</div><div className="font-medium">Material Return</div></div>
-        <div><div className="text-gray-400 mb-0.5">Return Value</div><div className="font-semibold text-red-600">₹{record.value.toLocaleString('en-IN')}</div></div>
-        <div><div className="text-gray-400 mb-0.5">Created On</div><div className="font-medium">{record.created}</div></div>
-        <div><div className="text-gray-400 mb-0.5">Created By</div><div className="font-medium">Priya Sharma</div></div>
-      </div>
-      <div className="px-5 py-3 border-b">
-        <div className="text-xs font-semibold text-gray-500 mb-2">Lifecycle Progress</div>
-        <LifecycleBar currentStage={record.stage} />
-      </div>
-      <div className="flex gap-0 border-b overflow-x-auto">
-        {DETAIL_TABS.map(t => (
-          <button key={t} onClick={() => setActiveTab(t)}
-            className={`px-3 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === t ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
-            {t}
-          </button>
-        ))}
-      </div>
-      <div className="px-5 py-3 overflow-y-auto flex-1 text-xs">
-        {activeTab === 'Product Details' && (
-          <>
-            <div className="overflow-x-auto mb-3">
-              <table className="w-full text-xs border-collapse">
-                <thead>
-                  <tr className="bg-gray-50">
-                    {['Product', 'MRU/Item Code', 'Batch No.', 'Return Qty', 'Unit', 'Unit Rate (₹)', 'Return Value (₹)', 'Damage %', 'Reason'].map(h => (
-                      <th key={h} className="text-left px-2 py-2 text-gray-500 font-medium border-b whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b">
-                    <td className="px-2 py-2">{record.productName}</td>
-                    <td className="px-2 py-2 font-mono">SRG-10441</td>
-                    <td className="px-2 py-2">BATCH 80</td>
-                    <td className="px-2 py-2">{record.returnQty}</td>
-                    <td className="px-2 py-2">Nos</td>
-                    <td className="px-2 py-2">₹{Math.round(record.value / (record.returnQty || 1)).toLocaleString('en-IN')}</td>
-                    <td className="px-2 py-2">₹{record.value.toLocaleString('en-IN')}</td>
-                    <td className="px-2 py-2">5%</td>
-                    <td className="px-2 py-2">Damaged During Transit</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div className="grid grid-cols-3 gap-2 mt-2">
-              {[
-                { label: 'Invoice Value',    val: `₹${record.value.toLocaleString('en-IN')}` },
-                { label: 'Return Value',     val: `₹${record.value.toLocaleString('en-IN')}` },
-                { label: 'Debit Note',       val: `₹${Math.round(record.value * 0.32).toLocaleString('en-IN')}` },
-                { label: 'Credit Note',      val: `₹${Math.round(record.value * 0.52).toLocaleString('en-IN')}` },
-                { label: 'Recoverable Amt',  val: `₹${Math.round(record.value * 0.8).toLocaleString('en-IN')}` },
-                { label: 'Pending Recovery', val: `₹${Math.round(record.value * 0.2).toLocaleString('en-IN')}` },
-              ].map(({ label, val }) => (
-                <div key={label} className="bg-gray-50 rounded-lg px-3 py-2">
-                  <div className="text-gray-400 text-xs">{label}</div>
-                  <div className="font-semibold text-red-600 text-sm">{val}</div>
-                </div>
-              ))}
-            </div>
-          </>
         )}
-        {activeTab === 'Transport Tracking' && (
-          <div className="flex flex-col gap-3 py-1">
-            {['Initiated at supplier', 'Picked up by VRL Logistics', 'In transit – Delhi hub', 'In transit – Bangalore hub'].map((e, i) => (
-              <div key={i} className="flex gap-3 items-start">
-                <div className={`w-2 h-2 rounded-full mt-1 flex-shrink-0 ${i < 3 ? 'bg-green-500' : 'bg-gray-300'}`} />
-                <div>
-                  <div className="text-gray-800">{e}</div>
-                  <div className="text-gray-400 text-xs">{i === 0 ? record.created : '—'}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        {activeTab === 'QC Details' && (
-          <div className="grid grid-cols-2 gap-3 pt-1">
-            {[{ label: 'QC Status', val: record.qcStatus }, { label: 'Assigned To', val: 'Rajesh Kumar' }, { label: 'Damage %', val: '5%' }, { label: 'QC Remarks', val: 'Minor surface damage noted' }].map(({ label, val }) => (
-              <div key={label}><div className="text-gray-400 mb-0.5">{label}</div><div className="font-medium">{val}</div></div>
-            ))}
-          </div>
-        )}
-        {activeTab === 'Finance & Reconciliation' && (
-          <div>
-            <div className="grid grid-cols-3 gap-2 mb-3">
-              {[{ label: 'Invoice Value', val: `₹${record.value.toLocaleString('en-IN')}` }, { label: 'Debit Note', val: `₹${Math.round(record.value * 0.32).toLocaleString('en-IN')}` }, { label: 'Credit Note', val: `₹${Math.round(record.value * 0.52).toLocaleString('en-IN')}` }].map(({ label, val }) => (
-                <div key={label} className="bg-gray-50 rounded-lg px-3 py-2">
-                  <div className="text-gray-400">{label}</div>
-                  <div className="font-semibold text-red-600 text-sm">{val}</div>
-                </div>
-              ))}
-            </div>
-            <div className="text-gray-500">Financial reconciliation status: <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${finBadge(record.finStatus)}`}>{record.finStatus}</span></div>
-          </div>
-        )}
-        {activeTab === 'Loss-End Tracking' && (
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            {[{ label: 'Loss Amount', val: `₹${Math.round(record.value * 0.08).toLocaleString('en-IN')}` }, { label: 'Loss %', val: '8%' }, { label: 'Damage Type', val: 'Transit Damage' }, { label: 'Liability', val: 'Courier' }].map(({ label, val }) => (
-              <div key={label} className="bg-gray-50 rounded-lg px-3 py-2">
-                <div className="text-gray-400">{label}</div>
-                <div className="font-semibold text-red-600 text-sm">{val}</div>
-              </div>
-            ))}
-          </div>
-        )}
-        {activeTab === 'Activity Logs' && (
-          <div className="flex flex-col divide-y">
-            {[`Return ${record.mrId} created`, `Stage moved to ${record.stage}`, `QC status: ${record.qcStatus}`].map((e, i) => (
-              <div key={i} className="flex justify-between py-2">
-                <span>{e}</span>
-                <span className="text-gray-400">{record.created}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="flex gap-2 px-5 py-3 border-t bg-gray-50">
-        <select value={nextStage} onChange={e => setNextStage(e.target.value)} className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-xs bg-white">
-          <option value="">Select next stage...</option>
-          {nextStages.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
-        </select>
-        <button onClick={handleMove} className="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-xs font-semibold whitespace-nowrap">
-          Move to Next Stage →
-        </button>
       </div>
     </div>
   );
-};
+}
 
-// ─── Create Return Modal Form ──────────────────────────────────────────────────
+// ─── Search Bar ───────────────────────────────────────────────────────────────
+function SearchBar({ value, onChange, placeholder }) {
+  return (
+    <div className="relative">
+      <MdSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+      <input
+        type="text" value={value} onChange={e => onChange(e.target.value)}
+        placeholder={placeholder || 'Search...'}
+        className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
+      />
+    </div>
+  );
+}
 
-const CreateReturnModal = ({ open, onClose, onCreate, invoices = [], onInvoiceFetch, saving }) => {
-  const empty = { supplierName: '', supplierType: 'Dealer', invoiceNo: '', invoiceDate: '', productName: '', productSku: '', returnQty: '', returnValue: '', priority: 'Medium', returnType: 'Material Return', reason: '', status: 'Pending', supplierEmail: '', supplierPincode: '', supplierGSTNo: '', supplierAddress: '', transport: '', awbNo: '' };
-  const [form, setForm] = useState(empty);
-  const [fetchingInvoice, setFetchingInvoice] = useState(false);
+// ─── Empty State ──────────────────────────────────────────────────────────────
+function EmptyState({ icon: Icon, message }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+      <Icon size={40} className="mb-3 opacity-40" />
+      <p className="text-sm">{message}</p>
+    </div>
+  );
+}
 
+// ─── Create Return Modal ──────────────────────────────────────────────────────
+function CreateReturnModal({ open, onClose, onCreate, invoices, saving }) {
+  const empty = {
+    invoiceNo:'', supplierName:'', productName:'', productSku:'',
+    returnQty:'', returnValue:'', returnType:'Purchase Return',
+    reason:'', priority:'Medium', attachment:'',
+  };
+  const [form, setForm]               = useState(empty);
+  const [fetching, setFetching]       = useState(false);
+  const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [showDropdown, setShowDropdown]   = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
+  // Reset on close
+  useEffect(() => {
+    if (!open) { setForm(empty); setInvoiceSearch(''); setShowDropdown(false); }
+  }, [open]); // eslint-disable-line
+
+  const filteredInvoices = (invoices || []).filter(inv => {
+    if (!invoiceSearch) return true;
+    const q = invoiceSearch.toLowerCase();
+    return (inv.invoiceNo || '').toLowerCase().includes(q) ||
+           (inv.partyName || '').toLowerCase().includes(q);
+  }).slice(0, 50);
+
   const handleInvoiceSelect = async (invoiceNo) => {
+    setInvoiceSearch(invoiceNo);
     set('invoiceNo', invoiceNo);
+    setShowDropdown(false);
     if (!invoiceNo) return;
-
-    // Proactively set supplier name from the list we already have
-    const inv = invoices.find(i => i.invoiceNo === invoiceNo);
-    if (inv) {
-      set('supplierName', inv.partyName || inv.supplierName || '');
-    }
-
-    setFetchingInvoice(true);
+    setFetching(true);
     try {
-      const context = await onInvoiceFetch(invoiceNo);
+      const res = await materialReturnApi.getInvoiceContext(invoiceNo);
+      const d = res.data || {};
       setForm(f => ({
-        ...f, ...context, invoiceNo,
-        invoiceDate: context.invoiceDate ? new Date(context.invoiceDate).toISOString().slice(0, 10) : f.invoiceDate,
-        returnValue: context.value || f.returnValue,
-        productSku: context.productSku || context.skuCode || f.productSku,
+        ...f, invoiceNo,
+        supplierName: d.supplierName || f.supplierName,
+        productName:  d.productName  || f.productName,
+        productSku:   d.productSku   || d.skuCode || f.productSku,
+        returnValue:  d.value        || f.returnValue,
+        returnQty:    d.returnQty    || f.returnQty,
       }));
-      toast('Invoice API fetched supplier and products', 'success');
-    } catch (err) {
-      toast(err.message || 'Invoice fetch failed', 'error');
-    } finally {
-      setFetchingInvoice(false);
-    }
+      toast('Invoice details fetched', 'success');
+    } catch (e) {
+      console.error('[Returns] getInvoiceContext failed:', e.message);
+      toast('Could not fetch invoice details — fill manually', 'error');
+    } finally { setFetching(false); }
   };
 
-  const handleSubmit = async () => {
-    if (!form.supplierName || !form.invoiceNo || !form.productName) {
-      toast('Supplier, Invoice & Product are required', 'error');
-      return;
-    }
-    
-    // Explicitly mapping keys for the API
-    const payload = {
-      ...form,
-      customerName: form.supplierName, // Backend uses customerName/supplierName interchangeably
-      skuCode: form.productSku,
-      expectedQty: Number(form.returnQty),
-      value: Number(form.returnValue),
-    };
-
-    try {
-      await onCreate(payload);
-      setForm(empty);
-    } catch (error) {
-      // Error is already toasted in onCreate parent
-    }
+  const handleSubmit = () => {
+    if (!form.invoiceNo)    { toast('Invoice number is required', 'error');  return; }
+    if (!form.supplierName) { toast('Supplier name is required', 'error');   return; }
+    if (!form.returnQty)    { toast('Return quantity is required', 'error'); return; }
+    if (!form.reason)       { toast('Return reason is required', 'error');   return; }
+    onCreate(form).then(() => { setForm(empty); setInvoiceSearch(''); });
   };
 
   if (!open) return null;
-
   return (
-    <Modal open={open} onClose={onClose} title="New Return Request">
+    <Modal open={open} onClose={onClose} title="Create Return Request">
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Invoice Select *</label>
-            <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white" value={form.invoiceNo} onChange={e => handleInvoiceSelect(e.target.value)}>
-              <option value="">Select invoice</option>
-              {invoices.map(inv => <option key={inv._id || inv.invoiceNo} value={inv.invoiceNo}>{inv.invoiceNo} - {inv.partyName || inv.supplierName || 'Party'}</option>)}
-            </select>
+
+          {/* Invoice — searchable combo */}
+          <div className="col-span-2 relative">
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">
+              Invoice Number *{' '}
+              {invoices.length > 0 && <span className="text-gray-400 font-normal">({invoices.length} available)</span>}
+            </label>
+            <input
+              type="text"
+              placeholder={invoices.length > 0 ? 'Search or type invoice number...' : 'Type invoice number manually...'}
+              value={invoiceSearch}
+              onChange={e => { setInvoiceSearch(e.target.value); set('invoiceNo', e.target.value); setShowDropdown(true); }}
+              onFocus={() => setShowDropdown(true)}
+              onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-100"
+            />
+            {showDropdown && filteredInvoices.length > 0 && (
+              <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                {filteredInvoices.map(inv => (
+                  <button key={inv._id || inv.invoiceNo} type="button"
+                    onMouseDown={() => handleInvoiceSelect(inv.invoiceNo)}
+                    className="w-full text-left px-3 py-2.5 text-xs hover:bg-red-50 hover:text-red-700 border-b border-gray-50 last:border-0 transition-colors">
+                    <span className="font-semibold text-gray-800">{inv.invoiceNo}</span>
+                    {inv.partyName && <span className="text-gray-500 ml-2">— {inv.partyName}</span>}
+                    {inv.grandTotal > 0 && <span className="text-gray-400 ml-2">₹{Number(inv.grandTotal).toLocaleString('en-IN')}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+            {showDropdown && invoiceSearch && filteredInvoices.length === 0 && invoices.length > 0 && (
+              <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-3 text-xs text-gray-400">
+                No invoices match "{invoiceSearch}"
+              </div>
+            )}
+            {fetching && (
+              <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                <MdRefresh size={12} className="animate-spin" /> Fetching invoice details...
+              </p>
+            )}
+            {invoices.length === 0 && (
+              <p className="text-xs text-amber-600 mt-1">⚠ Invoice list not loaded — type the invoice number manually</p>
+            )}
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Supplier Name *</label>
-            <input className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50" placeholder="Auto from invoice" value={form.supplierName} onChange={e => set('supplierName', e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Invoice Date</label>
-            <input type="date" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value={form.invoiceDate} onChange={e => set('invoiceDate', e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Product Name *</label>
-            <input className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50" placeholder="Auto from invoice item" value={form.productName} onChange={e => set('productName', e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Product SKU</label>
-            <input className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="SKU-XXXX" value={form.productSku} onChange={e => set('productSku', e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Return Quantity *</label>
-            <input type="number" min="1" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="0" value={form.returnQty} onChange={e => set('returnQty', e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Return Value (₹)</label>
-            <input type="number" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="0" value={form.returnValue} onChange={e => set('returnValue', e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Priority</label>
-            <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value={form.priority} onChange={e => set('priority', e.target.value)}>
-              <option>Medium</option><option>High</option><option>Low</option><option>Critical</option>
-            </select>
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">Supplier / Customer *</label>
+            <input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-100"
+              placeholder="Auto-filled from invoice" value={form.supplierName} onChange={e => set('supplierName', e.target.value)} />
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-600 mb-1 block">Return Type</label>
-            <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value={form.returnType} onChange={e => set('returnType', e.target.value)}>
-              <option>Material Return</option><option>Damaged</option><option>Quality Issue</option>
+            <select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-100"
+              value={form.returnType} onChange={e => set('returnType', e.target.value)}>
+              {RETURN_TYPES.map(t => <option key={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">Product Name</label>
+            <input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-100"
+              placeholder="Auto-filled from invoice" value={form.productName} onChange={e => set('productName', e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">Product SKU</label>
+            <input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-100"
+              placeholder="SKU-XXXX" value={form.productSku} onChange={e => set('productSku', e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">Return Quantity *</label>
+            <input type="number" min="1" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-100"
+              placeholder="0" value={form.returnQty} onChange={e => set('returnQty', e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">Return Value (₹)</label>
+            <input type="number" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-100"
+              placeholder="0" value={form.returnValue} onChange={e => set('returnValue', e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">Priority</label>
+            <select className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-100"
+              value={form.priority} onChange={e => set('priority', e.target.value)}>
+              {PRIORITIES.map(p => <option key={p}>{p}</option>)}
             </select>
           </div>
           <div>
@@ -482,278 +314,211 @@ const CreateReturnModal = ({ open, onClose, onCreate, invoices = [], onInvoiceFe
             </select>
           </div>
           <div className="col-span-2">
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Reason for Return</label>
-            <textarea rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Describe reason..." value={form.reason} onChange={e => set('reason', e.target.value)} />
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">Return Reason *</label>
+            <textarea rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-100 resize-none"
+              placeholder="Describe the reason for return..." value={form.reason} onChange={e => set('reason', e.target.value)} />
+          </div>
+          <div className="col-span-2">
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">Attachment / Image URL</label>
+            <input className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-100"
+              placeholder="Paste image URL or file path" value={form.attachment} onChange={e => set('attachment', e.target.value)} />
           </div>
         </div>
-        <div className="flex gap-3 pt-2 border-t">
-          <button onClick={onClose} className="flex-1 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
-          <button onClick={handleSubmit} disabled={saving || fetchingInvoice} className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold disabled:opacity-60">
+        <div className="flex gap-3 pt-2 border-t border-gray-100">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
+          <button onClick={handleSubmit} disabled={saving || fetching}
+            className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold disabled:opacity-60 transition-colors">
             {saving ? 'Creating...' : 'Create Return Request'}
           </button>
         </div>
       </div>
     </Modal>
   );
-};
+}
 
-// ─── Main Page ─────────────────────────────────────────────────────────────────
+// ─── Dashboard Tab ────────────────────────────────────────────────────────────
+function DashboardTab({ returns, loading }) {
+  const total     = returns.length;
+  const pending   = returns.filter(r => r.approvalStatus === 'Pending').length;
+  const approved  = returns.filter(r => r.approvalStatus === 'Approved').length;
+  const rejected  = returns.filter(r => r.approvalStatus === 'Rejected').length;
+  const inTransit = returns.filter(r => ['Transport_Tracking','In_Transit','Docket_Create'].includes(r.stage)).length;
+  const closed    = returns.filter(r => r.stage === 'Closed').length;
+  const totalVal  = returns.reduce((s, r) => s + r.value, 0);
+  const pendingRefund = returns.filter(r => r.stage !== 'Closed').reduce((s, r) => s + r.value, 0);
+  const recent = [...returns].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
 
-export default function ReturnsPage({ initialTab = 0 }) {
-  const [activeTab, setActiveTab]       = useState(initialTab);
-  const [returns, setReturns]           = useState(DUMMY_RETURNS);
-  const [invoices, setInvoices]         = useState([]);
-  const [loading, setLoading]           = useState(false);
-  const [savingReturn, setSavingReturn] = useState(false);
-  const [selected, setSelected]         = useState(null);
-  const [showCreate, setShowCreate]     = useState(false);
-  const [searchTerm, setSearchTerm]     = useState('');
+  const flowSteps = [
+    { label: 'Return Request', count: returns.filter(r => r.stage === 'Return_Request_Create').length, color: 'bg-blue-500' },
+    { label: 'Approval',       count: returns.filter(r => r.stage === 'Manager_Approval').length,      color: 'bg-amber-500' },
+    { label: 'Transport',      count: inTransit,                                                        color: 'bg-sky-500' },
+    { label: 'Warehouse',      count: returns.filter(r => r.stage === 'Warehouse_Receive' || r.stage === 'Received_At_Warehouse').length, color: 'bg-teal-500' },
+    { label: 'QC',             count: returns.filter(r => r.stage === 'QC_Verification' || r.stage === 'QC_In_Progress').length, color: 'bg-purple-500' },
+    { label: 'Finance',        count: returns.filter(r => r.stage === 'Finance_Reconciliation').length, color: 'bg-yellow-500' },
+    { label: 'Closed',         count: closed,                                                           color: 'bg-green-500' },
+  ];
 
-  const loadReturns = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await materialReturnApi.getAll();
-      const data = (response.data || []).map(normalizeReturn);
-      setReturns(data.length ? data : DUMMY_RETURNS.map(normalizeReturn));
-      setSelected(prev => prev ? data.find(r => r.mrId === prev.mrId) || prev : null);
-    } catch (err) {
-      toast(err.message || 'Returns API unavailable, showing local sample data', 'error');
-      setReturns(DUMMY_RETURNS.map(normalizeReturn));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const loadInvoices = async () => {
-    try {
-      const response = await invoiceApi.getAll({ limit: 200 });
-      setInvoices(response.data || []);
-    } catch (err) {
-      toast(err.message || 'Invoice API fetch failed', 'error');
-      setInvoices([]);
-    }
-  };
-
-  useEffect(() => {
-    loadReturns();
-    loadInvoices();
-  }, [loadReturns]);
-
-  // ── Handlers ────────────────────────────────────────────────────────────────
-
-  const handleInvoiceFetch = async (invoiceNo) => {
-    const response = await materialReturnApi.getInvoiceContext(invoiceNo);
-    return response.data || {};
-  };
-
-  const handleCreateReturn = async (form) => {
-    setSavingReturn(true);
-    try {
-      const payload = {
-        invoiceNo: form.invoiceNo, invoiceDate: form.invoiceDate || undefined,
-        supplierName: form.supplierName, supplierEmail: form.supplierEmail,
-        supplierPincode: form.supplierPincode, supplierGSTNo: form.supplierGSTNo,
-        supplierAddress: form.supplierAddress, productName: form.productName,
-        productSku: form.productSku, skuCode: form.productSku,
-        returnQty: Number(form.returnQty) || 1, expectedQty: Number(form.returnQty) || 1,
-        value: Number(form.returnValue || form.value) || 0, priority: form.priority,
-        reason: form.reason || form.returnType || 'Material Return',
-        returnStatus: 'Pending', approvalStatus: form.status || 'Pending', qcStatus: 'Pending',
-        ledgerStatus: 'Pending', reconciliationStatus: 'Pending',
-        transport: form.transport, awbNo: form.awbNo,
-        stage: 'REQUEST_RAISED',
-        currentWorkflowStage: 'REQUEST_RAISED',
-      };
-      const response = await materialReturnApi.create(payload);
-      const created = normalizeReturn(response.data);
-      setReturns(prev => [created, ...prev]);
-      setSelected(created);
-      toast(`Return Request ${created.returnRequestId || ''} created, MR ID ${created.mrId} generated`, 'success');
-      setShowCreate(false);
-    } catch (err) {
-      toast(err.message || 'Return request create failed', 'error');
-      throw err;
-    } finally {
-      setSavingReturn(false);
-    }
-  };
-
-  const handleStageMove = async (mrId, newStage) => {
-    const record = returns.find(r => r.mrId === mrId);
-    if (!record?._id) {
-      setReturns(prev => prev.map(r => r.mrId === mrId ? { ...r, stage: newStage } : r));
-      setSelected(prev => prev && prev.mrId === mrId ? { ...prev, stage: newStage } : prev);
-      toast(`Stage updated to ${newStage.replace(/_/g, ' ')}`, 'success');
-      return;
-    }
-    try {
-      const response = await materialReturnApi.updateStage(record._id, newStage);
-      const updated = normalizeReturn(response.data);
-      setReturns(prev => prev.map(r => r.mrId === mrId ? updated : r));
-      setSelected(prev => prev && prev.mrId === mrId ? updated : prev);
-      toast(`Stage updated to ${newStage.replace(/_/g, ' ')}`, 'success');
-    } catch (err) {
-      toast(err.message || 'Stage update failed', 'error');
-    }
-  };
-
-  const handleApprovalUpdate = async (mrId, status) => {
-    const record = returns.find(r => r.mrId === mrId);
-    if (!record?._id) {
-      setReturns(prev => prev.map(r => r.mrId === mrId ? { ...r, approvalStatus: status } : r));
-      setSelected(prev => prev && prev.mrId === mrId ? { ...prev, approvalStatus: status } : prev);
-      toast(`Approval status set to ${status}`, 'success');
-      return;
-    }
-    try {
-      let response;
-      if (status === 'Approved') {
-        response = await materialReturnApi.approve(record._id);
-        
-        // Auto-create docket after approval
-        try {
-          await materialReturnApi.generateDocket(record._id, {
-            returnId: record.mrId,
-            invoiceNo: record.invoiceNo,
-            supplier: record.supplierName,
-            productName: record.productName,
-            qty: record.returnQty,
-            status: 'PICKUP_PENDING'
-          });
-          toast('Return Request Approved & Docket Auto-Created!', 'success');
-        } catch (docketErr) {
-          console.error('Auto-docket creation failed:', docketErr);
-          toast('Approved, but auto-docket failed. Please create manually.', 'warning');
-        }
-      } else {
-        response = await materialReturnApi.updateStatus(record._id, { 
-          approvalStatus: status,
-          stage: record.stage 
-        });
-        toast(`Return marked as ${status}`, 'success');
-      }
-      
-      const updated = normalizeReturn(response.data);
-      setReturns(prev => prev.map(r => r.mrId === mrId ? updated : r));
-      setSelected(prev => prev && prev.mrId === mrId ? updated : prev);
-      loadReturns();
-    } catch (err) {
-      toast(err.message || 'Approval update failed', 'error');
-    }
-  };
-
-  const handleDelete = async (mrId) => {
-    const record = returns.find(r => r.mrId === mrId);
-    try {
-      if (record?._id) await materialReturnApi.delete(record._id);
-      setReturns(prev => prev.filter(r => r.mrId !== mrId));
-      if (selected && selected.mrId === mrId) setSelected(null);
-      toast('Return deleted', 'error');
-    } catch (err) {
-      toast(err.message || 'Delete failed', 'error');
-    }
-  };
-
-  const filtered = searchTerm
-    ? returns.filter(r =>
-        (r.mrId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (r.docketId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (r.invoiceNo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (r.supplierName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (r.productName || '').toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    : returns;
-
-  // ── Return Requests Tab ──────────────────────────────────────────────────────
-
-  const renderReturnRequests = () => (
-    <div>
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3 mb-4 flex flex-wrap gap-3 items-end">
-        <div className="flex flex-col gap-1 min-w-[170px]">
-          <label className="text-xs text-gray-500 font-medium">Date Range</label>
-          <input type="text" defaultValue="01 May 2025 - 31 May 2025" className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs" />
-        </div>
-        {[
-          { label: 'Return Type', options: ['All', 'Material Return', 'Damaged', 'Quality Issue'] },
-          { label: 'Supplier',    options: ['All', 'ABC Suppliers', 'XYZ Industries', 'Global Components'] },
-          { label: 'Return Stage', options: ['All', ...STAGES] },
-          { label: 'Financial Status', options: ['All', 'Pending', 'Partial', 'Reconciled'] },
-          { label: 'QC Status',    options: ['All', 'Pending', 'In Progress', 'Completed'] },
-        ].map(({ label, options }) => (
-          <div key={label} className="flex flex-col gap-1 min-w-[120px]">
-            <label className="text-xs text-gray-500 font-medium">{label}</label>
-            <select className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs bg-white">
-              {options.map(o => <option key={o}>{o.replace(/_/g, ' ')}</option>)}
-            </select>
-          </div>
-        ))}
-        <div className="flex-1 min-w-[200px] relative">
-          <MdSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-          <input type="text" placeholder="Search MR ID, Invoice, Docket..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg text-xs" />
-        </div>
-        <button onClick={() => setShowCreate(true)} className="ml-auto px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shadow-sm active:scale-95 transition-all">
-          <MdAdd size={16} /> New Return Request
-        </button>
+  return (
+    <div className="space-y-6">
+      {/* KPI Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard icon={MdAssignment}    label="Total Returns"    value={total}     color="bg-red-500"     sub={`${closed} closed`} />
+        <StatCard icon={MdWarning}       label="Pending Approval" value={pending}   color="bg-amber-500"   sub="Awaiting review" />
+        <StatCard icon={MdLocalShipping} label="In Transit"       value={inTransit} color="bg-sky-500"     sub="Being shipped back" />
+        <StatCard icon={MdCheckCircle}   label="Approved"         value={approved}  color="bg-green-500"   sub={`${rejected} rejected`} />
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard icon={MdReceipt}    label="Total Return Value"  value={fmt(totalVal)}      color="bg-violet-500" />
+        <StatCard icon={MdBalance}    label="Pending Refund"      value={fmt(pendingRefund)} color="bg-orange-500" />
+        <StatCard icon={MdWarehouse}  label="At Warehouse"        value={returns.filter(r => r.stage === 'Received_At_Warehouse').length} color="bg-teal-500" />
+        <StatCard icon={MdVerifiedUser} label="QC In Progress"   value={returns.filter(r => ['QC_Verification','QC_In_Progress'].includes(r.stage)).length} color="bg-purple-500" />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-4">
-        {[
-          { icon: MdAssignment,    iconColor: 'text-red-500',    label: 'Total Returns',     value: String(returns.length), change: '↑12%' },
-          { icon: MdLocalShipping, iconColor: 'text-blue-500',   label: 'In-Transit',        value: String(returns.filter(r => r.stage === 'In_Transit').length), change: '↑8%' },
-          { icon: MdAccessTime,    iconColor: 'text-purple-500', label: 'Pending QC',        value: String(returns.filter(r => r.qcStatus === 'Pending').length), change: '↑5%' },
-          { icon: MdAssignment,    iconColor: 'text-amber-500',  label: 'Financial Pending', value: String(returns.filter(r => r.finStatus === 'Pending').length), change: '↑16%', warnChange: true },
-          { icon: MdCheckCircle,   iconColor: 'text-emerald-500',label: 'Recovered Amount',  value: '₹', change: '↑18%' },
-          { icon: MdDelete,        iconColor: 'text-red-500',    label: 'Loss Amount',       value: '₹', change: '↑7%', warnChange: true },
-          { icon: MdCheckCircle,   iconColor: 'text-green-500',  label: 'Closed Returns',    value: String(returns.filter(r => r.stage === 'Closed').length), change: '↑20%' },
-          { icon: MdAssignment,    iconColor: 'text-red-600',    label: 'Critical Returns',  value: String(returns.filter(r => r.priority === 'High' || r.priority === 'Critical').length), change: '↑2%', warnChange: true },
-        ].map((kpi, i) => <KpiCard key={i} {...kpi} />)}
+      {/* Flow Pipeline */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <h3 className="text-sm font-bold text-gray-700 mb-4">Return Flow Pipeline</h3>
+        <div className="flex items-center gap-1 overflow-x-auto pb-2">
+          {flowSteps.map((step, i) => (
+            <React.Fragment key={step.label}>
+              <div className="flex flex-col items-center min-w-[80px]">
+                <div className={`w-12 h-12 rounded-full ${step.color} flex items-center justify-center text-white font-bold text-lg shadow-sm`}>
+                  {step.count}
+                </div>
+                <div className="text-xs text-gray-600 font-medium mt-1.5 text-center leading-tight">{step.label}</div>
+              </div>
+              {i < flowSteps.length - 1 && (
+                <MdArrowForward size={18} className="text-gray-300 flex-shrink-0 mb-4" />
+              )}
+            </React.Fragment>
+          ))}
+        </div>
       </div>
 
-      <div className={`grid gap-4 ${selected ? 'grid-cols-1 lg:grid-cols-12' : 'grid-cols-1'}`}>
-        <div className={`${selected ? 'lg:col-span-7' : ''} bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden`}>
-          <div className="px-5 py-3 border-b flex justify-end items-center">
-            <div className="flex items-center gap-2">
-              <button className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-gray-50"><MdDownload size={14} /> Export</button>
-              <button onClick={loadReturns} className="p-1.5 border border-gray-300 rounded-lg text-gray-500 hover:bg-gray-50"><MdRefresh size={14} /></button>
-            </div>
+      {/* Recent Returns */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-sm font-bold text-gray-700">Recent Returns</h3>
+          <span className="text-xs text-gray-400">Last 5 entries</span>
+        </div>
+        {loading ? (
+          <div className="flex items-center justify-center py-12 text-gray-400 text-sm">Loading returns...</div>
+        ) : recent.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+            <MdAssignment size={36} className="mb-2 opacity-30" />
+            <p className="text-sm">No returns yet. Create your first return request.</p>
           </div>
+        ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  {['MR ID', 'Docket ID', 'Invoice No', 'Party', 'Product', 'Return Qty', 'Approval', 'Stage', 'QC Status', 'Financial Status', 'Priority', 'Value', 'Actions'].map(h => (
-                    <th key={h} className="px-3 py-3 text-left text-xs font-medium text-gray-500 whitespace-nowrap">{h}</th>
+                  {['MR ID','Party','Product','Type','Stage','Priority','Value','Date'].map(h => (
+                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
-                {loading && <tr><td colSpan={13} className="px-3 py-8 text-center text-xs text-gray-500">Loading backend returns...</td></tr>}
-                {filtered.map((r) => (
+              <tbody className="divide-y divide-gray-50">
+                {recent.map(r => (
+                  <tr key={r.mrId} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 font-semibold text-red-600 text-xs">{r.mrId}</td>
+                    <td className="px-4 py-3 text-xs text-gray-700 max-w-[120px] truncate">{r.supplierName}</td>
+                    <td className="px-4 py-3 text-xs text-gray-600 max-w-[120px] truncate">{r.productName}</td>
+                    <td className="px-4 py-3 text-xs text-gray-600">{r.returnType}</td>
+                    <td className="px-4 py-3"><Badge label={r.stage.replace(/_/g,' ')} cls={stageBadge(r.stage)} /></td>
+                    <td className="px-4 py-3"><Badge label={r.priority} cls={prioBadge(r.priority)} /></td>
+                    <td className="px-4 py-3 text-xs font-semibold text-gray-800">{fmt(r.value)}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500">{fmtDate(r.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Return Requests Tab ──────────────────────────────────────────────────────
+function ReturnRequestsTab({ returns, loading, onAdd, onDelete, onRefresh }) {
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('All');
+  const [selected, setSelected] = useState(null);
+
+  const filtered = returns.filter(r => {
+    const q = search.toLowerCase();
+    const matchSearch = !q || r.mrId?.toLowerCase().includes(q) || r.supplierName?.toLowerCase().includes(q)
+      || r.invoiceNo?.toLowerCase().includes(q) || r.productName?.toLowerCase().includes(q);
+    const matchType = typeFilter === 'All' || r.returnType === typeFilter;
+    return matchSearch && matchType;
+  });
+
+  return (
+    <div className="space-y-4">
+      {/* Filters */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex flex-wrap gap-3 items-center">
+        <div className="flex-1 min-w-[200px]">
+          <SearchBar value={search} onChange={setSearch} placeholder="Search MR ID, party, invoice, product..." />
+        </div>
+        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-100">
+          <option value="All">All Types</option>
+          {RETURN_TYPES.map(t => <option key={t}>{t}</option>)}
+        </select>
+        <button onClick={onRefresh} className="p-2 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 transition-colors">
+          <MdRefresh size={16} />
+        </button>
+        <button onClick={onAdd} className="flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm">
+          <MdAdd size={16} /> Create Return Request
+        </button>
+      </div>
+
+      <div className={`grid gap-4 ${selected ? 'grid-cols-1 xl:grid-cols-12' : 'grid-cols-1'}`}>
+        {/* Table */}
+        <div className={`${selected ? 'xl:col-span-7' : ''} bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden`}>
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <span className="text-sm font-bold text-gray-700">Return Requests <span className="text-gray-400 font-normal">({filtered.length})</span></span>
+            <button className="flex items-center gap-1 px-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 hover:bg-gray-50 transition-colors">
+              <MdDownload size={14} /> Export
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  {['MR ID','Invoice No','Party','Product','Qty','Type','Stage','Approval','Priority','Value','Date','Actions'].map(h => (
+                    <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {loading && (
+                  <tr><td colSpan={12} className="px-4 py-8 text-center text-xs text-gray-400">Loading...</td></tr>
+                )}
+                {!loading && filtered.length === 0 && (
+                  <tr><td colSpan={12} className="px-4 py-12 text-center text-xs text-gray-400">No return requests found</td></tr>
+                )}
+                {filtered.map(r => (
                   <tr key={r.mrId} onClick={() => setSelected(s => s?.mrId === r.mrId ? null : r)}
-                    className={`hover:bg-gray-50 cursor-pointer transition-colors ${selected?.mrId === r.mrId ? 'bg-red-50' : ''}`}>
-                    <td className="px-3 py-3 font-semibold text-red-600 text-xs whitespace-nowrap">{r.mrId}</td>
-                    <td className="px-3 py-3 font-mono text-xs text-gray-600">{r.docketId}</td>
-                    <td className="px-3 py-3 font-mono text-xs text-gray-600">{r.invoiceNo}</td>
-                    <td className="px-3 py-3 text-xs max-w-[120px] truncate">{r.supplierName}</td>
-                    <td className="px-3 py-3 text-xs max-w-[120px] truncate">{r.productName}</td>
-                    <td className="px-3 py-3 text-xs text-center font-semibold">{r.returnQty}</td>
+                    className={`cursor-pointer hover:bg-gray-50 transition-colors ${selected?.mrId === r.mrId ? 'bg-red-50' : ''}`}>
+                    <td className="px-3 py-3 font-bold text-red-600 text-xs whitespace-nowrap">{r.mrId}</td>
+                    <td className="px-3 py-3 text-xs font-mono text-gray-600">{r.invoiceNo || '—'}</td>
+                    <td className="px-3 py-3 text-xs text-gray-700 max-w-[110px] truncate">{r.supplierName}</td>
+                    <td className="px-3 py-3 text-xs text-gray-600 max-w-[110px] truncate">{r.productName}</td>
+                    <td className="px-3 py-3 text-xs font-semibold text-center">{r.returnQty}</td>
+                    <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">{r.returnType}</td>
+                    <td className="px-3 py-3"><Badge label={r.stage.replace(/_/g,' ')} cls={stageBadge(r.stage)} /></td>
                     <td className="px-3 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${
-                        r.approvalStatus === 'Approved' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-                      }`}>
-                        {r.approvalStatus || 'Pending'}
-                      </span>
+                      <Badge label={r.approvalStatus}
+                        cls={r.approvalStatus==='Approved'?'bg-green-100 text-green-700':r.approvalStatus==='Rejected'?'bg-red-100 text-red-700':'bg-amber-100 text-amber-700'} />
                     </td>
-                    <td className="px-3 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${stageBadge(r.stage)}`}>{r.stage.replace(/_/g, ' ')}</span></td>
-                    <td className="px-3 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${qcBadge(r.qcStatus)}`}>{r.qcStatus}</span></td>
-                    <td className="px-3 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${finBadge(r.finStatus)}`}>{r.finStatus}</span></td>
-                    <td className="px-3 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${prioBadge(r.priority)}`}>{r.priority}</span></td>
-                    <td className="px-3 py-3 text-xs font-semibold text-right whitespace-nowrap">₹{r.value.toLocaleString('en-IN')}</td>
+                    <td className="px-3 py-3"><Badge label={r.priority} cls={prioBadge(r.priority)} /></td>
+                    <td className="px-3 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">{fmt(r.value)}</td>
+                    <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{fmtDate(r.createdAt)}</td>
                     <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center gap-2">
-                        <button title="View" onClick={() => setSelected(s => s?.mrId === r.mrId ? null : r)} className="text-gray-400 hover:text-blue-600"><MdVisibility size={16} /></button>
-                        <button title="Edit" onClick={() => toast('Edit coming soon', 'success')} className="text-gray-400 hover:text-green-600"><MdEdit size={16} /></button>
-                        <button title="Delete" onClick={() => handleDelete(r.mrId)} className="text-gray-400 hover:text-red-600"><MdDelete size={16} /></button>
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={() => setSelected(s => s?.mrId === r.mrId ? null : r)} className="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="View"><MdVisibility size={15} /></button>
+                        <button onClick={() => onDelete(r.mrId)} className="p-1 text-gray-400 hover:text-red-600 transition-colors" title="Delete"><MdDelete size={15} /></button>
                       </div>
                     </td>
                   </tr>
@@ -761,50 +526,456 @@ export default function ReturnsPage({ initialTab = 0 }) {
               </tbody>
             </table>
           </div>
-          <div className="px-5 py-3 border-t flex items-center justify-between text-xs text-gray-500">
-            <span>Showing 1 - {Math.min(10, filtered.length)} of {filtered.length} entries</span>
-            <div className="flex items-center gap-2">
-              <span>Show</span>
-              <select className="border border-gray-300 rounded px-2 py-1 text-xs"><option>10</option><option>25</option><option>50</option></select>
-              <div className="flex gap-1">
-                {['‹', '1', '2', '3', '›'].map((p, i) => (
-                  <button key={i} className={`w-7 h-7 rounded text-xs flex items-center justify-center border ${p === '1' ? 'bg-red-600 text-white border-red-600' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>{p}</button>
-                ))}
-              </div>
-            </div>
-          </div>
         </div>
+
+        {/* Detail Panel */}
         {selected && (
-          <div className="lg:col-span-5">
-            <DetailPanel record={selected} onClose={() => setSelected(null)} onStageMove={handleStageMove} onApprovalUpdate={handleApprovalUpdate} />
+          <div className="xl:col-span-5">
+            <ReturnDetailPanel record={selected} onClose={() => setSelected(null)} />
           </div>
         )}
       </div>
     </div>
   );
+}
 
-  // ── Root Render ──────────────────────────────────────────────────────────────
+// ─── Return Detail Panel ──────────────────────────────────────────────────────
+function ReturnDetailPanel({ record, onClose }) {
+  const [tab, setTab] = useState('details');
+  const detailTabs = ['details', 'transport', 'qc', 'finance', 'activity'];
 
   return (
-    <div className="p-6">
-      {/* Tab Content */}
-      {activeTab === 0 && renderReturnRequests()}
-      {activeTab === 1 && <StageTrackerPage returns={returns} onStageUpdate={() => {}} />}
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden flex flex-col h-full">
+      {/* Header */}
+      <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+        <div>
+          <span className="font-bold text-sm text-gray-800">{record.mrId}</span>
+          <Badge label={record.stage.replace(/_/g,' ')} cls={`ml-2 ${stageBadge(record.stage)}`} />
+        </div>
+        <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 transition-colors"><MdClose size={18} /></button>
+      </div>
 
-      {/* ✅ Tab 2: Full DocketTrackingPage component — sare 22 columns + modals */}
-      {activeTab === 2 && <DocketTrackingPage />}
+      {/* Summary Row */}
+      <div className="grid grid-cols-3 gap-3 px-5 py-3 border-b border-gray-100 bg-white text-xs">
+        <div><span className="text-gray-400">Party</span><div className="font-semibold text-gray-800 mt-0.5 truncate">{record.supplierName}</div></div>
+        <div><span className="text-gray-400">Invoice</span><div className="font-mono font-semibold text-gray-800 mt-0.5">{record.invoiceNo || '—'}</div></div>
+        <div><span className="text-gray-400">Value</span><div className="font-bold text-red-600 mt-0.5">{fmt(record.value)}</div></div>
+        <div><span className="text-gray-400">Product</span><div className="font-semibold text-gray-800 mt-0.5 truncate">{record.productName}</div></div>
+        <div><span className="text-gray-400">Qty</span><div className="font-semibold text-gray-800 mt-0.5">{record.returnQty}</div></div>
+        <div><span className="text-gray-400">Priority</span><div className="mt-0.5"><Badge label={record.priority} cls={prioBadge(record.priority)} /></div></div>
+      </div>
 
-      {activeTab === 3 && <DebitCreditMatchingPage />}
-      {activeTab === 4 && <ProfessionalLossTrackingPage />}
+      {/* Sub-tabs */}
+      <div className="flex border-b border-gray-100 overflow-x-auto">
+        {detailTabs.map(t => (
+          <button key={t} onClick={() => setTab(t)}
+            className={`px-4 py-2.5 text-xs font-semibold capitalize whitespace-nowrap border-b-2 transition-colors ${tab===t?'border-red-600 text-red-600':'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            {t}
+          </button>
+        ))}
+      </div>
 
-      {/* Create Return Modal */}
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto px-5 py-4 text-xs">
+        {tab === 'details' && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                ['Return Type', record.returnType],
+                ['Docket ID', record.docketId || '—'],
+                ['Approval Status', record.approvalStatus],
+                ['QC Status', record.qcStatus],
+                ['Created', fmtDate(record.createdAt)],
+                ['Reason', record.reason || '—'],
+              ].map(([k, v]) => (
+                <div key={k} className="bg-gray-50 rounded-lg p-3">
+                  <div className="text-gray-400 mb-0.5">{k}</div>
+                  <div className="font-semibold text-gray-800">{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {tab === 'transport' && (
+          <div className="space-y-3">
+            {[
+              ['Docket / LR No', record.docketId || '—'],
+              ['Transporter', record.transport || '—'],
+              ['Vehicle No', record.vehicleNo || '—'],
+              ['Pickup Date', fmtDate(record.pickupDate)],
+              ['Expected Delivery', fmtDate(record.expectedDeliveryDate)],
+              ['Current Location', record.currentLocation || '—'],
+              ['Transit Status', record.stage.replace(/_/g,' ')],
+            ].map(([k, v]) => (
+              <div key={k} className="flex justify-between py-2 border-b border-gray-50">
+                <span className="text-gray-500">{k}</span>
+                <span className="font-semibold text-gray-800">{v}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {tab === 'qc' && (
+          <div className="space-y-3">
+            {[
+              ['QC Status', record.qcStatus],
+              ['QC Engineer', record.qcEngineer || '—'],
+              ['Received Qty', record.receivedQty ?? '—'],
+              ['Damaged Qty', record.damagedQtyReceived ?? '—'],
+              ['Missing Qty', record.missingQtyReceived ?? '—'],
+              ['QC Decision', record.qcDecision || '—'],
+              ['QC Remarks', record.qcRemarks || '—'],
+            ].map(([k, v]) => (
+              <div key={k} className="flex justify-between py-2 border-b border-gray-50">
+                <span className="text-gray-500">{k}</span>
+                <span className="font-semibold text-gray-800">{v}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {tab === 'finance' && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                ['Return Value', fmt(record.value)],
+                ['Refund Amount', fmt(record.refundAmount)],
+                ['Credit Note', record.creditNoteNo || record.creditNoteId || '—'],
+                ['Debit Note', record.debitNoteNo || record.debitNoteId || '—'],
+                ['Ledger Status', record.ledgerStatus || '—'],
+                ['Reconciliation', record.reconciliationStatus || '—'],
+              ].map(([k, v]) => (
+                <div key={k} className="bg-gray-50 rounded-lg p-3">
+                  <div className="text-gray-400 mb-0.5">{k}</div>
+                  <div className="font-semibold text-gray-800">{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {tab === 'activity' && (
+          <div className="space-y-2">
+            {[
+              { action: `Return ${record.mrId} created`, time: fmtDate(record.createdAt) },
+              { action: `Stage: ${record.stage.replace(/_/g,' ')}`, time: 'Current' },
+              { action: `Approval: ${record.approvalStatus}`, time: '—' },
+              { action: `QC: ${record.qcStatus}`, time: '—' },
+            ].map((e, i) => (
+              <div key={i} className="flex items-start gap-3 py-2 border-b border-gray-50">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-400 mt-1.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="text-gray-700">{e.action}</div>
+                  <div className="text-gray-400 text-xs mt-0.5">{e.time}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Approval Tab ─────────────────────────────────────────────────────────────
+function ApprovalTab({ returns, onStageMove }) {
+  const [search, setSearch] = useState('');
+  const [notes, setNotes] = useState({});
+
+  const pending = returns.filter(r =>
+    r.approvalStatus === 'Pending' || r.stage === 'Manager_Approval' || r.stage === 'Return_Request_Create'
+  ).filter(r => {
+    const q = search.toLowerCase();
+    return !q || r.mrId?.toLowerCase().includes(q) || r.supplierName?.toLowerCase().includes(q);
+  });
+
+  const handleApprove = (r) => onStageMove(r.mrId, 'Manager_Approval');
+  const handleReject  = (r) => onStageMove(r.mrId, 'Rejected');
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
+        <div className="flex-1"><SearchBar value={search} onChange={setSearch} placeholder="Search pending approvals..." /></div>
+        <div className="flex gap-2 text-xs">
+          <span className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg font-semibold">{pending.length} Pending</span>
+        </div>
+      </div>
+
+      {pending.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
+          <EmptyState icon={MdCheckCircle} message="No pending approvals" />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {pending.map(r => (
+            <div key={r.mrId} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                    <span className="font-bold text-red-600 text-sm">{r.mrId}</span>
+                    <Badge label={r.returnType} cls="bg-blue-100 text-blue-700" />
+                    <Badge label={r.priority} cls={prioBadge(r.priority)} />
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                    <div><span className="text-gray-400">Party</span><div className="font-semibold text-gray-800 mt-0.5 truncate">{r.supplierName}</div></div>
+                    <div><span className="text-gray-400">Invoice</span><div className="font-mono font-semibold text-gray-800 mt-0.5">{r.invoiceNo || '—'}</div></div>
+                    <div><span className="text-gray-400">Product</span><div className="font-semibold text-gray-800 mt-0.5 truncate">{r.productName}</div></div>
+                    <div><span className="text-gray-400">Return Value</span><div className="font-bold text-red-600 mt-0.5">{fmt(r.value)}</div></div>
+                  </div>
+                  <div className="mt-3">
+                    <label className="text-xs text-gray-500 mb-1 block">Approval Notes</label>
+                    <input type="text" placeholder="Add notes (optional)..."
+                      value={notes[r.mrId] || ''}
+                      onChange={e => setNotes(n => ({ ...n, [r.mrId]: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-100" />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 flex-shrink-0">
+                  <button onClick={() => handleApprove(r)}
+                    className="flex items-center gap-1.5 px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-sm">
+                    <MdCheckCircle size={14} /> Approve
+                  </button>
+                  <button onClick={() => handleReject(r)}
+                    className="flex items-center gap-1.5 px-5 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs font-semibold transition-colors border border-red-200">
+                    <MdClose size={14} /> Reject
+                  </button>
+                  <button className="flex items-center gap-1.5 px-5 py-2 bg-sky-100 hover:bg-sky-200 text-sky-700 rounded-lg text-xs font-semibold transition-colors border border-sky-200">
+                    <MdLocalShipping size={14} /> Assign Transport
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── QC Tab ───────────────────────────────────────────────────────────────────
+function QCTab({ returns, onStageMove }) {
+  const [search, setSearch] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const [qcForm, setQcForm] = useState({ receivedQty:0, damagedQty:0, missingQty:0, qcStatus:'Approved', qcRemarks:'', warehouseLocation:'' });
+
+  const qcItems = returns.filter(r =>
+    ['Warehouse_Receive','Received_At_Warehouse','QC_Verification','QC_In_Progress'].includes(r.stage)
+  ).filter(r => {
+    const q = search.toLowerCase();
+    return !q || r.mrId?.toLowerCase().includes(q) || r.supplierName?.toLowerCase().includes(q);
+  });
+
+  const openQC = (r) => {
+    setSelected(r);
+    setQcForm({ receivedQty: r.returnQty || 0, damagedQty:0, missingQty:0, qcStatus:'Approved', qcRemarks:'', warehouseLocation:'' });
+    setShowModal(true);
+  };
+
+  const handleQCSubmit = async () => {
+    if (!selected) return;
+    try {
+      if (selected._id) {
+        await materialReturnApi.processQC(selected._id, { ...qcForm, qcBy:'QC Team', qcDate: new Date().toISOString() });
+      }
+      onStageMove(selected.mrId, 'QC_Verification');
+      toast('QC completed', 'success');
+    } catch (e) { toast(e.message || 'QC update failed', 'error'); }
+    setShowModal(false);
+  };
+
+  const QC_STATUSES = ['Approved', 'Rejected', 'Repairable', 'Scrap'];
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
+        <div className="flex-1"><SearchBar value={search} onChange={setSearch} placeholder="Search QC queue..." /></div>
+        <span className="text-xs px-3 py-1.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg font-semibold">{qcItems.length} In Queue</span>
+      </div>
+
+      {qcItems.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
+          <EmptyState icon={MdVerifiedUser} message="No items pending QC" />
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  {['MR ID','Party','Product','Expected Qty','Stage','QC Status','Action'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {qcItems.map(r => (
+                  <tr key={r.mrId} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 font-bold text-red-600 text-xs">{r.mrId}</td>
+                    <td className="px-4 py-3 text-xs text-gray-700 max-w-[120px] truncate">{r.supplierName}</td>
+                    <td className="px-4 py-3 text-xs text-gray-600 max-w-[120px] truncate">{r.productName}</td>
+                    <td className="px-4 py-3 text-xs font-semibold text-center">{r.returnQty}</td>
+                    <td className="px-4 py-3"><Badge label={r.stage.replace(/_/g,' ')} cls={stageBadge(r.stage)} /></td>
+                    <td className="px-4 py-3"><Badge label={r.qcStatus} cls={qcBadge(r.qcStatus)} /></td>
+                    <td className="px-4 py-3">
+                      <button onClick={() => openQC(r)}
+                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-lg font-semibold transition-colors">
+                        QC Check
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* QC Modal */}
+      {showModal && selected && (
+        <Modal open={showModal} onClose={() => setShowModal(false)} title={`QC Check — ${selected.mrId}`}>
+          <div className="space-y-4">
+            <div className="bg-purple-50 border border-purple-100 rounded-lg p-3 text-xs">
+              <div className="font-semibold text-purple-800 mb-1">{selected.supplierName} — {selected.productName}</div>
+              <div className="text-purple-600">Expected Qty: {selected.returnQty} | Return Value: {fmt(selected.value)}</div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { label:'Received Qty', key:'receivedQty', type:'number' },
+                { label:'Damaged Qty',  key:'damagedQty',  type:'number' },
+                { label:'Missing Qty',  key:'missingQty',  type:'number' },
+                { label:'Warehouse Location', key:'warehouseLocation', type:'text' },
+              ].map(({ label, key, type }) => (
+                <div key={key}>
+                  <label className="text-xs font-semibold text-gray-600 mb-1 block">{label}</label>
+                  <input type={type} value={qcForm[key]}
+                    onChange={e => setQcForm(f => ({ ...f, [key]: type==='number' ? parseInt(e.target.value)||0 : e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-100" />
+                </div>
+              ))}
+              <div className="col-span-2">
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">QC Status</label>
+                <select value={qcForm.qcStatus} onChange={e => setQcForm(f => ({ ...f, qcStatus: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-100">
+                  {QC_STATUSES.map(s => <option key={s}>{s}</option>)}
+                </select>
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">QC Remarks</label>
+                <textarea rows={2} value={qcForm.qcRemarks} onChange={e => setQcForm(f => ({ ...f, qcRemarks: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-100"
+                  placeholder="Add QC observations..." />
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2 border-t border-gray-100">
+              <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
+              <button onClick={handleQCSubmit} className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold transition-colors">Complete QC</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─── Main ReturnsPage ─────────────────────────────────────────────────────────
+export default function ReturnsPage({ initialTab = 0 }) {
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [returns, setReturns]     = useState([]);
+  const [invoices, setInvoices]   = useState([]);
+  const [loading, setLoading]     = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+
+  const loadReturns = async () => {
+    setLoading(true);
+    try {
+      const res = await materialReturnApi.getAll();
+      setReturns((res.data || []).map(normalizeReturn));
+    } catch (e) {
+      console.error('[Returns] loadReturns failed:', e.message);
+      toast('Could not load returns from server', 'error');
+      setReturns([]);
+    } finally { setLoading(false); }
+  };
+  const loadInvoices = async () => {
+    try {
+      const res = await invoiceApi.getAll({ limit: 0 }); // 0 = fetch all
+      setInvoices(res.data || []);
+    } catch (e) {
+      console.error('[Returns] loadInvoices failed:', e.message);
+      toast('Could not load invoices — type invoice number manually', 'error');
+      setInvoices([]);
+    }
+  };
+
+  useEffect(() => { loadReturns(); loadInvoices(); }, []);
+  useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
+
+  const handleCreate = async (form) => {
+    setSaving(true);
+    try {
+      const payload = {
+        invoiceNo: form.invoiceNo, supplierName: form.supplierName,
+        productName: form.productName, productSku: form.productSku, skuCode: form.productSku,
+        returnQty: Number(form.returnQty) || 1, expectedQty: Number(form.returnQty) || 1,
+        value: Number(form.returnValue) || 0, priority: form.priority,
+        reason: form.reason, returnType: form.returnType,
+        returnStatus: 'Pending', approvalStatus: 'Pending', qcStatus: 'Pending',
+        ledgerStatus: 'Pending', reconciliationStatus: 'Pending',
+        stage: 'Return_Request_Create', currentWorkflowStage: 'Return_Request_Create',
+      };
+      const res = await materialReturnApi.create(payload);
+      const created = normalizeReturn(res.data);
+      setReturns(prev => [created, ...prev]);
+      toast(`Return ${created.mrId} created`, 'success');
+      dataEvents.emit('return:changed');
+      setShowCreate(false);
+    } catch (e) {
+      toast(e.message || 'Create failed', 'error');
+      throw e;
+    } finally { setSaving(false); }
+  };
+
+  const handleStageMove = async (mrId, newStage) => {
+    const record = returns.find(r => r.mrId === mrId);
+    if (record?._id) {
+      try {
+        const res = await materialReturnApi.updateStage(record._id, newStage);
+        const updated = normalizeReturn(res.data);
+        setReturns(prev => prev.map(r => r.mrId === mrId ? updated : r));
+        toast(`Stage updated to ${newStage.replace(/_/g,' ')}`, 'success');
+        dataEvents.emit('return:changed');
+        return;
+      } catch (e) { toast(e.message || 'Stage update failed', 'error'); return; }
+    }
+    setReturns(prev => prev.map(r => r.mrId === mrId ? { ...r, stage: newStage } : r));
+    toast(`Stage updated to ${newStage.replace(/_/g,' ')}`, 'success');
+    dataEvents.emit('return:changed');
+  };
+
+  const handleDelete = async (mrId) => {
+    const record = returns.find(r => r.mrId === mrId);
+    try {
+      if (record?._id) await materialReturnApi.delete(record._id);
+      setReturns(prev => prev.filter(r => r.mrId !== mrId));
+      toast('Return deleted', 'success');
+      dataEvents.emit('return:changed');
+    } catch (e) { toast(e.message || 'Delete failed', 'error'); }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      {activeTab === 0 && <DashboardTab returns={returns} loading={loading} />}
+      {activeTab === 1 && <ReturnRequestsTab returns={returns} loading={loading} onAdd={() => setShowCreate(true)} onDelete={handleDelete} onRefresh={loadReturns} />}
+      {activeTab === 2 && <ApprovalTab returns={returns} onStageMove={handleStageMove} />}
+      {activeTab === 3 && <DocketTrackingPage />}
+      {activeTab === 4 && <WarehouseReceivePage />}
+      {activeTab === 5 && <QCTab returns={returns} onStageMove={handleStageMove} />}
+      {activeTab === 6 && <DebitCreditMatchingPage />}
+      {activeTab === 7 && <MaterialReturnsPage />}
+      {activeTab === 8 && <ProfessionalLossTrackingPage />}
+
       <CreateReturnModal
-        open={showCreate}
-        onClose={() => setShowCreate(false)}
-        onCreate={handleCreateReturn}
-        invoices={invoices}
-        onInvoiceFetch={handleInvoiceFetch}
-        saving={savingReturn}
+        open={showCreate} onClose={() => setShowCreate(false)}
+        onCreate={handleCreate} invoices={invoices} saving={saving}
       />
     </div>
   );

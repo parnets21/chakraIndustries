@@ -9,7 +9,7 @@ import { salesOrderApi } from '../../api/salesOrderApi';
 import { clientApi } from '../../api/clientApi';
 
 const inp = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]';
-const emptyForm = { customer: '', date: '', priority: 'Normal', status: 'Pending', items: '', value: '', remarks: '' };
+const emptyForm = { customer: '', date: '', priority: 'Normal', status: 'Pending', items: '', value: '', remarks: '', file: '' };
 
 function Spinner() {
   return (
@@ -113,6 +113,17 @@ function FormBody({ form, handleFormChange, customers, showCustomerDropdown, set
         </div>
       </div>
       <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-semibold text-gray-600">File Attachment (URL)</label>
+        <input 
+          type="text" 
+          autoComplete="off" 
+          className={inp} 
+          placeholder="Paste file/document URL..." 
+          value={form.file} 
+          onChange={e => handleFormChange('file', e.target.value)}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
         <label className="text-xs font-semibold text-gray-600">Remarks</label>
         <textarea 
           autoComplete="off" 
@@ -186,6 +197,7 @@ export default function OrdersPage() {
         status: form.status,
         orderDate: form.date || new Date().toISOString(),
         remarks: form.remarks,
+        file: form.file,
       };
       await salesOrderApi.create(payload);
       toast('Order created successfully');
@@ -208,6 +220,7 @@ export default function OrdersPage() {
         priority: form.priority,
         status: form.status,
         remarks: form.remarks,
+        file: form.file,
       };
       await salesOrderApi.update(editOrder._id, payload);
       toast(`Order ${editOrder.orderId} updated successfully`);
@@ -220,7 +233,17 @@ export default function OrdersPage() {
 
   const openEdit = (row) => {
     setEditOrder(row);
-    setForm({ customer: row.customer, date: '', priority: row.priority, status: row.status, items: String(row.items), value: String(row.value), remarks: row.remarks || '' });
+    const itemDisplay = Array.isArray(row.items) ? row.items.length : (row.itemCount || row.items || 0);
+    setForm({ 
+      customer: row.customer, 
+      date: '', 
+      priority: row.priority, 
+      status: row.status, 
+      items: String(itemDisplay), 
+      value: String(row.value), 
+      remarks: row.remarks || '', 
+      file: row.file || '' 
+    });
   };
 
   const confirmDelete = async () => {
@@ -238,7 +261,7 @@ export default function OrdersPage() {
     const rows = orders.map(o => ({
       'Order ID': o.orderId,
       'Customer': o.customer,
-      'Items': o.items,
+      'Items': Array.isArray(o.items) ? o.items.length : (o.itemCount || o.items || 0),
       'Value (₹)': o.value,
       'Priority': o.priority,
       'Status': o.status,
@@ -320,7 +343,7 @@ export default function OrdersPage() {
             <DataTable columns={[
               { key:'orderId', label:'Order ID', render: v => <span className="font-semibold text-red-700">{v}</span> },
               { key:'customer', label:'Customer', render: v => <span className="font-semibold">{v}</span> },
-              { key:'items', label:'Items' },
+              { key:'items', label:'Items', render: (v, row) => (Array.isArray(v) ? v.length : (row.itemCount || v || 0)) },
               { key:'value', label:'Value (₹)', render: v => <span className="font-bold">₹{Number(v).toLocaleString('en-IN')}</span> },
               { key:'priority', label:'Priority', render: v => <StatusBadge status={v} type={v==='Urgent'?'danger':v==='High'?'warning':v==='Low'?'gray':'info'} /> },
               { key:'orderDate', label:'Date', render: v => new Date(v).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) },
@@ -366,11 +389,12 @@ export default function OrdersPage() {
         {selectedOrder && [
           ['Customer', selectedOrder.customer],
           ['Order Date', new Date(selectedOrder.orderDate).toLocaleDateString('en-IN')],
-          ['Items', selectedOrder.items],
+          ['Items', Array.isArray(selectedOrder.items) ? selectedOrder.items.length : (selectedOrder.itemCount || selectedOrder.items || 0)],
           ['Value', `₹${Number(selectedOrder.value).toLocaleString('en-IN')}`],
           ['Priority', selectedOrder.priority],
           ['Status', selectedOrder.status],
           ['Remarks', selectedOrder.remarks || '—'],
+          ['File', selectedOrder.file ? <a href={selectedOrder.file} target="_blank" rel="noreferrer" className="text-blue-600 underline">{selectedOrder.file}</a> : '—'],
         ].map(([k, v]) => (
           <div key={k} className="flex justify-between py-2 border-b border-gray-200 text-sm last:border-0">
             <span className="text-gray-500">{k}</span>

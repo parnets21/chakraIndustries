@@ -20,6 +20,8 @@ import { defectiveStockApi } from '../../api/defectiveStockApi';
 import { grnApi } from '../../api/grnApi';
 import { poApi } from '../../api/poApi';
 import { getAgeingStock } from '../../api/ageingStockApi';
+import { materialReturnApi } from '../../api/materialReturnApi';
+import { dataEvents } from '../../utils/dataEvents';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const BG_CARD = '#ffffff';
@@ -305,6 +307,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       await inventoryApi.create(payload);
       toast(`Stock entry added — ${stockForm.sku}`);
       setStockForm({ sku:'', name:'', qty:'', minQty:'', warehouse:'', unit:'Nos', category:'', batch:'', remarks:'' });
+      dataEvents.emit('inventory:changed');
       closeModal(); loadAll();
     } catch (e) { toast(e.message || 'Failed to add stock', 'error'); }
   };
@@ -316,6 +319,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       toast(`Warehouse added`);
       setWhForm({ warehouseId: '', name: '', location: '', manager: '', capacity: '', phone: '', type: 'Raw Material', address: '' });
       setNextWhId('');
+      dataEvents.emit('inventory:changed');
       closeModal(); loadAll();
     } catch (e) { toast(e.message || 'Failed to add warehouse', 'error'); }
   };
@@ -364,6 +368,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       await inventoryApi.createMovement(movForm);
       toast('Movement recorded');
       setMovForm({ type: 'Inward', sku: '', from: 'Supplier', to: '', qty: '', ref: '' });
+      dataEvents.emit('inventory:changed');
       closeModal(); loadAll();
     } catch (e) { toast(e.message || 'Failed to record movement', 'error'); }
   };
@@ -371,14 +376,11 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const handleAdjustQty = async () => {
     if (!adjustQty) { toast('Enter a quantity', 'error'); return; }
     try {
-      const val = parseInt(adjustQty) || 0;
-      await inventoryApi.adjust(adjustItem._id, { 
-        qty: val,
-        mode: adjustMode 
-      });
-      const final = adjustMode === 'add' ? (Number(adjustItem.qty || 0) + val) : val;
-      toast(`${adjustItem.sku} quantity updated to ${final}`);
-      setAdjustItem(null); setAdjustQty(''); setAdjustMode('add'); loadAll();
+      await inventoryApi.adjust(adjustItem._id, { qty: adjustQty });
+      toast(`${adjustItem.sku} quantity updated to ${adjustQty}`);
+      setAdjustItem(null); setAdjustQty('');
+      dataEvents.emit('inventory:changed');
+      loadAll();
     } catch (e) { toast(e.message || 'Failed to adjust', 'error'); }
   };
 
@@ -414,13 +416,15 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
     try {
       await inventoryApi.move(moveItem._id, { toWarehouse: moveToWH });
       toast(`${moveItem.sku} moved to ${moveToWH}`);
-      setMoveItem(null); setMoveToWH(''); loadAll();
+      setMoveItem(null); setMoveToWH('');
+      dataEvents.emit('inventory:changed');
+      loadAll();
     } catch (e) { toast(e.message || 'Failed to move', 'error'); }
   };
 
   const handleDeleteStock = async (id, sku) => {
     if (!window.confirm(`Delete ${sku}?`)) return;
-    try { await inventoryApi.delete(id); toast(`${sku} deleted`); loadAll(); }
+    try { await inventoryApi.delete(id); toast(`${sku} deleted`); dataEvents.emit('inventory:changed'); loadAll(); }
     catch (e) { toast(e.message || 'Failed to delete', 'error'); }
   };
 

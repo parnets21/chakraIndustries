@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useRef } from 'react';
+﻿import { useCallback, useEffect, useState, useRef } from 'react';
 import { poGeneratorApi } from '../../api/poGeneratorApi';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -39,37 +39,34 @@ async function extractTextFromPDF(file) {
   return { flatText, lines };
 }
 
-// ── Universal PO Parser ───────────────────────────────────────────────────────
 function parsePOFromText({ flatText, lines }) {
   const text = flatText;
   const result = { poNumber: '', vendor: '', buyerName: '', buyerAddress: '', buyerGSTIN: '', shipToName: '', shipToAddress: '', items: [], total: '', taxTotal: '', subTotal: '' };
 
-  const GSTIN_RE = /\b([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9][Z][A-Z0-9])\b/;
-  const PRICE_RE = /^(?:Rs\.?|INR|₹)?\s*[\d,]+(?:\.\d{1,4})?$/i;
-  const UOM_RE   = /^(Nos?\.?|Numbers?|Pcs?\.?|Kgs?\.?|Units?|EA|Sets?|Ltrs?\.?|Mtrs?\.?|Boxes?|Rolls?|Pairs?|Bags?|Sheets?|MT|MTs?|Ton|Tons?|Tonne|Tonnes?|Quintal|Quintals?|Sqft|Sqm|RMT|Mtr|Mtrs?|Ltr|Ltrs?|Gms?|Grams?|Dozen|Bale|Bundle|Coil|Drum|Packet|Pkt)$/i;
+  // Debug: log all lines so we can see exactly what pdfjs extracted
+  console.log('=== RAW PDF LINES ===');
+  lines.forEach((l, i) => {
+    const toks = l.tokens.map(t => `[x${t.x}:"${t.str}"]`).join(' ');
+    console.log(`L${i} y=${l.y} p=${l.page}: ${toks}`);
+  });
+  console.log('=== FLAT TEXT ===');
+  console.log(text);
+  console.log('=== END ===');
 
-  const toNum = (v) => { const n = parseFloat(String(v || '').replace(/[₹Rs\.INR,\s]/gi, '')); return isFinite(n) ? n : 0; };
-
-  // Price = has currency/comma/2-decimal marker, OR plain integer ≥ 100
-  const isPrice = (t) => {
-    const raw = String(t || '').trim();
-    if (!PRICE_RE.test(raw)) return false;
-    const n = toNum(raw);
-    if (n <= 0) return false;
-    if (/[₹]|Rs\.?|INR/i.test(raw) || /,/.test(raw) || /\.\d{2}$/.test(raw)) return true;
-    return /^\d+$/.test(raw) && n >= 100;
+  const toNum = (v) => {
+    // Remove currency symbols and thousand-separator commas, but keep decimal point
+    const cleaned = String(v || '')
+      .replace(/[₹]/g, '')
+      .replace(/\bRs\.?\s*/gi, '')
+      .replace(/\bINR\s*/gi, '')
+      .replace(/,/g, '')   // remove thousand separators
+      .trim();
+    const n = parseFloat(cleaned);
+    return isFinite(n) ? n : 0;
   };
 
-  // Strip date tokens — handles "Friday, 15 May, 2026" as a single token
-  const stripDates = (toks) => toks.filter(t => {
-    if (/^(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i.test(t)) return false;
-    if (/^(january|february|march|april|may|june|july|august|september|october|november|december)/i.test(t)) return false;
-    if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(t) || /^\d{4}[\/\-]\d{2}[\/\-]\d{2}$/.test(t)) return false;
-    if (/^\d{4}$/.test(t) && +t >= 1900 && +t <= 2099) return false;
-    return true;
-  });
-
-  const isSerial = (t) => /^\d{1,3}\.?$/.test(String(t || '').trim());
+  const GSTIN_RE = /\b([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9][Z][A-Z0-9])\b/;
+  const UOM_RE   = /^(Nos?\.?|Numbers?|Pcs?\.?|Kgs?\.?|Units?|EA|Sets?|Ltrs?\.?|Mtrs?\.?|Boxes?|Rolls?|Pairs?|Bags?|Sheets?|MT|MTs?|Ton|Tons?|Tonne|Tonnes?|Quintal|Quintals?|Sqft|Sqm|RMT|Mtr|Mtrs?|Ltr|Ltrs?|Gms?|Grams?|Dozen|Bale|Bundle|Coil|Drum|Packet|Pkt)$/i;
 
   // ── PO Number ────────────────────────────────────────────────────────────
   const poM = text.match(/(?:PO|Purchase\s+Order)\s*(?:No\.?|Number|#)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\/\-]{2,29})/i)
@@ -79,745 +76,292 @@ function parsePOFromText({ flatText, lines }) {
   // ── Vendor ───────────────────────────────────────────────────────────────
   const vendM = text.match(/Vendor\s+Name\s*[:\-]\s*([^\n]{3,80})/i)
     || text.match(/Supplier\s*[:\-]\s*([^\n]{3,80})/i)
-    || text.match(/From\s*[:\-]\s*([^\n,]{3,80})/i)
     || text.match(/Vendor\s*[:\-]\s*([^\n,]{3,80})/i);
   if (vendM) {
-    let v = vendM[1].trim().replace(/\s*Purchase\s+Order.*$/i, '').replace(/\s*(PO\s*No\.?|Order\s*No\.?)\s*[:\-].*$/i, '').trim();
+    let v = vendM[1].trim().replace(/\s*Purchase\s+Order.*$/i, '').replace(/\s*(PO\s*No\.?)\s*[:\-].*$/i, '').trim();
     if (v.length >= 3) result.vendor = v.slice(0, 80);
   }
 
-  // ── Buyer ────────────────────────────────────────────────────────────────
-  const billingIdx = text.search(/(?:BILLING|SHIPPING|SHIP\s*TO|DELIVER(?:Y)?\s*TO|SOLD\s*TO)\s+(?:ADDRESS)?\s*[:\-]/i);
+  // ── Buyer / Bill-To ───────────────────────────────────────────────────────
+  const billingIdx = text.search(/(?:BILLING\s+ADDRESS|BILLING\s*[:\-])/i);
   if (billingIdx !== -1) {
-    const block = text.slice(billingIdx, billingIdx + 800);
-    const nm = block.match(/(?:BILLING|SHIPPING|SHIP\s*TO|DELIVER(?:Y)?\s*TO|SOLD\s*TO)\s+(?:ADDRESS)?\s*[:\-]+\s*([^\n]{3,120})/i);
-    if (nm) {
-      let nl = nm[1].trim();
-      const ig = nl.match(/GSTIN\s*[:\-]?\s*([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9][Z][A-Z0-9])/i);
-      if (ig) { result.buyerGSTIN = ig[1]; nl = nl.replace(ig[0], '').trim(); }
-      const bg = nl.match(GSTIN_RE);
-      if (bg) { result.buyerGSTIN = result.buyerGSTIN || bg[1]; nl = nl.replace(bg[0], '').trim(); }
-      result.buyerName = nl.replace(/[,\s]+$/, '').trim();
-    }
+    const block = text.slice(billingIdx, billingIdx + 600);
+    const nm = block.match(/(?:BILLING\s+ADDRESS|BILLING)\s*[:\-]+\s*([^\n]{3,120})/i);
+    if (nm) result.buyerName = nm[1].trim().replace(/[,\s]+$/, '').slice(0, 120);
+    const gm = block.match(/GSTIN\s*[:\-]?\s*([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9][Z][A-Z0-9])/i);
+    if (gm) result.buyerGSTIN = gm[1];
     const addrLines = [];
-    for (const ln of block.split('\n').slice(1)) {
-      const t = ln.trim(); if (!t) continue;
-      const gm = t.match(/GSTIN\s*[:\-]?\s*([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9][Z][A-Z0-9])/i);
-      if (gm) { if (!result.buyerGSTIN) result.buyerGSTIN = gm[1]; const r = t.replace(gm[0], '').trim().replace(/^[,:\-\s]+|[,:\-\s]+$/g, ''); if (r) addrLines.push(r); continue; }
-      if (/^(PAN\s*No|CIN\s*No|BRANCH|E-Mail|Contact|Tel\s*No|Mob\s*No|Payment|Warranty|Delivery\s*At|PO\s*No|PO\s*Date|Vendor)/i.test(t)) break;
-      if (GSTIN_RE.test(t) && t.length < 20) { if (!result.buyerGSTIN) result.buyerGSTIN = t.match(GSTIN_RE)[1]; continue; }
+    for (const ln of block.split('\n').slice(1, 8)) {
+      const t = ln.trim();
+      if (!t) continue;
+      if (/^(PAN|CIN|BRANCH|E-Mail|Contact|Tel|Mob|Payment|Warranty|Delivery|PO\s*No|Vendor)/i.test(t)) break;
+      if (GSTIN_RE.test(t) && t.length < 25) { if (!result.buyerGSTIN) result.buyerGSTIN = t.match(GSTIN_RE)[1]; continue; }
       addrLines.push(t);
     }
-    result.buyerAddress = addrLines.slice(0, 6).join('\n');
-  } else {
-    // Bill to / Ship to format — extract both separately using line-by-line approach
-    const allTextLines = text.split('\n');
-
-    const findLabelLineIdx = (re) => {
-      for (let i = 0; i < allTextLines.length; i++) {
-        if (re.test(allTextLines[i].trim())) return i;
-      }
-      return -1;
-    };
-
-    // ── Handle "Ship/Bill To" combined label (e.g. D-Mart POs) ──────────────
-    // Some POs use "Ship/Bill To" as a single label meaning both addresses are the same
-    const shipBillCombinedIdx = findLabelLineIdx(/Ship\s*\/\s*Bill\s+[Tt]o|Bill\s*\/\s*Ship\s+[Tt]o/i);
-    if (shipBillCombinedIdx !== -1) {
-      const blockLines = allTextLines.slice(shipBillCombinedIdx, shipBillCombinedIdx + 12);
-      let name = '', gstin = '';
-      const addrParts = [];
-      // First line may have inline name after the label
-      const inlineM = blockLines[0].match(/(?:Ship\s*\/\s*Bill\s+To|Bill\s*\/\s*Ship\s+To)\s*[:\-]?\s*(.+)/i);
-      if (inlineM && inlineM[1].trim().length >= 3) name = inlineM[1].trim().replace(/[,\s]+$/, '').slice(0, 120);
-      for (let i = 1; i < blockLines.length; i++) {
-        const ln = blockLines[i].trim();
-        if (!ln) continue;
-        if (/^(Phone|Attn|Email|Buyer|Vendor|Validity|CIN|PAN|GSTIN|Terms|Payment|Delivery|PO\s*No|PO\s*Date|Sno|S\.?\s*No|Sr\.?\s*No|Item|Qty|HSN)/i.test(ln)) {
-          const gm = ln.match(/GSTIN\s*[:\-]?\s*([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9][Z][A-Z0-9])/i);
-          if (gm) { gstin = gm[1]; }
-          break;
-        }
-        const gm = ln.match(/GSTIN\s*[:\-]?\s*([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9][Z][A-Z0-9])/i);
-        if (gm) { gstin = gm[1]; const r = ln.replace(gm[0], '').trim().replace(/^[,:\-\s]+|[,:\-\s]+$/g, ''); if (r) addrParts.push(r); continue; }
-        if (GSTIN_RE.test(ln) && ln.length < 25) { gstin = ln.match(GSTIN_RE)[1]; continue; }
-        if (!name) name = ln.replace(/[,\s]+$/, '').trim().slice(0, 120);
-        else addrParts.push(ln);
-        if (addrParts.length >= 5) break;
-      }
-      result.buyerName    = name;
-      result.buyerAddress = addrParts.join(', ');
-      result.buyerGSTIN   = result.buyerGSTIN || gstin;
-      // Ship To = same as Bill To for this format
-      result.shipToName    = name;
-      result.shipToAddress = addrParts.join(', ');
-    }
-
-    // Check for two-column same-line header: "Bill to:   Ship to:" on one line
-    const twoColHeaderIdx = shipBillCombinedIdx !== -1 ? -1 : findLabelLineIdx(/Bill\s+[Tt]o.*Ship\s+[Tt]o/i);
-
-    if (twoColHeaderIdx !== -1) {
-      // Two-column layout: Bill To on left, Ship To on right
-      // The address lines below are also side-by-side — left half = Bill To, right half = Ship To
-      // We use x-position data from the `lines` array (not flatText) for accurate column splitting
-      const headerLine = lines.find(l => {
-        const ls = l.tokens.map(t => t.str).join(' ');
-        return /Bill\s+[Tt]o/i.test(ls) && /Ship\s+[Tt]o/i.test(ls);
-      });
-
-      // Find the x midpoint between Bill To and Ship To tokens
-      let splitX = 0;
-      if (headerLine) {
-        const billTok = headerLine.tokens.find(t => /Bill/i.test(t.str));
-        const shipTok = headerLine.tokens.find(t => /Ship/i.test(t.str));
-        if (billTok && shipTok) splitX = Math.round((billTok.x + shipTok.x) / 2);
-        else splitX = Math.round(headerLine.tokens[Math.floor(headerLine.tokens.length / 2)]?.x || 300);
-      } else {
-        splitX = 300; // fallback midpoint
-      }
-
-      // Collect lines below the header until we hit the item table
-      const STOP_RE = /^(Item|Description|S\.?\s*No|Sr\.?\s*No|Sl\.?\s*No|Qty|HSN|SAC|Terms|Payment|Indented|Approved|Authorized)/i;
-      const headerY = headerLine?.y ?? 0;
-      const addrLines = lines.filter(l => l.y > headerY && l.page === (headerLine?.page ?? 1))
-        .filter(l => !STOP_RE.test(l.tokens.map(t => t.str).join(' ').trim()))
-        .slice(0, 10);
-
-      const billLines = [], shipLines = [];
-      for (const l of addrLines) {
-        const leftToks  = l.tokens.filter(t => t.x < splitX).map(t => t.str).join(' ').trim();
-        const rightToks = l.tokens.filter(t => t.x >= splitX).map(t => t.str).join(' ').trim();
-        if (leftToks)  billLines.push(leftToks);
-        if (rightToks) shipLines.push(rightToks);
-      }
-
-      // Extract name (first non-label line) and address from each column
-      const parseColumn = (colLines) => {
-        let name = '', gstin = '';
-        const addrParts = [];
-        for (const ln of colLines) {
-          const t = ln.trim();
-          if (!t) continue;
-          if (/^(Bill|Ship|Deliver)\s*(To|to)\s*[:\-]?\s*$/i.test(t)) continue; // skip label-only lines
-          const gm = t.match(/GSTIN\s*[:\-]?\s*([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9][Z][A-Z0-9])/i);
-          if (gm) { gstin = gm[1]; const r = t.replace(gm[0], '').trim().replace(/^[,:\-\s]+|[,:\-\s]+$/g, ''); if (r) addrParts.push(r); continue; }
-          if (GSTIN_RE.test(t) && t.length < 25) { gstin = t.match(GSTIN_RE)[1]; continue; }
-          if (/^(Delivery\s+Contact|Contact|Tel|Mob|Email|Indented|Approved)/i.test(t)) break;
-          if (!name) name = t.replace(/[,\s]+$/, '').trim().slice(0, 120);
-          else addrParts.push(t);
-          if (addrParts.length >= 5) break;
-        }
-        return { name, address: addrParts.join(', '), gstin };
-      };
-
-      const billTo = parseColumn(billLines);
-      const shipTo = parseColumn(shipLines);
-
-      result.buyerName     = billTo.name || shipTo.name;
-      result.buyerAddress  = billTo.address;
-      result.buyerGSTIN    = result.buyerGSTIN || billTo.gstin || shipTo.gstin;
-      result.shipToName    = (shipTo.name && shipTo.name !== billTo.name) ? shipTo.name : '';
-      result.shipToAddress = (shipTo.address && shipTo.address !== billTo.address) ? shipTo.address : '';
-
-    } else {
-      // Single-column or separate-line labels
-      const billToLineIdx    = findLabelLineIdx(/^Bill\s+To\s*[:\-]?\s*$/i);
-      const shipToLineIdx    = findLabelLineIdx(/^Ship\s*To\s*[:\-]?\s*$/i);
-      const deliverToLineIdx = findLabelLineIdx(/^Deliver(?:y)?\s*To\s*[:\-]?\s*$/i);
-      const billToInlineIdx  = findLabelLineIdx(/Bill\s+To\s*[:\-]/i);
-      const shipToInlineIdx  = findLabelLineIdx(/Ship\s*To\s*[:\-]/i);
-      const deliverToInlineIdx = findLabelLineIdx(/Deliver(?:y)?\s*To\s*[:\-]/i);
-
-      const extractFromLineIdx = (lineIdx, labelOnSameLine) => {
-        if (lineIdx === -1) return { name: '', address: '', gstin: '' };
-        const blockLines = allTextLines.slice(lineIdx, lineIdx + 12);
-        let name = '', gstin = '';
-        const addrLines = [];
-        let startIdx = 0;
-
-        if (labelOnSameLine) {
-          const labelLine = blockLines[0];
-          const inlineMatch = labelLine.match(/(?:Bill\s+To|Ship\s*To|Deliver(?:y)?\s*To)\s*[:\-]\s*(.+)/i);
-          if (inlineMatch) {
-            let c = inlineMatch[1].trim().replace(GSTIN_RE, '').trim();
-            const half = c.slice(0, Math.floor(c.length / 2)).trim();
-            if (half.length >= 5 && c.toLowerCase().startsWith(half.toLowerCase())) c = half;
-            name = c.replace(/[,\s]+$/, '').trim().slice(0, 120);
-          }
-          startIdx = 1;
-        } else {
-          startIdx = 1;
-        }
-
-        for (let i = startIdx; i < blockLines.length; i++) {
-          const ln = blockLines[i].trim();
-          if (!ln) continue;
-          if (/^(GSTIN|PAN\s*No|CIN\s*No|Contact|Tel|Mob|Email|Ship\s*To|Bill\s*To|Deliver|Indented|Approved|Item|Qty|S\.?\s*No|Sr\.?\s*No|Sl\.?\s*No|Description|Product|Material|Terms|Payment|Warranty|Authorized)/i.test(ln)) {
-            const gm = ln.match(/GSTIN\s*[:\-]?\s*([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9][Z][A-Z0-9])/i);
-            if (gm) { gstin = gm[1]; continue; }
-            break;
-          }
-          const gm = ln.match(/GSTIN\s*[:\-]?\s*([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9][Z][A-Z0-9])/i);
-          if (gm) { gstin = gm[1]; const r = ln.replace(gm[0], '').trim().replace(/^[,:\-\s]+|[,:\-\s]+$/g, ''); if (r) addrLines.push(r); continue; }
-          if (GSTIN_RE.test(ln) && ln.length < 25) { gstin = ln.match(GSTIN_RE)[1]; continue; }
-          let cleanLn = ln;
-          const half = cleanLn.slice(0, Math.floor(cleanLn.length / 2)).trim();
-          if (half.length >= 8 && cleanLn.toLowerCase().startsWith(half.toLowerCase())) cleanLn = half;
-          if (!name) { name = cleanLn.replace(/[,\s]+$/, '').trim().slice(0, 120); }
-          else { addrLines.push(cleanLn); }
-          if (addrLines.length >= 5) break;
-        }
-        return { name, address: addrLines.join(', '), gstin };
-      };
-
-      const billToIdx = billToLineIdx !== -1 ? billToLineIdx : billToInlineIdx;
-      const shipToIdx = shipToLineIdx !== -1 ? shipToLineIdx : (shipToInlineIdx !== -1 ? shipToInlineIdx : deliverToLineIdx !== -1 ? deliverToLineIdx : deliverToInlineIdx);
-      const billLabelOnSameLine = billToLineIdx === -1 && billToInlineIdx !== -1;
-      const shipLabelOnSameLine = shipToLineIdx === -1 && (shipToInlineIdx !== -1 || deliverToLineIdx === -1);
-
-      const billTo = extractFromLineIdx(billToIdx, billLabelOnSameLine);
-      const shipTo = extractFromLineIdx(shipToIdx, shipLabelOnSameLine);
-
-      result.buyerName     = billTo.name || shipTo.name;
-      result.buyerAddress  = billTo.address;
-      result.buyerGSTIN    = result.buyerGSTIN || billTo.gstin || shipTo.gstin;
-      result.shipToName    = (shipTo.name && shipTo.name !== billTo.name) ? shipTo.name : '';
-      result.shipToAddress = (shipTo.address && shipTo.address !== billTo.address) ? shipTo.address : '';
-    }
+    result.buyerAddress = addrLines.slice(0, 5).join(', ');
   }
   if (!result.buyerGSTIN) {
     const all = [...text.matchAll(/\b([0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9][Z][A-Z0-9])\b/g)].map(m => m[1]);
-    result.buyerGSTIN = all[1] || all[0] || '';
+    result.buyerGSTIN = all[0] || '';
   }
 
-  // ── Totals ───────────────────────────────────────────────────────────────
-  const grandM = text.match(/Grand\s+Total\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i)
-    || text.match(/Net\s+Amount\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i)
-    || text.match(/Total\s+Amount\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i)
-    || text.match(/Amount\s+Payable\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i)
-    || text.match(/Invoice\s+Total\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i)
-    || text.match(/Order\s+Total\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i)
-    || text.match(/\bTotal\s*[:\-]\s*([\d,]+(?:\.\d{1,2})?)/i);
-  if (grandM) result.total = grandM[1].replace(/,/g, '');
-  const taxM = text.match(/(?:Total\s+)?Tax\s+Amount\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i);
-  if (taxM) result.taxTotal = taxM[1].replace(/,/g, '');
-  const subM = text.match(/Sub\s*Total\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i) || text.match(/Total\s+(?:Base|Taxable)\s+(?:Value|Amount)\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i)
-    || text.match(/Total\s+Amount\s*\(?Without\s+Tax\)?\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i);
-  if (subM) result.subTotal = subM[1].replace(/,/g, '');
-
-  // ── Pass 0: Direct flatText regex extraction ──────────────────────────────
-  // For structured POs where the item table has a known column order in flatText.
-  // Pattern: serial, item_name, description?, qty, uom, hsn, unit_rate,
-  //          cgst_amt (cgst_pct), sgst_amt (sgst_pct), igst_amt (igst_pct), amount
-  // This is more reliable than token-based parsing for PDFs where pdfjs merges lines.
-  {
-    const NUM = '([\\d,]+(?:\\.\\d{1,4})?)';
-    const PCT = `${NUM}\\s*\\(\\s*${NUM}\\s*\\)`;  // e.g. 2,505.98 (18.0)
-    const ZERO_PCT = `0\\.00\\s*\\(\\s*0\\.0\\s*\\)`;  // 0.00 (0.0)
-    const UOM_PAT = '(Nos?\\.?|Numbers?|Pcs?\\.?|Kgs?\\.?|Units?|EA|Sets?|Ltrs?\\.?|Mtrs?\\.?|Boxes?|Rolls?|Pairs?|Bags?|Sheets?|MT|Ton|Tonne|Quintal|Sqft|Sqm|RMT|Mtr|Ltr|Gms?|Grams?|Dozen|Bale|Bundle|Coil|Drum|Packet|Pkt)';
-
-    // Pattern A: CGST=0, SGST=0, IGST=value (inter-state)
-    // Row: <serial> <name> <qty> <uom> <hsn> <rate> 0.00 (0.0) 0.00 (0.0) <igst_amt> (<igst_pct>) <amount>
-    const patA = new RegExp(
-      `(\\d{1,3})[^\\d\\n]{1,80}?` +                    // serial + name
-      `(\\d{1,6}(?:\\.\\d{1,3})?)\\s+` +                // qty
-      `${UOM_PAT}\\s+` +                                 // uom
-      `(\\d{4,8})\\s+` +                                 // hsn
-      `${NUM}\\s+` +                                     // unit rate
-      `${ZERO_PCT}\\s+` +                                // cgst 0.00 (0.0)
-      `${ZERO_PCT}\\s+` +                                // sgst 0.00 (0.0)
-      `${PCT}\\s+` +                                     // igst_amt (igst_pct)
-      `${NUM}`,                                          // line total
-      'gi'
-    );
-
-    // Pattern B: CGST=value, SGST=value, IGST=0 (intra-state)
-    const patB = new RegExp(
-      `(\\d{1,3})[^\\d\\n]{1,80}?` +
-      `(\\d{1,6}(?:\\.\\d{1,3})?)\\s+` +
-      `${UOM_PAT}\\s+` +
-      `(\\d{4,8})\\s+` +
-      `${NUM}\\s+` +
-      `${PCT}\\s+` +                                     // cgst_amt (cgst_pct)
-      `${PCT}\\s+` +                                     // sgst_amt (sgst_pct)
-      `${ZERO_PCT}\\s+` +                                // igst 0.00 (0.0)
-      `${NUM}`,
-      'gi'
-    );
-
-    const tryRegexParse = (pat, isInterState) => {
-      let m;
-      pat.lastIndex = 0;
-      while ((m = pat.exec(text)) !== null) {
-        const fullMatch = m[0];
-        // Skip if this looks like a footer/summary line
-        if (/total|subtotal|grand|tax\s+amount/i.test(fullMatch)) continue;
-
-        let qty, uom, hsn, rate, igstAmt, igstPct, cgstAmt, cgstPct, sgstAmt, sgstPct, lineAmt;
-
-        if (isInterState) {
-          // Groups: 1=serial, 2=qty, 3=uom, 4=hsn, 5=rate, 6=igst_amt, 7=igst_pct, 8=line_total
-          qty      = parseFloat(m[2]);
-          uom      = m[3];
-          hsn      = m[4];
-          rate     = parseFloat(m[5].replace(/,/g, ''));
-          igstAmt  = parseFloat(m[6].replace(/,/g, ''));
-          igstPct  = parseFloat(m[7]);
-          lineAmt  = parseFloat(m[8].replace(/,/g, ''));
-          cgstAmt = 0; cgstPct = 0; sgstAmt = 0; sgstPct = 0;
-        } else {
-          // Groups: 1=serial, 2=qty, 3=uom, 4=hsn, 5=rate, 6=cgst_amt, 7=cgst_pct, 8=sgst_amt, 9=sgst_pct, 10=line_total
-          qty      = parseFloat(m[2]);
-          uom      = m[3];
-          hsn      = m[4];
-          rate     = parseFloat(m[5].replace(/,/g, ''));
-          cgstAmt  = parseFloat(m[6].replace(/,/g, ''));
-          cgstPct  = parseFloat(m[7]);
-          sgstAmt  = parseFloat(m[8].replace(/,/g, ''));
-          sgstPct  = parseFloat(m[9]);
-          lineAmt  = parseFloat(m[10].replace(/,/g, ''));
-          igstAmt = 0; igstPct = 0;
-        }
-
-        if (!qty || !rate || !lineAmt) continue;
-        const taxable = +(rate * qty).toFixed(2);
-        if (taxable <= 0) continue;
-
-        // Extract item name — text between serial and qty
-        const serialEnd = m[0].indexOf(m[2]);
-        let rawName = m[0].slice(m[1].length, serialEnd).trim();
-        rawName = rawName.replace(/\s+/g, ' ').replace(/[^\w\s\-\/\.]/g, '').trim();
-        if (rawName.length < 2) rawName = 'Item';
-
-        const item = {
-          name: rawName,
-          qty, unit: uom || 'Nos', hsn,
-          rate, discount: 0,
-          cgst: cgstPct, cgstVal: cgstAmt,
-          sgst: sgstPct, sgstVal: sgstAmt,
-          igst: igstPct, igstVal: igstAmt,
-          gst: cgstPct + sgstPct + igstPct,
-          taxableValue: taxable,
-          lineAmount: lineAmt,
-        };
-
-        const key = `${item.name.toLowerCase()}|${item.qty}`;
-        if (!result.items.some(x => `${x.name.toLowerCase()}|${x.qty}` === key)) {
-          result.items.push(item);
-          console.log('✅ Pass0 regex:', item.name, 'qty=', item.qty, 'rate=', item.rate, 'igst=', item.igst, 'igstVal=', item.igstVal);
-        }
-      }
-    };
-
-    tryRegexParse(patA, true);   // inter-state (IGST only)
-    if (result.items.length === 0) tryRegexParse(patB, false); // intra-state (CGST+SGST)
-  }
-
-  // ── Core item extractor ───────────────────────────────────────────────────
-  // Given raw tokens for one row, extract item data or return null
-  const extractItem = (rawToks) => {
-    // Unwrap parenthesized numbers like (18.5) → "18.5", (0.0) → "0.0"
-    // These appear in some POs as tax % hints in brackets
-    const toks = stripDates(rawToks).map(t => {
-      const pm = String(t).match(/^\((\d+(?:\.\d+)?)\)$/);
-      return pm ? pm[1] : t;
-    });
-    if (toks.length < 3) return null;
-
-    // ── Pre-extract HSN early so isNumeric can exclude it from the number pool ──
-    let hsnEarly = '';
-    {
-      const joined = toks.join(' ');
-      const hsnMatch = joined.match(/\b(?:HSN|SAC)\b\s*(?:Code)?\s*[:-]?\s*(\d{4,10})/i);
-      if (hsnMatch) {
-        hsnEarly = hsnMatch[1];
-      } else {
-        for (let i = 2; i < toks.length; i++) {
-          if (/^\d{4,8}$/.test(toks[i])) {
-            const v = parseInt(toks[i], 10);
-            if (v >= 1000 && !(v >= 1900 && v <= 2099)) {
-              hsnEarly = toks[i];
-              break;
-            }
-          }
-        }
-      }
-    }
-
-    const isNumeric = (t) => {
-      const raw = String(t || '').trim().replace(/^[₹Rs\.INR,\s]+/i, '').replace(/,/g, '');
-      if (!/^\d+(\.\d{1,4})?$/.test(raw) || parseFloat(raw) <= 0) return false;
-      // Exclude standalone 4-8 digit integers that look like HSN codes
-      if (/^\d{4,8}$/.test(raw)) {
-        const v = parseInt(raw, 10);
-        if (hsnEarly && raw === hsnEarly) return false;
-        if (v >= 1000 && v <= 9999 && !/[,.]/.test(String(t || ''))) return false;
-      }
-      return true;
-    };
-
-    const nums = toks.map((t, i) => ({ t, i, n: toNum(t), ok: isNumeric(t) })).filter(x => x.ok);
-    if (nums.length < 2) return null;
-
-    const totalE = nums.reduce((best, x) => x.n >= best.n ? x : best, nums[nums.length - 1]);
-    const lineTotal = totalE.n;
-
-    // ── Pre-scan: detect explicit tax columns by analysing the number sequence ──
-    // Strategy: work backwards from the lineTotal in the nums array.
-    // In POs with explicit tax columns the tail of nums looks like:
-    //   [..., taxable, cgstAmt, sgstAmt, igstAmt, lineTotal]  (intra-state)
-    //   [..., taxable, igstAmt, lineTotal]                     (inter-state)
-    // We also scan tokens for slab% markers to identify which tax type each amount belongs to.
-    const GST_SLABS = new Set([5, 12, 18, 28, 2.5, 6, 9, 14]);
-    let preCgst = 0, preSgst = 0, preIgst = 0;
-    let preCgstVal = 0, preSgstVal = 0, preIgstVal = 0;
-
-    // Collect all GST slab % tokens from the row (including unwrapped ones like 18.0)
-    const slabsInRow = [];
-    for (let i = 0; i < toks.length; i++) {
-      const v = parseFloat(toks[i]);
-      if (isFinite(v) && GST_SLABS.has(v)) slabsInRow.push({ v, i });
-    }
-
-    // Collect all positive numbers < lineTotal that could be tax amounts
-    // (exclude the lineTotal itself and numbers that look like qty/rate)
-    const taxCandidates = nums.filter(x =>
-      x.i !== totalE.i && x.n < lineTotal && x.n > 0
-    );
-
-    // Try to match slab% tokens to nearby numeric values (within ±5 positions)
-    const matchedTaxIdx = new Set();
-    for (const slab of slabsInRow) {
-      // Look for a numeric token within 5 positions of the slab token
-      let bestMatch = null;
-      for (const tc of taxCandidates) {
-        if (matchedTaxIdx.has(tc.i)) continue;
-        const dist = Math.abs(tc.i - slab.i);
-        if (dist > 5) continue;
-        // Sanity: tc.n should be roughly slab.v% of something ≤ lineTotal
-        const impliedBase = tc.n / (slab.v / 100);
-        if (impliedBase <= 0 || impliedBase > lineTotal * 1.1) continue;
-        if (!bestMatch || dist < Math.abs(bestMatch.i - slab.i)) bestMatch = tc;
-      }
-      if (bestMatch) {
-        matchedTaxIdx.add(bestMatch.i);
-        if (!preCgst && preCgstVal === 0) { preCgst = slab.v; preCgstVal = bestMatch.n; }
-        else if (!preSgst && preSgstVal === 0) { preSgst = slab.v; preSgstVal = bestMatch.n; }
-        else if (!preIgst) { preIgst = slab.v; preIgstVal = bestMatch.n; }
-      } else {
-        // Slab found but no matching amount nearby — register as zero-value tax
-        if (!preCgst && preCgstVal === 0) { preCgst = slab.v; preCgstVal = 0; }
-        else if (!preSgst && preSgstVal === 0) { preSgst = slab.v; preSgstVal = 0; }
-      }
-    }
-
-    // Fallback: if only one slab found with no amount matched, try the number
-    // second-from-last in nums (pattern: [..., taxAmt, total])
-    if (preIgst === 0 && preCgst === 0 && preSgst === 0 && slabsInRow.length === 0) {
-      // No slab tokens at all — try back-calculating from lineTotal
-      // (handled later in taxDiff logic)
-    } else if (preIgstVal === 0 && preCgstVal === 0 && preSgstVal === 0 && slabsInRow.length > 0) {
-      // Slabs found but no amounts matched — try second-to-last number
-      const nonTotalNums = nums.filter(x => x.i !== totalE.i);
-      if (nonTotalNums.length >= 1) {
-        const lastBeforeTotal = nonTotalNums[nonTotalNums.length - 1];
-        if (lastBeforeTotal.n < lineTotal * 0.5) {
-          const slab = slabsInRow[slabsInRow.length - 1];
-          preIgst = slab.v; preIgstVal = lastBeforeTotal.n;
-          matchedTaxIdx.add(lastBeforeTotal.i);
-        }
-      }
-    }
-
-    const preTaxSum = preCgstVal + preSgstVal + preIgstVal;
-    const preTaxable = (preTaxSum > 0 && preTaxSum < lineTotal * 0.5)
-      ? +(lineTotal - preTaxSum).toFixed(2) : 0;
-
-    // ── Qty detection ─────────────────────────────────────────────────────
-    let qtyE = null;
-
-    // Helper: is this num a known pre-scanned tax amount?
-    const isPreTaxAmt = (n, idx) => {
-      if (idx !== undefined && matchedTaxIdx.has(idx)) return true;
-      if (preTaxSum === 0) return false;
-      return (
-        (preCgstVal > 0 && Math.abs(n - preCgstVal) < 0.01) ||
-        (preSgstVal > 0 && Math.abs(n - preSgstVal) < 0.01) ||
-        (preIgstVal > 0 && Math.abs(n - preIgstVal) < 0.01)
-      );
-    };
-
-    // Strategy 0: if we have pre-scanned taxable, find qty × rate ≈ preTaxable
-    if (preTaxable > 0) {
-      for (let a = 0; a < nums.length && !qtyE; a++) {
-        for (let b = a + 1; b < nums.length && !qtyE; b++) {
-          const na = nums[a], nb = nums[b];
-          if (na.i === totalE.i || nb.i === totalE.i) continue;
-          if (na.i === 0 || nb.i === 0) continue;
-          if (isPreTaxAmt(na.n, na.i) || isPreTaxAmt(nb.n, nb.i)) continue;
-          const prod = na.n * nb.n;
-          if (prod > 0 && Math.abs(prod - preTaxable) / Math.max(prod, preTaxable) < 0.03) {
-            qtyE = na.n <= nb.n ? na : nb;
-            break;
-          }
-        }
-      }
-    }
-
-    // Strategy 1: find qty × rate ≈ lineTotal
-    for (let a = 0; a < nums.length && !qtyE; a++) {
-      for (let b = a + 1; b < nums.length && !qtyE; b++) {
-        const na = nums[a], nb = nums[b];
-        if (na.i === totalE.i || nb.i === totalE.i) continue;
-        if (na.i === 0 || nb.i === 0) continue;
-        const prod = na.n * nb.n;
-        if (prod > 0 && Math.abs(prod - lineTotal) / Math.max(prod, lineTotal) < 0.03) {
-          qtyE = na.n <= nb.n ? na : nb;
-          break;
-        }
-      }
-    }
-
-    // Strategy 2: first small number after serial, not a tax amount
-    if (!qtyE) {
-      qtyE = nums.find(x => x.i > 0 && x.i !== totalE.i && x.n < 10000 && !isPreTaxAmt(x.n, x.i));
-    }
-
-    // Strategy 3: lineTotal / candidate = reasonable qty
-    if (!qtyE) {
-      for (const x of nums) {
-        if (x.i === 0 || x.i === totalE.i) continue;
-        const q = lineTotal / x.n;
-        if (q >= 0.001 && q <= 100000) {
-          qtyE = { t: String(+q.toFixed(3)), i: -1, n: +q.toFixed(3), ok: true };
-          break;
-        }
-      }
-    }
-
-    if (!qtyE) return null;
-    const qty = qtyE.n;
-
-    // Unit rate: find number where rate × qty ≈ preTaxable (preferred) or lineTotal
-    const rateTarget = preTaxable > 0 ? preTaxable : lineTotal;
-    let rateE = nums.find(x => {
-      if (x.i === 0 || x.i === totalE.i || x.i === qtyE.i) return false;
-      if (isPreTaxAmt(x.n, x.i)) return false;
-      const c = x.n * qty;
-      return c > 0 && Math.abs(c - rateTarget) / Math.max(c, rateTarget) < 0.03;
-    });
-    const unitRate = rateE ? rateE.n : +(rateTarget / qty).toFixed(2);
-    if (!unitRate || unitRate <= 0) return null;
-
-    // Name = text tokens before first number after serial
-    const firstNumIdx = nums.filter(x => x.i > 0).reduce((m, x) => Math.min(m, x.i), Infinity);
-    let nameToks = toks.slice(1, firstNumIdx === Infinity ? toks.length : firstNumIdx).filter(t => t.trim() && !UOM_RE.test(t));
-    if (!nameToks.length) nameToks = toks.filter((t, i) => i > 0 && /[A-Za-z]/.test(t) && !UOM_RE.test(t));
-    let name = nameToks.join(' ').replace(/\s+/g, ' ').replace(/\s*\/?\s*\d{6,10}\s*$/, '').trim();
-    if (name.length < 2) return null;
-
-    // Use pre-scanned taxable if available, else compute from rate × qty
-    const taxable = preTaxable > 0 ? preTaxable : +(unitRate * qty).toFixed(2);
-    const rawPct = taxable > 0 ? (lineTotal - taxable) / taxable * 100 : 0;
-    const gst = [0, 5, 12, 18, 28].reduce((p, c) => Math.abs(c - rawPct) < Math.abs(p - rawPct) ? c : p, 0);
-
-    // Use pre-scanned tax breakdown if available
-    let cgst = preCgst, sgst = preSgst, igst = preIgst;
-    let cgstVal = preCgstVal, sgstVal = preSgstVal, igstVal = preIgstVal;
-
-    const usedIdx = new Set([0, qtyE?.i, rateE?.i, totalE?.i].filter(x => x != null && x >= 0));
-    const pdfLineTotal = +lineTotal.toFixed(2);
-    const taxDiff = +(pdfLineTotal - taxable).toFixed(2);
-
-    if (cgst === 0 && sgst === 0 && igst === 0) {
-      // Pass A: GST % followed by matching tax amount
-      for (let i = 0; i < toks.length - 1; i++) {
-        if (usedIdx.has(i)) continue;
-        const pctRaw = parseFloat(toks[i]);
-        if (!isFinite(pctRaw) || !GST_SLABS.has(pctRaw)) continue;
-        const valRaw = toNum(toks[i + 1]);
-        if (valRaw <= 0) continue;
-        if (taxable > 0) {
-          const expected = taxable * pctRaw / 100;
-          if (Math.abs(expected - valRaw) / Math.max(expected, valRaw) > 0.20) continue;
-        }
-        if (!cgst) { cgst = pctRaw; cgstVal = valRaw; }
-        else if (!sgst) { sgst = pctRaw; sgstVal = valRaw; }
-        else if (!igst) { igst = pctRaw; igstVal = valRaw; }
-      }
-    }
-
-    if (cgst === 0 && sgst === 0 && igst === 0) {
-      // Pass B: GST % values alone
-      const slabTokens = [];
-      for (let i = 0; i < toks.length; i++) {
-        if (usedIdx.has(i)) continue;
-        const v = parseFloat(toks[i]);
-        if (isFinite(v) && GST_SLABS.has(v)) slabTokens.push({ v, i });
-      }
-      if (slabTokens.length >= 2 && slabTokens[0].v === slabTokens[1].v) {
-        cgst = slabTokens[0].v; sgst = slabTokens[1].v;
-        cgstVal = +(taxable * cgst / 100).toFixed(2);
-        sgstVal = +(taxable * sgst / 100).toFixed(2);
-      } else if (slabTokens.length === 1) {
-        const slab = slabTokens[0].v;
-        const expectedTax = taxable * slab / 100;
-        const actualTax = pdfLineTotal - taxable;
-        if (actualTax > 0.5 && Math.abs(expectedTax - actualTax) / Math.max(expectedTax, actualTax) < 0.10) {
-          igst = slab;
-          igstVal = +(taxable * igst / 100).toFixed(2);
-        }
-      }
-    }
-
-    if (cgst === 0 && sgst === 0 && igst === 0 && taxDiff > 0.5) {
-      const rawPctCalc = taxable > 0 ? taxDiff / taxable * 100 : 0;
-      const nearestSlab = [5, 12, 18, 28].find(s => Math.abs(s - rawPctCalc) < 1.5);
-      if (nearestSlab) {
-        cgst = nearestSlab / 2; sgst = nearestSlab / 2;
-        cgstVal = +(taxable * cgst / 100).toFixed(2);
-        sgstVal = +(taxable * sgst / 100).toFixed(2);
-        igstVal = 0;
-      }
-    }
-
-    if (cgst === 0 && sgst === 0 && igst === 0 && Math.abs(taxDiff) < 1.0) {
-      const slabTokens = [];
-      for (let i = 0; i < toks.length; i++) {
-        if (usedIdx.has(i)) continue;
-        const v = parseFloat(toks[i]);
-        if (isFinite(v) && GST_SLABS.has(v) && v > 0) slabTokens.push({ v, i });
-      }
-      if (slabTokens.length > 0) {
-        const slab = slabTokens[0].v;
-        const baseRate = +(unitRate / (1 + slab / 100)).toFixed(2);
-        const baseTaxable = +(baseRate * qty).toFixed(2);
-        const taxFromSlab = +(baseTaxable * slab / 100).toFixed(2);
-        if (Math.abs(baseTaxable + taxFromSlab - pdfLineTotal) / pdfLineTotal < 0.02) {
-          if (slabTokens.length >= 2 && slabTokens[0].v === slabTokens[1].v) {
-            cgst = slab; sgst = slab;
-            cgstVal = +(baseTaxable * cgst / 100).toFixed(2);
-            sgstVal = +(baseTaxable * sgst / 100).toFixed(2);
-          } else {
-            igst = slab;
-            igstVal = +(baseTaxable * igst / 100).toFixed(2);
-          }
-          let hsn = hsnEarly || '';
-          if (!hsn) {
-            const hsnL = toks.join(' ').match(/\b(?:HSN|SAC)\b\s*(?:Code)?\s*[:-]?\s*(\d{4,10})/i);
-            if (hsnL) hsn = hsnL[1];
-            else { const sl = toks.join(' ').match(/\/\s*(\d{6,10})(?=\s|$)/); if (sl) hsn = sl[1]; }
-            if (!hsn) { const st = toks.find((t, i) => i > 0 && /^\d{6,10}$/.test(t) && !isPrice(t) && t !== String(qtyE.n)); if (st) hsn = st; }
-          }
-          return {
-            name, qty, unit: toks.find(t => UOM_RE.test(t)) || 'Nos',
-            rate: baseRate, gst: slab,
-            cgst, cgstVal, sgst, sgstVal, igst, igstVal,
-            discount: 0, taxableValue: baseTaxable, lineAmount: pdfLineTotal, hsn,
-          };
-        }
-      }
-    }
-
-    // HSN — use pre-extracted value, or fall back to token scan
-    let hsn = hsnEarly || '';
-    if (!hsn) {
-      const hsnL = toks.join(' ').match(/\b(?:HSN|SAC)\b\s*(?:Code)?\s*[:-]?\s*(\d{4,10})/i);
-      if (hsnL) hsn = hsnL[1];
-      else { const sl = toks.join(' ').match(/\/\s*(\d{6,10})(?=\s|$)/); if (sl) hsn = sl[1]; }
-      if (!hsn) { const st = toks.find((t, i) => i > 0 && /^\d{6,10}$/.test(t) && !isPrice(t) && t !== String(qtyE.n)); if (st) hsn = st; }
-    }
-
-    const finalGstPct = cgst + sgst + igst || gst;
-    return {
-      name, qty, unit: toks.find(t => UOM_RE.test(t)) || 'Nos',
-      rate: +unitRate.toFixed(2), gst: finalGstPct,
-      cgst, cgstVal, sgst, sgstVal, igst, igstVal,
-      discount: 0, taxableValue: taxable, lineAmount: pdfLineTotal, hsn,
-    };
+  // ── Totals ────────────────────────────────────────────────────────────────
+  // Find ALL matches for each pattern and pick the largest value (avoids picking up 0.00 column headers)
+  const findBestTotal = (re) => {
+    const matches = [...text.matchAll(new RegExp(re.source, re.flags + 'g'))];
+    if (!matches.length) return '';
+    const vals = matches.map(m => parseFloat(m[1].replace(/,/g, ''))).filter(n => isFinite(n) && n > 0);
+    return vals.length ? String(Math.max(...vals)) : '';
   };
 
-  const seen = new Set();
-  const addItem = (item) => {
-    if (!item || item.name.length < 2) return false;
-    // Reject if the item's line total matches the document grand total — it's a footer row
-    if (result.total && Math.abs(item.lineAmount - parseFloat(result.total)) < 1) return false;
-    // Reject if the item's taxable value matches the document subtotal — it's a summary row
-    if (result.subTotal && Math.abs(item.taxableValue - parseFloat(result.subTotal)) < 1) return false;
-    const key = `${item.name.toLowerCase()}|${item.qty}`;
-    if (seen.has(key)) return false;
-    seen.add(key); result.items.push(item); return true;
+  result.total = findBestTotal(/Net\s+Amount\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i)
+    || findBestTotal(/Amount\s+Payable\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i)
+    || findBestTotal(/Grand\s+Total\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i)
+    || findBestTotal(/Invoice\s+Total\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i)
+    || findBestTotal(/Total\s+Amount\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i);
+
+  result.subTotal = findBestTotal(/Total\s+(?:Base|Taxable)\s+(?:Value|Amount)\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i)
+    || findBestTotal(/Sub\s*Total\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)/i);
+
+  // ── STEP 1: Find table header row using x-position based column detection ──
+  // pdfjs gives us tokens with exact x,y coordinates. We use x to identify columns.
+
+  const COL_KEYWORDS = {
+    sl:      ['sl', 'sl.', 'sl.no', 'sl.no.', 's.no', 's.no.', 'sr.no', 'sr.no.', '#', 'no'],
+    desc:    ['description', 'description/hsncode', 'item', 'product', 'material', 'particulars', 'goods', 'itemdescription'],
+    hsn:     ['hsn', 'sac', 'hsncode', 'saccode', 'hsn/sac'],
+    qty:     ['qty', 'qty.', 'quantity', 'nos', 'nos.'],
+    uom:     ['uom', 'unit', 'units'],
+    rate:    ['rate', 'unitrate', 'price', 'unitprice', 'mrp', 'basicrate'],
+    disc:    ['disc', 'disc.', 'discount', 'disc%', 'discount%'],
+    cgstPct: ['cgst%', 'cgst'],
+    cgstVal: ['cgstvalue', 'cgstval', 'cgstamt', 'cgstamount'],
+    sgstPct: ['sgst%', 'sgst'],
+    sgstVal: ['sgstvalue', 'sgstval', 'sgstamt', 'sgstamount'],
+    igstPct: ['igst%', 'igst'],
+    igstVal: ['igstvalue', 'igstval', 'igstamt', 'igstamount'],
+    taxable: ['taxablevalue', 'taxableamt', 'taxableamount', 'baseamount', 'assessable', 'taxable'],
+    taxAmt:  ['taxamount', 'taxamt', 'totaltax'],
+    total:   ['totalamount', 'amount', 'linetotal', 'total'],
   };
 
-  // ── Pass 1: scan every line ───────────────────────────────────────────────
-  // Lines that are always headers/footers — skip even if they contain numbers
-  const HDRLINE = /^(sl\.?\s*no\.?|s\.?\s*no\.?|sr\.?\s*no\.?|item\s*(name|description|code)|qty\.?|quantity|uom|unit\s*(price|rate)?|base\s*price|cgst|sgst|igst|gst\s*%?|amount|total\s*amount|tax\s*amount|discount|hsn\s*(code)?|sac\s*(code)?|taxable|page\s*\d|terms|dear\s+sir|we\s+hereby|vendor\s*(name|no)|billing\s*address|shipping\s*address|contact\s*(person|no)|gstin\s*[:\-]|pan\s*(no|number)|cin\s*(no|number)|ifsc|bank\s*(name|account)|payment\s*terms?|warranty|delivery\s*(date|address)|purchase\s*order\s*(no|date|number)|po\s*(no|date|number)|authorized\s*signatory|e\s*&\s*oe)/i;
+  // Normalize a token string for keyword matching
+  const norm = (s) => String(s || '').toLowerCase().replace(/[\s\/\-\.]/g, '');
 
-  // Footer/summary lines — skip even when they contain prices
-  const SKIPLINE = /(?:total\s+amount\s*(?:without|with|incl|excl)?|grand\s+total|sub\s*total|net\s+amount|amount\s+payable|total\s+tax|tax\s+amount|amount\s+in\s+words|taxable\s+value|total\s+value|invoice\s+total|order\s+total|balance\s+due|total\s+due|round\s+off|freight|shipping\s+charge|handling|packing|other\s+charge|terms\s+of\s+payment|gross\s+amount|total\s+without\s+tax|without\s+tax|total\s+igst|total\s+cgst|total\s+sgst)/i;
+  // Find header: scan lines, try to match tokens (including adjacent token combos) to column keywords
+  let colMap = {};   // colName → x position
+  let headerLineIdx = -1;
 
-  for (const line of lines) {
-    const rawToks = line.tokens.map(t => t.str);
-    const toks = stripDates(rawToks);
-    const ls = toks.join(' ');
-    if (ls.length < 5) continue;
-    if (SKIPLINE.test(ls)) continue;
-    if (!toks.some(isPrice) && HDRLINE.test(ls.trim())) continue;
-    const item = extractItem(rawToks);
-    if (item) { addItem(item); console.log('✅ Pass1:', item.name, 'qty=', item.qty, 'rate=', item.rate); }
+  for (let i = 0; i < lines.length; i++) {
+    const toks = lines[i].tokens;
+    const found = {};
+
+    for (let ti = 0; ti < toks.length; ti++) {
+      // Try 1, 2, and 3 token combinations
+      for (let len = 1; len <= 3 && ti + len - 1 < toks.length; len++) {
+        const combined = norm(toks.slice(ti, ti + len).map(t => t.str).join(''));
+        for (const [col, keywords] of Object.entries(COL_KEYWORDS)) {
+          if (!found[col] && keywords.includes(combined)) {
+            // Use x of the middle token as column center
+            const midTok = toks[ti + Math.floor((len - 1) / 2)];
+            found[col] = midTok.x;
+          }
+        }
+      }
+    }
+
+    const matchCount = Object.keys(found).length;
+    if (matchCount >= 5) {
+      colMap = found;
+      headerLineIdx = i;
+      console.log(`📋 Header at line ${i} with ${matchCount} cols:`, found);
+      break;
+    }
   }
 
-  // ── Pass 2: table-aware ───────────────────────────────────────────────────
-  if (result.items.length === 0) {
-    const TBLHDR = /(\bHSN\b|\bSAC\b|\bQty\b|\bQuantity\b|\bDescription\b|\bItem\b|\bProduct\b|\bMaterial\b|\bRate\b|\bAmount\b|\bUnit\s*Price\b|\bMRP\b|\bNeed\s*By\b)/i;
-    const TBLEND = /^(Sub\s*Total|Grand\s*Total|Net\s+Amount|Total\s+Amount|Amount\s+in\s+Words|Terms|Declaration|For\s+|Authorized\s+Signatory|E\s*&\s*OE)/i;
-    let inTable = false;
-    const tableLines = [];
-    for (const line of lines) {
-      const ls = line.tokens.map(t => t.str).join(' ').trim();
+  // ── STEP 2: If header found, parse data rows by x-column proximity ────────
+  if (headerLineIdx >= 0 && Object.keys(colMap).length >= 5) {
+
+    const nearestCol = (x) => {
+      let best = null, bestDist = Infinity;
+      for (const [col, cx] of Object.entries(colMap)) {
+        const d = Math.abs(x - cx);
+        if (d < bestDist) { bestDist = d; best = col; }
+      }
+      return bestDist <= 80 ? best : null;
+    };
+
+    const FOOTER_RE = /^(total\s*base|total\s*taxable|sub\s*total|grand\s*total|net\s*amount|amount\s*payable|cgst\s*amount|sgst\s*amount|igst\s*amount|amount\s*in\s*words|terms|dear\s*sir|authorized|page\s*\d)/i;
+
+    // Collect data lines after header
+    const dataLines = [];
+    for (let i = headerLineIdx + 1; i < lines.length; i++) {
+      const ls = lines[i].tokens.map(t => t.str).join(' ').trim();
       if (!ls) continue;
-      if (!inTable && (ls.match(TBLHDR) || []).length >= 2) { inTable = true; continue; }
-      if (inTable && TBLEND.test(ls)) break;
-      if (inTable) tableLines.push(line);
+      if (FOOTER_RE.test(ls)) break;
+      dataLines.push(lines[i]);
     }
-    // Group lines into rows: a new row starts when the first token is a serial number
-    // OR when the line contains numeric values (price/qty) suggesting it's a data row
-    const rows = []; let cur = [];
-    for (const line of tableLines) {
-      const t0 = line.tokens[0]?.str || '';
-      const lineHasNums = line.tokens.some(t => /^\d+(\.\d+)?$/.test(t.str) && parseFloat(t.str) > 0);
-      if (isSerial(t0) && cur.length) { rows.push(cur); cur = []; }
-      // If no serial detected but line has numbers and cur already has a description line, start new row
-      else if (!isSerial(t0) && cur.length > 0 && lineHasNums) {
-        const curHasNums = cur.some(l => l.tokens.some(t => /^\d+(\.\d+)?$/.test(t.str) && parseFloat(t.str) > 0));
-        // If current row already has numbers, this might be a new row without serial
-        if (curHasNums) { rows.push(cur); cur = []; }
-      }
+
+    // Group into item rows — new row when first token is at sl column and is a number
+    const slX = colMap.sl ?? colMap.desc ?? 0;
+    const itemRows = [];
+    let cur = [];
+    for (const line of dataLines) {
+      const ft = line.tokens[0];
+      const isSerial = ft && /^\d{1,3}\.?$/.test(ft.str.trim()) && Math.abs(ft.x - slX) < 80;
+      if (isSerial && cur.length > 0) { itemRows.push(cur); cur = []; }
       cur.push(line);
     }
-    if (cur.length) rows.push(cur);
-    console.log(`📋 Table: ${rows.length} rows`);
-    for (const row of rows) {
-      // Merge all tokens from all lines in this row
-      const rawToks = row.flatMap(l => l.tokens.map(t => t.str));
-      console.log('  Row:', rawToks.join(' ').substring(0, 120));
-      const item = extractItem(rawToks);
-      console.log('  →', item ? `✅ ${item.name} qty=${item.qty} rate=${item.rate}` : '❌ failed');
-      addItem(item);
+    if (cur.length > 0) itemRows.push(cur);
+
+    console.log(`📦 ${itemRows.length} item rows`);
+
+    for (const rowLines of itemRows) {
+      const allToks = rowLines.flatMap(l => l.tokens);
+
+      console.log('🔍 Row tokens:', allToks.map(t => `[x${t.x}:"${t.str}"]`).join(' '));
+
+      const colVals = {};
+      for (const tok of allToks) {
+        const col = nearestCol(tok.x);
+        if (col) { if (!colVals[col]) colVals[col] = []; colVals[col].push(tok.str.trim()); }
+      }
+
+      console.log('🗂️ ColVals:', JSON.stringify(colVals));
+
+      const getStr = (col) => (colVals[col] || []).join(' ').trim();
+      const getN   = (col) => toNum(getStr(col));
+
+      // Name: try desc column first, then fall back to any non-numeric text tokens
+      // that are to the LEFT of the qty column (leftmost numeric column)
+      let name = getStr('desc');
+
+      if (name.length < 2) {
+        // Fallback: collect all text tokens that are clearly in the left portion of the row
+        // (x position less than the qty column x, or less than half the page width)
+        const qtyX = colMap.qty ?? colMap.uom ?? colMap.rate ?? 999;
+        const descX = colMap.desc ?? colMap.sl ?? 0;
+        const nameToks = allToks
+          .filter(t => {
+            // Must be to the left of qty column
+            if (t.x >= qtyX - 20) return false;
+            // Must not be a pure number
+            if (/^[\d,]+(\.\d+)?$/.test(t.str.trim())) return false;
+            // Must not be a serial number (first token)
+            if (/^\d{1,3}\.?$/.test(t.str.trim())) return false;
+            return true;
+          })
+          .sort((a, b) => a.x - b.x || a.y - b.y)
+          .map(t => t.str.trim());
+        name = nameToks.join(' ').trim();
+        console.log('📝 Name fallback from left tokens:', name);
+      }
+
+      const hsnM = name.match(/\/\s*(\d{6,10})(?:\s|$)/);
+      let hsn = getStr('hsn') || (hsnM ? hsnM[1] : '');
+      if (hsnM) name = name.replace(hsnM[0], '').trim();
+      name = name.replace(/\s+/g, ' ').replace(/[^\w\s\-\/\.&,()]/g, '').trim();
+      if (name.length < 2) { console.log('⚠️ Skip: no name even after fallback', colVals); continue; }
+
+      const qty     = getN('qty');
+      const uom     = getStr('uom') || 'Nos';
+      const rate    = getN('rate');
+      const disc    = getN('disc') || 0;
+      const cgstPct = getN('cgstPct');
+      const cgstVal = getN('cgstVal');
+      const sgstPct = getN('sgstPct');
+      const sgstVal = getN('sgstVal');
+      const igstPct = getN('igstPct');
+      const igstVal = getN('igstVal');
+      let taxable   = getN('taxable');
+      const lineAmt = getN('total');
+
+      if (!qty || !rate || !lineAmt) {
+        console.log('⚠️ Skip row missing qty/rate/total:', name, { qty, rate, lineAmt, colVals });
+        continue;
+      }
+
+      if (!taxable) taxable = +(rate * qty * (1 - disc / 100)).toFixed(2);
+      const fCgstVal = cgstVal || +(taxable * cgstPct / 100).toFixed(2);
+      const fSgstVal = sgstVal || +(taxable * sgstPct / 100).toFixed(2);
+      const fIgstVal = igstVal || +(taxable * igstPct / 100).toFixed(2);
+
+      const item = { name, qty, unit: uom, hsn, rate, discount: disc,
+        cgst: cgstPct, cgstVal: fCgstVal, sgst: sgstPct, sgstVal: fSgstVal,
+        igst: igstPct, igstVal: fIgstVal, gst: cgstPct + sgstPct + igstPct,
+        taxableValue: taxable, lineAmount: lineAmt };
+      console.log('✅ Item:', name, '| qty:', qty, '| rate:', rate, '| igst%:', igstPct, '| igstVal:', fIgstVal, '| taxable:', taxable, '| total:', lineAmt);
+      result.items.push(item);
     }
   }
 
-  // ── Pass 3: loose scan ────────────────────────────────────────────────────
+  // ── STEP 3: Fallback — parse by reading each line's tokens positionally ───
+  // Used when header detection fails. Each data row starts with a serial number.
+  // We read numbers from right-to-left: total, taxAmt, taxable, then find qty×rate.
   if (result.items.length === 0) {
+    console.log('⚠️ Header parse failed, using positional fallback');
+    const SKIP = /total|subtotal|grand|net\s+amount|amount\s+payable|tax\s+amount|in\s+words|terms|dear\s+sir|authorized|page\s+\d|cgst\s+amount|sgst\s+amount|igst\s+amount/i;
+
     for (const line of lines) {
-      const rawToks = line.tokens.map(t => t.str);
-      const toks = stripDates(rawToks);
-      if (toks.filter(isPrice).length >= 1 && toks.some(t => /^\d{1,4}$/.test(t) && +t > 0 && +t < 10000)) addItem(extractItem(rawToks));
+      const toks = line.tokens.map(t => t.str);
+      if (SKIP.test(toks.join(' '))) continue;
+      if (!/^\d{1,3}\.?$/.test(toks[0])) continue;  // must start with serial
+
+      // Extract all positive numbers from the line
+      const nums = [];
+      for (const t of toks) {
+        const n = toNum(t);
+        if (n > 0) nums.push(n);
+      }
+      if (nums.length < 5) continue;
+
+      // Find UOM token
+      const uomTok = toks.find(t => UOM_RE.test(t)) || 'Nos';
+
+      // Name = text tokens before first number (excluding serial)
+      const firstNumIdx = toks.findIndex((t, i) => i > 0 && toNum(t) > 0);
+      let name = toks.slice(1, firstNumIdx > 0 ? firstNumIdx : 4).join(' ').trim();
+      name = name.replace(/\/\s*\d{6,10}/, '').replace(UOM_RE, '').trim();
+      if (name.length < 2) continue;
+
+      // From right: total, taxAmt, taxable
+      const lineAmt = nums[nums.length - 1];
+      const taxAmt  = nums[nums.length - 2];
+      const taxable = nums[nums.length - 3];
+
+      // Find qty × rate ≈ taxable
+      let qty = 0, rate = 0;
+      const candidates = nums.slice(0, nums.length - 3);
+      for (let a = 0; a < candidates.length && !qty; a++) {
+        for (let b = a + 1; b < candidates.length && !qty; b++) {
+          const prod = candidates[a] * candidates[b];
+          if (taxable > 0 && Math.abs(prod - taxable) / taxable < 0.02) {
+            qty  = Math.min(candidates[a], candidates[b]);
+            rate = Math.max(candidates[a], candidates[b]);
+          }
+        }
+      }
+      if (!qty || !rate) continue;
+
+      const gstPct = taxable > 0 ? Math.round(taxAmt / taxable * 100) : 18;
+      // Inter-state if IGST column present in text
+      const isIGST = /\bIGST\b/.test(text);
+      const item = {
+        name, qty, unit: uomTok, hsn: '', rate, discount: 0,
+        cgst: isIGST ? 0 : gstPct / 2,
+        cgstVal: isIGST ? 0 : +(taxable * gstPct / 200).toFixed(2),
+        sgst: isIGST ? 0 : gstPct / 2,
+        sgstVal: isIGST ? 0 : +(taxable * gstPct / 200).toFixed(2),
+        igst: isIGST ? gstPct : 0,
+        igstVal: isIGST ? taxAmt : 0,
+        gst: gstPct, taxableValue: taxable, lineAmount: lineAmt,
+      };
+      console.log('✅ Fallback item:', name, '| qty:', qty, '| rate:', rate, '| total:', lineAmt);
+      result.items.push(item);
     }
-    console.log(`✅ Pass3: ${result.items.length} items`);
   }
 
-  console.log('📊 Summary:', { items: result.items.length, poNumber: result.poNumber, vendor: result.vendor, buyer: result.buyerName, total: result.total });
+  console.log('📊 Result:', { items: result.items.length, poNumber: result.poNumber, vendor: result.vendor, total: result.total });
   return result;
 }
 

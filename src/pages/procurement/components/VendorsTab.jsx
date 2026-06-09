@@ -6,6 +6,7 @@ import { rfqApi } from '../../../api/rfqApi';
 import { poApi } from '../../../api/poApi';
 import VendorPriceMapping from './VendorPriceMapping';
 import { MdVisibility, MdEdit, MdAdd, MdSearch, MdFilterList, MdBusiness, MdPhone, MdEmail, MdLocationOn, MdStar, MdDelete, MdPrint, MdAssignment, MdShoppingCart } from 'react-icons/md';
+import { dataEvents } from '../../../utils/dataEvents';
 
 const EMPTY_FORM = {
   companyName: '', category: '', contactPerson: '', phone: '',
@@ -117,6 +118,7 @@ export default function VendorsTab({
       setForm(EMPTY_FORM);
       setSuccessMsg(editId ? '✓ Vendor updated successfully!' : '✓ Vendor created successfully!');
       setTimeout(() => setSuccessMsg(''), 3000);
+      dataEvents.emit('vendor:changed');
       fetchVendors();
       onStatsChange?.();
     } catch (e) {
@@ -157,6 +159,7 @@ export default function VendorsTab({
       await vendorApi.delete(id);
       setSuccessMsg('✓ Vendor deleted successfully!');
       setTimeout(() => setSuccessMsg(''), 3000);
+      dataEvents.emit('vendor:changed');
       fetchVendors();
       onStatsChange?.();
     } catch (e) {

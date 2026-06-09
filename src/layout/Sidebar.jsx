@@ -241,7 +241,7 @@ export default function Sidebar({ collapsed, setCollapsed, sidebarOpen, setSideb
       {user?.role === 'super_admin' && showLabels && (
         <div style={{ flexShrink: 0, padding: '6px 10px 0', borderTop: '1px solid #f1f5f9' }}>
           <NavLink
-            to="/settings"
+            to="/settings/roles"
             style={{ textDecoration: 'none' }}
             className={({ isActive }) => ['nav-link', isActive ? 'active' : ''].filter(Boolean).join(' ')}
           >

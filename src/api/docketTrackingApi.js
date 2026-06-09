@@ -1,116 +1,97 @@
-import api from './axiosConfig';
+const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5001/api');
+const API_BASE_URL = `${BASE}/docket-tracking`;
 
-const docketTrackingApi = {
-  // Get all dockets with filtering
-  getAllDockets: async (params = {}) => {
-    try {
-      const queryParams = new URLSearchParams(params).toString();
-      const response = await api.get(`/docket-tracking${queryParams ? `?${queryParams}` : ''}`);
-      return response;
-    } catch (error) {
-      console.error('Error fetching dockets:', error);
-      throw error;
-    }
-  },
+const getToken = () =>
+  localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
 
-  // Get single docket by ID
-  getDocketById: async (id) => {
-    try {
-      const response = await api.get(`/docket-tracking/${id}`);
-      return response;
-    } catch (error) {
-      console.error('Error fetching docket details:', error);
-      throw error;
-    }
-  },
+const authHeaders = () => ({
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${getToken()}`,
+});
 
-  // Create new docket
-  createDocket: async (data) => {
-    try {
-      const response = await api.post('/docket-tracking', data);
-      return response;
-    } catch (error) {
-      console.error('Error creating docket:', error);
-      throw error;
-    }
-  },
+const handle = async (res) => {
+  const d = await res.json();
+  if (!res.ok) throw new Error(d.message || 'Request failed');
+  return d;
+};
 
-  // Update docket
-  updateDocket: async (id, data) => {
-    try {
-      const response = await api.put(`/docket-tracking/${id}`, data);
-      return response;
-    } catch (error) {
-      console.error('Error updating docket:', error);
-      throw error;
-    }
-  },
+const buildQuery = (params = {}) => {
+  const s = new URLSearchParams(
+    Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''))
+  ).toString();
+  return s ? `?${s}` : '';
+};
 
-  // Update docket status
-  updateDocketStatus: async (id, statusData) => {
-    try {
-      const response = await api.patch(`/docket-tracking/${id}/status`, statusData);
-      return response;
-    } catch (error) {
-      console.error('Error updating docket status:', error);
-      throw error;
-    }
-  },
+export const docketTrackingApi = {
+  getAllDockets: (params = {}) =>
+    fetch(`${API_BASE_URL}${buildQuery(params)}`, { headers: authHeaders() }).then(handle),
 
-  // Delete docket
-  deleteDocket: async (id) => {
-    try {
-      const response = await api.delete(`/docket-tracking/${id}`);
-      return response;
-    } catch (error) {
-      console.error('Error deleting docket:', error);
-      throw error;
-    }
-  },
+  getDocketById: (id) =>
+    fetch(`${API_BASE_URL}/${id}`, { headers: authHeaders() }).then(handle),
 
-  // Get dashboard stats
-  getDashboardStats: async () => {
-    try {
-      const response = await api.get('/docket-tracking/stats');
-      return response;
-    } catch (error) {
-      console.error('Error fetching docket stats:', error);
-      throw error;
-    }
-  },
+  createDocket: (docketData) =>
+    fetch(API_BASE_URL, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(docketData),
+    }).then(handle),
 
-  // Track by LR number
-  trackByLRNumber: async (lrNumber) => {
-    try {
-      const response = await api.get(`/docket-tracking/track/${lrNumber}`);
-      return response;
-    } catch (error) {
-      console.error('Error tracking by LR number:', error);
-      throw error;
-    }
-  },
+  updateDocket: (id, docketData) =>
+    fetch(`${API_BASE_URL}/${id}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify(docketData),
+    }).then(handle),
 
-  // Upload POD
-  uploadPOD: async (id, podData) => {
-    try {
-      const response = await api.post(`/docket-tracking/${id}/pod`, podData);
-      return response;
-    } catch (error) {
-      console.error('Error uploading POD:', error);
-      throw error;
-    }
-  },
+  updateDocketStatus: (id, statusData) =>
+    fetch(`${API_BASE_URL}/${id}/status`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify(statusData),
+    }).then(handle),
 
-  // Close docket
-  closeDocket: async (id, closeData) => {
-    try {
-      const response = await api.patch(`/docket-tracking/${id}/close`, closeData);
-      return response;
-    } catch (error) {
-      console.error('Error closing docket:', error);
-      throw error;
-    }
-  }
+  deleteDocket: (id) =>
+    fetch(`${API_BASE_URL}/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
+
+  trackByLRNumber: (lrNumber) =>
+    fetch(`${API_BASE_URL}/track/${encodeURIComponent(lrNumber)}`, { headers: authHeaders() }).then(handle),
+
+  getDashboardStats: () =>
+    fetch(`${API_BASE_URL}/stats`, { headers: authHeaders() }).then(handle),
+
+  getDelayedDockets: () =>
+    fetch(`${API_BASE_URL}/delayed`, { headers: authHeaders() }).then(handle),
+
+  uploadPOD: (id, podData) =>
+    fetch(`${API_BASE_URL}/${id}/pod`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(podData),
+    }).then(handle),
+
+  uploadAttachment: (id, attachmentData) =>
+    fetch(`${API_BASE_URL}/${id}/attachment`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(attachmentData),
+    }).then(handle),
+
+  getTrackingTimeline: (id) =>
+    fetch(`${API_BASE_URL}/${id}/timeline`, { headers: authHeaders() }).then(handle),
+
+  closeDocket: (id, closeData) =>
+    fetch(`${API_BASE_URL}/${id}/close`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify(closeData),
+    }).then(handle),
+
+  bulkUpdateStatus: (docketIds, statusData) =>
+    fetch(`${API_BASE_URL}/bulk/status`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify({ docketIds, ...statusData }),
+    }).then(handle),
 };
 
 export default docketTrackingApi;

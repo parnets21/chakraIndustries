@@ -1,23 +1,44 @@
-import axios from 'axios';
+const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5001/api');
+const API_URL = `${BASE}/bulk-order-approvals`;
 
-const API_URL = `${import.meta.env.VITE_API_URL}/bulk-order-approvals`;
+const getToken = () =>
+  localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
+
+const authHeaders = () => ({
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${getToken()}`,
+});
+
+const handle = async (res) => {
+  const d = await res.json();
+  if (!res.ok) throw new Error(d.message || 'Request failed');
+  return d;
+};
 
 export const bulkOrderApprovalApi = {
-  // Create approval workflow
-  createApprovalWorkflow: (data) => axios.post(API_URL, data),
+  createApprovalWorkflow: (data) =>
+    fetch(API_URL, { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }).then(handle),
 
-  // Get approval by ID
-  getApprovalById: (id) => axios.get(`${API_URL}/${id}`),
+  getApprovalById: (id) =>
+    fetch(`${API_URL}/${id}`, { headers: authHeaders() }).then(handle),
 
-  // Get pending approvals
-  getPendingApprovals: (role) => axios.get(API_URL, { params: { role } }),
+  getPendingApprovals: (role) =>
+    fetch(`${API_URL}?role=${encodeURIComponent(role || '')}`, { headers: authHeaders() }).then(handle),
 
-  // Approve at current level
-  approveAtLevel: (id, remarks) => axios.patch(`${API_URL}/${id}/approve`, { remarks }),
+  approveAtLevel: (id, remarks) =>
+    fetch(`${API_URL}/${id}/approve`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify({ remarks }),
+    }).then(handle),
 
-  // Reject approval
-  rejectApproval: (id, rejectionReason) => axios.patch(`${API_URL}/${id}/reject`, { rejectionReason }),
+  rejectApproval: (id, rejectionReason) =>
+    fetch(`${API_URL}/${id}/reject`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify({ rejectionReason }),
+    }).then(handle),
 
-  // Get approval stats
-  getApprovalStats: () => axios.get(`${API_URL}/stats/summary`)
+  getApprovalStats: () =>
+    fetch(`${API_URL}/stats/summary`, { headers: authHeaders() }).then(handle),
 };

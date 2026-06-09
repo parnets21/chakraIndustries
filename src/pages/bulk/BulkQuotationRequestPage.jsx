@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiPlus, FiCheck, FiX, FiEye, FiEdit, FiTrash2, FiClock, FiPackage, FiTruck, FiFactory } from 'react-icons/fi';
+import { FiPlus, FiCheck, FiX, FiEye, FiEdit, FiTrash2, FiClock, FiPackage, FiTruck, FiTool } from 'react-icons/fi';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
@@ -677,7 +677,7 @@ export default function BulkQuotationRequestPage() {
                   { step: 'Submitted', status: viewRequest.workflow?.submittedAt ? 'completed' : 'pending', icon: FiCheck, desc: 'Submitted for approval' },
                   { step: 'Approved', status: viewRequest.workflow?.approvedAt ? 'completed' : 'pending', icon: FiCheck, desc: 'Price approval completed' },
                   { step: 'Inventory Check', status: viewRequest.inventoryCheck?.checkedAt ? 'completed' : 'pending', icon: FiPackage, desc: 'Stock availability verified' },
-                  { step: 'Production Plan', status: viewRequest.productionPlan?.plannedAt ? 'completed' : 'pending', icon: FiFactory, desc: 'Manufacturing plan created' }
+                  { step: 'Production Plan', status: viewRequest.productionPlan?.plannedAt ? 'completed' : 'pending', icon: FiTool, desc: 'Manufacturing plan created' }
                 ].map((item, index) => {
                   const IconComponent = item.icon;
                   return (

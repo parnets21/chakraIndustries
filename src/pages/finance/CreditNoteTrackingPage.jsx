@@ -3,6 +3,7 @@ import StatusBadge from '../../components/common/StatusBadge';
 import Modal from '../../components/common/Modal';
 import { creditNoteApi } from '../../api/creditNoteApi';
 import { toast } from '../../components/common/Toast';
+import { useDataEvent } from '../../utils/dataEvents';
 
 export default function CreditNoteTrackingPage({ initialTab = 0 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -21,6 +22,7 @@ export default function CreditNoteTrackingPage({ initialTab = 0 }) {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+  useDataEvent('creditnote:changed', fetchAll);
 
   const handleCreate = async () => {
     if (!form.party || !form.amount) { toast('Party and amount are required', 'error'); return; }
@@ -29,6 +31,7 @@ export default function CreditNoteTrackingPage({ initialTab = 0 }) {
       await creditNoteApi.create({ ...form, amount: parseFloat(form.amount) });
       setShowCreate(false);
       setForm({ party: '', against: '', amount: '', reason: '' });
+      dataEvents.emit('creditnote:changed');
       await fetchAll();
       toast('Credit note created');
     } catch (e) { toast(e.message, 'error'); }
@@ -39,6 +42,7 @@ export default function CreditNoteTrackingPage({ initialTab = 0 }) {
     try {
       await creditNoteApi.sendReminder(id);
       toast(`Reminder logged for ${cnId}`);
+      dataEvents.emit('creditnote:changed');
       await fetchAll();
     } catch (e) { toast(e.message, 'error'); }
   };
@@ -47,6 +51,7 @@ export default function CreditNoteTrackingPage({ initialTab = 0 }) {
     try {
       await creditNoteApi.updateStatus(id, 'Closed');
       toast('Credit note closed');
+      dataEvents.emit('creditnote:changed');
       await fetchAll();
     } catch (e) { toast(e.message, 'error'); }
   };
@@ -71,7 +76,25 @@ export default function CreditNoteTrackingPage({ initialTab = 0 }) {
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+      {/* Tab switcher + action button */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 4, background: '#f1f5f9', borderRadius: 10, padding: 4 }}>
+          {['Open Notes', 'Aging Analysis'].map((label, idx) => (
+            <button
+              key={idx}
+              onClick={() => setActiveTab(idx)}
+              style={{
+                padding: '6px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                fontSize: 12, fontWeight: 600, fontFamily: 'inherit', transition: 'all 0.15s',
+                background: activeTab === idx ? '#fff' : 'transparent',
+                color: activeTab === idx ? '#c0392b' : '#64748b',
+                boxShadow: activeTab === idx ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <button onClick={() => setShowCreate(true)} style={{
           padding: '8px 18px', borderRadius: 10, background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
           color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',

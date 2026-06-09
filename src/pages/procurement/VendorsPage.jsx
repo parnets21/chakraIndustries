@@ -4,6 +4,7 @@ import { vendorApi } from '../../api/vendorApi';
 import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShell';
 import VendorsTab from './components/VendorsTab';
 import { MdBusiness, MdCheckCircle, MdWarning, MdBlock, MdAdd } from 'react-icons/md';
+import { useDataEvent } from '../../utils/dataEvents';
 
 export default function VendorsPage() {
   const [categories, setCategories]         = useState([]);
@@ -26,6 +27,7 @@ export default function VendorsPage() {
   }, []);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
+  useDataEvent('vendor:changed', fetchStats);
 
   useEffect(() => {
     categoryApi.getAll()

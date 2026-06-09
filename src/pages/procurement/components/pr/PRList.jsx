@@ -6,6 +6,8 @@ import { prApi } from '../../../../api/prApi';
 import { FaRegTrashAlt } from 'react-icons/fa';
 import { MdVisibility, MdEdit, MdCheckCircle, MdCancel } from 'react-icons/md';
 
+import { dataEvents } from '../../../../utils/dataEvents';
+
 function useIsMobile() {
   const [mobile, setMobile] = useState(() => window.innerWidth < 640);
   useEffect(() => {
@@ -51,6 +53,7 @@ export default function PRList({ onEdit, refresh, viewOnly }) {
     try {
       await prApi.delete(pr._id);
       setDeleteConfirm(null);
+      dataEvents.emit('pr:changed');
       fetchPRs();
     } catch (e) { alert(e.message); }
     finally { setDeleting(false); }
@@ -62,6 +65,7 @@ export default function PRList({ onEdit, refresh, viewOnly }) {
     try {
       await prApi.updateStatus(approvalModal.pr._id, approvalModal.type === 'approve' ? 'Approved' : 'Rejected');
       setApprovalModal(null);
+      dataEvents.emit('pr:changed');
       fetchPRs();
     } catch (e) { alert(e.message); }
     finally { setApproving(false); }

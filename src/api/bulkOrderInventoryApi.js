@@ -1,17 +1,30 @@
-import axios from 'axios';
+const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5001/api');
+const API_URL = `${BASE}/bulk-order-inventory`;
 
-const API_URL = `${import.meta.env.VITE_API_URL}/bulk-order-inventory`;
+const getToken = () =>
+  localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
+
+const authHeaders = () => ({
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${getToken()}`,
+});
+
+const handle = async (res) => {
+  const d = await res.json();
+  if (!res.ok) throw new Error(d.message || 'Request failed');
+  return d;
+};
 
 export const bulkOrderInventoryApi = {
-  // Check inventory for order
-  checkInventory: (orderId) => axios.post(`${API_URL}/${orderId}/check`),
+  checkInventory: (orderId) =>
+    fetch(`${API_URL}/${orderId}/check`, { method: 'POST', headers: authHeaders() }).then(handle),
 
-  // Reserve inventory
-  reserveInventory: (orderId) => axios.post(`${API_URL}/${orderId}/reserve`),
+  reserveInventory: (orderId) =>
+    fetch(`${API_URL}/${orderId}/reserve`, { method: 'POST', headers: authHeaders() }).then(handle),
 
-  // Create work order for shortage
-  createWorkOrderForShortage: (orderId) => axios.post(`${API_URL}/${orderId}/create-work-order`),
+  createWorkOrderForShortage: (orderId) =>
+    fetch(`${API_URL}/${orderId}/create-work-order`, { method: 'POST', headers: authHeaders() }).then(handle),
 
-  // Release reserved inventory
-  releaseReservedInventory: (orderId) => axios.post(`${API_URL}/${orderId}/release`)
+  releaseReservedInventory: (orderId) =>
+    fetch(`${API_URL}/${orderId}/release`, { method: 'POST', headers: authHeaders() }).then(handle),
 };

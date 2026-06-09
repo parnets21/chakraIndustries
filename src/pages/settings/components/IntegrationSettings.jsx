@@ -10,7 +10,7 @@ export default function IntegrationSettings() {
       status: 'Connected',
       lastSync: new Date(Date.now() - 30 * 60 * 1000),
       config: {
-        serverUrl: 'http://localhost:9000',
+        serverUrl: 'https://erp.majesticmall.net',
         apiKey: '••••••••••••••••',
         syncFrequency: 'Every 30 minutes',
         autoSync: true
@@ -189,7 +189,7 @@ export default function IntegrationSettings() {
                   <label className="form-label">Tally Server URL</label>
                   <input type="text" className="form-input" value={formData.serverUrl || ''}
                     onChange={e => setFormData({ ...formData, serverUrl: e.target.value })}
-                    placeholder="http://localhost:9000" />
+                    placeholder="https://erp.majesticmall.net" />
                 </div>
                 <div className="form-group">
                   <label className="form-label">API Key</label>

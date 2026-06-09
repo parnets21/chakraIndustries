@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL || 'https://chakraindustries-backend.onrender.com/api';
+const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5001/api');
 
 const getToken = () => {
   const token = localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
@@ -17,6 +17,14 @@ const authHeaders = () => {
 };
 
 const handle = async (res) => {
+  if (res.status === 401) {
+    localStorage.removeItem('chakra_token');
+    localStorage.removeItem('chakra_user');
+    sessionStorage.removeItem('chakra_token');
+    sessionStorage.removeItem('chakra_user');
+    window.location.href = '/login';
+    throw new Error('Unauthorized – please log in again');
+  }
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Request failed');
   return data;

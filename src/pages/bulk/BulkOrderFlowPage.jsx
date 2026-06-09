@@ -38,10 +38,10 @@ export default function BulkOrderFlowPage() {
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await bulkOrderApi.getAll();
-      setOrders(res.data?.data || []);
+      const res = await bulkOrderApi.getQuotations();
+      setOrders(res.data || []);
     } catch (err) {
-      toast.error('Failed to fetch orders');
+      toast('Failed to fetch orders', 'error');
     } finally {
       setLoading(false);
     }

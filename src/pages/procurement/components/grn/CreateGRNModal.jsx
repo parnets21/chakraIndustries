@@ -3,6 +3,7 @@ import Modal from '../../../../components/common/Modal';
 import { poApi } from '../../../../api/poApi';
 import { grnApi } from '../../../../api/grnApi';
 import { inventoryApi } from '../../../../api/inventoryApi';
+import { dataEvents } from '../../../../utils/dataEvents';
 
 export default function CreateGRNModal({ open, onClose, onSaved }) {
   const [pos, setPOs]               = useState([]);
@@ -96,6 +97,7 @@ export default function CreateGRNModal({ open, onClose, onSaved }) {
           unit: it.unit || 'Nos',
         })),
       });
+      dataEvents.emit('grn:changed');
       onSaved?.();
       onClose();
     } catch (e) {

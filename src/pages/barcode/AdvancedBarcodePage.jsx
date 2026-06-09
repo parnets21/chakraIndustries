@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import inventoryApi from '../../api/inventoryApi';
+import { inventoryApi } from '../../api/inventoryApi';
 import PageHeader from '../../components/common/PageHeader';
 import PageShell from '../../components/common/PageShell';
 
@@ -275,7 +275,7 @@ export default function AdvancedBarcodePage() {
                 placeholder="Point camera or type barcode..."
                 value={scanInput}
                 onChange={(e) => setScanInput(e.target.value)}
-                onKeyPress={handleScanKeyPress}
+                onKeyDown={handleScanKeyPress}
                 style={{
                   width: '100%', padding: '12px 14px', borderRadius: 8,
                   border: '2px solid #e5e7eb', fontSize: 14, fontFamily: 'inherit',

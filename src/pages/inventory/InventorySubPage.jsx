@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import InventoryPage from './InventoryPage';
-import { PageHeader, KpiStrip } from '../../components/common/PageShell';
+import StockItemsPage from './StockItemsPage';
+import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShell';
 import { inventoryApi } from '../../api/inventoryApi';
-import { getPincodeStock } from '../../api/pincodeStockApi';
+import { itemMasterApi } from '../../api/itemMasterApi';
 import {
   MdInventory2, MdWarehouse, MdSwapHoriz, MdCheckBox,
   MdInventory, MdBatchPrediction, MdHourglassEmpty,
@@ -10,20 +11,19 @@ import {
 } from 'react-icons/md';
 
 const TAB_MAP = {
-  dashboard:  0,
-  stock:      1,
-  warehouses: 2,
-  movement:   3,
-  picking:    4,
-  packing:    5,
-  batch:      6,
-  ageing:     7,
-  defective:  8,
-  storage:    9,
-  pincode:    10,
-  returns:    11,
-  reorder:    12,
-  reconciliation: 13,
+  dashboard:    0,
+  stock:        1,
+  warehouses:   2,
+  movement:     3,
+  picking:      4,
+  packing:      5,
+  batch:        6,
+  ageing:       7,
+  defective:    8,
+  storage:      9,
+  pincode:      10,
+  returns:      11,
+  'stock-items': 12,
 };
 
 const PAGE_META = {
@@ -157,26 +157,15 @@ const PAGE_META = {
       { label: 'Total Returns',   value: '—', icon: <MdInventory2 size={18} />,     color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.25)'  },
     ],
   },
-  reorder: {
-    title: 'Auto-Reorder Alerts',
-    breadcrumb: 'Inventory › Reorder',
-    actionLabel: 'Generate PRs',
+  'stock-items': {
+    title: 'Stock Items (Item Master)',
+    breadcrumb: 'Inventory › Stock Items',
+    actionLabel: '+ Add Item',
     kpis: [
-      { label: 'Below Min Qty',   value: '—', icon: <MdHourglassEmpty size={18} />, color: '#c0392b', color2: '#ef4444', glow: 'rgba(192,57,43,0.25)' },
-      { label: 'Draft PRs',       value: '0', icon: <MdAdd size={18} />,          color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.25)' },
-      { label: 'Pending Approval',value: '—', icon: <MdHourglassEmpty size={18} />, color: '#2563eb', color2: '#3b82f6', glow: 'rgba(37,99,235,0.2)'  },
-      { label: 'Order Value',     value: '₹0',icon: <MdInventory size={18} />,    color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)' },
-    ],
-  },
-  reconciliation: {
-    title: 'Stock Reconciliation Dashboard',
-    breadcrumb: 'Inventory › Reconciliation',
-    actionLabel: 'Sync All Systems',
-    kpis: [
-      { label: 'System vs Tally', value: '—', icon: <MdCheckBox size={18} />,       color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)'  },
-      { label: 'Mismatch SKUs',   value: '—', icon: <MdHourglassEmpty size={18} />, color: '#c0392b', color2: '#ef4444', glow: 'rgba(192,57,43,0.25)'  },
-      { label: 'Vinculum Sync',   value: '—', icon: <MdSwapHoriz size={18} />,      color: '#2563eb', color2: '#3b82f6', glow: 'rgba(37,99,235,0.2)'   },
-      { label: 'Last Full Sync',  value: '—', icon: <MdHourglassEmpty size={18} />, color: '#64748b', color2: '#94a3b8', glow: 'rgba(100,116,139,0.2)'  },
+      { label: 'Total Items',    value: '—', icon: <MdInventory2 size={18} />,     color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.25)' },
+      { label: 'Active Items',   value: '—', icon: <MdCheckBox size={18} />,       color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)' },
+      { label: 'Inactive Items', value: '—', icon: <MdHourglassEmpty size={18} />, color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.25)' },
+      { label: 'Low Stock',      value: '—', icon: <MdBrokenImage size={18} />,    color: '#64748b', color2: '#94a3b8', glow: 'rgba(100,116,139,0.2)' },
     ],
   },
 };
@@ -264,26 +253,16 @@ export default function InventorySubPage({ tab }) {
             { ...meta.kpis[2], value: String(totalSKUs) },
             { ...meta.kpis[3], value: totalUnits.toLocaleString() },
           ]);
-        } else if (tab === 'reorder' || tab === 'reconciliation') {
-          const statsRes = await inventoryApi.getStats();
+        } else if (tab === 'stock-items') {
+          const statsRes = await itemMasterApi.getStats();
           if (cancelled) return;
-          const stats = statsRes.data || {};
-          
-          if (tab === 'reorder') {
-            setLiveKpis([
-              { ...meta.kpis[0], value: String(stats.critical || 0) },
-              { ...meta.kpis[1], value: '0' },
-              { ...meta.kpis[2], value: '0' },
-              { ...meta.kpis[3], value: '₹0' },
-            ]);
-          } else {
-            setLiveKpis([
-              { ...meta.kpis[0], value: '100%' },
-              { ...meta.kpis[1], value: '0' },
-              { ...meta.kpis[2], value: 'Connected' },
-              { ...meta.kpis[3], value: new Date().toLocaleDateString() },
-            ]);
-          }
+          const s = statsRes.data || {};
+          setLiveKpis([
+            { ...meta.kpis[0], value: String(s.total || 0) },
+            { ...meta.kpis[1], value: String(s.active || 0) },
+            { ...meta.kpis[2], value: String((s.total || 0) - (s.active || 0)) },
+            { ...meta.kpis[3], value: String(s.lowStock || s.critical || 0) },
+          ]);
         }
       } catch {
         // silently keep showing '—' on error
@@ -338,14 +317,13 @@ export default function InventorySubPage({ tab }) {
     <div>
       <PageHeader title={meta.title} breadcrumb={meta.breadcrumb} action={ActionBtn} />
       <KpiStrip kpis={liveKpis} />
-      <InventoryPage 
-        key={tabIndex} 
-        initialTab={tabIndex} 
-        externalShowModal={showModal} 
-        onExternalModalClose={() => setShowModal(false)} 
-        externalShowReturns={showReturns}
-        onExternalReturnsClose={() => setShowReturns(false)}
-      />
+      {tab === 'stock-items' ? (
+        <PageCard>
+          <StockItemsPage externalShowModal={showModal} onExternalModalClose={() => setShowModal(false)} />
+        </PageCard>
+      ) : (
+        <InventoryPage key={tabIndex} initialTab={tabIndex} externalShowModal={showModal} onExternalModalClose={() => setShowModal(false)} />
+      )}
     </div>
   );
 }

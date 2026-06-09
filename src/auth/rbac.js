@@ -171,6 +171,7 @@ export const NAV_ITEMS = [
     label: 'Procurement', page: 'procurement', icon: 'MdShoppingCart',
     children: [
       { path: '/procurement/vendors',   label: 'Vendors',               page: 'procurement' },
+      { path: '/procurement/clients',   label: 'Clients',               page: 'procurement' },
       { path: '/procurement/pr',        label: 'Purchase Requisition',  page: 'procurement' },
       { path: '/procurement/rfq',       label: 'RFQ',                   page: 'procurement' },
       { path: '/procurement/po',        label: 'Purchase Orders',       page: 'procurement' },
@@ -183,8 +184,9 @@ export const NAV_ITEMS = [
   {
     label: 'Inventory', page: 'inventory', icon: 'MdInventory2',
     children: [
-      { path: '/inventory/dashboard',  label: 'Stock Dashboard',    page: 'inventory' },
-      { path: '/inventory/stock',      label: 'Stock Table',        page: 'inventory' },
+      { path: '/inventory/dashboard',     label: 'Stock Dashboard',    page: 'inventory' },
+      { path: '/inventory/stock-items',   label: 'Stock Items',        page: 'inventory' },
+      { path: '/inventory/stock',         label: 'Stock Table',        page: 'inventory' },
       { path: '/inventory/warehouses', label: 'Warehouses',         page: 'inventory' },
       { path: '/inventory/movement',   label: 'Stock Movement',     page: 'inventory' },
       { path: '/inventory/picking',    label: 'Picking',            page: 'inventory' },
@@ -232,12 +234,15 @@ export const NAV_ITEMS = [
   {
     label: 'Returns', page: 'returns', icon: 'MdAssignmentReturn',
     children: [
-      { path: '/returns/requests',  label: 'Return Requests',       page: 'returns' },
-      { path: '/returns/tracker',   label: 'Stage Tracker',         page: 'returns' },
-      { path: '/returns/docket',    label: 'Docket Tracking',       page: 'returns' },
-      { path: '/returns/matching',  label: 'Debit/Credit Matching', page: 'returns' },
-      { path: '/returns/loss',      label: 'Loss Tracking',         page: 'returns' },
-      { path: '/returns/material',  label: 'Material Returns',      page: 'returns' },
+      { path: '/returns/dashboard',      label: 'Dashboard',          page: 'returns' },
+      { path: '/returns/requests',       label: 'Return Requests',    page: 'returns' },
+      { path: '/returns/approval',       label: 'Approval',           page: 'returns' },
+      { path: '/returns/transport',      label: 'Transport Tracking', page: 'returns' },
+      { path: '/returns/warehouse',      label: 'Warehouse Receive',  page: 'returns' },
+      { path: '/returns/qc',             label: 'Quality Check',      page: 'returns' },
+      { path: '/returns/debitcredit',    label: 'Debit/Credit Note',  page: 'returns' },
+      { path: '/returns/reconciliation', label: 'Reconciliation',     page: 'returns' },
+      { path: '/returns/loss',           label: 'Loss & Resolution',  page: 'returns' },
     ],
   },
   { section: 'FINANCE & ANALYTICS' },
@@ -272,11 +277,12 @@ export const NAV_ITEMS = [
   {
     label: 'Tally Integration', page: 'tally', icon: 'MdSync',
     children: [
-      { path: '/tally/dashboard',     label: 'Sync Dashboard',      page: 'tally' },
-      { path: '/tally/master',        label: 'Master Data Sync',    page: 'tally' },
-      { path: '/tally/transactions',  label: 'Transaction Sync',    page: 'tally' },
-      { path: '/tally/logs',          label: 'Sync Logs',           page: 'tally' },
-      { path: '/tally/config',        label: 'Configuration',       page: 'tally' },
+      { path: '/tally/overview', label: '📊 Overview',          page: 'tally' },
+      { path: '/tally/import',   label: '📥 Import from Tally', page: 'tally' },
+      { path: '/tally/export',   label: '📤 Export to Tally',   page: 'tally' },
+      { path: '/tally/data',     label: '📋 Synced Data',       page: 'tally' },
+      { path: '/tally/logs',     label: '📋 Logs',              page: 'tally' },
+      { path: '/tally/settings', label: '⚙️ Settings',          page: 'tally' },
     ],
   },
   {

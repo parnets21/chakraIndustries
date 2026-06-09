@@ -7,6 +7,7 @@ import { MdDeleteOutline, MdEdit } from 'react-icons/md';
 import { toast } from '../../../components/common/Toast';
 import { assetApi } from '../../../api/assetApi';
 import AssetFormModal from './AssetFormModal';
+import { dataEvents } from '../../../utils/dataEvents';
 
 const fmt = (n) => n != null ? `₹${Number(n).toLocaleString('en-IN')}` : '—';
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN') : '—';
@@ -68,6 +69,7 @@ export default function AssetRegisterTab() {
       }
       setShowForm(false);
       setEditAsset(null);
+      dataEvents.emit('asset:changed');
       await fetchData();
     } catch (e) { toast(e.message, 'error'); }
     finally { setSaving(false); }
@@ -77,6 +79,7 @@ export default function AssetRegisterTab() {
     try {
       await assetApi.delete(deleteTarget._id);
       setDeleteTarget(null);
+      dataEvents.emit('asset:changed');
       await fetchData();
       toast('Asset deleted', 'warning');
     } catch (e) { toast(e.message, 'error'); setDeleteTarget(null); }

@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
-  MdRefresh, MdAdd, MdEdit, MdDelete, MdSync, 
+  MdRefresh, MdAdd, MdSync, 
   MdReceipt, MdCheckCircle, MdWarning, MdInfo,
-  MdClose, MdSearch, MdCurrencyRupee, MdPerson,
-  MdDescription, MdLocalShipping, MdVerifiedUser
+  MdClose, MdSearch, MdCurrencyRupee
 } from 'react-icons/md';
 import { materialReturnApi } from '../../api/materialReturnApi';
 
@@ -86,50 +85,96 @@ function Field({ label, children }) {
 export default function DebitCreditMatchingPage() {
   const [matchingData, setMatchingData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
-  const [rawReturns, setRawReturns] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [rawReturns] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [toast, setToast] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const showToast = useCallback((message, type = 'info') => {
     setToast({ message, type, id: Date.now() });
   }, []);
 
+  const emptyEntry = () => {
+    const today = new Date().toISOString().split('T')[0];
+    return {
+      docket: `MR-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`,
+      returnType: 'Material Return',
+      party: '',
+      invoiceNo: `INV-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000) + 1000}`,
+      invoiceDate: today,
+      cnNo: 'Not generated',
+      cnAmount: 0,
+      dnNo: '—',
+      dnAmount: 0,
+      difference: 0,
+      gst: '18%',
+      financeStatus: 'Pending',
+      matchStatus: 'Open',
+      tallySync: 'Not synced',
+      voucherNo: '—',
+      assignedTo: 'Self',
+      lastUpdated: today,
+      returnValue: '',
+    };
+  };
+
+  const [newEntry, setNewEntry] = useState(emptyEntry);
+
+  // ─── Load Data from Backend or Local Storage or Seed Data ───────────────────
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await materialReturnApi.getAll();
-      if (res.success) {
-        setRawReturns(res.data || []);
-        const reconciliationItems = (res.data || []).filter(item => 
-          ['QC_PASSED', 'QC_FAILED', 'FINANCE_PENDING', 'CLOSED'].includes(item.currentStage)
-        ).map(item => ({
-          _id: item._id,
-          id: item.mrId,
-          party: item.supplierName || item.customerName,
-          invoice: item.invoiceNo,
-          invoiceDate: item.invoiceDate ? new Date(item.invoiceDate).toLocaleDateString() : '—',
-          creditNote: item.creditNoteNo || 'Not generated',
-          cnAmount: item.refundAmount || 0,
-          debitNote: item.debitNoteNo || '—',
+      // Try backend first — fetch material returns that have reconciliation data
+      const response = await materialReturnApi.getAll();
+      const backendData = (response.data || []);
+      if (backendData.length > 0) {
+        const mapped = backendData.map(r => ({
+          id: r.mrId || r._id,
+          _id: r._id,
+          party: r.supplierName || r.customerName || 'Unknown',
+          invoice: r.invoiceNo || '',
+          invoiceDate: r.invoiceDate ? new Date(r.invoiceDate).toISOString().split('T')[0] : '',
+          creditNote: r.creditNoteNo || 'Not generated',
+          cnAmount: r.refundAmount || 0,
+          debitNote: r.debitNoteNo || '—',
           dnAmount: 0,
-          difference: (item.value || 0) - (item.refundAmount || 0),
-          matchStatus: item.currentStage === 'CLOSED' ? 'Matched' : 
-                       item.refundAmount > 0 ? 'Partial' : 'Open',
-          tallySync: item.tallySyncStatus === 'Synced' ? 'Synced' : 'Not synced',
-          returnValue: item.value || 0,
-          returnType: item.returnReason || 'Material Return',
+          difference: r.creditNoteNo ? 0 : (r.value || r.refundAmount || 0),
+          matchStatus: r.reconciliationStatus === 'Completed' ? 'Matched'
+            : r.reconciliationStatus === 'In Progress' ? 'Partial' : 'Open',
+          tallySync: r.stage === 'Tally_Sync' || r.stage === 'Closed' ? 'Synced' : 'Not synced',
+          returnValue: r.value || r.refundAmount || 0,
+          returnType: r.returnType || 'Material Return',
           gst: '18%',
-          financeStatus: item.currentStage === 'CLOSED' ? 'Closed' : 'Pending',
-          voucherNo: item.voucherNo || '—',
-          assignedTo: item.qcBy || 'Self',
-          lastUpdated: new Date(item.updatedAt).toLocaleDateString(),
-          aging: `${Math.floor((new Date() - new Date(item.createdAt)) / (1000 * 60 * 60 * 24))} days`,
+          financeStatus: r.reconciliationStatus === 'Completed' ? 'Closed' : 'Pending',
+          voucherNo: '—',
+          assignedTo: r.approvedBy || 'Accounts',
+          lastUpdated: r.updatedAt ? new Date(r.updatedAt).toISOString().split('T')[0] : '',
+          aging: r.createdAt
+            ? `${Math.floor((Date.now() - new Date(r.createdAt)) / 86400000)} days`
+            : '0 days',
         }));
-        setMatchingData(reconciliationItems);
+        setMatchingData(mapped);
+        showToast(`Loaded ${mapped.length} records from backend`, 'success');
+        return;
+      }
+    } catch (err) {
+      console.warn('Backend unavailable, falling back to local storage:', err.message);
+    }
+
+    // Fallback: localStorage or seed data
+    try {
+      const savedData = localStorage.getItem('debit_credit_matching_data');
+      if (savedData && JSON.parse(savedData).length > 0) {
+        const parsedData = JSON.parse(savedData);
+        setMatchingData(parsedData);
+        showToast(`Loaded ${parsedData.length} records from local storage`, 'success');
+      } else {
+        // Seed data fallback
+        setMatchingData([]);
+        showToast('No records available', 'info');
       }
     } catch (err) {
       showToast(err.message, 'error');
@@ -159,9 +204,6 @@ export default function DebitCreditMatchingPage() {
     cnNotGenerated: matchingData.filter(d => d.matchStatus === 'Open').length,
     totalLossAmount: matchingData.reduce((sum, d) => sum + (d.difference || 0), 0),
   }), [matchingData]);
-
-  const emptyEntry = () => ({ mrId: '', refundAmount: '', creditNoteNo: '', debitNoteNo: '', remarks: '' });
-  const [newEntry, setNewEntry] = useState(emptyEntry);
 
   const handleMrSelect = async (mrId) => {
     const item = rawReturns.find(r => r._id === mrId || r.mrId === mrId);

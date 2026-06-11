@@ -901,6 +901,23 @@ const DocketTrackingPage = () => {
     setToastMsg({ message, type, key: Date.now() });
   }, []);
 
+  const normalizeStage = (rawStage) => {
+    if (!rawStage) return '';
+    return String(rawStage).trim().replace(/\s+/g, '_').toUpperCase();
+  };
+
+  const TRACKED_DOCKET_STAGES = new Set([
+    'APPROVED',
+    'DOCKET_CREATED',
+    'DOCKET_CREATE',
+    'VEHICLE_ASSIGNED',
+    'PICKED_UP',
+    'IN_TRANSIT',
+    'ARRIVED_AT_WAREHOUSE',
+    'RECEIVED',
+    'TRANSPORT_TRACKING'
+  ]);
+
   // Load returns from API
   const loadReturns = async () => {
     try {
@@ -934,9 +951,13 @@ const DocketTrackingPage = () => {
       const returnsData = await loadReturns();
       console.log('Returns Data for Dockets:', returnsData);
       const mappedDockets = returnsData
-        .filter(ret => ['APPROVED', 'DOCKET_CREATED', 'VEHICLE_ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'ARRIVED_AT_WAREHOUSE', 'RECEIVED'].includes(ret.currentStage))
-        .map((ret, idx) => {
-          const stage = ret.currentStage;
+        .map(ret => {
+          const currentStage = normalizeStage(ret.currentStage || ret.stage || ret.currentWorkflowStage);
+          return { ret, currentStage };
+        })
+        .filter(item => TRACKED_DOCKET_STAGES.has(item.currentStage))
+        .map(({ ret, currentStage }, idx) => {
+          const stage = currentStage;
           let transportStatus = 'pickup_pending';
           if (stage === 'PICKED_UP' || stage === 'IN_TRANSIT') transportStatus = 'in_transit';
           if (stage === 'ARRIVED_AT_WAREHOUSE' || stage === 'RECEIVED') transportStatus = 'received';
@@ -978,7 +999,8 @@ const DocketTrackingPage = () => {
             actualDeliveryDate: null,
             delayReason: null,
             attachments: [],
-            trackingHistory: ret.stageTimeline || []
+            trackingHistory: ret.stageTimeline || [],
+            currentStage: stage,
           };
         });
       console.log('Mapped Dockets:', mappedDockets);

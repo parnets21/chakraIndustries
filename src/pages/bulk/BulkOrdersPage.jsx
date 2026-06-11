@@ -187,8 +187,8 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
       const res = await bulkOrderApi.createSchedule({
         quotationId: newDeliveryForm.quotationId || null,
         client: newDeliveryForm.client,
-        items: selectedQuotation?.items || [],
-        totalItems: parseInt(newDeliveryForm.items) || 0,
+        items: selectedQuotation?.lineItems || [],
+        totalItems: parseInt(newDeliveryForm.items) || (selectedQuotation?.lineItems?.length) || 0,
         totalQty: parseInt(newDeliveryForm.qty) || 0,
         deliveryDate: newDeliveryForm.deliveryDate,
         slot: newDeliveryForm.slot,

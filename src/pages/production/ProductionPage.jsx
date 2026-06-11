@@ -536,7 +536,14 @@ export default function ProductionPage({ initialTab = 0 }) {
                 <strong>Steps:</strong> Create BOM → Approve → Create Work Order → Click "Run MRP"
               </div>
             ) : mrpRuns.map(r => (
-              <div key={r._id} onClick={()=>setSelectedMRP(r)} className="p-3 rounded-lg mb-2 cursor-pointer transition-all"
+              <div key={r._id} onClick={async ()=>{
+                try {
+                  const full = await mrpApi.getById(r._id);
+                  setSelectedMRP(full.data || r);
+                } catch {
+                  setSelectedMRP(r);
+                }
+              }} className="p-3 rounded-lg mb-2 cursor-pointer transition-all"
                 style={{ border:`2px solid ${selectedMRP?._id===r._id?'#c0392b':'#e2e8f0'}`, background:selectedMRP?._id===r._id?'#fdf5f5':'#fff' }}>
                 <div className="flex justify-between items-center">
                   <div>

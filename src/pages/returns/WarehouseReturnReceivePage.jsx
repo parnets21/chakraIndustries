@@ -89,6 +89,11 @@ export default function WarehouseReturnReceivePage({ onClose }) {
     }
   };
 
+  const normalizeStage = (rawStage) => {
+    if (!rawStage) return '';
+    return String(rawStage).trim().replace(/\s+/g, '_').toUpperCase();
+  };
+
   const fetchQueue = async () => {
     setLoading(true);
     try {
@@ -246,13 +251,14 @@ export default function WarehouseReturnReceivePage({ onClose }) {
   };
 
   const filteredQueue = queue.filter(item => {
+    const itemStage = normalizeStage(item.currentStage || item.stage || item.status);
     const matchesSearch = 
       item.mrId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.docketId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.invoiceNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.supplierName?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesFilter = activeFilter === 'ALL' || item.currentStage === activeFilter;
+    const matchesFilter = activeFilter === 'ALL' || itemStage === activeFilter;
     const matchesWarehouse = selectedWarehouse === 'All Warehouses' || item.warehouseName === selectedWarehouse;
     
     const itemDate = new Date(item.createdAt || item.updatedAt).toISOString().split('T')[0];
@@ -263,10 +269,13 @@ export default function WarehouseReturnReceivePage({ onClose }) {
 
   const stats = {
     total: queue.length,
-    inTransit: queue.filter(q => q.currentStage === 'IN_TRANSIT' || q.currentStage === 'PICKED_UP').length,
-    arrived: queue.filter(q => q.currentStage === 'ARRIVED_AT_WAREHOUSE').length,
-    received: queue.filter(q => q.currentStage === 'RECEIVED').length,
-    qcPending: queue.filter(q => q.currentStage === 'QC_PENDING').length
+    inTransit: queue.filter(q => {
+      const stage = normalizeStage(q.currentStage || q.stage || q.status);
+      return stage === 'IN_TRANSIT' || stage === 'PICKED_UP';
+    }).length,
+    arrived: queue.filter(q => normalizeStage(q.currentStage || q.stage || q.status) === 'ARRIVED_AT_WAREHOUSE').length,
+    received: queue.filter(q => normalizeStage(q.currentStage || q.stage || q.status) === 'RECEIVED').length,
+    qcPending: queue.filter(q => normalizeStage(q.currentStage || q.stage || q.status) === 'QC_PENDING').length
   };
 
   const totals = selectedReturn ? Object.values(receiveData).reduce((acc, curr) => ({
@@ -407,7 +416,7 @@ export default function WarehouseReturnReceivePage({ onClose }) {
                 <tr><td colSpan={11} style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>No records found in current queue</td></tr>
               ) : filteredQueue.map((item) => {
                 const isSelected = selectedReturn?._id === item._id;
-                const status = getStatusStyle(item.currentStage);
+                const status = getStatusStyle(normalizeStage(item.currentStage || item.stage || item.status));
                 return (
                   <tr 
                     key={item._id} 
@@ -471,7 +480,7 @@ export default function WarehouseReturnReceivePage({ onClose }) {
                             color: '#3b82f6', fontSize: 11, fontWeight: 800, cursor: 'pointer'
                           }}
                         >
-                          {item.currentStage === 'RECEIVED' ? 'View' : 'Receive'}
+                          {normalizeStage(item.currentStage || item.stage || item.status) === 'RECEIVED' ? 'View' : 'Receive'}
                         </button>
                         <MdMoreVert size={20} color="#94a3b8" />
                       </div>

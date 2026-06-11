@@ -44,7 +44,7 @@ export const materialReturnApi = {
   inventoryUpdate: (id) => fetchWithRetry(getUrl(`/returns/${id}/inventory-update`), { method: 'POST', headers: authHeaders() }),
   financeClose: (id, data) => fetchWithRetry(getUrl(`/returns/${id}/finance-close`), { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }),
   updateStatus: (id, data) => fetchWithRetry(getUrl(`/returns/${id}/status`), { method: 'PUT', headers: authHeaders(), body: JSON.stringify(data) }),
-  updateStage: (id, stage) => fetchWithRetry(getUrl(`/returns/${id}/stage`), { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ stage }) }),
+  updateStage: (id, stage, approvalStatus) => fetchWithRetry(getUrl(`/returns/${id}/stage`), { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ stage, ...(approvalStatus ? { approvalStatus } : {}) }) }),
   
   // Specific Module Actions
   processQC: (id, data) => fetchWithRetry(getUrl(`/returns/${id}/qc`), { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }),

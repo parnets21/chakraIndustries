@@ -686,8 +686,9 @@ function ApprovalTab({ returns, onStageMove }) {
     return !q || r.mrId?.toLowerCase().includes(q) || r.supplierName?.toLowerCase().includes(q);
   });
 
-  const handleApprove = (r) => onStageMove(r.mrId, 'Manager_Approval');
-  const handleReject  = (r) => onStageMove(r.mrId, 'Rejected');
+  const handleApprove = (r) => onStageMove(r.mrId, 'Manager_Approval', 'Approved');
+  const handleReject  = (r) => onStageMove(r.mrId, 'Rejected', 'Rejected');
+  const handleAssignTransport = (r) => onStageMove(r.mrId, 'Docket_Create');
 
   return (
     <div className="space-y-4">
@@ -736,7 +737,7 @@ function ApprovalTab({ returns, onStageMove }) {
                     className="flex items-center gap-1.5 px-5 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs font-semibold transition-colors border border-red-200">
                     <MdClose size={14} /> Reject
                   </button>
-                  <button className="flex items-center gap-1.5 px-5 py-2 bg-sky-100 hover:bg-sky-200 text-sky-700 rounded-lg text-xs font-semibold transition-colors border border-sky-200">
+                  <button onClick={() => handleAssignTransport(r)} className="flex items-center gap-1.5 px-5 py-2 bg-sky-100 hover:bg-sky-200 text-sky-700 rounded-lg text-xs font-semibold transition-colors border border-sky-200">
                     <MdLocalShipping size={14} /> Assign Transport
                   </button>
                 </div>
@@ -934,11 +935,11 @@ export default function ReturnsPage({ initialTab = 0 }) {
     } finally { setSaving(false); }
   };
 
-  const handleStageMove = async (mrId, newStage) => {
+  const handleStageMove = async (mrId, newStage, approvalStatus) => {
     const record = returns.find(r => r.mrId === mrId);
     if (record?._id) {
       try {
-        const res = await materialReturnApi.updateStage(record._id, newStage);
+        const res = await materialReturnApi.updateStage(record._id, newStage, approvalStatus);
         const updated = normalizeReturn(res.data);
         setReturns(prev => prev.map(r => r.mrId === mrId ? updated : r));
         toast(`Stage updated to ${newStage.replace(/_/g,' ')}`, 'success');
@@ -946,7 +947,7 @@ export default function ReturnsPage({ initialTab = 0 }) {
         return;
       } catch (e) { toast(e.message || 'Stage update failed', 'error'); return; }
     }
-    setReturns(prev => prev.map(r => r.mrId === mrId ? { ...r, stage: newStage } : r));
+    setReturns(prev => prev.map(r => r.mrId === mrId ? { ...r, stage: newStage, approvalStatus: approvalStatus || r.approvalStatus } : r));
     toast(`Stage updated to ${newStage.replace(/_/g,' ')}`, 'success');
     dataEvents.emit('return:changed');
   };

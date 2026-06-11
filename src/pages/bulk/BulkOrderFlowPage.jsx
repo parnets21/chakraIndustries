@@ -141,8 +141,9 @@ export default function BulkOrderFlowPage() {
       const scheduleRes = await deliveryScheduleApi.createSchedule({
         quotationId: selectedOrder.quotationId,
         client: selectedOrder.clientName,
-        items: selectedOrder.items.length,
-        qty: selectedOrder.items.reduce((sum, item) => sum + item.qty, 0),
+        items: selectedOrder.items || [],
+        totalItems: Array.isArray(selectedOrder.items) ? selectedOrder.items.length : 0,
+        totalQty: Array.isArray(selectedOrder.items) ? selectedOrder.items.reduce((sum, item) => sum + (item.qty || 0), 0) : 0,
         deliveryDate: deliveryForm.deliveryDate,
         slot: deliveryForm.slot,
         warehouse: deliveryForm.warehouse,

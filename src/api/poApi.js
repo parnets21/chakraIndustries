@@ -2,6 +2,7 @@ const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? wi
 
 const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
 const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
+const authHeadersFormData = () => ({ Authorization: `Bearer ${getToken()}` });
 
 const handle = async (res) => {
   const data = await res.json();
@@ -22,4 +23,6 @@ export const poApi = {
   updateStatus: (id, status) =>
     fetch(`${BASE}/purchase-orders/${id}/status`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ status }) }).then(handle),
   delete: (id) => fetch(`${BASE}/purchase-orders/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
+  bulkUpload: (formData) =>
+    fetch(`${BASE}/purchase-orders/bulk-upload`, { method: 'POST', headers: authHeadersFormData(), body: formData }).then(handle),
 };

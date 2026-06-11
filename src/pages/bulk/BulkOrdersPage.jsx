@@ -94,13 +94,17 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
       if (statsRes.status === 'fulfilled') setStats(statsRes.value.data || {});
       if (vehiclesRes.status === 'fulfilled') setVehicles(vehiclesRes.value.data || []);
       if (warehousesRes.status === 'fulfilled') setWarehouses(warehousesRes.value.data || []);
-      if (packagingRes.status === 'fulfilled' && packagingRes.value.data) {
-        // Map backend packaging data to include icons
+      if (packagingRes.status === 'fulfilled' && packagingRes.value.data && packagingRes.value.data.length > 0) {
+        // Map backend packaging data to include icons and set id as _id
         const packagingWithIcons = packagingRes.value.data.map(pkg => ({
           ...pkg,
+          id: pkg._id || pkg.packagingId,
           icon: pkg.type === 'Premium' ? FiGift : pkg.type === 'Bulk' ? FiTruck : pkg.type === 'Custom' ? FiPackage : FiBox,
         }));
         setPackagingOptions(packagingWithIcons);
+      } else {
+        // Fall back to default packaging options if no data from backend
+        setPackagingOptions(defaultPackagingOptions);
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -143,22 +147,21 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
     setLoading(true);
     try {
       const client = clients.find(c => c._id === quoteForm.clientId);
-      const items = quoteItems.map(it => ({
+      const lineItems = quoteItems.map(it => ({
         item: it.item, sku: it.sku,
         qty: parseFloat(it.qty) || 0,
         unitPrice: parseFloat(it.unitPrice) || 0,
         discount: parseFloat(it.discount) || 0,
         total: Math.round((parseFloat(it.qty)||0)*(parseFloat(it.unitPrice)||0)*(1-(parseFloat(it.discount)||0)/100)),
       }));
+      const totalQty = lineItems.reduce((sum, it) => sum + (it.qty || 0), 0);
       const res = await bulkOrderApi.createQuotation({
-        clientId: quoteForm.clientId,
-        clientName: client?.name || '',
-        items,
-        subtotal,
-        gstAmount: gst,
-        grandTotal: grand,
+        client: client?.name || '',
+        items: lineItems.length,
+        qty: totalQty,
+        value: grand,
+        lineItems,
         packaging: quoteForm.packaging,
-        paymentTerms: quoteForm.paymentTerms,
         validity: quoteForm.validity || null,
         status: 'Sent',
       });
@@ -174,15 +177,19 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
 
   const handleAddDeliverySchedule = async () => {
     if (!newDeliveryForm.client || !newDeliveryForm.deliveryDate || !newDeliveryForm.slot) {
-      toast('Fill all required fields', 'error'); return;
+      toast('Fill all required fields', 'error');
+      return;
     }
     setLoading(true);
     try {
+      // Get the selected quotation to get items array
+      const selectedQuotation = quotations.find(q => q._id === newDeliveryForm.quotationId);
       const res = await bulkOrderApi.createSchedule({
-        quoteId: newDeliveryForm.quotationId || null,
-        clientName: newDeliveryForm.client,
-        items: parseInt(newDeliveryForm.items) || 0,
-        qty: parseInt(newDeliveryForm.qty) || 0,
+        quotationId: newDeliveryForm.quotationId || null,
+        client: newDeliveryForm.client,
+        items: selectedQuotation?.items || [],
+        totalItems: parseInt(newDeliveryForm.items) || 0,
+        totalQty: parseInt(newDeliveryForm.qty) || 0,
         deliveryDate: newDeliveryForm.deliveryDate,
         slot: newDeliveryForm.slot,
         warehouse: newDeliveryForm.warehouse,
@@ -284,10 +291,10 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
           ) : (
           <DataTable
             columns={[
-              { key: 'quoteId', label: 'Quote ID', render: v => <span className="font-semibold text-red-700">{v}</span> },
-              { key: 'clientName', label: 'Client', render: v => <span className="font-semibold">{v}</span> },
+              { key: 'quotationId', label: 'Quote ID', render: v => <span className="font-semibold text-red-700">{v}</span> },
+              { key: 'client', label: 'Client', render: v => <span className="font-semibold">{v}</span> },
               { key: 'items', label: 'SKU', render: v => Array.isArray(v) ? v.length : v },
-              { key: 'grandTotal', label: 'Value', render: v => <span className="font-bold text-red-700">{fmtMoney(v)}</span> },
+              { key: 'value', label: 'Value', render: v => <span className="font-bold text-red-700">{fmtMoney(v)}</span> },
               { key: 'packaging', label: 'Packaging' },
               { key: 'validity', label: 'Valid Till', render: v => v ? new Date(v).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—' },
               { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
@@ -389,13 +396,13 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
                 {schedules.length > 0 ? schedules.map((r, i) => (
                   <tr key={i} className={trCls}>
                     <td className={`${tdCls} font-semibold text-red-700`}>{r.scheduleId}</td>
-                    <td className={`${tdCls} font-semibold`}>{r.clientName}</td>
+                    <td className={`${tdCls} font-semibold`}>{r.client}</td>
                     <td className={tdCls}>{
                       Array.isArray(r.items)
                         ? r.items.length
                         : (typeof r.items === 'number' ? r.items : (r.items ? String(r.items) : '—'))
                     }</td>
-                    <td className={`${tdCls} font-bold`}>{(r.qty||0).toLocaleString()}</td>
+                    <td className={`${tdCls} font-bold`}>{(r.totalQty || r.qty || 0).toLocaleString()}</td>
                     <td className={tdCls}>{r.deliveryDate ? new Date(r.deliveryDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) : '—'}</td>
                     <td className={tdCls}>{r.slot}</td>
                     <td className={tdCls}>{r.warehouse}</td>

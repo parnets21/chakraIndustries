@@ -5,6 +5,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { itemMasterApi } from '../../api/itemMasterApi';
+import { categoryApi } from '../../api/categoryApi';
 import Modal from '../../components/common/Modal';
 import { toast } from '../../components/common/Toast';
 import { MdSearch, MdAdd, MdEdit, MdDelete, MdInventory2 } from 'react-icons/md';
@@ -26,6 +27,7 @@ const EMPTY_FORM = {
 
 export default function StockItemsPage({ externalShowModal = false, onExternalModalClose }) {
   const [items, setItems]           = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [search, setSearch]         = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -50,7 +52,16 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
     } finally { setLoading(false); }
   }, [statusFilter]);
 
-  useEffect(() => { loadItems(); }, [loadItems]);
+  const loadCategories = useCallback(async () => {
+    try {
+      const res = await categoryApi.getAll();
+      setCategories(res.data || []);
+    } catch (e) {
+      toast(e.message || 'Failed to load categories', 'error');
+    }
+  }, []);
+
+  useEffect(() => { loadItems(); loadCategories(); }, [loadItems, loadCategories]);
 
   const filteredItems = items.filter(item =>
     !search || item.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -61,7 +72,7 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
   const openEdit = (item) => {
     setForm({
       sku: item.sku || '', name: item.name || '', description: item.description || '',
-      category: item.category || '', unit: item.unit || 'units',
+      category: item.category?._id || item.category || '', unit: item.unit || 'units',
       unitPrice: item.unitPrice ?? '', costPrice: item.costPrice ?? '',
       sellingPrice: item.sellingPrice ?? '', minQuantity: item.minQuantity ?? '',
       maxQuantity: item.maxQuantity ?? '', reorderPoint: item.reorderPoint ?? '',
@@ -114,7 +125,7 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
 
   const handleExport = () => {
     const rows = filteredItems.map(i => ({
-      'SKU': i.sku, 'Name': i.name, 'Category': i.category, 'Unit': i.unit,
+      'SKU': i.sku, 'Name': i.name, 'Category': i.category?.name || '', 'Unit': i.unit,
       'Unit Price': i.unitPrice, 'Cost Price': i.costPrice, 'Selling Price': i.sellingPrice,
       'Min Qty': i.minQuantity, 'Reorder Point': i.reorderPoint,
       'HSN': i.hsn, 'GST %': i.gst, 'Status': i.status,
@@ -193,7 +204,7 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
                 <tr key={item._id}>
                   <td style={{ fontFamily:'monospace', fontSize:11, fontWeight:600, color:'#64748b' }}>{item.sku}</td>
                   <td style={{ fontWeight:500, maxWidth:180 }}>{item.name}</td>
-                  <td>{item.category || '—'}</td>
+                  <td>{item.category?.name || '—'}</td>
                   <td>{item.unit}</td>
                   <td>₹{(item.costPrice ?? 0).toLocaleString('en-IN')}</td>
                   <td>₹{(item.sellingPrice ?? 0).toLocaleString('en-IN')}</td>
@@ -237,7 +248,12 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
           )}
           <div><label style={lbl}>SKU *</label><input style={{...inp, borderColor:formErrors.sku?'#ef4444':'#e2e8f0'}} placeholder="e.g. SKU-001" value={form.sku} onChange={f('sku')} />{formErrors.sku&&<div style={{fontSize:11,color:'#ef4444',marginTop:3}}>⚠ {formErrors.sku}</div>}</div>
           <div><label style={lbl}>Item Name *</label><input style={{...inp, borderColor:formErrors.name?'#ef4444':'#e2e8f0'}} placeholder="Product name" value={form.name} onChange={f('name')} />{formErrors.name&&<div style={{fontSize:11,color:'#ef4444',marginTop:3}}>⚠ {formErrors.name}</div>}</div>
-          <div><label style={lbl}>Category</label><input style={inp} placeholder="e.g. Electronics" value={form.category} onChange={f('category')} /></div>
+          <div><label style={lbl}>Category</label>
+            <select style={{...inp, borderColor:formErrors.category?'#ef4444':'#e2e8f0'}} value={form.category} onChange={f('category')}>
+              <option value="">Select category</option>
+              {categories.map(cat=><option key={cat._id} value={cat._id}>{cat.name}</option>)}
+            </select>
+          </div>
           <div><label style={lbl}>Unit *</label>
             <select style={{...inp, borderColor:formErrors.unit?'#ef4444':'#e2e8f0'}} value={form.unit} onChange={f('unit')}>
               {['units','kg','g','mg','litre','ml','metre','cm','box','pack','set','piece','dozen'].map(u=><option key={u}>{u}</option>)}

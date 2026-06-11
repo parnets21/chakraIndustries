@@ -1031,7 +1031,7 @@ const DocketTrackingPage = () => {
     setLoading(true);
     try {
       // Find return request from 'returns' state
-      const returnRequest = returns.find(r => r.mrId === formData.mrId);
+      let returnRequest = returns.find(r => r.mrId === formData.mrId);
       if (!returnRequest) {
         // Fallback: fetch returns again if state is empty
         const freshReturns = await loadReturns();

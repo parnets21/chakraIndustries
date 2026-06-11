@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import StatusBadge from '../../components/common/StatusBadge';
 import Modal from '../../components/common/Modal';
 import { toast } from '../../components/common/Toast';
 import CreditNoteTrackerEnhanced from './components/CreditNoteTrackerEnhanced';
 import { accountsLedgerApi } from '../../api/accountsLedgerApi';
 import { tallyApi } from '../../api/tallyApi';
+import { brsApi } from '../../api/brsApi';
 
 const tabs = ['Ledger', 'BRS', 'Payments', 'Credit / Debit Notes', 'Ledger Matching'];
 
@@ -57,6 +58,14 @@ export default function FinancePage({ initialTab = 0 }) {
   const [voucherType, setVoucherType]     = useState('');
   const [voucherSearch, setVoucherSearch] = useState('');
 
+  // ── BRS tab state ─────────────────────────────────────────────────────────
+  const [brsStatements, setBrsStatements] = useState([]);
+  const [brsLoading, setBrsLoading] = useState(false);
+  const [brsFile, setBrsFile] = useState(null);
+  const [brsBankName, setBrsBankName] = useState('');
+  const [brsUploading, setBrsUploading] = useState(false);
+  const fileInputRef = useRef(null);
+
   // ── Modal ─────────────────────────────────────────────────────────────────
   const [showPayModal, setShowPayModal] = useState(false);
   const [payForm, setPayForm] = useState({ partyName: '', voucherType: 'Receipt', amount: '', narration: '', voucherDate: '' });
@@ -102,8 +111,43 @@ export default function FinancePage({ initialTab = 0 }) {
     }
   }, [voucherType, voucherSearch]);
 
+  // ── Load BRS statements ───────────────────────────────────────────────────
+  const loadBrsStatements = useCallback(async () => {
+    setBrsLoading(true);
+    try {
+      const res = await brsApi.getStatements();
+      setBrsStatements(res.data || []);
+    } catch (e) {
+      toast(e.message || 'Failed to load BRS statements', 'error');
+    } finally {
+      setBrsLoading(false);
+    }
+  }, []);
+
+  // ── Handle BRS file upload ────────────────────────────────────────────────
+  const handleBrsUpload = async () => {
+    if (!brsFile) {
+      toast('Please select a file to upload', 'error');
+      return;
+    }
+    setBrsUploading(true);
+    try {
+      await brsApi.uploadStatement(brsFile, brsBankName);
+      toast('Bank statement uploaded successfully!', 'success');
+      setBrsFile(null);
+      setBrsBankName('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      loadBrsStatements();
+    } catch (e) {
+      toast(e.message || 'Failed to upload statement', 'error');
+    } finally {
+      setBrsUploading(false);
+    }
+  };
+
   // Load on tab switch
   useEffect(() => { if (activeTab === 0) loadLedgers(); }, [activeTab, loadLedgers]);
+  useEffect(() => { if (activeTab === 1) loadBrsStatements(); }, [activeTab, loadBrsStatements]);
   useEffect(() => { if (activeTab === 2) loadVouchers(); }, [activeTab, loadVouchers]);
 
   // ── Save voucher ──────────────────────────────────────────────────────────
@@ -251,12 +295,91 @@ export default function FinancePage({ initialTab = 0 }) {
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
           <div className="text-sm font-bold text-gray-800 mb-1">Bank Reconciliation Statement</div>
           <div className="text-xs text-gray-400 mb-4">Upload your bank statement to reconcile with ERP ledger entries</div>
-          <div style={{ border: '2px dashed #e2e8f0', borderRadius: 12, padding: '32px 24px', textAlign: 'center', background: '#f8fafc' }}>
-            <div style={{ fontSize: 36, marginBottom: 8 }}>📄</div>
-            <div style={{ fontWeight: 600, fontSize: 14, color: '#334155', marginBottom: 4 }}>Drag & drop bank statement or click to browse</div>
-            <div style={{ fontSize: 12, color: '#94a3b8' }}>CSV, XLS, PDF — Max 10MB</div>
-            <button style={{ ...outlineBtn, marginTop: 16 }} onClick={() => toast('BRS upload coming soon', 'info')}>Upload Statement</button>
+          
+          <div style={{ border: '2px dashed #e2e8f0', borderRadius: 12, padding: '24px', background: '#f8fafc', marginBottom: 24 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  placeholder="Bank Name (optional)"
+                  value={brsBankName}
+                  onChange={(e) => setBrsBankName(e.target.value)}
+                  style={{ flex: 1, minWidth: 200, padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,.xlsx,.xls,.pdf"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setBrsFile(file);
+                      }
+                    }}
+                    style={{ display: 'none' }}
+                  />
+                  <button
+                    style={{ ...outlineBtn }}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Select File
+                  </button>
+                  {brsFile && (
+                    <span style={{ fontSize: 13, color: '#334155' }}>
+                      Selected: {brsFile.name}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  style={{ ...primaryBtn }}
+                  onClick={handleBrsUpload}
+                  disabled={brsUploading || !brsFile}
+                >
+                  {brsUploading ? 'Uploading...' : 'Upload Statement'}
+                </button>
+              </div>
+            </div>
           </div>
+
+          {brsLoading ? (
+            <Spinner />
+          ) : brsStatements.length === 0 ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>
+              No bank statements uploaded yet
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr>
+                    {['Statement ID', 'Bank', 'File', 'Date', 'Status'].map(h => (
+                      <th key={h} className={th}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {brsStatements.map((stmt, i) => (
+                    <tr key={stmt._id || i} className={tr}>
+                      <td className={td} style={{ fontFamily: 'monospace', fontWeight: 700, color: '#c0392b' }}>
+                        {stmt.statementId || stmt._id?.substring(0, 8) || '—'}
+                      </td>
+                      <td className={td}>{stmt.bankName || '—'}</td>
+                      <td className={td}>{stmt.fileName || '—'}</td>
+                      <td className={td} style={{ fontSize: 12, color: '#475569' }}>
+                        {stmt.uploadDate ? new Date(stmt.uploadDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
+                      </td>
+                      <td className={td}>
+                        <StatusBadge status={stmt.status || 'Pending'} type={stmt.status === 'Reconciled' ? 'success' : 'info'} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

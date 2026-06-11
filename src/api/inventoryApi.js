@@ -62,8 +62,9 @@ export const inventoryApi = {
   delete:    (id)          => rateLimitedFetchWithRetry(`${BASE}/inventory/${id}`,                 { method: 'DELETE', headers: authHeaders() }),
 
   // ── Warehouses ─────────────────────────────────────────────────────────────
-  getWarehouses:      ()         => rateLimitedFetchWithRetry(`${BASE}/inventory/warehouses`,           { headers: authHeaders(true) }),
-  getNextWarehouseId: ()         => rateLimitedFetchWithRetry(`${BASE}/inventory/warehouses/next-id`,   { headers: authHeaders(true) }),
+  getWarehouses:      ()         => rateLimitedFetchWithRetry(`${BASE}/inventory/warehouses`,                { headers: authHeaders(true) }),
+  getAllWarehouses:    ()         => rateLimitedFetchWithRetry(`${BASE}/inventory/warehouses?all=true`,       { headers: authHeaders(true) }),
+  getNextWarehouseId: ()         => rateLimitedFetchWithRetry(`${BASE}/inventory/warehouses/next-id`,        { headers: authHeaders(true) }),
   createWarehouse:    (body)     => rateLimitedFetchWithRetry(`${BASE}/inventory/warehouses`,           { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }),
   updateWarehouse:    (id, body) => rateLimitedFetchWithRetry(`${BASE}/inventory/warehouses/${id}`,     { method: 'PUT',    headers: authHeaders(), body: JSON.stringify(body) }),
   deleteWarehouse:    (id, force = false) => rateLimitedFetchWithRetry(`${BASE}/inventory/warehouses/${id}${force ? '?force=true' : ''}`,     { method: 'DELETE', headers: authHeaders() }),

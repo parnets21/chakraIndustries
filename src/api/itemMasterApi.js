@@ -13,6 +13,7 @@ export const itemMasterApi = {
   create: (body) => fetch(`${BASE}/item-master`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   update: (id, body) => fetch(`${BASE}/item-master/${id}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   delete: (id) => fetch(`${BASE}/item-master/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
+  deleteAll: () => fetch(`${BASE}/item-master/delete-all`, { method: 'DELETE', headers: authHeaders() }).then(handle),
 
   // Search & Filter
   search: (query) => fetch(`${BASE}/item-master/search?q=${encodeURIComponent(query)}`, { headers: authHeaders() }).then(handle),

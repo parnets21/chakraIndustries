@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import StatusBadge from '../../components/common/StatusBadge';
 import BarChart from '../../components/charts/BarChart';
 import Modal from '../../components/common/Modal';
+import Pagination from '../../components/common/Pagination';
 import StorageLocationPage from './StorageLocationPage';
 import PincodeStockPage from './PincodeStockPage';
 import WarehouseReceivePage from '../returns/WarehouseReceivePage';
@@ -114,6 +115,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const [adjustMode, setAdjustMode] = useState('add');
   const [moveItem, setMoveItem] = useState(null);
   const [moveToWH, setMoveToWH] = useState('');
+  const [allWarehouseList, setAllWarehouseList] = useState([]);
 
   // ── Filters ────────────────────────────────────────────────────────────────
   const [stockFilter, setStockFilter] = useState('All');
@@ -126,6 +128,18 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const [grnList,     setGrnList]     = useState([]);
   const [poList,      setPoList]      = useState([]);
   const [poItems,     setPoItems]     = useState({});
+
+  // ── Pagination state ───────────────────────────────────────────────────────
+  const [stockPage,    setStockPage]    = useState(1);
+  const [stockPageSz,  setStockPageSz]  = useState(25);
+  const [movPage,      setMovPage]      = useState(1);
+  const [movPageSz,    setMovPageSz]    = useState(25);
+  const [batchPage,    setBatchPage]    = useState(1);
+  const [batchPageSz,  setBatchPageSz]  = useState(25);
+  const [ageingPage,   setAgeingPage]   = useState(1);
+  const [ageingPageSz, setAgeingPageSz] = useState(25);
+  const [defectPage,   setDefectPage]   = useState(1);
+  const [defectPageSz, setDefectPageSz] = useState(25);
 
   // ── Local-only tabs (no backend yet) ──────────────────────────────────────
   const [pickList, setPickList] = useState([]);
@@ -268,6 +282,20 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       return sku.toLowerCase().includes(q) || name.toLowerCase().includes(q);
     });
 
+  // ── Reset pages when filters change ───────────────────────────────────────
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setStockPage(1); }, [stockFilter, whFilter, stockSearch]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setMovPage(1); }, [movTab]);
+
+  // ── Paged slices ──────────────────────────────────────────────────────────
+  const pagedStock   = filteredStock.slice((stockPage - 1) * stockPageSz, stockPage * stockPageSz);
+  const filteredMovs = movementList.filter(m => m.type === movTab);
+  const pagedMovs    = filteredMovs.slice((movPage - 1) * movPageSz, movPage * movPageSz);
+  const pagedBatch   = batchList.slice((batchPage - 1) * batchPageSz, batchPage * batchPageSz);
+  const pagedAgeing  = ageingData.slice((ageingPage - 1) * ageingPageSz, ageingPage * ageingPageSz);
+  const pagedDefect  = defectList.slice((defectPage - 1) * defectPageSz, defectPage * defectPageSz);
+
   const lowStockItems = stockList.filter(s =>
     s.status === 'Critical' || (s.minQty > 0 && s.qty < s.minQty && s.qty > 0)
   );
@@ -332,6 +360,15 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         .catch(() => setNextWhId(''));
     }
   }, [activeTab, showModal]);
+
+  // Fetch ALL warehouses (including inactive) when the Move modal opens
+  useEffect(() => {
+    if (moveItem) {
+      inventoryApi.getAllWarehouses()
+        .then(res => setAllWarehouseList(res.data || []))
+        .catch(() => setAllWarehouseList(warehouseList)); // fallback to already-loaded list
+    }
+  }, [moveItem]); // eslint-disable-line
 
   const handleDeleteWarehouse = async (id) => {
     if (!window.confirm('Delete this warehouse? This cannot be undone.')) return;
@@ -777,7 +814,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               <tbody>
                 {filteredStock.length === 0 ? (
                   <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: TEXT_LIGHT }}>No stock items found</td></tr>
-                ) : filteredStock.map((r, i) => (
+                ) : pagedStock.map((r, i) => (
                   <tr key={r._id || i} style={{ background: i % 2 === 0 ? '#f8fafc' : '#fff', borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: '11px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -805,6 +842,13 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               </tbody>
             </table>
           </div>
+          <Pagination
+            total={filteredStock.length}
+            page={stockPage}
+            pageSize={stockPageSz}
+            onPage={setStockPage}
+            onPageSize={setStockPageSz}
+          />
         </div>
       )}
 
@@ -935,15 +979,15 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             {[{ label: 'Inward', color: GREEN }, { label: 'Outward', color: RED_LIGHT }, { label: 'Transfer', color: BLUE }].map(({ label, color }) => (
               <button key={label} onClick={() => setMovTab(label)} style={{ padding: '8px 22px', borderRadius: 24, fontSize: 13, fontWeight: 700, border: movTab === label ? 'none' : '1.5px solid #e2e8f0', background: movTab === label ? color : '#fff', color: movTab === label ? '#fff' : TEXT_MID, cursor: 'pointer', fontFamily: 'inherit', boxShadow: movTab === label ? `0 3px 10px ${color}40` : 'none', transition: 'all 0.15s' }}>{label}</button>
             ))}
-            <span style={{ marginLeft: 'auto', fontSize: 12, color: TEXT_LIGHT, alignSelf: 'center' }}>{movementList.filter(m => m.type === movTab).length} records</span>
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: TEXT_LIGHT, alignSelf: 'center' }}>{filteredMovs.length} records</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {movementList.filter(m => m.type === movTab).length === 0 ? (
+            {filteredMovs.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 20px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
                 <div style={{ fontSize: 14, color: TEXT_LIGHT, fontWeight: 600 }}>No {movTab.toLowerCase()} movements yet</div>
                 <button onClick={() => setInternalModal(true)} style={{ marginTop: 12, padding: '8px 16px', borderRadius: 8, background: BLUE, color: '#fff', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ Record Movement</button>
               </div>
-            ) : movementList.filter(m => m.type === movTab).map((mv, i) => {
+            ) : pagedMovs.map((mv, i) => {
               const typeColor = mv.type === 'Inward' ? GREEN : mv.type === 'Outward' ? RED_LIGHT : BLUE;
               const typeIcon = mv.type === 'Inward' ? '↓' : mv.type === 'Outward' ? '↑' : '⇄';
               return (
@@ -971,6 +1015,17 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               );
             })}
           </div>
+          {filteredMovs.length > movPageSz && (
+            <div style={{ marginTop: 12 }}>
+              <Pagination
+                total={filteredMovs.length}
+                page={movPage}
+                pageSize={movPageSz}
+                onPage={setMovPage}
+                onPageSize={setMovPageSz}
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -1115,7 +1170,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                   </tr>
                 </thead>
                 <tbody>
-                  {batchList.map((b, i) => {
+                  {pagedBatch.map((b, i) => {
                     const mfgDate = b.mfgDate ? new Date(b.mfgDate).toLocaleDateString('en-IN', {month:'short', year:'numeric'}) : b.mfg;
                     const expDate = b.expiryDate ? new Date(b.expiryDate).toLocaleDateString('en-IN', {month:'short', year:'numeric'}) : b.exp;
                     const shelfPct = b.shelfLifePercentage || b.shelfPct || 0;
@@ -1143,6 +1198,15 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 </tbody>
               </table>
             </div>
+          )}
+          {batchList.length > batchPageSz && (
+            <Pagination
+              total={batchList.length}
+              page={batchPage}
+              pageSize={batchPageSz}
+              onPage={setBatchPage}
+              onPageSize={setBatchPageSz}
+            />
           )}
         </div>
       )}
@@ -1174,7 +1238,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     </tr>
                   </thead>
                   <tbody>
-                    {ageingData.map((r, i) => (
+                    {pagedAgeing.map((r, i) => (
                       <tr key={i} style={{ borderBottom:'1px solid #f1f5f9', background: i%2===0 ? '#f8fafc' : '#fff' }}>
                         <td style={{ padding:'11px 16px', fontFamily:'monospace', fontWeight:700, color: RED }}>{String(r.sku || '—')}</td>
                         <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{String(r.item || '—')}</td>
@@ -1192,6 +1256,15 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               </div>
             )}
           </div>
+          {ageingData.length > ageingPageSz && (
+            <Pagination
+              total={ageingData.length}
+              page={ageingPage}
+              pageSize={ageingPageSz}
+              onPage={setAgeingPage}
+              onPageSize={setAgeingPageSz}
+            />
+          )}
         </div>
       )}
 
@@ -1209,7 +1282,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     </tr>
                   </thead>
                   <tbody>
-                    {defectList.map((d, i) => {
+                    {pagedDefect.map((d, i) => {
                       const createdDate = d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-IN', {day:'2-digit', month:'short'}) : d.date;
                       return (
                       <tr key={i} onClick={() => fetchDefectLogs(d._id)} style={{ borderBottom:'1px solid #f1f5f9', cursor: 'pointer', background: selectedDefectId === d._id ? '#fef2f2' : 'transparent' }} onMouseEnter={e => !selectedDefectId || selectedDefectId !== d._id ? e.currentTarget.style.background = '#f8fafc' : null} onMouseLeave={e => !selectedDefectId || selectedDefectId !== d._id ? e.currentTarget.style.background = 'transparent' : null}>
@@ -1240,6 +1313,15 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                   </tbody>
                 </table>
               </div>
+            )}
+            {defectList.length > defectPageSz && (
+              <Pagination
+                total={defectList.length}
+                page={defectPage}
+                pageSize={defectPageSz}
+                onPage={setDefectPage}
+                onPageSize={setDefectPageSz}
+              />
             )}
           </div>
           <div style={{ ...card(), overflow: 'hidden' }}>
@@ -1602,20 +1684,68 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       {/* Move Stock */}
       <Modal open={!!moveItem} onClose={() => { setMoveItem(null); setMoveToWH(''); }} title={`Move Stock — ${moveItem?.sku}`}
         footer={<><button style={btnOutline} onClick={() => { setMoveItem(null); setMoveToWH(''); }}>Cancel</button><button style={btnPrimary} onClick={handleMoveStock}>Move</button></>}>
-        {moveItem && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 10, fontSize: 13 }}>
-              <strong>{moveItem.name}</strong> · Currently in: <strong style={{ color: RED }}>{moveItem.warehouse}</strong>
+        {moveItem && (() => {
+          // Normalise the current warehouse ID so we can exclude it from the list
+          const currentWH = (
+            typeof moveItem.warehouse === 'object'
+              ? (moveItem.warehouse?.warehouseId || moveItem.warehouse?.id || '')
+              : (moveItem.warehouse || '')
+          ).trim();
+
+          // Use allWarehouseList (all statuses) so every warehouse is available as a destination.
+          // Fall back to warehouseList if allWarehouseList hasn't loaded yet.
+          const sourceList = allWarehouseList.length > 0 ? allWarehouseList : warehouseList;
+
+          // Show all warehouses except the one the item is currently in
+          // If currentWH is empty / unknown ("—"), show every warehouse
+          const destinations = sourceList.filter(w => {
+            const wid = (w.warehouseId || w.id || '').trim();
+            return !currentWH || currentWH === '—' || wid !== currentWH;
+          });
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Current location info */}
+              <div style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 10, fontSize: 13, border: '1px solid #e2e8f0' }}>
+                <div style={{ fontWeight: 600, color: TEXT_DARK, marginBottom: 4 }}>{moveItem.name}</div>
+                <div style={{ fontSize: 12, color: TEXT_MID }}>
+                  SKU: <span style={{ fontFamily: 'monospace', color: RED, fontWeight: 700 }}>{moveItem.sku}</span>
+                  &nbsp;·&nbsp;Qty: <strong>{moveItem.qty}</strong>
+                  &nbsp;·&nbsp;Currently in: <strong style={{ color: RED }}>{currentWH || '—'}</strong>
+                </div>
+              </div>
+
+              {/* Destination selector */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Move to Warehouse *</label>
+                {destinations.length === 0 ? (
+                  <div style={{ padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 9, fontSize: 12.5, color: '#92400e', fontWeight: 500 }}>
+                    ⚠ This is the only warehouse. Add another warehouse to move stock.
+                  </div>
+                ) : (
+                  <select
+                    value={moveToWH}
+                    onChange={e => setMoveToWH(e.target.value)}
+                    style={{
+                      ...inp,
+                      cursor: 'pointer',
+                      appearance: 'auto',
+                      WebkitAppearance: 'auto',
+                      MozAppearance: 'auto',
+                    }}
+                  >
+                    <option value="">— Select destination warehouse —</option>
+                    {destinations.map(w => (
+                      <option key={w._id || w.warehouseId} value={w.warehouseId || w.id}>
+                        {w.warehouseId || w.id} — {w.name}{w.location ? ` (${w.location})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Move to Warehouse *</label>
-              <select value={moveToWH} onChange={e => setMoveToWH(e.target.value)} style={inp}>
-                <option value="">— Select Warehouse —</option>
-                {warehouseList.filter(w => (w.warehouseId || w.id) !== moveItem.warehouse).map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} — {w.name}</option>)}
-              </select>
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </Modal>
 
       {/* Warehouse Return Receive Page Overlay */}

@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { itemMasterApi } from '../../api/itemMasterApi';
 import { categoryApi } from '../../api/categoryApi';
 import Modal from '../../components/common/Modal';
+import Pagination from '../../components/common/Pagination';
 import { toast } from '../../components/common/Toast';
 import { MdSearch, MdAdd, MdEdit, MdDelete, MdInventory2 } from 'react-icons/md';
 import * as XLSX from 'xlsx';
@@ -36,6 +37,8 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
   const [saving, setSaving]         = useState(false);
   const [form, setForm]             = useState(EMPTY_FORM);
   const [formErrors, setFormErrors] = useState({});
+  const [page, setPage]             = useState(1);
+  const [pageSize, setPageSize]     = useState(25);
 
   // Allow parent (InventorySubPage) to open the Add modal via externalShowModal
   useEffect(() => {
@@ -68,6 +71,11 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
     item.sku?.toLowerCase().includes(search.toLowerCase())
   );
 
+  // Reset to page 1 whenever filters or search change
+  useEffect(() => { setPage(1); }, [search, statusFilter]);
+
+  const pagedItems = filteredItems.slice((page - 1) * pageSize, page * pageSize);
+
   const openAdd = () => { setForm(EMPTY_FORM); setEditingItem(null); setFormErrors({}); setShowModal(true); };
   const openEdit = (item) => {
     setForm({
@@ -90,6 +98,16 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
       toast('Item deleted', 'success');
       loadItems();
     } catch (e) { toast(e.message, 'error'); }
+  };
+
+  const handleDeleteAll = async () => {
+    if (!window.confirm(`Delete ALL ${filteredItems.length} stock items? This action cannot be undone.`)) return;
+    if (!window.confirm('Are you absolutely sure? This will permanently remove every stock item.')) return;
+    try {
+      const res = await itemMasterApi.deleteAll();
+      toast(res.message || 'All stock items deleted', 'success');
+      loadItems();
+    } catch (e) { toast(e.message || 'Failed to delete all items', 'error'); }
   };
 
   const validateForm = () => {
@@ -181,6 +199,11 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
           <option>Active</option><option>Inactive</option><option>Discontinued</option>
         </select>
         <button className="si-btn si-btn-outline" onClick={handleExport}>⬇ Export</button>
+        {items.length > 0 && (
+          <button className="si-btn" onClick={handleDeleteAll} style={{ background:'#fee2e2', color:'#dc2626', border:'1.5px solid #fecaca' }}>
+            🗑 Delete All ({items.length})
+          </button>
+        )}
         <button className="si-btn si-btn-primary" onClick={openAdd}><MdAdd size={16} /> Add Item</button>
       </div>
 
@@ -200,7 +223,7 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
               <th>Reorder</th><th>HSN</th><th>GST%</th><th>Status</th><th>Actions</th>
             </tr></thead>
             <tbody>
-              {filteredItems.map(item => (
+              {pagedItems.map(item => (
                 <tr key={item._id}>
                   <td style={{ fontFamily:'monospace', fontSize:11, fontWeight:600, color:'#64748b' }}>{item.sku}</td>
                   <td style={{ fontWeight:500, maxWidth:180 }}>{item.name}</td>
@@ -221,6 +244,13 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
               ))}
             </tbody>
           </table>
+          <Pagination
+            total={filteredItems.length}
+            page={page}
+            pageSize={pageSize}
+            onPage={setPage}
+            onPageSize={setPageSize}
+          />
         </div>
       )}
 

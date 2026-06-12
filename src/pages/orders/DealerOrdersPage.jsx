@@ -4,9 +4,11 @@ import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
 import { toast } from '../../components/common/Toast';
 import { salesOrderApi } from '../../api/salesOrderApi';
+import { invoiceApi } from '../../api/invoiceApi';
 import {
   MdRefresh, MdDownload, MdStorefront, MdCheckCircle,
   MdLocalShipping, MdInventory, MdPending, MdCancel,
+  MdReceipt,
 } from 'react-icons/md';
 import * as XLSX from 'xlsx';
 
@@ -346,11 +348,14 @@ function OrderDetailPanel({ order, onClose, onStatusUpdate }) {
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function DealerOrdersPage() {
   const [orders,        setOrders]        = useState([]);
+  const [invoices,      setInvoices]      = useState([]);
   const [stats,         setStats]         = useState({});
   const [loading,       setLoading]       = useState(false);
   const [statusFilter,  setStatusFilter]  = useState('All');
   const [search,        setSearch]        = useState('');
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [creatingInvoice, setCreatingInvoice] = useState(null);
+  const [deletingOrder, setDeletingOrder] = useState(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -359,9 +364,10 @@ export default function DealerOrdersPage() {
       if (statusFilter !== 'All') params.status = statusFilter;
       if (search.trim())          params.search  = search.trim();
 
-      const [ordersRes, statsRes] = await Promise.all([
+      const [ordersRes, statsRes, invoicesRes] = await Promise.all([
         salesOrderApi.getAll(params),
         salesOrderApi.getStats(),
+        invoiceApi.getAll(),
       ]);
 
       // Filter only DealerApp orders on the client side as well (server filter above)
@@ -370,6 +376,7 @@ export default function DealerOrdersPage() {
         (o) => o.source === 'DealerApp' || o.dealerId
       );
       setOrders(dealerOrders);
+      setInvoices(invoicesRes.data || []);
       setStats(statsRes.data || {});
     } catch (err) {
       toast(err.message || 'Failed to load dealer orders', 'error');
@@ -377,6 +384,33 @@ export default function DealerOrdersPage() {
       setLoading(false);
     }
   }, [statusFilter, search]);
+
+  const handleCreateInvoice = async (order) => {
+    setCreatingInvoice(order._id);
+    try {
+      const res = await invoiceApi.createFromSalesOrder(order._id);
+      toast(`Invoice ${res.data.invoiceNo} created successfully!`);
+      fetchData();
+    } catch (err) {
+      toast(err.message || 'Failed to create invoice', 'error');
+    } finally {
+      setCreatingInvoice(null);
+    }
+  };
+
+  const handleDeleteOrder = async (order) => {
+    if (!window.confirm(`Are you sure you want to delete order ${order.orderId}?`)) return;
+    setDeletingOrder(order._id);
+    try {
+      await salesOrderApi.delete(order._id);
+      toast('Order deleted successfully');
+      fetchData();
+    } catch (err) {
+      toast(err.message || 'Failed to delete order', 'error');
+    } finally {
+      setDeletingOrder(null);
+    }
+  };
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -551,19 +585,71 @@ export default function DealerOrdersPage() {
                   },
                 },
                 {
+                  key: '_id', label: 'Invoice',
+                  render: (_, row) => {
+                    const invoice = invoices.find(inv => String(inv.salesOrderId) === String(row._id));
+                    if (invoice) {
+                      return (
+                        <span style={{
+                          display: 'flex', alignItems: 'center', gap: 4,
+                          background: '#D1FAE5', color: '#10B981',
+                          padding: '3px 10px', borderRadius: 8,
+                          fontSize: 11, fontWeight: 800,
+                        }}>
+                          <MdReceipt size={12} />
+                          {invoice.invoiceNo}
+                        </span>
+                      );
+                    }
+                    return <span style={{ color: '#9CA3AF', fontSize: 11, fontWeight: 600 }}>—</span>;
+                  },
+                },
+                {
                   key: '_id', label: 'Actions',
-                  render: (_, row) => (
-                    <button
-                      onClick={() => setSelectedOrder(row)}
-                      style={{
-                        padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                        border: '1px solid #c0392b', color: '#c0392b', background: 'transparent',
-                        cursor: 'pointer', fontFamily: 'inherit',
-                      }}
-                    >
-                      View & Update
-                    </button>
-                  ),
+                  render: (_, row) => {
+                    const invoice = invoices.find(inv => String(inv.salesOrderId) === String(row._id));
+                    const canCreateInvoice = row.status === 'Approved' && !invoice;
+                    return (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {canCreateInvoice && (
+                          <button
+                            onClick={() => handleCreateInvoice(row)}
+                            disabled={creatingInvoice === row._id}
+                            style={{
+                              padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                              border: 'none', color: '#fff', background: 'linear-gradient(135deg, #10B981, #059669)',
+                              cursor: creatingInvoice === row._id ? 'not-allowed' : 'pointer',
+                              fontFamily: 'inherit', opacity: creatingInvoice === row._id ? 0.7 : 1,
+                            }}
+                          >
+                            {creatingInvoice === row._id ? 'Creating...' : 'Create Invoice'}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setSelectedOrder(row)}
+                          style={{
+                            padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                            border: '1px solid #c0392b', color: '#c0392b', background: 'transparent',
+                            cursor: 'pointer', fontFamily: 'inherit',
+                          }}
+                        >
+                          View & Update
+                        </button>
+                        <button
+                          onClick={() => handleDeleteOrder(row)}
+                          disabled={deletingOrder === row._id}
+                          style={{
+                            padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                            border: '1px solid #EF4444', color: '#EF4444', background: 'transparent',
+                            cursor: deletingOrder === row._id ? 'not-allowed' : 'pointer',
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          {deletingOrder === row._id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
+                    );
+                  },
                 },
               ]}
               data={orders}

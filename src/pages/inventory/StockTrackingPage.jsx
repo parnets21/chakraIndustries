@@ -116,6 +116,14 @@ export default function StockTrackingPage() {
         }
       />
 
+      <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:12, padding:'14px 16px', color:'#475569', marginBottom:20 }}>
+        <div style={{ fontSize:13, fontWeight:700, marginBottom:6 }}>Where stock comes from and where it is stored</div>
+        <div style={{ fontSize:12.5, lineHeight:1.6 }}>
+          Stock is created by inward movements such as purchase receipts, goods receipt notes, and supplier deliveries. Once received, inventory is recorded into the warehouse and, if used, into specific locations inside that warehouse.
+          This page shows the current stock status by SKU, warehouse and location. Available stock is ready for sale, reserved stock is held for orders, and damaged or expired stock is not usable.
+        </div>
+      </div>
+
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 24, borderBottom: '1px solid #e5e7eb' }}>
         {['SKU View', 'Warehouse View', 'Location View'].map((tab, i) => (

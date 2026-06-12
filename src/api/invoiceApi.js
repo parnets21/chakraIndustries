@@ -29,6 +29,7 @@ export const invoiceApi = {
   getStats:     ()            => fetchWithRetry(getUrl('/invoices/stats'), { headers: authHeaders() }),
   getById:      (id)          => fetchWithRetry(getUrl(`/invoices/${id}`), { headers: authHeaders() }),
   create:       (body)        => fetchWithRetry(getUrl('/invoices'), { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }),
+  createFromSalesOrder: (orderId) => fetchWithRetry(getUrl(`/invoices/from-order/${orderId}`), { method: 'POST', headers: authHeaders() }),
   bulkUpload:   (body)        => fetchWithRetry(getUrl('/invoices/bulk-upload'), { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }),
   migrateTypes: ()            => fetchWithRetry(getUrl('/invoices/migrate-types'), { method: 'POST', headers: authHeaders() }),
   update:       (id, body)    => fetchWithRetry(getUrl(`/invoices/${id}`), { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) }),

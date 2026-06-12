@@ -55,6 +55,7 @@ const rateLimitedFetchWithRetry = async (url, options = {}, retries = 2) => {
 export const inventoryApi = {
   // ── Stock Items ────────────────────────────────────────────────────────────
   getAll:    (params = {}) => rateLimitedFetchWithRetry(`${BASE}/inventory${q(params)}`,          { headers: authHeaders(true) }),
+  getAllStock:(params = {}) => rateLimitedFetchWithRetry(`${BASE}/inventory/stock${q(params)}`,     { headers: authHeaders(true) }),
   getStats:  ()            => rateLimitedFetchWithRetry(`${BASE}/inventory/stats`,                 { headers: authHeaders(true) }),
   create:    (body)        => rateLimitedFetchWithRetry(`${BASE}/inventory`,                       { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }),
   adjust:    (id, body)    => rateLimitedFetchWithRetry(`${BASE}/inventory/${id}/adjust`,          { method: 'PATCH',  headers: authHeaders(), body: JSON.stringify(body) }),
@@ -64,6 +65,8 @@ export const inventoryApi = {
   // ── Warehouses ─────────────────────────────────────────────────────────────
   getWarehouses:      ()         => rateLimitedFetchWithRetry(`${BASE}/inventory/warehouses`,                { headers: authHeaders(true) }),
   getAllWarehouses:    ()         => rateLimitedFetchWithRetry(`${BASE}/inventory/warehouses?all=true`,       { headers: authHeaders(true) }),
+  getStockByWarehouse: (warehouseId) => rateLimitedFetchWithRetry(`${BASE}/inventory/stock/warehouse/${warehouseId}`, { headers: authHeaders(true) }),
+  getLocationsByWarehouse: (warehouseId) => rateLimitedFetchWithRetry(`${BASE}/locations/warehouse/${warehouseId}`, { headers: authHeaders(true) }),
   getNextWarehouseId: ()         => rateLimitedFetchWithRetry(`${BASE}/inventory/warehouses/next-id`,        { headers: authHeaders(true) }),
   createWarehouse:    (body)     => rateLimitedFetchWithRetry(`${BASE}/inventory/warehouses`,           { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }),
   updateWarehouse:    (id, body) => rateLimitedFetchWithRetry(`${BASE}/inventory/warehouses/${id}`,     { method: 'PUT',    headers: authHeaders(), body: JSON.stringify(body) }),

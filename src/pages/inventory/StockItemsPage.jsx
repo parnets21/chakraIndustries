@@ -1,6 +1,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { itemMasterApi } from '../../api/itemMasterApi';
+import { inventoryApi } from '../../api/inventoryApi';
 import { categoryApi } from '../../api/categoryApi';
 import Modal from '../../components/common/Modal';
 import Pagination from '../../components/common/Pagination';
@@ -18,6 +19,7 @@ const lbl = { fontSize: 11.5, fontWeight: 600, color: '#475569', marginBottom: 5
 const EMPTY_FORM = {
   sku: '', name: '', description: '', category: '', unit: 'units',
   unitPrice: '', costPrice: '', sellingPrice: '',
+  qty: '', warehouse: '',
   minQuantity: '', maxQuantity: '', reorderPoint: '',
   hsn: '', gst: '', barcode: '',
 };
@@ -25,6 +27,7 @@ const EMPTY_FORM = {
 export default function StockItemsPage({ externalShowModal = false, onExternalModalClose, hideAddButton = false }) {
   const [items, setItems]           = useState([]);
   const [categories, setCategories] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [search, setSearch]         = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -60,7 +63,20 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
     }
   }, []);
 
-  useEffect(() => { loadItems(); loadCategories(); }, [loadItems, loadCategories]);
+  const loadWarehouses = useCallback(async () => {
+    try {
+      const res = await inventoryApi.getWarehouses();
+      const data = res.data || [];
+      setWarehouses(data);
+      if (!form.warehouse && data.length > 0) {
+        setForm(prev => ({ ...prev, warehouse: data[0].id || data[0].warehouseId || data[0].name || '' }));
+      }
+    } catch (e) {
+      toast(e.message || 'Failed to load warehouses', 'error');
+    }
+  }, [form.warehouse]);
+
+  useEffect(() => { loadItems(); loadCategories(); loadWarehouses(); }, [loadItems, loadCategories, loadWarehouses]);
 
   const filteredItems = items.filter(item =>
     !search || item.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -111,6 +127,9 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
     if (!form.sku.trim()) errors.sku = 'SKU is required';
     if (!form.name.trim()) errors.name = 'Name is required';
     if (!form.unit.trim()) errors.unit = 'Unit is required';
+    if (!editingItem && form.qty && Number(form.qty) > 0 && !form.warehouse) {
+      errors.warehouse = 'Warehouse is required when initial quantity is set';
+    }
     return errors;
   };
 
@@ -121,18 +140,41 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
     try {
       const body = { ...form };
       // Convert numeric strings
-      ['unitPrice','costPrice','sellingPrice','minQuantity','maxQuantity','reorderPoint','gst'].forEach(k => {
+      ['unitPrice','costPrice','sellingPrice','minQuantity','maxQuantity','reorderPoint','gst','qty'].forEach(k => {
         if (body[k] !== '') body[k] = Number(body[k]);
       });
       // Convert empty category to null (ObjectId field can't receive empty string)
       if (!body.category) body.category = undefined;
+
       if (editingItem) {
         await itemMasterApi.update(editingItem._id, body);
         toast('Item updated', 'success');
       } else {
-        await itemMasterApi.create(body);
-        toast('Item created', 'success');
+        const itemResponse = await itemMasterApi.create(body);
+        const createdItem = itemResponse?.data;
+
+        if (body.qty > 0) {
+          try {
+            await inventoryApi.create({
+              itemMasterId: createdItem?._id,
+              sku: createdItem?.sku || body.sku,
+              name: createdItem?.name || body.name,
+              qty: body.qty,
+              minQty: body.minQuantity || 0,
+              warehouse: body.warehouse || warehouses[0]?.id || 'WH-01',
+              unit: body.unit || 'Nos',
+              category: body.category || null,
+              batch: body.batch || '',
+            });
+            toast('Item created and assigned to warehouse stock', 'success');
+          } catch (stockErr) {
+            toast(`Item created, but warehouse stock creation failed: ${stockErr.message}`, 'warning');
+          }
+        } else {
+          toast('Item created', 'success');
+        }
       }
+
       setShowModal(false);
       loadItems();
     } catch (e) { setFormErrors({ _general: e.message }); }
@@ -287,6 +329,15 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
           <div><label style={lbl}>Unit *</label>
             <select style={{...inp, borderColor:formErrors.unit?'#ef4444':'#e2e8f0'}} value={form.unit} onChange={f('unit')}>
               {['units','kg','g','mg','litre','ml','metre','cm','box','pack','set','piece','dozen'].map(u=><option key={u}>{u}</option>)}
+            </select>
+          </div>
+          <div><label style={lbl}>Initial Quantity</label><input style={inp} type="number" min="0" placeholder="0" value={form.qty} onChange={f('qty')} /></div>
+          <div><label style={lbl}>Warehouse</label>
+            <select style={inp} value={form.warehouse} onChange={f('warehouse')}>
+              <option value="">Select warehouse</option>
+              {warehouses.map(wh => (
+                <option key={wh.id || wh._id || wh.warehouseId} value={wh.id || wh._id || wh.warehouseId || wh.name}>{wh.name || wh.warehouseId || wh.id}</option>
+              ))}
             </select>
           </div>
           <div><label style={lbl}>Cost Price (₹)</label><input style={inp} type="number" min="0" placeholder="0" value={form.costPrice} onChange={f('costPrice')} /></div>

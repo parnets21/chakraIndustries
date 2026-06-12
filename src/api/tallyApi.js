@@ -14,25 +14,22 @@ const q = (p = {}) => { const s = new URLSearchParams(p).toString(); return s ? 
 /**
  * openDirectionalStream — opens an SSE connection for Import or Export.
  *
- * @param {'import'|'export'} direction  - which stream to open
- * @param {string}            type       - entity type ('Full', 'Items', 'Ledgers', etc.)
- * @param {Function}          onEvent    - callback({ event, entity, message, stats, ... })
+ * @param {'import'|'export'|'full-export'|'selective-export'} direction
+ * @param {string}   type    - entity type or task key
+ * @param {Function} onEvent - callback({ event, entity, message, stats, ... })
  * @returns {EventSource}   call .close() to cancel
- *
- * Events emitted:
- *   start       — connection established
- *   phase       — entity group starting
- *   phase_start — individual entity starting { entity, index, total }
- *   phase_done  — individual entity complete { entity, records, ok, error? }
- *   log         — detailed log line { level, entity, message }
- *   summary     — final summary { stats, logs, message }
- *   done        — stream complete { stats, duration }
- *   error       — fatal error { message }
  */
 function openDirectionalStream(direction, type = 'Full', onEvent) {
   const token = getToken();
-  const endpoint = direction === 'export' ? 'export-stream' : 'import-stream';
-  const url = `${BASE}/tally/${endpoint}?type=${encodeURIComponent(type)}&token=${encodeURIComponent(token)}`;
+  let url;
+  if (direction === 'full-export') {
+    url = `${BASE}/tally/full-export-stream?token=${encodeURIComponent(token)}`;
+  } else if (direction === 'selective-export') {
+    url = `${BASE}/tally/selective-export?key=${encodeURIComponent(type)}&token=${encodeURIComponent(token)}`;
+  } else {
+    const endpoint = direction === 'export' ? 'export-stream' : 'import-stream';
+    url = `${BASE}/tally/${endpoint}?type=${encodeURIComponent(type)}&token=${encodeURIComponent(token)}`;
+  }
   const es = new EventSource(url);
   es.onmessage = (e) => {
     try { onEvent(JSON.parse(e.data)); } catch (_) {}
@@ -51,24 +48,38 @@ export const tallyApi = {
   fixConfig:        ()       => fetch(`${BASE}/tally/config/fix`,                { method: 'POST', headers: authHeaders(), body: '{}' }).then(handle),
   testConnection:   ()       => fetch(`${BASE}/tally/test-connection`,           { method: 'POST', headers: authHeaders(), body: '{}' }).then(handle),
 
-  // ── IMPORT FROM TALLY (Tally → ERP) ───────────────────────────────────────
+  // ── Company Validation ─────────────────────────────────────────────────────
   /**
-   * openImportStream — pull data FROM Tally INTO the ERP.
-   * @param {string}   type     - 'Full' | 'Items' | 'Ledgers' | 'Purchase' | 'Sales' |
-   *                              'Payment' | 'Receipt' | 'Journal' | 'Contra' | 'master' | 'transaction'
-   * @param {Function} onEvent  - callback(evt)
-   * @returns {EventSource}
+   * Validates that Tally is running and the correct company ("Sri Chakra Industries") is open.
+   * Returns: { reachable, openCompany, companyMatch, error }
    */
+  validateCompany:  ()       => fetch(`${BASE}/tally/validate-company`,          { method: 'POST', headers: authHeaders(), body: '{}' }).then(handle),
+
+  // ── Export Counts (pre-flight data summary) ────────────────────────────────
+  getExportCounts:  ()       => fetch(`${BASE}/tally/export-counts`,             { headers: authHeaders() }).then(handle),
+
+  // ── IMPORT FROM TALLY (Tally → ERP) ───────────────────────────────────────
   openImportStream: (type = 'Full', onEvent) => openDirectionalStream('import', type, onEvent),
   importFromTally:  (body)   => fetch(`${BASE}/tally/import`,                    { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
 
-  // ── EXPORT TO TALLY (ERP → Tally) ─────────────────────────────────────────
+  // ── EXPORT TO TALLY — Complete system (ERP → Tally) ───────────────────────
   /**
-   * openExportStream — push data FROM the ERP INTO Tally.
-   * @param {string}   type     - 'Full' | 'masters' | 'purchase' | 'sales' | 'payment' | 'receipt'
-   * @param {Function} onEvent  - callback(evt)
+   * openFullExportStream — streams all 14 export tasks to Tally.
+   * Validates connection + company before starting.
+   * @param {Function} onEvent - callback(evt)
    * @returns {EventSource}
    */
+  openFullExportStream: (onEvent) => openDirectionalStream('full-export', 'Full', onEvent),
+
+  /**
+   * openSelectiveExportStream — exports a single entity type.
+   * @param {string}   key     - task key (e.g. 'salesInvoices', 'vendorLedgers', etc.)
+   * @param {Function} onEvent - callback(evt)
+   * @returns {EventSource}
+   */
+  openSelectiveExportStream: (key, onEvent) => openDirectionalStream('selective-export', key, onEvent),
+
+  // ── EXPORT TO TALLY — Legacy (kept for backward compat) ───────────────────
   openExportStream: (type = 'Full', onEvent) => openDirectionalStream('export', type, onEvent),
   exportToTally:    (body)   => fetch(`${BASE}/tally/export`,                    { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
 
@@ -77,7 +88,7 @@ export const tallyApi = {
   fullSync:         ()       => fetch(`${BASE}/tally/sync`,                      { method: 'POST', headers: authHeaders(), body: JSON.stringify({ type: 'Full' }) }).then(handle),
   retrySync:        (id)     => fetch(`${BASE}/tally/retry/${id}`,               { method: 'POST', headers: authHeaders(), body: '{}' }).then(handle),
 
-  /** @deprecated Use openImportStream or openExportStream instead */
+  /** @deprecated Use openImportStream or openFullExportStream instead */
   openSyncStream: (type = 'Full', onEvent) => openDirectionalStream('import', type, onEvent),
 
   // ── Status / Logs ──────────────────────────────────────────────────────────

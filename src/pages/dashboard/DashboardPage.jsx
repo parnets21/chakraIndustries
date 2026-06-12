@@ -19,7 +19,11 @@ import { useDataEvent } from '../../utils/dataEvents';
 
 // ── Greeting helper ───────────────────────────────────────────────────────────
 function getGreeting() {
-  const h = new Date().getHours();
+  // Get current time in Indian Standard Time (IST)
+  const options = { timeZone: 'Asia/Kolkata', hour: '2-digit', hour12: false };
+  const istTime = new Date().toLocaleString('en-IN', options);
+  const h = parseInt(istTime.split(':')[0], 10);
+  
   if (h < 12) return { text: 'Good Morning', emoji: '🌅' };
   if (h < 17) return { text: 'Good Afternoon', emoji: '☀️' };
   if (h < 21) return { text: 'Good Evening', emoji: '🌆' };

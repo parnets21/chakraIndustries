@@ -63,7 +63,7 @@ class ApiService {
         const errorMsg = `Request timeout after ${this.timeout/1000}s.\n\n` +
                         `Backend URL: ${this.baseURL}\n\n` +
                         `Please ensure:\n` +
-                        `1. Backend is running on port 5000\n` +
+                        `1. Backend is running on port 5001\n` +
                         `2. Your phone and computer are on same WiFi\n` +
                         `3. Check api.js for correct IP address\n` +
                         `4. Test URL in phone browser first`;
@@ -111,7 +111,7 @@ class ApiService {
           `2. Verify IP address in api.js (currently: ${this.baseURL})\n` +
           `3. Test in phone browser: ${this.baseURL.replace('/api/dealer', '/api/health')}\n` +
           `4. Ensure same WiFi network\n` +
-          `5. Check Windows Firewall (allow port 5000)`
+          `5. Check Windows Firewall (allow port 5001)`
         );
         throw helpfulError;
       }

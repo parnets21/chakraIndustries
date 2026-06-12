@@ -51,6 +51,16 @@ class OrderService {
     }
   }
 
+  // Delete order
+  async deleteOrder(id) {
+    try {
+      const response = await apiService.delete(`/orders/${id}`);
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   // Get cart
   async getCart() {
     try {

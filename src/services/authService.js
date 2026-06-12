@@ -2,6 +2,16 @@ import apiService from './apiService';
 import { API_ENDPOINTS } from '../config/api';
 
 class AuthService {
+  // Register dealer and sync profile with ERP
+  async registerDealer(data) {
+    try {
+      const response = await apiService.post(API_ENDPOINTS.AUTH.REGISTER, data);
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   // Send OTP to mobile
   async sendOTP(mobile) {
     try {

@@ -20,6 +20,33 @@ function OrdersPage({onBack}) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [deletingOrderId, setDeletingOrderId] = useState(null);
+
+  const handleDeleteOrder = async (order) => {
+    Alert.alert(
+      'Delete Order',
+      `Are you sure you want to delete order ${order.id}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setDeletingOrderId(order.mongodbId || order.id);
+              await orderService.deleteOrder(order.mongodbId || order.id);
+              Alert.alert('Success', 'Order deleted successfully');
+              fetchOrders();
+            } catch (error) {
+              Alert.alert('Error', error.message || 'Failed to delete order');
+            } finally {
+              setDeletingOrderId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const filters = ['All', 'Pending', 'In Transit', 'Delivered'];
 
@@ -228,12 +255,24 @@ function OrdersPage({onBack}) {
                     </View>
                   </View>
 
-                  {/* Action Link */}
-                  <Pressable 
-                    style={styles.cardAction}
-                    onPress={() => Alert.alert('Quick View', `Order ID: ${order.id}\nStatus: ${order.status}\nValue: ${order.amount}`)}>
-                    <Text style={styles.actionText}>VIEW ORDER DETAILS</Text>
-                  </Pressable>
+                  {/* Action Links */}
+                  <View style={styles.cardActionsRow}>
+                    <Pressable 
+                      style={styles.cardAction}
+                      onPress={() => Alert.alert('Quick View', `Order ID: ${order.id}\nStatus: ${order.status}\nValue: ${order.amount}`)}>
+                      <Text style={styles.actionText}>VIEW ORDER DETAILS</Text>
+                    </Pressable>
+                    {(order.status === 'Pending' || order.status === 'Cancelled') && (
+                      <Pressable 
+                        style={[styles.cardAction, styles.cardActionDelete]}
+                        onPress={() => handleDeleteOrder(order)}
+                        disabled={deletingOrderId === (order.mongodbId || order.id)}>
+                        <Text style={styles.actionTextDelete}>
+                          {deletingOrderId === (order.mongodbId || order.id) ? 'DELETING...' : 'DELETE ORDER'}
+                        </Text>
+                      </Pressable>
+                    )}
+                  </View>
                 </View>
               );
             })
@@ -253,7 +292,7 @@ const styles = StyleSheet.create({
   // ── Professional Navbar ──
   navbar: {
     backgroundColor: colors.red,
-    paddingTop: 45,
+    paddingTop: 12,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
     ...shadow,
@@ -408,7 +447,12 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: colors.red,
   },
+  cardActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
   cardAction: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -419,10 +463,20 @@ const styles = StyleSheet.create({
     borderColor: '#FFE3E3',
     gap: 4,
   },
+  cardActionDelete: {
+    backgroundColor: '#FFF0F0',
+    borderColor: '#FECDD2',
+  },
   actionText: {
     fontSize: 11,
     fontWeight: '800',
     color: colors.red,
+    letterSpacing: 0.5,
+  },
+  actionTextDelete: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#D32F2F',
     letterSpacing: 0.5,
   },
 

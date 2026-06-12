@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   Pressable,
   ScrollView,
@@ -6,123 +6,91 @@ import {
   Text,
   View,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import {colors, shadow} from './theme';
+import returnService from '../services/returnService';
 
-const colors = {
-  red: '#C62828',
-  text: '#212121',
-  muted: '#757575',
-  green: '#1D9E75',
-  orange: '#FF6F00',
-};
-
-const shadow = {
-  shadowColor: '#000',
-  shadowOpacity: 0.1,
-  shadowRadius: 8,
-  shadowOffset: {width: 0, height: 2},
-  elevation: 3,
-};
-
-function ReturnsPage() {
+function ReturnsPage({onBack}) {
   const [activeFilter, setActiveFilter] = useState('All');
   const [expandedCard, setExpandedCard] = useState(null);
+  const [returns, setReturns] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const returns = [
-    {
-      id: 'RTN-2026-041',
-      reason: 'Damaged packaging',
-      units: '12 units',
-      amount: '₹14,820',
-      status: 'In Transit',
-      statusColor: '#BA7517',
-      statusBg: '#FFF8E1',
-      docket: 'DKT-BLR-9942',
-      courier: 'Delhivery',
-      timeline: [
-        {label: 'Return raised', time: '24 May · 10:00 AM', completed: true},
-        {label: 'Pickup confirmed by courier', time: '25 May · 2:30 PM', completed: true},
-        {label: 'In transit to warehouse', time: 'Est. arrival: 30 May', completed: true, active: true},
-        {label: 'QC inspection at warehouse', time: 'Pending', completed: false},
-        {label: 'Credit note issuance', time: 'Pending', completed: false},
-      ],
-    },
-    {
-      id: 'RTN-2026-038',
-      reason: 'Wrong product received',
-      units: '6 units',
-      amount: '₹18,400',
-      status: 'Closed',
-      statusColor: colors.green,
-      statusBg: '#E8F5F0',
-      docket: 'DKT-BLR-9108',
-      courier: 'India Post',
-      creditNote: 'CN-2026-218',
-      creditAmount: '₹18,400',
-      timeline: [
-        {label: 'Return raised', time: '14 May · 11:00 AM', completed: true},
-        {label: 'Material received at warehouse', time: '18 May · 3:00 PM', completed: true},
-        {label: 'QC verified — approved', time: '19 May · 10:30 AM', completed: true},
-        {label: 'Credit note issued', time: '20 May · 2:00 PM', completed: true, active: true},
-      ],
-    },
-    {
-      id: 'RTN-2026-035',
-      reason: 'Expired product',
-      units: '8 units',
-      amount: '₹9,600',
-      status: 'In Transit',
-      statusColor: '#BA7517',
-      statusBg: '#FFF8E1',
-      docket: 'DKT-BLR-9876',
-      courier: 'BlueDart',
-      timeline: [
-        {label: 'Return raised', time: '22 May · 9:00 AM', completed: true},
-        {label: 'Pickup confirmed by courier', time: '23 May · 11:00 AM', completed: true},
-        {label: 'In transit to warehouse', time: 'Est. arrival: 28 May', completed: true, active: true},
-        {label: 'QC inspection at warehouse', time: 'Pending', completed: false},
-        {label: 'Credit note issuance', time: 'Pending', completed: false},
-      ],
-    },
-    {
-      id: 'RTN-2026-029',
-      reason: 'Quality issue',
-      units: '15 units',
-      amount: '₹22,500',
-      status: 'Closed',
-      statusColor: colors.green,
-      statusBg: '#E8F5F0',
-      docket: 'DKT-BLR-9654',
-      courier: 'DTDC',
-      creditNote: 'CN-2026-195',
-      creditAmount: '₹22,500',
-      timeline: [
-        {label: 'Return raised', time: '10 May · 2:00 PM', completed: true},
-        {label: 'Material received at warehouse', time: '12 May · 4:00 PM', completed: true},
-        {label: 'QC verified — approved', time: '13 May · 11:00 AM', completed: true},
-        {label: 'Credit note issued', time: '14 May · 3:30 PM', completed: true, active: true},
-      ],
-    },
-  ];
+  const fetchReturns = async (filter = 'All') => {
+    try {
+      setLoading(true);
+      const params = {};
+      if (filter !== 'All') {
+        params.status = filter;
+      }
+      const response = await returnService.getReturns(params);
+      if (response.success) {
+        const transformed = response.data.map((r) => {
+        let status = 'In Transit';
+        let statusColor = '#BA7517';
+        let statusBg = '#FFF8E1';
+        
+        if (r.currentStatus === 'Delivered') {
+          status = 'Closed';
+          statusColor = '#1D9E75';
+          statusBg = '#E8F5F0';
+        }
+        
+        const timeline = r.timeline?.map((t, i) => ({
+            label: t.status || t.remarks || 'Update',
+            time: t.timestamp ? new Date(t.timestamp).toLocaleDateString('en-IN', {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'}) : '',
+            completed: i < (r.timeline.length - 1) || r.currentStatus === 'Delivered',
+            active: i === (r.timeline.length - 1)
+          })) || [];
+          
+          return {
+            id: r.docketNumber || r._id,
+            reason: r.returnType || 'Return request',
+            units: 'Multiple items',
+            amount: r.totalAmount ? `₹${r.totalAmount.toLocaleString('en-IN')}` : '₹0',
+            status,
+            statusColor,
+            statusBg,
+            docket: r.docketNumber,
+            courier: r.courierName || 'Courier',
+            creditNote: r.creditNote,
+            creditAmount: r.creditNoteAmount ? `₹${r.creditNoteAmount.toLocaleString('en-IN')}` : null,
+            timeline
+          };
+        });
+        setReturns(transformed);
+      }
+    } catch (error) {
+      console.error('Fetch returns error:', error);
+      Alert.alert('Error', 'Failed to load returns');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const filteredReturns = activeFilter === 'All'
-    ? returns
-    : activeFilter === 'In Transit'
-    ? returns.filter(r => r.status === 'In Transit')
-    : returns.filter(r => r.status === 'Closed');
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchReturns(activeFilter);
+    setRefreshing(false);
+  };
 
+  useEffect(() => {
+    fetchReturns(activeFilter);
+  }, [activeFilter]);
+
+  const filteredReturns = returns;
+  
   const stats = {
     total: returns.length,
-    inTransit: returns.filter(r => r.status === 'In Transit').length,
-    closed: returns.filter(r => r.status === 'Closed').length,
+    inTransit: returns.filter((r: any) => r.status === 'In Transit').length,
+    closed: returns.filter((r: any) => r.status === 'Closed').length,
   };
 
-  const latestCreditNote = {
-    number: 'CN-2026-218',
-    amount: '₹18,400',
-    date: '20 May 2026',
-  };
+  const latestCreditNote = returns.find((r: any) => r.creditNote) || null;
 
   const handleNewReturn = () => {
     Alert.alert(
@@ -140,7 +108,7 @@ function ReturnsPage() {
       {/* Top Navigation */}
       <View style={styles.topNav}>
         <View style={styles.topNavLeft}>
-          <Pressable style={styles.backBtn}>
+          <Pressable style={styles.backBtn} onPress={onBack}>
             <Icon name="arrow-left" size={24} color="#FFFFFF" />
           </Pressable>
           <Text style={styles.topNavTitle}>Returns</Text>
@@ -167,17 +135,19 @@ function ReturnsPage() {
       </View>
 
       {/* Credit Note Banner */}
-      <View style={styles.creditBanner}>
-        <Icon name="check-circle" size={24} color={colors.green} />
-        <View style={styles.creditBannerText}>
-          <Text style={styles.creditBannerTitle}>
-            Credit note {latestCreditNote.number} applied
-          </Text>
-          <Text style={styles.creditBannerSubtitle}>
-            {latestCreditNote.amount} added to your ledger · {latestCreditNote.date}
-          </Text>
+      {latestCreditNote && (
+        <View style={styles.creditBanner}>
+          <Icon name="check-circle" size={24} color="#1D9E75" />
+          <View style={styles.creditBannerText}>
+            <Text style={styles.creditBannerTitle}>
+              Credit note {latestCreditNote.creditNote} applied
+            </Text>
+            <Text style={styles.creditBannerSubtitle}>
+              {latestCreditNote.creditAmount} added to your ledger
+            </Text>
+          </View>
         </View>
-      </View>
+      )}
 
       {/* Active Returns Section */}
       <View style={styles.activeReturnsHeader}>
@@ -203,20 +173,36 @@ function ReturnsPage() {
         </View>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}>
-        {filteredReturns.map(returnItem => (
-          <ReturnCard
-            key={returnItem.id}
-            returnItem={returnItem}
-            expanded={expandedCard === returnItem.id}
-            onToggle={() =>
-              setExpandedCard(expandedCard === returnItem.id ? null : returnItem.id)
-            }
-          />
-        ))}
-      </ScrollView>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.red} />
+          <Text style={styles.loadingText}>Loading returns...</Text>
+        </View>
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.red]} />
+          }>
+          {filteredReturns.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No returns found</Text>
+            </View>
+          ) : (
+            filteredReturns.map((returnItem: any) => (
+              <ReturnCard
+                key={returnItem.id}
+                returnItem={returnItem}
+                expanded={expandedCard === returnItem.id}
+                onToggle={() =>
+                  setExpandedCard(expandedCard === returnItem.id ? null : returnItem.id)
+                }
+              />
+            ))
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -244,7 +230,7 @@ function ReturnCard({returnItem, expanded, onToggle}) {
 
       {/* Timeline - Show first 3 or all based on expanded state */}
       <View style={styles.timeline}>
-        {returnItem.timeline.slice(0, expanded ? returnItem.timeline.length : 3).map((step, index) => (
+        {returnItem.timeline.slice(0, expanded ? returnItem.timeline.length : 3).map((step: any, index: number) => (
           <View key={index} style={styles.timelineStep}>
             <View
               style={[
@@ -278,7 +264,7 @@ function ReturnCard({returnItem, expanded, onToggle}) {
       {/* Credit Note Info */}
       {returnItem.creditNote && expanded && (
         <View style={styles.creditNoteBox}>
-          <Icon name="check-circle" size={20} color={colors.green} />
+          <Icon name="check-circle" size={20} color="#1D9E75" />
           <View style={styles.creditNoteInfo}>
             <Text style={styles.creditNoteText}>
               Credit Note: {returnItem.creditNote}
@@ -390,25 +376,6 @@ const styles = StyleSheet.create({
     color: '#2D7A5F',
     fontWeight: '600',
   },
-  raiseReturnBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#FFEBEE',
-    marginHorizontal: 20,
-    marginTop: 12,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: colors.red,
-    borderStyle: 'dashed',
-  },
-  raiseReturnText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.red,
-  },
   activeReturnsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -442,6 +409,27 @@ const styles = StyleSheet.create({
   },
   filterChipTextActive: {
     color: '#FFFFFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: '600',
   },
   content: {
     padding: 20,
@@ -507,7 +495,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   timelineDotCompleted: {
-    backgroundColor: colors.green,
+    backgroundColor: '#1D9E75',
   },
   timelineDotActive: {
     backgroundColor: colors.red,
@@ -521,7 +509,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E0E0E0',
   },
   timelineLineCompleted: {
-    backgroundColor: colors.green,
+    backgroundColor: '#1D9E75',
   },
   timelineContent: {
     flex: 1,
@@ -561,7 +549,7 @@ const styles = StyleSheet.create({
   },
   creditNoteAmount: {
     fontSize: 13,
-    color: colors.green,
+    color: '#1D9E75',
     fontWeight: '800',
   },
   expandBtn: {

@@ -9,9 +9,9 @@ const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !=
 // ────────────────────────────────────────────────────────────────
 // OPTION 1: LOCAL BACKEND (For Development)
 // ────────────────────────────────────────────────────────────────
-// Use your computer's actual IP address: 192.168.1.21
+// Use your computer's actual IP address: 192.168.1.14
 // Find your IP: Run "ipconfig" on Windows, "ifconfig" on Mac/Linux
-const LOCAL_BACKEND_URL = 'http://192.168.1.21:5000/api/dealer';
+const LOCAL_BACKEND_URL = 'http://192.168.1.14:5001/api/dealer';
 
 // ────────────────────────────────────────────────────────────────
 // OPTION 2: PRODUCTION BACKEND (Always works)
@@ -22,7 +22,7 @@ const PRODUCTION_BACKEND_URL = 'https://chakraindustries-backend.onrender.com/ap
 // SELECT WHICH BACKEND TO USE
 // ────────────────────────────────────────────────────────────────
 // Change this to switch between local and production
-const USE_LOCAL_BACKEND = true;  // Set to false to use production
+const USE_LOCAL_BACKEND = true;  // Set to true to use local backend
 
 // Auto-select based on environment
 const getApiBaseURL = () => {
@@ -63,6 +63,7 @@ console.log('');
 export const API_ENDPOINTS = {
   // Auth
   AUTH: {
+    REGISTER: '/auth/register',
     SEND_OTP: '/auth/send-otp',
     VERIFY_OTP: '/auth/verify-otp',
     LOGIN: '/auth/login',

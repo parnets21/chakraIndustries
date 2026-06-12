@@ -1,10 +1,42 @@
 import apiService from './apiService';
 
 class InventoryService {
+  // Get list of warehouses
+  async getWarehouses() {
+    try {
+      const response = await apiService.get('/inventory/warehouses');
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Get items for a specific warehouse
+  async getWarehouseItems(warehouseId, params = {}) {
+    try {
+      const response = await apiService.get(`/inventory/warehouse/${warehouseId}/items`, params);
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   // Get inventory list
   async getInventory(params = {}) {
     try {
-      const response = await apiService.get('/inventory', params);
+      console.log('Calling /api/dealer/products endpoint');
+      const response = await apiService.get('/products', params);
+      console.log('Products API response:', response);
+      return response;
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
+      throw error;
+    }
+  }
+
+  async getPincodeStock(params = {}) {
+    try {
+      const response = await apiService.get('/inventory/pincode', params);
       return response;
     } catch (error) {
       throw error;

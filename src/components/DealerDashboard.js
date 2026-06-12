@@ -1,5 +1,7 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -22,6 +24,7 @@ import NotificationsPage from './NotificationsPage';
 import CategoryPage from './CategoryPage';
 import InvoicesPage from './InvoicesPage';
 import PlaceOrderPage from './PlaceOrderPage';
+import ProductDetailPage from './ProductDetailPage';
 
 // ─── Additional Dashboard Colors ────────────────────────────────────────────
 const dashColors = {
@@ -46,6 +49,7 @@ const NAV_ITEMS = [
 function DealerDashboard({onLogout, activePage: externalActivePage, onPageChange}) {
   const [activeTab, setActiveTab] = useState('home');
   const [activePage, setActivePage] = useState(externalActivePage || 'home');
+  const [selectedProduct, setSelectedProduct] = useState(null);
 
   // Sync with external page changes
   React.useEffect(() => {
@@ -58,18 +62,54 @@ function DealerDashboard({onLogout, activePage: externalActivePage, onPageChange
   }, [externalActivePage]);
 
   const handleNavigate = (page) => {
+    setSelectedProduct(null);
     setActivePage(page);
     if (onPageChange) {
       onPageChange(page);
     }
-    if (['orders', 'inventory', 'dispatch', 'profile'].includes(page)) {
+    if (['home', 'orders', 'inventory', 'dispatch', 'profile'].includes(page)) {
       setActiveTab(page);
     }
   };
 
+  const handleProductSelect = (product) => {
+    setSelectedProduct(product);
+    setActivePage('productdetail');
+  };
+
   const handleBackToHome = () => {
+    setSelectedProduct(null);
     handleNavigate('home');
   };
+
+  // Sub-pages that manage their own scrolling — render them at full flex: 1
+  const isSubPage = !['home'].includes(activePage);
+
+  if (isSubPage) {
+    return (
+      <SafeAreaView style={styles.screen} edges={['top']}>
+        <View style={styles.subPageContainer}>
+          {activePage === 'orders' && <OrdersPage onBack={handleBackToHome} />}
+          {activePage === 'inventory' && <InventoryPage onBack={handleBackToHome} onProductSelect={handleProductSelect} />}
+          {activePage === 'dispatch' && <DispatchTrackingPage onBack={handleBackToHome} />}
+          {activePage === 'profile' && <ProfilePage onLogout={onLogout} onBack={handleBackToHome} />}
+          {activePage === 'ledger' && <FinanceLedgerSection onBack={handleBackToHome} />}
+          {activePage === 'returns' && <ReturnsComplaintsSection onBack={handleBackToHome} />}
+          {activePage === 'reports' && <ReportsDashboardSection onBack={handleBackToHome} />}
+          {activePage === 'support' && <SupportPage onBack={handleBackToHome} />}
+          {activePage === 'notifications' && <NotificationsPage onBack={handleBackToHome} />}
+          {activePage === 'category' && <CategoryPage onBack={handleBackToHome} />}
+          {activePage === 'invoices' && <InvoicesPage onBack={handleBackToHome} />}
+          {activePage === 'placeorder' && <PlaceOrderPage onBack={handleBackToHome} onProductSelect={handleProductSelect} />}
+          {activePage === 'productdetail' && <ProductDetailPage onBack={() => setActivePage('inventory')} product={selectedProduct} />}
+        </View>
+        <BottomNavigation activeTab={activeTab} onChange={(tab) => {
+          setActiveTab(tab);
+          handleNavigate(tab);
+        }} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -77,24 +117,11 @@ function DealerDashboard({onLogout, activePage: externalActivePage, onPageChange
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollBody}>
-        {activePage === 'home' && <HomePage onNavigate={handleNavigate} />}
-        {activePage === 'orders' && <OrdersPage onBack={handleBackToHome} />}
-        {activePage === 'inventory' && <InventoryPage onBack={handleBackToHome} />}
-        {activePage === 'dispatch' && <DispatchTrackingPage onBack={handleBackToHome} />}
-        {activePage === 'profile' && <ProfilePage onLogout={onLogout} onBack={handleBackToHome} />}
-        {activePage === 'ledger' && <FinanceLedgerSection onBack={handleBackToHome} />}
-        {activePage === 'returns' && <ReturnsComplaintsSection onBack={handleBackToHome} />}
-        {activePage === 'reports' && <ReportsDashboardSection onBack={handleBackToHome} />}
-        {activePage === 'support' && <SupportPage onBack={handleBackToHome} />}
-        {activePage === 'notifications' && <NotificationsPage onBack={handleBackToHome} />}
-        {activePage === 'category' && <CategoryPage onBack={handleBackToHome} />}
-        {activePage === 'invoices' && <InvoicesPage onBack={handleBackToHome} />}
-        {activePage === 'placeorder' && <PlaceOrderPage onBack={handleBackToHome} />}
+        <HomePage onNavigate={handleNavigate} onLogout={onLogout} />
       </ScrollView>
-
       <BottomNavigation activeTab={activeTab} onChange={(tab) => {
         setActiveTab(tab);
-        setActivePage(tab);
+        handleNavigate(tab);
       }} />
     </SafeAreaView>
   );
@@ -102,12 +129,28 @@ function DealerDashboard({onLogout, activePage: externalActivePage, onPageChange
 
 // ─── Home Page ─────────────────────────────────────────────────────────────────
 import dealerService from '../services/dealerService';
-import {useEffect} from 'react';
-import {ActivityIndicator, Alert} from 'react-native';
 
-function HomePage({onNavigate}) {
+// Helper function to get IST-based greeting
+function getGreeting() {
+  try {
+    // Get current time in Indian Standard Time (IST)
+    const options = { timeZone: 'Asia/Kolkata', hour: '2-digit', hour12: false };
+    const istTime = new Date().toLocaleString('en-IN', options);
+    const h = parseInt(istTime.split(':')[0], 10);
+    
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    if (h < 21) return 'Good evening';
+    return 'Good night';
+  } catch (error) {
+    return 'Good day'; // Fallback
+  }
+}
+
+function HomePage({onNavigate, onLogout}) {
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
+  const greeting = getGreeting();
 
   useEffect(() => {
     loadDashboard();
@@ -183,7 +226,7 @@ function HomePage({onNavigate}) {
         {/* Top row */}
         <View style={styles.redHeaderTop}>
           <View>
-            <Text style={styles.greetingName}>Good morning, {dealerName}</Text>
+            <Text style={styles.greetingName}>{greeting}, {dealerName}</Text>
             <Text style={styles.greetingMeta}>{dealerCode}  ·  {zone}</Text>
           </View>
           <Pressable style={styles.iconBtn} onPress={() => onNavigate('notifications')}>
@@ -389,7 +432,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollBody: {
-    paddingBottom: 20,
+    paddingBottom: 80,
+  },
+  subPageContainer: {
+    flex: 1,
   },
 
   // ── Red Header ──

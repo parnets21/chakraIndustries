@@ -1,5 +1,7 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,26 +12,30 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {colors, shadow} from './theme';
+import dealerService from '../services/dealerService';
 
 const TABS = ['Profile Info', 'Bank Details', 'Documents'];
-
-const LANGUAGES = [
-  'Hindi', 'English', 'Urdu', 'Tamil', 'Telugu', 'Kannada',
-  'Malayalam', 'Bengali', 'Marathi', 'Gujarati', 'Punjabi'
-];
 
 function ProfilePage({onLogout}) {
   const [activeTab, setActiveTab] = useState('Profile Info');
   const [editing, setEditing] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState('Hindi');
-  
+  const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState({
-    name: 'Rajan Mehta',
-    email: 'rajan.mehta@gmail.com',
-    phone: '+91 98765 43210',
-    dob: '14 August 1985',
-    gender: 'Male',
-    address: '42, MG Road, Indiranagar, Bengaluru, Karnataka — 560038',
+    name: '',
+    email: '',
+    phone: '',
+    dealerCode: '',
+    businessName: '',
+    city: '',
+    state: '',
+    address: '',
+    pincode: '',
+    gstin: '',
+    panNumber: '',
+    creditLimit: 0,
+    outstandingAmount: 0,
+    dob: '',
+    gender: '',
   });
 
   const [notifications, setNotifications] = useState({
@@ -44,6 +50,49 @@ function ProfilePage({onLogout}) {
     offersPush: false,
   });
 
+  const loadProfile = async () => {
+    try {
+      setLoading(true);
+      const response = await dealerService.getProfile();
+      if (response.success) {
+        setProfile({
+          name: response.data.name || '',
+          email: response.data.email || '',
+          phone: `+91 ${response.data.mobile || ''}`,
+          dealerCode: response.data.dealerCode || '',
+          businessName: response.data.businessName || '',
+          city: response.data.city || '',
+          state: response.data.state || '',
+          address: response.data.address || '',
+          pincode: response.data.pincode || '',
+          gstin: response.data.gstin || '',
+          panNumber: response.data.panNumber || '',
+          creditLimit: response.data.creditLimit || 0,
+          outstandingAmount: response.data.outstandingAmount || 0,
+          dob: '',
+          gender: '',
+        });
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, {justifyContent: 'center', alignItems: 'center'}]}>
+        <ActivityIndicator size="large" color={colors.red} />
+        <Text style={{marginTop: 12, color: colors.muted}}>Loading profile...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -53,13 +102,13 @@ function ProfilePage({onLogout}) {
             <View style={styles.avatar}>
               <Icon name="account" size={40} color="#FFFFFF" />
             </View>
-            <Pressable style={styles.cameraBtn}>
+            <Pressable style={styles.cameraBtn} onPress={() => Alert.alert('Profile Image', 'Profile image upload feature coming soon!')}>
               <Icon name="camera" size={16} color="#FFFFFF" />
             </Pressable>
           </View>
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{profile.name}</Text>
-            <Text style={styles.profileMeta}>SCI-DLR-2041</Text>
+            <Text style={styles.profileMeta}>{profile.dealerCode}</Text>
           
           </View>
         </View>
@@ -93,8 +142,12 @@ function ProfilePage({onLogout}) {
             setEditing={setEditing}
             notifications={notifications}
             setNotifications={setNotifications}
-            selectedLanguage={selectedLanguage}
-            setSelectedLanguage={setSelectedLanguage}
+            onSave={() => {
+              dealerService.updateProfile(profile).then(() => {
+                setEditing(false);
+                loadProfile();
+              });
+            }}
           />
         )}
         {activeTab === 'Bank Details' && <BankDetailsTab />}
@@ -113,7 +166,7 @@ function ProfilePage({onLogout}) {
 }
 
 // Profile Info Tab
-function ProfileInfoTab({profile, setProfile, editing, setEditing, notifications, setNotifications, selectedLanguage, setSelectedLanguage}) {
+function ProfileInfoTab({profile, setProfile, editing, setEditing, notifications, setNotifications, onSave}) {
   return (
     <>
       {/* Personal Details */}
@@ -123,7 +176,13 @@ function ProfileInfoTab({profile, setProfile, editing, setEditing, notifications
             <Icon name="account-circle" size={20} color={colors.orange} />
             <Text style={styles.sectionTitle}>Personal Details</Text>
           </View>
-          <Pressable onPress={() => setEditing(!editing)} style={styles.editBtn}>
+          <Pressable onPress={() => {
+            if (editing) {
+              onSave();
+            } else {
+              setEditing(!editing);
+            }
+          }} style={styles.editBtn}>
             <Icon name={editing ? 'check' : 'pencil'} size={16} color={colors.red} />
             <Text style={styles.editBtnText}>{editing ? 'Save' : 'Edit'}</Text>
           </Pressable>
@@ -144,6 +203,30 @@ function ProfileInfoTab({profile, setProfile, editing, setEditing, notifications
 
         <Field label="RESIDENTIAL ADDRESS" value={profile.address} editing={editing} fullWidth
           onChange={(val) => setProfile({...profile, address: val})} />
+      </View>
+
+      {/* Business Details */}
+      <View style={styles.section}>
+        <View style={styles.sectionTitleRow}>
+          <Icon name="office" size={20} color={colors.orange} />
+          <Text style={styles.sectionTitle}>Business Details</Text>
+        </View>
+
+        <View style={styles.fieldGrid}>
+          <Field label="BUSINESS NAME" value={profile.businessName} editing={editing} 
+            onChange={(val) => setProfile({...profile, businessName: val})} />
+          <Field label="DEALER CODE" value={profile.dealerCode} />
+          <Field label="CITY" value={profile.city} editing={editing} 
+            onChange={(val) => setProfile({...profile, city: val})} />
+          <Field label="STATE" value={profile.state} editing={editing} 
+            onChange={(val) => setProfile({...profile, state: val})} />
+          <Field label="PINCODE" value={profile.pincode} editing={editing} 
+            onChange={(val) => setProfile({...profile, pincode: val})} />
+          <Field label="GSTIN" value={profile.gstin} editing={editing} 
+            onChange={(val) => setProfile({...profile, gstin: val})} />
+          <Field label="PAN NUMBER" value={profile.panNumber} editing={editing} 
+            onChange={(val) => setProfile({...profile, panNumber: val})} />
+        </View>
       </View>
 
       {/* Notification Preferences */}
@@ -185,32 +268,6 @@ function ProfileInfoTab({profile, setProfile, editing, setEditing, notifications
           notifications={notifications}
           setNotifications={setNotifications}
         />
-      </View>
-
-      {/* Language Selector */}
-      <View style={styles.section}>
-        <View style={styles.sectionTitleRow}>
-          <Icon name="translate" size={20} color={colors.red} />
-          <Text style={styles.sectionTitle}>Language</Text>
-        </View>
-        <View style={styles.languageGrid}>
-          {LANGUAGES.map(lang => (
-            <Pressable
-              key={lang}
-              onPress={() => setSelectedLanguage(lang)}
-              style={[
-                styles.languageChip,
-                selectedLanguage === lang && styles.languageChipActive,
-              ]}>
-              <Text style={[
-                styles.languageText,
-                selectedLanguage === lang && styles.languageTextActive,
-              ]}>
-                {lang}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
       </View>
     </>
   );
@@ -597,31 +654,6 @@ const styles = StyleSheet.create({
   notifDesc: {
     color: colors.muted,
     fontSize: 12,
-  },
-  languageGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  languageChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: '#F5F5F5',
-    borderWidth: 1,
-    borderColor: colors.line,
-  },
-  languageChipActive: {
-    backgroundColor: colors.red,
-    borderColor: colors.red,
-  },
-  languageText: {
-    color: colors.muted,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  languageTextActive: {
-    color: '#FFFFFF',
   },
   securityBanner: {
     flexDirection: 'row',

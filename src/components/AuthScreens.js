@@ -19,6 +19,7 @@ import authService from '../services/authService';
 
 const AUTH_SCREEN = {
   LOGIN: 'login',
+  REGISTER: 'register',
   OTP: 'otp',
 };
 
@@ -41,10 +42,24 @@ function AuthScreens({onAuthenticated}) {
     );
   }
 
+  if (screen === AUTH_SCREEN.REGISTER) {
+    return (
+      <RegisterScreen
+        onBack={() => setScreen(AUTH_SCREEN.LOGIN)}
+        onRegistered={(registeredMobile, otp) => {
+          setMobile(registeredMobile);
+          setCurrentOTP(otp);
+          setScreen(AUTH_SCREEN.OTP);
+        }}
+      />
+    );
+  }
+
   return (
     <LoginScreen
       mobile={mobile}
       setMobile={setMobile}
+      onRegister={() => setScreen(AUTH_SCREEN.REGISTER)}
       onOtp={(otp) => {
         setCurrentOTP(otp);
         setScreen(AUTH_SCREEN.OTP);
@@ -53,7 +68,7 @@ function AuthScreens({onAuthenticated}) {
   );
 }
 
-function LoginScreen({mobile, setMobile, onOtp}) {
+function LoginScreen({mobile, setMobile, onOtp, onRegister}) {
   const [loading, setLoading] = useState(false);
   const canSubmit = mobile.length === 10;
 
@@ -65,18 +80,18 @@ function LoginScreen({mobile, setMobile, onOtp}) {
     
     try {
       const response = await authService.sendOTP(mobile);
+      console.log('📡 Full Send OTP Response:', JSON.stringify(response, null, 2));
       
       if (response.success) {
-        if (response.otp) {
-          console.log('✅ OTP Received:', response.otp);
-          onOtp(response.otp);
-        } else {
-          onOtp('');
-        }
+        // Get OTP from response (or fallback to 123456)
+        const otpToSend = response.otp || '123456';
+        console.log('✅ Using OTP for screen:', otpToSend);
+        onOtp(otpToSend);
       } else {
         Alert.alert('❌ Error', response.message || 'Failed to send OTP');
       }
     } catch (error) {
+      console.error('❌ Send OTP Error:', error);
       Alert.alert('❌ Connection Error', error.message || 'Failed to send OTP');
     } finally {
       setLoading(false);
@@ -133,6 +148,205 @@ function LoginScreen({mobile, setMobile, onOtp}) {
             <Text style={styles.helpText}>
               First time? Contact Sri Chakra sales team for dealer onboarding.
             </Text>
+
+            <Pressable onPress={onRegister} style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>Register New Dealer</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+function RegisterScreen({onBack, onRegistered}) {
+  const [form, setForm] = useState({
+    name: '',
+    businessName: '',
+    mobile: '',
+    email: '',
+    gstin: '',
+    address: '',
+    city: '',
+    state: '',
+    pincode: '',
+  });
+  const [loading, setLoading] = useState(false);
+
+  const setField = (field, value) => {
+    const cleanValue = field === 'mobile'
+      ? value.replace(/\D/g, '').slice(0, 10)
+      : field === 'pincode'
+        ? value.replace(/\D/g, '').slice(0, 6)
+        : field === 'gstin'
+          ? value.toUpperCase().replace(/\s/g, '')
+          : value;
+    setForm(prev => ({...prev, [field]: cleanValue}));
+  };
+
+  const canRegister = form.name.trim() && form.mobile.length === 10;
+
+  const handleRegister = async () => {
+    if (!canRegister) return;
+
+    setLoading(true);
+    try {
+      const payload = {
+        ...form,
+        name: form.name.trim(),
+        businessName: form.businessName.trim(),
+        contactPerson: form.name.trim(),
+      };
+      const registerResponse = await authService.registerDealer(payload);
+      if (!registerResponse.success) {
+        Alert.alert('Error', registerResponse.message || 'Registration failed');
+        return;
+      }
+
+      const otpResponse = await authService.sendOTP(form.mobile);
+      if (otpResponse.success) {
+        onRegistered(form.mobile, otpResponse.otp || '');
+      } else {
+        Alert.alert('Registered', 'Dealer registered. Please login to receive OTP.');
+        onBack();
+      }
+    } catch (error) {
+      Alert.alert('Registration Failed', error.message || 'Unable to register dealer');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.authScreen}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.authKeyboard}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.registerBody}>
+          <Pressable onPress={onBack} style={styles.backButton}>
+            <Icon name="arrow-left" size={24} color={colors.text} />
+          </Pressable>
+
+          <View style={styles.logoArea}>
+            <BrandLogo compact />
+            <Text style={styles.authTitle}>Dealer Registration</Text>
+            <Text style={styles.authSubtitle}>
+              Create your Sri Chakra dealer account
+            </Text>
+          </View>
+
+          <View style={styles.loginCard}>
+            <Text style={styles.inputLabel}>Owner Name *</Text>
+            <TextInput
+              value={form.name}
+              onChangeText={value => setField('name', value)}
+              placeholder="Dealer owner name"
+              placeholderTextColor="#9E9E9E"
+              style={styles.inputBox}
+            />
+
+            <Text style={styles.inputLabel}>Business Name</Text>
+            <TextInput
+              value={form.businessName}
+              onChangeText={value => setField('businessName', value)}
+              placeholder="Firm / shop name"
+              placeholderTextColor="#9E9E9E"
+              style={styles.inputBox}
+            />
+
+            <Text style={styles.inputLabel}>Mobile Number *</Text>
+            <View style={styles.phoneRow}>
+              <Text style={styles.countryCode}>+91</Text>
+              <TextInput
+                keyboardType="number-pad"
+                maxLength={10}
+                value={form.mobile}
+                onChangeText={value => setField('mobile', value)}
+                placeholder="9876543210"
+                placeholderTextColor="#9E9E9E"
+                style={styles.input}
+              />
+            </View>
+
+            <Text style={styles.inputLabel}>Email</Text>
+            <TextInput
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={form.email}
+              onChangeText={value => setField('email', value)}
+              placeholder="dealer@example.com"
+              placeholderTextColor="#9E9E9E"
+              style={styles.inputBox}
+            />
+
+            <Text style={styles.inputLabel}>GSTIN</Text>
+            <TextInput
+              autoCapitalize="characters"
+              maxLength={15}
+              value={form.gstin}
+              onChangeText={value => setField('gstin', value)}
+              placeholder="27AABCC1234D1Z5"
+              placeholderTextColor="#9E9E9E"
+              style={styles.inputBox}
+            />
+
+            <Text style={styles.inputLabel}>Business Address</Text>
+            <TextInput
+              value={form.address}
+              onChangeText={value => setField('address', value)}
+              placeholder="Address"
+              placeholderTextColor="#9E9E9E"
+              style={[styles.inputBox, styles.multilineInput]}
+              multiline
+            />
+
+            <View style={styles.twoCol}>
+              <View style={styles.colField}>
+                <Text style={styles.inputLabel}>City</Text>
+                <TextInput
+                  value={form.city}
+                  onChangeText={value => setField('city', value)}
+                  placeholder="City"
+                  placeholderTextColor="#9E9E9E"
+                  style={styles.inputBox}
+                />
+              </View>
+              <View style={styles.colField}>
+                <Text style={styles.inputLabel}>State</Text>
+                <TextInput
+                  value={form.state}
+                  onChangeText={value => setField('state', value)}
+                  placeholder="State"
+                  placeholderTextColor="#9E9E9E"
+                  style={styles.inputBox}
+                />
+              </View>
+            </View>
+
+            <Text style={styles.inputLabel}>Pincode</Text>
+            <TextInput
+              keyboardType="number-pad"
+              maxLength={6}
+              value={form.pincode}
+              onChangeText={value => setField('pincode', value)}
+              placeholder="560001"
+              placeholderTextColor="#9E9E9E"
+              style={styles.inputBox}
+            />
+
+            <Pressable
+              onPress={handleRegister}
+              disabled={!canRegister || loading}
+              style={[styles.primaryButton, (!canRegister || loading) && styles.buttonDisabled]}>
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.primaryButtonText}>Register & Send OTP</Text>
+              )}
+            </Pressable>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -147,10 +361,11 @@ function OtpScreen({mobile, receivedOTP = '', onVerify, onBack}) {
   const refs = useRef([]);
 
   useEffect(() => {
+    console.log('📱 OtpScreen received OTP:', receivedOTP);
     if (timer <= 0) return undefined;
     const id = setInterval(() => setTimer(value => value - 1), 1000);
     return () => clearInterval(id);
-  }, [timer]);
+  }, [timer, receivedOTP]);
 
   const updateOtp = (value, index) => {
     const digit = value.replace(/\D/g, '').slice(0, 1);
@@ -177,18 +392,19 @@ function OtpScreen({mobile, receivedOTP = '', onVerify, onBack}) {
       
       if (response.success) {
         console.log('✅ Login Successful!');
-        Alert.alert(
-          '✅ Login Successful!', 
-          `Welcome ${response.dealer?.name || 'Dealer'}!`,
-          [{ text: 'Continue', onPress: () => onVerify(response.dealer) }]
-        );
+        // Go directly to dashboard — no extra alert needed
+        onVerify(response.dealer);
       } else {
-        Alert.alert('❌ Error', response.message || 'Verification failed');
+        Alert.alert('Verification Failed', response.message || 'Invalid OTP. Please try again.');
         setOtp(['', '', '', '', '', '']);
         refs.current[0]?.focus();
       }
     } catch (error) {
-      Alert.alert('❌ Verification Failed', error.message || 'Invalid OTP');
+      console.error('❌ Verify OTP Error:', error);
+      // Strip the long network troubleshooting message — show only the relevant part
+      const msg = error.message || 'Verification failed';
+      const shortMsg = msg.includes('\n') ? msg.split('\n')[0] : msg;
+      Alert.alert('Verification Failed', shortMsg);
       setOtp(['', '', '', '', '', '']);
       refs.current[0]?.focus();
     } finally {
@@ -215,6 +431,9 @@ function OtpScreen({mobile, receivedOTP = '', onVerify, onBack}) {
     }
   };
 
+  // Show only the OTP received from the backend, default to 123456 if empty
+  const displayOTP = (receivedOTP && String(receivedOTP).length >= 6) ? String(receivedOTP) : '123456';
+
   return (
     <SafeAreaView style={styles.authScreen}>
       <ScrollView 
@@ -230,25 +449,23 @@ function OtpScreen({mobile, receivedOTP = '', onVerify, onBack}) {
           6-digit OTP sent to +91 {mobile || '9876543210'}
         </Text>
         
-        {/* OTP Display Card - NO POPUP, just a simple card */}
-        {receivedOTP && (
-          <View style={styles.otpDisplayCard}>
-            <View style={styles.otpCardHeader}>
-              <Icon name="shield-check" size={24} color={colors.red} />
-              <Text style={styles.otpCardTitle}>Your OTP NOumber</Text>
-            </View>
-            
-            <View style={styles.otpCodeRow}>
-              {receivedOTP.split('').map((digit, index) => (
-                <View key={index} style={styles.otpDigit}>
-                  <Text style={styles.otpDigitText}>{digit}</Text>
-                </View>
-              ))}
-            </View>
-            
-            <Text style={styles.otpCardHint}>Enter this code below</Text>
+        {/* OTP Display Card - Always visible now for testing */}
+        <View style={styles.otpDisplayCard}>
+          <View style={styles.otpCardHeader}>
+            <Icon name="shield-check" size={24} color={colors.red} />
+            <Text style={styles.otpCardTitle}>Your OTP Number</Text>
           </View>
-        )}
+          
+          <View style={styles.otpCodeRow}>
+            {displayOTP.split('').map((digit, index) => (
+              <View key={index} style={styles.otpDigit}>
+                <Text style={styles.otpDigitText}>{digit}</Text>
+              </View>
+            ))}
+          </View>
+          
+          <Text style={styles.otpCardHint}>Enter this code below</Text>
+        </View>
 
         <View style={styles.otpRow}>
           {otp.map((digit, index) => (
@@ -302,6 +519,12 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     padding: 24,
+  },
+  registerBody: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 24,
+    paddingTop: 72,
   },
   authGlowOne: {
     position: 'absolute',
@@ -384,6 +607,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     fontWeight: '600',
   },
+  inputBox: {
+    minHeight: 52,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: '#FFFFFF',
+    color: colors.text,
+    fontSize: 15,
+    paddingHorizontal: 14,
+    fontWeight: '600',
+  },
+  multilineInput: {
+    minHeight: 78,
+    paddingTop: 12,
+    textAlignVertical: 'top',
+  },
+  twoCol: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  colField: {
+    flex: 1,
+  },
   primaryButton: {
     minHeight: 54,
     borderRadius: 18,
@@ -409,6 +655,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 16,
     paddingHorizontal: 8,
+  },
+  secondaryButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  secondaryButtonText: {
+    color: colors.red,
+    fontSize: 14,
+    fontWeight: '900',
   },
   otpBody: {
     flexGrow: 1,

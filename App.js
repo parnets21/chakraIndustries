@@ -7,6 +7,8 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import SplashScreen from './src/components/SplashScreen';
 import AuthScreens from './src/components/AuthScreens';
 import DealerDashboard from './src/components/DealerDashboard';
+import authService from './src/services/authService';
+import apiService from './src/services/apiService';
 
 const Stack = createNativeStackNavigator();
 
@@ -61,13 +63,26 @@ function App() {
     console.log('═══════════════════════════════════════════════════════════');
     console.log('🚀 DEALER APP STARTING...');
     console.log('═══════════════════════════════════════════════════════════');
-    console.log('Current Stage:', stage);
+    console.log('Current Stage:', APP_STAGE.SPLASH);
     console.log('═══════════════════════════════════════════════════════════');
     console.log('');
     
     setIsReady(true);
     
-    const splashTimer = setTimeout(() => {
+    const splashTimer = setTimeout(async () => {
+      try {
+        const token = await apiService.getToken();
+        if (token) {
+          const response = await authService.getMe();
+          if (response.success) {
+            console.log('Existing dealer session found');
+            setStage(APP_STAGE.DASHBOARD);
+            return;
+          }
+        }
+      } catch (error) {
+        console.log('No active dealer session');
+      }
       console.log('✅ Splash complete, moving to Auth screen');
       setStage(APP_STAGE.AUTH);
     }, SPLASH_DURATION_MS);
@@ -158,8 +173,13 @@ function App() {
               <Stack.Screen name="Dashboard">
                 {() => (
                   <DealerDashboard 
-                    onLogout={() => {
+                    onLogout={async () => {
                       console.log('🚪 Logging out...');
+                      try {
+                        await authService.logout();
+                      } catch (error) {
+                        console.log('Logout cleanup completed locally');
+                      }
                       setStage(APP_STAGE.AUTH);
                     }}
                     activePage={dashboardPage}

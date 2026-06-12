@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   Pressable,
   ScrollView,
@@ -8,125 +8,110 @@ import {
   View,
   Linking,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-
-const colors = {
-  red: '#C62828',
-  text: '#212121',
-  muted: '#757575',
-  orange: '#FF6F00',
-};
-
-const shadow = {
-  shadowColor: '#000',
-  shadowOpacity: 0.1,
-  shadowRadius: 8,
-  shadowOffset: {width: 0, height: 2},
-  elevation: 3,
-};
+import {colors, shadow} from './theme';
+import dispatchService from '../services/dispatchService';
 
 function DispatchTrackingPage({onBack}) {
   const [activeFilter, setActiveFilter] = useState('All Orders');
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [shipments, setShipments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const filters = ['All Orders', 'In Transit', 'Delivered', 'Pending'];
 
-  const shipments = [
-    {
-      id: 'ORD-2026-4821',
-      product: 'Coconut Oil 1L',
-      units: '48 units',
-      amount: '₹42,500',
-      status: 'In Transit',
-      statusColor: colors.orange,
-      statusBg: '#FFF3E0',
-      courier: 'Delhivery',
-      awb: 'AWB 112840923',
-      lastUpdate: 'Bengaluru Hub · 4 hrs ago',
-      expectedDelivery: 'Tomorrow, 30 May',
-      timeline: [
-        {label: 'Order confirmed at warehouse', time: '28 May · 10:00 AM', completed: true},
-        {label: 'Packed & handed to courier', time: '29 May · 2:30 PM', completed: true},
-        {label: 'In transit — Bengaluru Hub', time: '29 May · 6:15 PM · En route to delivery', completed: true, active: true},
-        {label: 'Out for delivery', time: 'Estimated: 30 May, Morning', completed: false},
-      ],
-      progress: 75,
-    },
-    {
-      id: 'ORD-2026-4803',
-      product: 'Mixed SKU Bulk',
-      units: '200+ units',
-      amount: '₹1,18,000',
-      status: 'Packing',
-      statusColor: '#BA7517',
-      statusBg: '#FFF8E1',
-      courier: 'BlueDart',
-      awb: 'AWB 998877665',
-      lastUpdate: 'Warehouse · 2 hrs ago',
-      expectedDelivery: '31 May, 2026',
-      timeline: [
-        {label: 'Order confirmed at warehouse', time: '27 May · 11:30 AM', completed: true},
-        {label: 'Packing in progress', time: 'In progress', completed: true, active: true},
-        {label: 'Ready for dispatch', time: 'Awaited', completed: false},
-        {label: 'Out for delivery', time: 'Awaited', completed: false},
-      ],
-      progress: 40,
-    },
-    {
-      id: 'ORD-2026-4790',
-      product: 'Sesame Oil 500ml',
-      units: '120 units',
-      amount: '₹18,960',
-      status: 'Delivered',
-      statusColor: '#1D9E75',
-      statusBg: '#E8F5F0',
-      courier: 'DTDC',
-      awb: 'AWB 556677889',
-      lastUpdate: 'Delivered 25 May',
-      expectedDelivery: 'Delivered on 25 May',
-      timeline: [
-        {label: 'Order confirmed at warehouse', time: '23 May · 9:00 AM', completed: true},
-        {label: 'Packed & handed to courier', time: '23 May · 4:00 PM', completed: true},
-        {label: 'In transit', time: '24 May · 8:00 AM', completed: true},
-        {label: 'Delivered successfully', time: '25 May · 3:30 PM · Signed by Rajesh', completed: true, active: true},
-      ],
-      progress: 100,
-    },
-    {
-      id: 'ORD-2026-4815',
-      product: 'Groundnut Oil 5L',
-      units: '80 units',
-      amount: '₹68,400',
-      status: 'Out for Delivery',
-      statusColor: '#1976D2',
-      statusBg: '#E3F2FD',
-      courier: 'Ecom Express',
-      awb: 'AWB 445566778',
-      lastUpdate: 'Out for delivery · 1 hr ago',
-      expectedDelivery: 'Today, by 6:00 PM',
-      timeline: [
-        {label: 'Order confirmed at warehouse', time: '28 May · 8:00 AM', completed: true},
-        {label: 'Packed & handed to courier', time: '28 May · 12:00 PM', completed: true},
-        {label: 'In transit', time: '29 May · 7:00 AM', completed: true},
-        {label: 'Out for delivery', time: '30 May · 9:00 AM · Driver: Ramesh', completed: true, active: true},
-      ],
-      progress: 90,
-    },
-  ];
+  const fetchShipments = async (query = '') => {
+    try {
+      setLoading(true);
+      const params: any = {};
+      if (activeFilter !== 'All Orders') {
+        params.status = activeFilter;
+      }
+      if (query) {
+        params.search = query;
+      }
+      
+      const response = await dispatchService.getDispatches(params);
+      if (response.success) {
+        const transformed = response.data.map(dispatch => {
+          let progress = 0;
+          let status = 'Pending';
+          let statusColor = '#BA7517';
+          let statusBg = '#FFF8E1';
+          
+          if (dispatch.currentStatus === 'Pending' || dispatch.currentStatus === 'Processing') {
+            progress = 25;
+            status = 'Packing';
+          } else if (dispatch.currentStatus === 'Packing') {
+            progress = 40;
+          } else if (dispatch.currentStatus === 'In Transit') {
+            progress = 75;
+            status = 'In Transit';
+            statusColor = '#FF6F00';
+          } else if (dispatch.currentStatus === 'Out for Delivery') {
+            progress = 90;
+            status = 'Out for Delivery';
+            statusColor = '#1976D2';
+            statusBg = '#E3F2FD';
+          } else if (dispatch.currentStatus === 'Delivered') {
+            progress = 100;
+            status = 'Delivered';
+            statusColor = '#1D9E75';
+            statusBg = '#E8F5F0';
+          }
+          
+          const timeline = dispatch.timeline?.map((t, i) => ({
+            label: t.status || t.remarks || 'Update',
+            time: t.timestamp ? new Date(t.timestamp).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '',
+            completed: i < (dispatch.timeline.length - 1) || dispatch.currentStatus === 'Delivered',
+            active: i === (dispatch.timeline.length - 1)
+          })) || [];
 
-  let filteredShipments = activeFilter === 'All Orders'
-    ? shipments
-    : shipments.filter(s => {
-        if (activeFilter === 'In Transit') return s.status === 'In Transit';
-        if (activeFilter === 'Delivered') return s.status === 'Delivered';
-        if (activeFilter === 'Pending') return s.status === 'Packing';
-        return true;
-      });
+          return {
+            id: dispatch.docketNumber || dispatch._id,
+            product: dispatch.orderDetails?.orderNumber || 'Order',
+            units: dispatch.items?.length + ' items' || '1 item',
+            amount: dispatch.orderDetails?.totalAmount ? `₹${dispatch.orderDetails.totalAmount.toLocaleString('en-IN')}` : '₹0',
+            status,
+            statusColor,
+            statusBg,
+            courier: dispatch.courierName || 'Courier',
+            awb: dispatch.docketNumber || 'AWB',
+            lastUpdate: timeline.length > 0 ? timeline[timeline.length - 1].label + ' · ' + (timeline[timeline.length - 1].time || '') : 'No updates',
+            expectedDelivery: dispatch.estimatedDelivery ? new Date(dispatch.estimatedDelivery).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'TBD',
+            timeline,
+            progress,
+          };
+        });
+        setShipments(transformed);
+      }
+    } catch (error) {
+      console.error('Fetch shipments error:', error);
+      Alert.alert('Error', 'Failed to load shipments');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchShipments(searchQuery);
+    setRefreshing(false);
+  };
+
+  useEffect(() => {
+    fetchShipments(searchQuery);
+  }, [activeFilter]);
+
+  let filteredShipments = shipments;
 
   if (searchQuery.trim()) {
-    filteredShipments = filteredShipments.filter(s =>
+    filteredShipments = shipments.filter(s =>
       s.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.product.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.courier.toLowerCase().includes(searchQuery.toLowerCase())
@@ -142,7 +127,6 @@ function DispatchTrackingPage({onBack}) {
 
   return (
     <View style={styles.container}>
-      {/* Top Navigation Bar */}
       <View style={styles.topNav}>
         <Pressable onPress={onBack} style={styles.backButton}>
           <Icon name="arrow-left" size={24} color="#FFFFFF" />
@@ -156,7 +140,6 @@ function DispatchTrackingPage({onBack}) {
         </Pressable>
       </View>
 
-      {/* Search Bar */}
       {searchVisible && (
         <View style={styles.searchBarContainer}>
           <Icon name="magnify" size={20} color={colors.muted} style={styles.searchIcon} />
@@ -165,18 +148,20 @@ function DispatchTrackingPage({onBack}) {
             placeholder="Search by Order ID, Product, or Courier..."
             placeholderTextColor={colors.muted}
             value={searchQuery}
-            onChangeText={setSearchQuery}
+            onChangeText={text => {
+              setSearchQuery(text);
+              fetchShipments(text);
+            }}
             autoFocus
           />
           {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery('')}>
+            <Pressable onPress={() => { setSearchQuery(''); fetchShipments(''); }}>
               <Icon name="close-circle" size={20} color={colors.muted} />
             </Pressable>
           )}
         </View>
       )}
 
-      {/* Stats Cards — horizontal scroll below navbar */}
       <View style={styles.statsContainer}>
         <View style={styles.statsRow}>
           {stats.map(item => (
@@ -188,7 +173,6 @@ function DispatchTrackingPage({onBack}) {
         </View>
       </View>
 
-      {/* Filter Chips */}
       <View style={styles.filterSection}>
         <ScrollView
           horizontal
@@ -214,13 +198,29 @@ function DispatchTrackingPage({onBack}) {
         </ScrollView>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}>
-        {filteredShipments.map(shipment => (
-          <ShipmentCard key={shipment.id} shipment={shipment} />
-        ))}
-      </ScrollView>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.red} />
+          <Text style={styles.loadingText}>Loading shipments...</Text>
+        </View>
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.red]} />
+          }>
+          {filteredShipments.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No shipments found</Text>
+            </View>
+          ) : (
+            filteredShipments.map(shipment => (
+              <ShipmentCard key={shipment.id} shipment={shipment} />
+            ))
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -256,7 +256,6 @@ function ShipmentCard({shipment}) {
 
   return (
     <View style={styles.shipmentCard}>
-      {/* Dark Header */}
       <View style={styles.darkHeader}>
         <View style={styles.headerTop}>
           <Text style={styles.orderId}>{shipment.id}</Text>
@@ -270,7 +269,6 @@ function ShipmentCard({shipment}) {
           {shipment.product} · {shipment.units} · {shipment.amount}
         </Text>
 
-        {/* Progress Indicator */}
         <View style={styles.progressSection}>
           <View style={styles.progressSteps}>
             <View style={[styles.progressStep, styles.progressStepCompleted]}>
@@ -297,7 +295,6 @@ function ShipmentCard({shipment}) {
           </View>
         </View>
 
-        {/* Progress Bar */}
         <View style={styles.progressBarTrack}>
           <View style={[styles.progressBarFill, {width: `${shipment.progress}%`}]} />
         </View>
@@ -307,14 +304,13 @@ function ShipmentCard({shipment}) {
         </Text>
       </View>
 
-      {/* Courier Info */}
       <View style={styles.courierSection}>
         <View style={styles.courierIcon}>
           <Icon name="truck-delivery" size={24} color={colors.red} />
         </View>
         <View style={styles.courierInfo}>
-          <Text style={styles.courierName}>{shipment.courier} — {shipment.awb}</Text>
-          <Text style={styles.courierUpdate}>Last update: {shipment.lastUpdate}</Text>
+          <Text style={styles.courierName}>{shipment.courier} · {shipment.awb}</Text>
+          <Text style={styles.courierUpdate}>{shipment.lastUpdate}</Text>
         </View>
         <Pressable style={styles.trackBtn}>
           <Icon name="map-marker" size={16} color={colors.red} />
@@ -322,7 +318,6 @@ function ShipmentCard({shipment}) {
         </Pressable>
       </View>
 
-      {/* Delivery Timeline */}
       {expanded && (
         <View style={styles.timelineSection}>
           <Text style={styles.timelineTitle}>Delivery Timeline</Text>
@@ -358,7 +353,6 @@ function ShipmentCard({shipment}) {
             ))}
           </View>
 
-          {/* Action Buttons */}
           <View style={styles.actionButtons}>
             <Pressable style={styles.actionBtn} onPress={handleLiveMap}>
               <Icon name="map" size={20} color={colors.red} />
@@ -372,7 +366,6 @@ function ShipmentCard({shipment}) {
         </View>
       )}
 
-      {/* Expand Button */}
       <Pressable
         onPress={() => setExpanded(!expanded)}
         style={styles.expandBtn}>
@@ -414,11 +407,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
-  topNavLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
   topNavTitle: {
     color: '#FFFFFF',
     fontSize: 20,
@@ -432,8 +420,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  // Stats Cards
+  searchBarContainer: {
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.text,
+    padding: 0,
+  },
   statsContainer: {
     backgroundColor: '#F5F5F5',
     paddingVertical: 16,
@@ -463,7 +467,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
-
   filterSection: {
     backgroundColor: '#FFFFFF',
     paddingVertical: 12,
@@ -491,6 +494,27 @@ const styles = StyleSheet.create({
   },
   filterTextActive: {
     color: '#FFFFFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: '600',
   },
   content: {
     padding: 20,
@@ -738,24 +762,6 @@ const styles = StyleSheet.create({
     color: colors.red,
     fontSize: 14,
     fontWeight: '700',
-  },
-  searchBarContainer: {
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: colors.text,
-    padding: 0,
   },
 });
 

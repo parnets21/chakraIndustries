@@ -1,0 +1,1 @@
+import{n as e}from"./index-JVC1FLxK.js";export{e as default,e as jsPDF};

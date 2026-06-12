@@ -12,10 +12,10 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {colors, shadow} from './theme';
-import productService from '../services/productService';
+import inventoryService from '../services/inventoryService';
 import orderService from '../services/orderService';
 
-function PlaceOrderPage({onBack}) {
+function PlaceOrderPage({onBack, onProductSelect}) {
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState([]);
   const [products, setProducts] = useState([]);
@@ -23,21 +23,20 @@ function PlaceOrderPage({onBack}) {
   const [refreshing, setRefreshing] = useState(false);
   const [placing, setPlacing] = useState(false);
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
-
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const response = await productService.getProducts({ 
-        inStock: 'true',
-        limit: 100 
-      });
+      console.log('=== Fetching products ===');
+      const params = searchQuery ? { search: searchQuery } : {};
+      const response = await inventoryService.getInventory(params);
+      
+      console.log('Products API response:', response);
+      
       if (response.success) {
+        console.log('Products data:', response.data);
         setProducts(response.data || []);
       } else {
-        Alert.alert('Error', response.message);
+        Alert.alert('Error', response.message || 'Failed to load products');
       }
     } catch (error) {
       console.error('Fetch products error:', error);
@@ -47,6 +46,17 @@ function PlaceOrderPage({onBack}) {
     }
   };
 
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      fetchProducts();
+    }, 500);
+    return () => clearTimeout(timeout);
+  }, [searchQuery]);
+
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchProducts();
@@ -54,20 +64,23 @@ function PlaceOrderPage({onBack}) {
   };
 
   const addToCart = (product) => {
+    const moq = product.moq || 1;
     const existing = cart.find(item => item.id === product.id);
     if (existing) {
       setCart(cart.map(item =>
         item.id === product.id
-          ? {...item, quantity: item.quantity + product.moq}
+          ? {...item, quantity: item.quantity + moq}
           : item
       ));
     } else {
-      setCart([...cart, {...product, quantity: product.moq}]);
+      setCart([...cart, {...product, quantity: moq}]);
     }
   };
 
   const updateQuantity = (productId, newQuantity) => {
-    if (newQuantity <= 0) {
+    const product = cart.find(item => item.id === productId);
+    const moq = product?.moq || 1;
+    if (newQuantity < moq) {
       setCart(cart.filter(item => item.id !== productId));
     } else {
       setCart(cart.map(item =>
@@ -77,7 +90,10 @@ function PlaceOrderPage({onBack}) {
   };
 
   const getTotalAmount = () => {
-    return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    return cart.reduce((sum, item) => {
+      const price = item.price || 0;
+      return sum + (price * item.quantity);
+    }, 0);
   };
 
   const getTotalItems = () => {
@@ -93,8 +109,8 @@ function PlaceOrderPage({onBack}) {
     try {
       setPlacing(true);
       const orderItems = cart.map(item => ({
-        productId: item.id,
-        quantity: item.quantity
+        productId: String(item.id),
+        quantity: item.quantity,
       }));
 
       const response = await orderService.createOrder({
@@ -104,21 +120,22 @@ function PlaceOrderPage({onBack}) {
       });
 
       if (response.success) {
+        const orderRef = response.data?.orderId || response.data?.orderNumber || 'placed';
         Alert.alert(
-          '✅ Order Placed!',
-          `Order ${response.data.orderId || response.data.orderNumber} has been placed successfully.`,
+          'Order Placed!',
+          `Order ${orderRef} has been placed successfully. Our team will review and confirm shortly.`,
           [
             {
               text: 'OK',
               onPress: () => {
                 setCart([]);
                 onBack();
-              }
-            }
+              },
+            },
           ]
         );
       } else {
-        Alert.alert('Error', response.message);
+        Alert.alert('Order Failed', response.message || 'Failed to place order. Please try again.');
       }
     } catch (error) {
       console.error('Place order error:', error);
@@ -128,25 +145,29 @@ function PlaceOrderPage({onBack}) {
     }
   };
 
-  const filteredProducts = searchQuery
-    ? products.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.sku.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : products;
-
   if (loading) {
     return (
-      <View style={[styles.container, {justifyContent: 'center', alignItems: 'center'}]}>
-        <ActivityIndicator size="large" color={colors.red} />
-        <Text style={{marginTop: 16, color: colors.muted}}>Loading products...</Text>
+      <View style={styles.container}>
+        <View style={styles.topNav}>
+          <Pressable onPress={onBack} style={styles.backButton}>
+            <Icon name="arrow-left" size={24} color="#FFFFFF" />
+          </Pressable>
+          <View style={styles.topNavCenter}>
+            <Icon name="cart-plus" size={24} color="#FFFFFF" />
+            <Text style={styles.topNavTitle}>Place Order</Text>
+          </View>
+          <View style={{width: 40}} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.red} />
+          <Text style={styles.loadingText}>Loading products...</Text>
+        </View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      {/* Top Navigation Bar */}
       <View style={styles.topNav}>
         <Pressable onPress={onBack} style={styles.backButton}>
           <Icon name="arrow-left" size={24} color="#FFFFFF" />
@@ -165,7 +186,6 @@ function PlaceOrderPage({onBack}) {
         </View>
       </View>
 
-      {/* Search Bar */}
       <View style={styles.searchSection}>
         <View style={styles.searchBox}>
           <Icon name="magnify" size={20} color={colors.muted} />
@@ -189,77 +209,82 @@ function PlaceOrderPage({onBack}) {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.red]} />
         }
-        contentContainerStyle={styles.content}>
-        {/* Products List */}
+        contentContainerStyle={styles.content}
+      >
         <Text style={styles.sectionTitle}>Available Products ({products.length})</Text>
-        {filteredProducts.length === 0 ? (
+        {products.length === 0 ? (
           <View style={{padding: 40, alignItems: 'center'}}>
             <Icon name="package-variant-closed" size={48} color={colors.muted} />
             <Text style={{marginTop: 16, color: colors.muted}}>No products found</Text>
           </View>
         ) : (
-          filteredProducts.map(product => (
-            <View key={product.id} style={styles.productCard}>
+          products.map((product, index) => {
+            const productKey = `product-${product.id || index}`;
+            return (
+            <Pressable key={productKey} style={styles.productCard} onPress={() => onProductSelect && onProductSelect(product)}>
               <View style={styles.productIconWrap}>
                 <Icon name="package-variant" size={32} color={colors.red} />
               </View>
               <View style={styles.productInfo}>
-                <Text style={styles.productName}>{product.name}</Text>
-                <Text style={styles.productSku}>SKU: {product.sku}</Text>
+                <Text style={styles.productName}>{product.name || 'Product'}</Text>
+                <Text style={styles.productSku}>SKU: {product.sku || ''}</Text>
                 <View style={styles.productMeta}>
-                  <Text style={styles.productPrice}>₹{product.price}</Text>
-                  <Text style={styles.productMoq}>MOQ: {product.moq}</Text>
+                  <Text style={styles.productPrice}>₹{product.price || 0}</Text>
+                  <Text style={styles.productMoq}>MOQ: {product.moq || 1}</Text>
                 </View>
-                <Text style={styles.productStock}>In Stock: {product.stock}</Text>
+                <Text style={styles.productStock}>Stock: {product.stock || 0} pcs</Text>
+                {product.category && (
+                  <Text style={styles.productDetail}>Category: {product.category}</Text>
+                )}
               </View>
               <Pressable 
                 style={styles.addBtn}
                 onPress={() => addToCart(product)}>
                 <Icon name="plus" size={20} color="#FFFFFF" />
               </Pressable>
-            </View>
-          ))
+            </Pressable>
+          )})
         )}
 
-        {/* Cart Section */}
         {cart.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>Your Cart ({cart.length} items)</Text>
-            {cart.map(item => (
-              <View key={item.id} style={styles.cartCard}>
+            {cart.map((item, index) => {
+              const itemKey = `cart-${item.id || index}`;
+              return (
+              <View key={itemKey} style={styles.cartCard}>
                 <View style={styles.cartInfo}>
-                  <Text style={styles.cartName}>{item.name}</Text>
-                  <Text style={styles.cartSku}>SKU: {item.sku}</Text>
+                  <Text style={styles.cartName}>{item.name || 'Product'}</Text>
+                  <Text style={styles.cartSku}>SKU: {item.sku || ''}</Text>
                   <Text style={styles.cartPrice}>
-                    ₹{item.price} × {item.quantity} = ₹{item.price * item.quantity}
+                    ₹{item.price || 0} × {item.quantity} = ₹{((item.price || 0) * item.quantity).toLocaleString('en-IN')}
                   </Text>
                 </View>
                 <View style={styles.quantityControl}>
                   <Pressable
                     style={styles.qtyBtn}
-                    onPress={() => updateQuantity(item.id, item.quantity - item.moq)}>
+                    onPress={() => updateQuantity(item.id, item.quantity - (item.moq || 1))}>
                     <Icon name="minus" size={16} color={colors.red} />
                   </Pressable>
                   <Text style={styles.qtyText}>{item.quantity}</Text>
                   <Pressable
                     style={styles.qtyBtn}
-                    onPress={() => updateQuantity(item.id, item.quantity + item.moq)}>
+                    onPress={() => updateQuantity(item.id, item.quantity + (item.moq || 1))}>
                     <Icon name="plus" size={16} color={colors.red} />
                   </Pressable>
                 </View>
               </View>
-            ))}
+            )})}
 
-            {/* Order Summary */}
             <View style={styles.summaryCard}>
               <Text style={styles.summaryTitle}>Order Summary</Text>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Total Items:</Text>
-                <Text style={styles.summaryValue}>{getTotalItems()} units</Text>
+                <Text style={styles.summaryValue}>{getTotalItems()} pcs</Text>
               </View>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Total Amount:</Text>
-                <Text style={styles.summaryAmount}>₹{getTotalAmount().toLocaleString()}</Text>
+                <Text style={styles.summaryAmount}>₹{getTotalAmount().toLocaleString('en-IN')}</Text>
               </View>
               <Pressable 
                 style={styles.placeOrderBtn}
@@ -286,6 +311,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    color: colors.muted,
+    fontSize: 14,
   },
   topNav: {
     backgroundColor: colors.red,
@@ -373,7 +408,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.line,
     padding: 12,
@@ -384,7 +419,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 12,
-    backgroundColor: 'rgba(198, 40, 40, 0.1)',
+    backgroundColor: 'rgba(198, 40, 40, 0.05)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -395,7 +430,7 @@ const styles = StyleSheet.create({
   productName: {
     color: colors.text,
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '700',
     marginBottom: 4,
   },
   productSku: {
@@ -421,6 +456,12 @@ const styles = StyleSheet.create({
     color: '#1D9E75',
     fontSize: 11,
     fontWeight: '600',
+    marginBottom: 2,
+  },
+  productDetail: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: '500',
   },
   addBtn: {
     width: 40,
@@ -446,7 +487,7 @@ const styles = StyleSheet.create({
   cartName: {
     color: colors.text,
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '700',
     marginBottom: 4,
   },
   cartSku: {

@@ -8,7 +8,7 @@ import http from 'http';
 import readline from 'readline';
 
 const BASE_URL = 'localhost';
-const PORT = 5000;
+const PORT = 5001;
 const MOBILE = '9305241794';
 
 const rl = readline.createInterface({

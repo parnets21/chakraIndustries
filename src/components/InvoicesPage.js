@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   Pressable,
   ScrollView,
@@ -7,80 +7,65 @@ import {
   TextInput,
   View,
   Alert,
-  Share,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {colors, shadow} from './theme';
+import invoiceService from '../services/invoiceService';
+import InvoiceDetailPage from './InvoiceDetailPage';
 
 function InvoicesPage({onBack}) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
+  const [invoices, setInvoices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [viewingInvoice, setViewingInvoice] = useState(null);
 
   const filters = ['All', 'Paid', 'Pending', 'Overdue'];
 
-  const invoices = [
-    {
-      id: 1,
-      invoiceNo: 'INV-2026-4821',
-      date: '28 May 2026',
-      amount: '₹42,500',
-      status: 'Paid',
-      statusColor: '#1D9E75',
-      dueDate: '10 Jun 2026',
-      orderNo: 'ORD-2026-4821',
-    },
-    {
-      id: 2,
-      invoiceNo: 'INV-2026-4803',
-      date: '25 May 2026',
-      amount: '₹1,18,000',
-      status: 'Pending',
-      statusColor: '#BA7517',
-      dueDate: '08 Jun 2026',
-      orderNo: 'ORD-2026-4803',
-    },
-    {
-      id: 3,
-      invoiceNo: 'INV-2026-4785',
-      date: '22 May 2026',
-      amount: '₹65,200',
-      status: 'Paid',
-      statusColor: '#1D9E75',
-      dueDate: '05 Jun 2026',
-      orderNo: 'ORD-2026-4785',
-    },
-    {
-      id: 4,
-      invoiceNo: 'INV-2026-4762',
-      date: '18 May 2026',
-      amount: '₹28,400',
-      status: 'Overdue',
-      statusColor: colors.red,
-      dueDate: '01 Jun 2026',
-      orderNo: 'ORD-2026-4762',
-    },
-    {
-      id: 5,
-      invoiceNo: 'INV-2026-4745',
-      date: '15 May 2026',
-      amount: '₹92,800',
-      status: 'Paid',
-      statusColor: '#1D9E75',
-      dueDate: '29 May 2026',
-      orderNo: 'ORD-2026-4745',
-    },
-  ];
+  const fetchInvoices = async (query = '', filter = 'All') => {
+    try {
+      setLoading(true);
+      const params = {};
+      if (filter !== 'All') {
+        params.status = filter;
+      }
+      if (query) {
+        params.search = query;
+      }
+      
+      const response = await invoiceService.getInvoices(params);
+      if (response.success) {
+        setInvoices(response.data || []);
+      }
+    } catch (error) {
+      console.error('Fetch invoices error:', error);
+      Alert.alert('Error', 'Failed to load invoices');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const filteredInvoices = selectedFilter === 'All'
-    ? invoices
-    : invoices.filter(inv => inv.status === selectedFilter);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchInvoices(searchQuery, selectedFilter);
+    setRefreshing(false);
+  };
 
-  const searchFilteredInvoices = searchQuery
-    ? filteredInvoices.filter(inv =>
-        inv.invoiceNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        inv.orderNo.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : filteredInvoices;
+  useEffect(() => {
+    fetchInvoices(searchQuery, selectedFilter);
+  }, [selectedFilter]);
+
+  const filteredInvoices = invoices.filter(inv => {
+    if (!searchQuery) return true;
+    const searchLower = searchQuery.toLowerCase();
+    return (
+      inv.invoiceNo?.toLowerCase().includes(searchLower) ||
+      inv.orderNo?.toLowerCase().includes(searchLower)
+    );
+  });
 
   const handleDownloadAll = () => {
     Alert.alert(
@@ -99,15 +84,12 @@ function InvoicesPage({onBack}) {
   };
 
   const handleViewInvoice = (invoice) => {
-    Alert.alert(
-      'View Invoice',
-      `Opening invoice ${invoice.invoiceNo}\n\nOrder: ${invoice.orderNo}\nAmount: ${invoice.amount}\nStatus: ${invoice.status}`,
-      [{text: 'Close'}]
-    );
+    setViewingInvoice(invoice.id);
   };
 
   const handleDownloadInvoice = async (invoice) => {
     try {
+      const response = await invoiceService.downloadInvoice(invoice.id);
       Alert.alert(
         'Download Invoice',
         `Downloading ${invoice.invoiceNo}...`,
@@ -116,10 +98,7 @@ function InvoicesPage({onBack}) {
           {
             text: 'Download',
             onPress: () => {
-              // Simulate download
-              setTimeout(() => {
-                Alert.alert('Success', `Invoice ${invoice.invoiceNo} downloaded successfully`);
-              }, 500);
+              Alert.alert('Success', `Invoice ${invoice.invoiceNo} downloaded successfully`);
             },
           },
         ]
@@ -138,33 +117,56 @@ function InvoicesPage({onBack}) {
         {
           text: 'Pay Now',
           onPress: () => {
-            Alert.alert(
-              'Payment Options',
-              'Select payment method:',
-              [
-                {text: 'UPI', onPress: () => processPayment(invoice, 'UPI')},
-                {text: 'Net Banking', onPress: () => processPayment(invoice, 'Net Banking')},
-                {text: 'Card', onPress: () => processPayment(invoice, 'Card')},
-                {text: 'Cancel', style: 'cancel'},
-              ]
-            );
+            processPayment(invoice);
           },
         },
       ]
     );
   };
 
-  const processPayment = (invoice, method) => {
-    Alert.alert(
-      'Processing Payment',
-      `Processing payment of ${invoice.amount} via ${method}...`,
-      [{text: 'OK'}]
-    );
+  const processPayment = async (invoice) => {
+    try {
+      Alert.alert(
+        'Payment Options',
+        'Select payment method:',
+        [
+          {text: 'UPI', onPress: async () => {
+            setLoading(true);
+            await invoiceService.payInvoice(invoice.id, {method: 'UPI'});
+            fetchInvoices(searchQuery, selectedFilter);
+            Alert.alert('Success', 'Payment successful');
+          }},
+          {text: 'Net Banking', onPress: async () => {
+            setLoading(true);
+            await invoiceService.payInvoice(invoice.id, {method: 'Net Banking'});
+            fetchInvoices(searchQuery, selectedFilter);
+            Alert.alert('Success', 'Payment successful');
+          }},
+          {text: 'Card', onPress: async () => {
+            setLoading(true);
+            await invoiceService.payInvoice(invoice.id, {method: 'Card'});
+            fetchInvoices(searchQuery, selectedFilter);
+            Alert.alert('Success', 'Payment successful');
+          }},
+          {text: 'Cancel', style: 'cancel'},
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to process payment');
+    }
   };
+
+  if (viewingInvoice) {
+    return (
+      <InvoiceDetailPage 
+        invoiceId={viewingInvoice} 
+        onBack={() => setViewingInvoice(null)} 
+      />
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {/* Top Navigation Bar */}
       <View style={styles.topNav}>
         <Pressable onPress={onBack} style={styles.backButton}>
           <Icon name="arrow-left" size={24} color="#FFFFFF" />
@@ -178,26 +180,27 @@ function InvoicesPage({onBack}) {
         </Pressable>
       </View>
 
-      {/* Search Bar */}
       <View style={styles.searchSection}>
         <View style={styles.searchBox}>
           <Icon name="magnify" size={20} color={colors.muted} />
           <TextInput
             value={searchQuery}
-            onChangeText={setSearchQuery}
+            onChangeText={(text) => {
+              setSearchQuery(text);
+              fetchInvoices(text, selectedFilter);
+            }}
             placeholder="Search invoice or order..."
             placeholderTextColor={colors.muted}
             style={styles.searchInput}
           />
           {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery('')}>
+            <Pressable onPress={() => { setSearchQuery(''); fetchInvoices('', selectedFilter); }}>
               <Icon name="close-circle" size={20} color={colors.muted} />
             </Pressable>
           )}
         </View>
       </View>
 
-      {/* Filter Chips */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -221,77 +224,93 @@ function InvoicesPage({onBack}) {
         ))}
       </ScrollView>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}>
-        {searchFilteredInvoices.map(invoice => (
-          <View key={invoice.id} style={styles.invoiceCard}>
-            <View style={styles.invoiceHeader}>
-              <View>
-                <Text style={styles.invoiceNo}>{invoice.invoiceNo}</Text>
-                <Text style={styles.invoiceDate}>{invoice.date}</Text>
-              </View>
-              <View
-                style={[
-                  styles.statusBadge,
-                  {backgroundColor: invoice.statusColor + '20'},
-                ]}>
-                <Text style={[styles.statusText, {color: invoice.statusColor}]}>
-                  {invoice.status}
-                </Text>
-              </View>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.red} />
+          <Text style={styles.loadingText}>Loading invoices...</Text>
+        </View>
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.red]} />
+          }>
+          {filteredInvoices.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No invoices found</Text>
             </View>
+          ) : (
+            filteredInvoices.map((invoice, index) => (
+              <View key={invoice.id || index} style={styles.invoiceCard}>
+                <View style={styles.invoiceHeader}>
+                  <View>
+                    <Text style={styles.invoiceNo}>{invoice.invoiceNo}</Text>
+                    <Text style={styles.invoiceDate}>{invoice.date}</Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      {backgroundColor: (invoice.statusColor || '') + '20'},
+                    ]}>
+                    <Text style={[styles.statusText, {color: invoice.statusColor}]}>
+                      {invoice.status}
+                    </Text>
+                  </View>
+                </View>
 
-            <View style={styles.divider} />
+                <View style={styles.divider} />
 
-            <View style={styles.invoiceDetails}>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Order No:</Text>
-                <Text style={styles.detailValue}>{invoice.orderNo}</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Due Date:</Text>
-                <Text style={styles.detailValue}>{invoice.dueDate}</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Amount:</Text>
-                <Text style={styles.amountValue}>{invoice.amount}</Text>
-              </View>
-            </View>
+                <View style={styles.invoiceDetails}>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Order No:</Text>
+                    <Text style={styles.detailValue}>{invoice.orderNo}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Due Date:</Text>
+                    <Text style={styles.detailValue}>{invoice.dueDate}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Amount:</Text>
+                    <Text style={styles.amountValue}>{invoice.amount}</Text>
+                  </View>
+                </View>
 
-            <View style={styles.invoiceActions}>
-              <Pressable
-                style={styles.actionBtn}
-                onPress={() => handleViewInvoice(invoice)}>
-                <Icon name="eye-outline" size={18} color={colors.red} />
-                <Text style={styles.actionBtnText}>View</Text>
-              </Pressable>
-              <Pressable
-                style={styles.actionBtn}
-                onPress={() => handleDownloadInvoice(invoice)}>
-                <Icon name="download-outline" size={18} color={colors.red} />
-                <Text style={styles.actionBtnText}>Download</Text>
-              </Pressable>
-              {invoice.status === 'Pending' && (
-                <Pressable
-                  style={[styles.actionBtn, styles.actionBtnPrimary]}
-                  onPress={() => handlePayNow(invoice)}>
-                  <Icon name="cash" size={18} color="#FFFFFF" />
-                  <Text style={styles.actionBtnTextPrimary}>Pay Now</Text>
-                </Pressable>
-              )}
-              {invoice.status === 'Overdue' && (
-                <Pressable
-                  style={[styles.actionBtn, styles.actionBtnPrimary]}
-                  onPress={() => handlePayNow(invoice)}>
-                  <Icon name="alert-circle" size={18} color="#FFFFFF" />
-                  <Text style={styles.actionBtnTextPrimary}>Pay Now</Text>
-                </Pressable>
-              )}
-            </View>
-          </View>
-        ))}
-      </ScrollView>
+                <View style={styles.invoiceActions}>
+                  <Pressable
+                    style={styles.actionBtn}
+                    onPress={() => handleViewInvoice(invoice)}>
+                    <Icon name="eye-outline" size={18} color={colors.red} />
+                    <Text style={styles.actionBtnText}>View</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.actionBtn}
+                    onPress={() => handleDownloadInvoice(invoice)}>
+                    <Icon name="download-outline" size={18} color={colors.red} />
+                    <Text style={styles.actionBtnText}>Download</Text>
+                  </Pressable>
+                  {invoice.status === 'Pending' && (
+                    <Pressable
+                      style={[styles.actionBtn, styles.actionBtnPrimary]}
+                      onPress={() => handlePayNow(invoice)}>
+                      <Icon name="cash" size={18} color="#FFFFFF" />
+                      <Text style={styles.actionBtnTextPrimary}>Pay Now</Text>
+                    </Pressable>
+                  )}
+                  {invoice.status === 'Overdue' && (
+                    <Pressable
+                      style={[styles.actionBtn, styles.actionBtnPrimary]}
+                      onPress={() => handlePayNow(invoice)}>
+                      <Icon name="alert-circle" size={18} color="#FFFFFF" />
+                      <Text style={styles.actionBtnTextPrimary}>Pay Now</Text>
+                    </Pressable>
+                  )}
+                </View>
+              </View>
+            ))
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -324,11 +343,6 @@ const styles = StyleSheet.create({
     gap: 8,
     flex: 1,
     justifyContent: 'center',
-  },
-  topNavLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
   },
   topNavTitle: {
     color: '#FFFFFF',
@@ -390,6 +404,27 @@ const styles = StyleSheet.create({
   },
   filterChipTextActive: {
     color: '#FFFFFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: '600',
   },
   content: {
     padding: 20,

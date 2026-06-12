@@ -172,6 +172,7 @@ export const NAV_ITEMS = [
     children: [
       { path: '/procurement/vendors',   label: 'Vendors',               page: 'procurement' },
       { path: '/procurement/clients',   label: 'Clients',               page: 'procurement' },
+      { path: '/procurement/dealers',   label: 'Dealers',               page: 'procurement' },
       { path: '/procurement/pr',        label: 'Purchase Requisition',  page: 'procurement' },
       { path: '/procurement/rfq',       label: 'RFQ',                   page: 'procurement' },
       { path: '/procurement/po',        label: 'Purchase Orders',       page: 'procurement' },

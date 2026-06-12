@@ -16,6 +16,7 @@ import ItemMasterPage from '../pages/master/ItemMasterPage';
 // Procurement
 import VendorsPage             from '../pages/procurement/VendorsPage';
 import ClientsPage             from '../pages/procurement/ClientsPage';
+import DealersPage             from '../pages/procurement/DealersPage';
 import RFQPage                 from '../pages/procurement/RFQPage';
 import PurchaseRequisitionPage from '../pages/procurement/PurchaseRequisitionPage';
 import ApprovalsPage           from '../pages/procurement/ApprovalsPage';
@@ -104,6 +105,7 @@ export default function AppRoutes() {
       <Route path="/procurement"              element={<Navigate to="/procurement/vendors" replace />} />
       <Route path="/procurement/vendors"      element={<P element={<VendorsPage />} />} />
       <Route path="/procurement/clients"      element={<P element={<ClientsPage />} />} />
+      <Route path="/procurement/dealers"      element={<P element={<DealersPage />} />} />
       <Route path="/procurement/rfq"          element={<P element={<RFQPage />} />} />
       <Route path="/procurement/pr"           element={<P element={<PurchaseRequisitionPage />} />} />
       <Route path="/procurement/approvals"    element={<P element={<ApprovalsPage />} />} />

@@ -911,11 +911,15 @@ const DocketTrackingPage = () => {
     'DOCKET_CREATED',
     'DOCKET_CREATE',
     'VEHICLE_ASSIGNED',
+    'PICKUP_PENDING',
     'PICKED_UP',
     'IN_TRANSIT',
     'ARRIVED_AT_WAREHOUSE',
     'RECEIVED',
-    'TRANSPORT_TRACKING'
+    'TRANSPORT_TRACKING',
+    'QC_PENDING',
+    'QC_PASSED',
+    'QC_FAILED',
   ]);
 
   // Load returns from API

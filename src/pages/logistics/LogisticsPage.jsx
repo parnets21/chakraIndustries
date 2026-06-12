@@ -323,24 +323,27 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
   const loadReturnQueue = useCallback(async () => {
     setQueueLoading(true);
     try {
-      // Fetch dockets with pickup_pending status from docket tracking API
-      console.log('🔄 Fetching dockets from API...');
-      const dRes = await docketTrackingApi.getAllDockets();
-      const allDockets = dRes.data || [];
-      
-      console.log('✅ API Response:', dRes);
-      console.log('📦 All Dockets:', allDockets.length, allDockets);
-      
-      // Filter for pickup_pending status
-      const pendingDockets = allDockets.filter(d => {
-        console.log(`Docket ${d.docketId}: transportStatus = "${d.transportStatus}"`);
-        return d.transportStatus === 'pickup_pending';
+      // Fetch from both DocketTracking collection AND MaterialReturn records
+      const [dRes, mrRes] = await Promise.allSettled([
+        docketTrackingApi.getAllDockets(),
+        materialReturnApi.getAll(),
+      ]);
+
+      const allDockets = dRes.status === 'fulfilled' ? (dRes.value?.data || []) : [];
+      const allReturns = mrRes.status === 'fulfilled' ? (mrRes.value?.data || []) : [];
+
+      // From DocketTracking: filter pickup_pending
+      const pendingDockets = allDockets.filter(d => d.transportStatus === 'pickup_pending');
+
+      // From MaterialReturn: filter records in transport stages that need vehicle assignment
+      const TRANSPORT_STAGES = new Set(['APPROVED', 'DOCKET_CREATED', 'VEHICLE_ASSIGNED', 'PICKUP_PENDING']);
+      const pendingReturns = allReturns.filter(r => {
+        const stage = (r.currentStage || r.stage || '').toUpperCase().replace(/[\s-]/g, '_');
+        return TRANSPORT_STAGES.has(stage) && !r.vehicleNo && !r.vehicle;
       });
-      
-      console.log('🚚 Pending Pickup Dockets:', pendingDockets.length, pendingDockets);
-      
-      // Map dockets to return queue format
-      const pendingPickups = pendingDockets.map(docket => ({
+
+      // Map docket tracking records
+      const fromDockets = pendingDockets.map(docket => ({
         _id: docket._id,
         mrId: docket.mrId || 'N/A',
         docketId: docket.docketId || 'N/A',
@@ -354,26 +357,42 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
         driverName: docket.driverName || '',
         driverMobile: docket.driverMobile || '',
         returnType: docket.returnType || 'Material Return',
-        courierPartner: docket.courierPartner || 'VRL Logistics',
-        capacity: docket.priority ? `${docket.priority} Priority` : '',
-        shipmentWeight: docket.shipmentWeight || 0,
+        courierPartner: docket.courierPartner || '',
         productName: docket.productName || 'Product',
-        destWarehouse: docket.destWarehouse || 'Warehouse'
+        destWarehouse: docket.destWarehouse || 'Warehouse',
+        _source: 'docket',
       }));
-      
-      console.log('✨ Mapped Pending Pickups:', pendingPickups);
-      
+
+      // Map material return records (avoid duplicates already in dockets)
+      const existingMrIds = new Set(fromDockets.map(d => d.mrId));
+      const fromReturns = pendingReturns
+        .filter(r => !existingMrIds.has(r.mrId))
+        .map(r => ({
+          _id: r._id,
+          mrId: r.mrId || 'N/A',
+          docketId: r.docketId || `DKT-${r.mrId}`,
+          supplierName: r.supplierName || r.customerName || 'Unknown Supplier',
+          customerName: r.supplierName || r.customerName || 'Unknown Supplier',
+          returnQty: r.returnQty || r.expectedQty || 0,
+          pickupAddress: r.pickupAddress || r.address || 'Location not specified',
+          priority: r.priority || 'Medium',
+          vehicleNo: r.vehicleNo || '',
+          vehicleName: '',
+          driverName: r.driverName || '',
+          driverMobile: r.driverMobile || '',
+          returnType: r.returnType || 'Material Return',
+          courierPartner: r.transport || '',
+          productName: r.productName || 'Product',
+          destWarehouse: r.warehouseName || 'Warehouse',
+          _source: 'return',
+        }));
+
+      const pendingPickups = [...fromDockets, ...fromReturns];
       setReturnQueue(pendingPickups);
       setDocketData(allDockets);
-      
-      if (pendingPickups.length === 0) {
-        console.warn('⚠️ No dockets with transportStatus="pickup_pending" found!');
-        console.log('💡 Tip: Create a docket in /returns/docket with transportStatus="pickup_pending"');
-      }
     } catch (error) {
-      console.error('❌ Failed to load queue or docket data:', error);
+      console.error('Failed to load queue or docket data:', error);
       toast('Failed to load return pickup queue', 'error');
-      // Set empty arrays on error to show empty state
       setReturnQueue([]);
       setDocketData([]);
     } finally {
@@ -484,21 +503,32 @@ function VehiclesTab({ vehicles, loading, onRefresh }) {
     try {
       setSaving(true);
       
-      // Update docket with vehicle assignment
-      await docketTrackingApi.updateDocket(returnItem._id, {
-        vehicleNumber: vehicle.number,
-        vehicleName: vehicle.name || vehicle.number,
-        driverName: vehicle.driver,
-        driverMobile: vehicle.driverMobile || '—',
-        transportStatus: 'picked_up'
-      });
-
-      // Update docket status
-      await docketTrackingApi.updateDocketStatus(returnItem._id, {
-        transportStatus: 'picked_up',
-        location: returnItem.pickupAddress || 'Pickup Location',
-        remarks: `Vehicle ${vehicle.number} assigned`
-      });
+      if (returnItem._source === 'return') {
+        // Update the MaterialReturn record directly
+        await materialReturnApi.updateTransport(returnItem._id, {
+          vehicleNo: vehicle.number,
+          vehicleName: vehicle.name || vehicle.number,
+          driverName: vehicle.driver,
+          driverMobile: vehicle.driverMobile || '',
+          transport: vehicle.type || 'Truck',
+          stage: 'VEHICLE_ASSIGNED',
+          trackingStatus: 'Vehicle Assigned',
+        });
+      } else {
+        // Update docket tracking record
+        await docketTrackingApi.updateDocket(returnItem._id, {
+          vehicleNumber: vehicle.number,
+          vehicleName: vehicle.name || vehicle.number,
+          driverName: vehicle.driver,
+          driverMobile: vehicle.driverMobile || '—',
+          transportStatus: 'picked_up'
+        });
+        await docketTrackingApi.updateDocketStatus(returnItem._id, {
+          transportStatus: 'picked_up',
+          location: returnItem.pickupAddress || 'Pickup Location',
+          remarks: `Vehicle ${vehicle.number} assigned`
+        });
+      }
 
       // Update vehicle status
       await logisticsApi.updateVehicle(vehicle._id, { 

@@ -194,7 +194,11 @@ export default function FinancePage({ initialTab = 0 }) {
 
       {/* Action bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
-        {activeTab === 2 && <button onClick={() => setShowPayModal(true)} style={primaryBtn}>+ Add Voucher</button>}
+        {activeTab === 1 && (
+          <button style={primaryBtn} onClick={() => fileInputRef.current?.click()}>
+            Select Bank Statement
+          </button>
+        )}
       </div>
 
       {/* KPI row */}

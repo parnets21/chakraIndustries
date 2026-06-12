@@ -118,7 +118,7 @@ function WastageRow({ wo, m, idx, onSave }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ProductionPage({ initialTab = 0 }) {
-  const [activeTab] = useState(initialTab);
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   const [bomList, setBomList]         = useState([]);
   const [selectedBOM, setSelectedBOM] = useState(null);
@@ -375,8 +375,23 @@ export default function ProductionPage({ initialTab = 0 }) {
   const outlineBtn = { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, background:'transparent', color:'#c0392b', border:'1.5px solid #c0392b', cursor:'pointer', fontSize:13, fontWeight:600, fontFamily:'inherit' };
   const inp = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]';
 
+  const PROD_TABS = ['BOM', 'Work Orders', 'MRP / Material Plan', 'QC & Finished Goods', 'Wastage'];
+
   return (
     <div>
+      {/* Tab Navigation */}
+      <div style={{ display:'flex', gap:4, marginBottom:20, borderBottom:'2px solid #f1f5f9', flexWrap:'wrap' }}>
+        {PROD_TABS.map((t, i) => (
+          <button key={i} onClick={() => setActiveTab(i)} style={{
+            padding:'8px 18px', fontSize:13, fontWeight:600, fontFamily:'inherit',
+            border:'none', background:'none', cursor:'pointer', borderRadius:'8px 8px 0 0',
+            color: activeTab === i ? '#c0392b' : '#64748b',
+            borderBottom: activeTab === i ? '2px solid #c0392b' : '2px solid transparent',
+            marginBottom: -2,
+          }}>{t}</button>
+        ))}
+      </div>
+
       {/* Action Bar */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, marginBottom:20, flexWrap:'wrap' }}>
         {activeTab === 0 && (

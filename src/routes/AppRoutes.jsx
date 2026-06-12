@@ -6,6 +6,7 @@ import LoginPage     from '../pages/login/LoginPage';
 import DashboardPage from '../pages/dashboard/DashboardPage';
 import OEMPage       from '../pages/oem/OEMPage';
 import OrdersPage    from '../pages/orders/OrdersPage';
+import DealerOrdersPage from '../pages/orders/DealerOrdersPage';
 import SettingsPage  from '../pages/settings/SettingsPage';
 import RolePermissionsPage from '../pages/settings/RolePermissionsPage';
 
@@ -141,8 +142,9 @@ export default function AppRoutes() {
       <Route path="/production/efficiency"  element={<P element={<ProductionSubPage tab="efficiency" />} />} />
 
       {/* OEM & Orders — single pages */}
-      <Route path="/oem"    element={<P element={<OEMPage />} />} />
-      <Route path="/orders" element={<P element={<OrdersPage />} />} />
+      <Route path="/oem"                element={<P element={<OEMPage />} />} />
+      <Route path="/orders"             element={<P element={<OrdersPage />} />} />
+      <Route path="/orders/dealer"      element={<P element={<DealerOrdersPage />} />} />
 
       {/* Bulk Orders */}
       <Route path="/bulk"                    element={<Navigate to="/bulk/clients" replace />} />

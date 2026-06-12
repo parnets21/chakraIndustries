@@ -209,7 +209,13 @@ export const NAV_ITEMS = [
     ],
   },
   { path: '/oem',    label: 'OEM',    page: 'oem',    icon: 'MdStar' },
-  { path: '/orders', label: 'Orders', page: 'orders', icon: 'MdAssignment' },
+  {
+    label: 'Orders', page: 'orders', icon: 'MdAssignment',
+    children: [
+      { path: '/orders',         label: 'Sales Orders',   page: 'orders' },
+      { path: '/orders/dealer',  label: 'Dealer App Orders', page: 'orders' },
+    ],
+  },
   {
     label: 'Bulk Orders', page: 'bulk', icon: 'MdBusinessCenter',
     children: [

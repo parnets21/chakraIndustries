@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import StatusBadge from '../../components/common/StatusBadge';
@@ -24,7 +24,7 @@ import { getAgeingStock } from '../../api/ageingStockApi';
 import { materialReturnApi } from '../../api/materialReturnApi';
 import { dataEvents } from '../../utils/dataEvents';
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Design tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const BG_CARD = '#ffffff';
 const BORDER = '1px solid #e8edf2';
 const RADIUS_LG = 18;
@@ -77,17 +77,17 @@ const normalizeCategory = (category, categories = []) => {
 };
 
 const categoryName = (category) => {
-  if (!category) return '—';
+  if (!category) return 'â€”';
   if (typeof category === 'string') return category;
-  return category.name || category.categoryName || category.label || '—';
+  return category.name || category.categoryName || category.label || 'â€”';
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function InventoryPage({ initialTab = 0, externalShowModal = false, onExternalModalClose, externalShowReturns = false, onExternalReturnsClose }) {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(initialTab);
 
-  // ── Shared data ────────────────────────────────────────────────────────────
+  // â”€â”€ Shared data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [stockList, setStockList] = useState([]);
   const [warehouseList, setWarehouseList] = useState([]);
   const [movementList,  setMovementList]  = useState([]);
@@ -96,7 +96,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const [loading,       setLoading]       = useState(true);
   const [ageingData,    setAgeingData]    = useState([]);
 
-  // ── Modal state ────────────────────────────────────────────────────────────
+  // â”€â”€ Modal state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [internalModal, setInternalModal] = useState(false);
   const [internalShowReturns, setInternalShowReturns] = useState(false);
   const showModal = externalShowModal || internalModal;
@@ -105,7 +105,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const closeModal = () => { setInternalModal(false); onExternalModalClose?.(); };
   const closeReturns = () => { setInternalShowReturns(false); onExternalReturnsClose?.(); };
 
-  // ── Forms ──────────────────────────────────────────────────────────────────
+  // â”€â”€ Forms â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [stockForm,  setStockForm]  = useState({ sku:'', name:'', qty:'', minQty:'', warehouse:'', unit:'Nos', category:'', batch:'', remarks:'' });
   const [whForm,     setWhForm]     = useState({ warehouseId:'', name:'', location:'', manager:'', capacity:'', phone:'', type:'Raw Material', address:'' });
   const [nextWhId,   setNextWhId]   = useState('');
@@ -117,7 +117,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const [moveToWH, setMoveToWH] = useState('');
   const [allWarehouseList, setAllWarehouseList] = useState([]);
 
-  // ── Filters ────────────────────────────────────────────────────────────────
+  // â”€â”€ Filters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [stockFilter, setStockFilter] = useState('All');
   const [whFilter, setWhFilter] = useState('All');
   const [stockSearch, setStockSearch] = useState('');
@@ -129,7 +129,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const [poList,      setPoList]      = useState([]);
   const [poItems,     setPoItems]     = useState({});
 
-  // ── Pagination state ───────────────────────────────────────────────────────
+  // â”€â”€ Pagination state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [stockPage,    setStockPage]    = useState(1);
   const [stockPageSz,  setStockPageSz]  = useState(25);
   const [movPage,      setMovPage]      = useState(1);
@@ -141,7 +141,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const [defectPage,   setDefectPage]   = useState(1);
   const [defectPageSz, setDefectPageSz] = useState(25);
 
-  // ── Local-only tabs (no backend yet) ──────────────────────────────────────
+  // â”€â”€ Local-only tabs (no backend yet) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [pickList, setPickList] = useState([]);
   const [sortList, setSortList] = useState([]);
   const [packList, setPackList] = useState([]);
@@ -153,7 +153,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const [batchForm, setBatchForm] = useState({ batch: '', sku: '', qty: '', warehouse: '', mfg: '', exp: '' });
   const [defectForm, setDefectForm] = useState({ sku: '', qty: '', type: 'Dimensional', source: 'GRN Inspection', stage: 'QC Hold', warehouse: '', remarks: '' });
 
-  // ── Load data with rate limiting ──────────────────────────────────────────
+  // â”€â”€ Load data with rate limiting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
@@ -204,13 +204,13 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       
       const cats    = catRes.data  || [];
 
-      // Sanitize stock items — flatten render fields and keep category displayable
+      // Sanitize stock items â€” flatten render fields and keep category displayable
       const sanitizeStock = (items) => (items || []).map(item => ({
         ...item,
-        name:      typeof item.name     === 'object' ? (item.name?.name || item.sku || '—')     : (item.name     || item.sku || '—'),
-        sku:       typeof item.sku      === 'object' ? (item.sku?.sku   || '—')                 : (item.sku      || '—'),
+        name:      typeof item.name     === 'object' ? (item.name?.name || item.sku || 'â€”')     : (item.name     || item.sku || 'â€”'),
+        sku:       typeof item.sku      === 'object' ? (item.sku?.sku   || 'â€”')                 : (item.sku      || 'â€”'),
         status:    typeof item.status   === 'object' ? (item.status?.status || 'Active')         : (item.status   || 'Active'),
-        warehouse: typeof item.warehouse === 'object' ? (item.warehouse?.warehouseId || item.warehouse?.id || '—') : (item.warehouse || '—'),
+        warehouse: typeof item.warehouse === 'object' ? (item.warehouse?.warehouseId || item.warehouse?.id || 'â€”') : (item.warehouse || 'â€”'),
         category:  normalizeCategory(item.category, cats),
       }));
 
@@ -270,7 +270,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
     if (warehouseList.length > 0 && !selectedWH) setSelectedWH(warehouseList[0]);
   }, [warehouseList]); // eslint-disable-line
 
-  // ── Computed values ────────────────────────────────────────────────────────
+  // â”€â”€ Computed values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const filteredStock = stockList
     .filter(r => stockFilter === 'All' || r.status === stockFilter)
     .filter(r => whFilter === 'All' || r.warehouse === whFilter)
@@ -282,13 +282,13 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       return sku.toLowerCase().includes(q) || name.toLowerCase().includes(q);
     });
 
-  // ── Reset pages when filters change ───────────────────────────────────────
+  // â”€â”€ Reset pages when filters change â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setStockPage(1); }, [stockFilter, whFilter, stockSearch]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setMovPage(1); }, [movTab]);
 
-  // ── Paged slices ──────────────────────────────────────────────────────────
+  // â”€â”€ Paged slices â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const pagedStock   = filteredStock.slice((stockPage - 1) * stockPageSz, stockPage * stockPageSz);
   const filteredMovs = movementList.filter(m => m.type === movTab);
   const pagedMovs    = filteredMovs.slice((movPage - 1) * movPageSz, movPage * movPageSz);
@@ -312,7 +312,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
     });
   })();
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
+  // â”€â”€ Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleAddStock = async () => {
     if (!stockForm.sku || !stockForm.name || !stockForm.qty) { 
       toast('SKU, name and qty are required', 'error'); 
@@ -326,14 +326,14 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         minQty: stockForm.minQty || 0,
         warehouse: stockForm.warehouse || warehouseList[0]?.warehouseId || 'WH-01',
         unit: stockForm.unit || 'Nos',
-        category: stockForm.category || '',
+        category: stockForm.category || null,
         batch: stockForm.batch || ''
       };
       
       console.log('Sending payload to backend:', payload);
       
       await inventoryApi.create(payload);
-      toast(`Stock entry added — ${stockForm.sku}`);
+      toast(`Stock entry added â€” ${stockForm.sku}`);
       setStockForm({ sku:'', name:'', qty:'', minQty:'', warehouse:'', unit:'Nos', category:'', batch:'', remarks:'' });
       dataEvents.emit('inventory:changed');
       closeModal(); loadAll();
@@ -604,10 +604,10 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
     }
   };
 
-  // ── Ageing data from API ────────────────────────────────────────────────────
+  // â”€â”€ Ageing data from API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // (Already loaded in loadAll function)
 
-  // ── Debug: log data shapes to catch any objects being rendered ────────────
+  // â”€â”€ Debug: log data shapes to catch any objects being rendered â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (process.env.NODE_ENV !== 'production') {
     if (stockList.length > 0) {
       const s = stockList[0];
@@ -626,12 +626,12 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
 
   return (
     <div>
-      {/* ══ TAB 0 — Stock Dashboard ══════════════════════════════════════════ */}
+      {/* â•â• TAB 0 â€” Stock Dashboard â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {activeTab === 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <style>{`@keyframes fadeSlideUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
-          {/* ── Low stock alert ── */}
+          {/* â”€â”€ Low stock alert â”€â”€ */}
           {lowStockItems.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 20px', background: 'linear-gradient(135deg,#fffbeb,#fef9ec)', border: '1px solid #fde68a', borderRadius: 14, boxShadow: '0 4px 16px rgba(245,158,11,0.1)', animation: 'fadeSlideUp 0.3s ease' }}>
               <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg,#f59e0b,#d97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(245,158,11,0.4)' }}>
@@ -639,18 +639,18 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e' }}>{lowStockItems.length} item{lowStockItems.length > 1 ? 's' : ''} below minimum stock level</div>
-                <div style={{ fontSize: 11.5, color: '#b45309', marginTop: 3 }}>{lowStockItems.slice(0, 4).map(s => s.name).join(' · ')}{lowStockItems.length > 4 && <strong> +{lowStockItems.length - 4} more</strong>}</div>
+                <div style={{ fontSize: 11.5, color: '#b45309', marginTop: 3 }}>{lowStockItems.slice(0, 4).map(s => s.name).join(' Â· ')}{lowStockItems.length > 4 && <strong> +{lowStockItems.length - 4} more</strong>}</div>
               </div>
-              <button onClick={() => toast('Redirecting to Purchase Requisition…', 'info')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, background: 'linear-gradient(135deg,#f59e0b,#d97706)', color: '#fff', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', boxShadow: '0 3px 12px rgba(245,158,11,0.4)' }}>
+              <button onClick={() => toast('Redirecting to Purchase Requisitionâ€¦', 'info')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, background: 'linear-gradient(135deg,#f59e0b,#d97706)', color: '#fff', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', boxShadow: '0 3px 12px rgba(245,158,11,0.4)' }}>
                 Create PR <MdArrowForward size={14} />
               </button>
             </div>
           )}
 
-          {/* ── Main 2-col grid ── */}
+          {/* â”€â”€ Main 2-col grid â”€â”€ */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 16, alignItems: 'start' }}>
 
-            {/* ── LEFT: Chart + Movements ── */}
+            {/* â”€â”€ LEFT: Chart + Movements â”€â”€ */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
               {/* Chart */}
@@ -683,17 +683,17 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                   <div style={{ padding: '32px 22px', textAlign: 'center', color: TEXT_LIGHT, fontSize: 12.5 }}>No movements recorded yet</div>
                 ) : movementList.slice(0, 6).map((mv, i) => {
                   const tc = mv.type === 'Inward' ? '#10b981' : mv.type === 'Outward' ? RED_LIGHT : BLUE;
-                  const ti = mv.type === 'Inward' ? '↓' : mv.type === 'Outward' ? '↑' : '⇄';
+                  const ti = mv.type === 'Inward' ? 'â†“' : mv.type === 'Outward' ? 'â†‘' : 'â‡„';
                   return (
                     <div key={mv._id || i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 22px', borderBottom: i < Math.min(movementList.length, 6) - 1 ? '1px solid #f8fafc' : 'none' }}>
                       <div style={{ width: 36, height: 36, borderRadius: 10, background: tc + '15', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, color: tc, fontWeight: 900, flexShrink: 0 }}>{ti}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{String(mv.name || mv.sku || '—')}</div>
-                        <div style={{ fontSize: 11, color: TEXT_LIGHT, marginTop: 2 }}>{String(mv.from || '—')} → {String(mv.to || '—')}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{String(mv.name || mv.sku || 'â€”')}</div>
+                        <div style={{ fontSize: 11, color: TEXT_LIGHT, marginTop: 2 }}>{String(mv.from || 'â€”')} â†’ {String(mv.to || 'â€”')}</div>
                       </div>
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
                         <div style={{ fontSize: 14, fontWeight: 800, color: tc }}>{mv.qty}</div>
-                        <div style={{ fontSize: 10.5, color: TEXT_LIGHT, marginTop: 1 }}>units · {new Date(mv.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</div>
+                        <div style={{ fontSize: 10.5, color: TEXT_LIGHT, marginTop: 1 }}>units Â· {new Date(mv.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</div>
                       </div>
                     </div>
                   );
@@ -701,7 +701,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               </div>
             </div>
 
-            {/* ── RIGHT: Alerts + Warehouse capacity ── */}
+            {/* â”€â”€ RIGHT: Alerts + Warehouse capacity â”€â”€ */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
               {/* Alerts panel */}
@@ -725,8 +725,8 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 ) : (
                   <div>
                     {[
-                      ...stockList.filter(s => s.status === 'Dead').map(s => ({ label: String(s.name || '—'), sku: String(s.sku || '—'), sub: 'Dead stock · 0 units', color: '#94a3b8', leftBar: '#94a3b8', bg: '#fafafa' })),
-                      ...lowStockItems.map(s => ({ label: String(s.name || '—'), sku: String(s.sku || '—'), sub: `${s.qty} units · min ${s.minQty || 0}`, color: (s.minQty > 0 && s.qty < s.minQty * 0.5) || s.status === 'Critical' ? RED_LIGHT : AMBER, leftBar: (s.minQty > 0 && s.qty < s.minQty * 0.5) || s.status === 'Critical' ? RED_LIGHT : AMBER, bg: (s.minQty > 0 && s.qty < s.minQty * 0.5) || s.status === 'Critical' ? '#fff8f8' : '#fffdf5' })),
+                      ...stockList.filter(s => s.status === 'Dead').map(s => ({ label: String(s.name || 'â€”'), sku: String(s.sku || 'â€”'), sub: 'Dead stock Â· 0 units', color: '#94a3b8', leftBar: '#94a3b8', bg: '#fafafa' })),
+                      ...lowStockItems.map(s => ({ label: String(s.name || 'â€”'), sku: String(s.sku || 'â€”'), sub: `${s.qty} units Â· min ${s.minQty || 0}`, color: (s.minQty > 0 && s.qty < s.minQty * 0.5) || s.status === 'Critical' ? RED_LIGHT : AMBER, leftBar: (s.minQty > 0 && s.qty < s.minQty * 0.5) || s.status === 'Critical' ? RED_LIGHT : AMBER, bg: (s.minQty > 0 && s.qty < s.minQty * 0.5) || s.status === 'Critical' ? '#fff8f8' : '#fffdf5' })),
                     ].slice(0, 7).map((a, i, arr) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: i < arr.length - 1 ? '1px solid #f8fafc' : 'none', background: a.bg, borderLeft: `3px solid ${a.leftBar}` }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -758,8 +758,8 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     <div key={i} style={{ padding: '14px 20px', borderBottom: i < warehouseList.length - 1 ? '1px solid #f8fafc' : 'none' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                         <div>
-                          <span style={{ fontSize: 12.5, fontWeight: 800, color: TEXT_DARK }}>{String(wh.warehouseId || wh.id || '—')}</span>
-                          <span style={{ fontSize: 11, color: TEXT_LIGHT, marginLeft: 7 }}>{String(wh.name || '—')}</span>
+                          <span style={{ fontSize: 12.5, fontWeight: 800, color: TEXT_DARK }}>{String(wh.warehouseId || wh.id || 'â€”')}</span>
+                          <span style={{ fontSize: 11, color: TEXT_LIGHT, marginLeft: 7 }}>{String(wh.name || 'â€”')}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ fontSize: 11, color: TEXT_LIGHT }}>{wh.skus ?? 0} SKUs</span>
@@ -782,18 +782,18 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         </div>
       )}
 
-      {/* ══ TAB 1 — Stock Table ══════════════════════════════════════════════ */}
+      {/* â•â• TAB 1 â€” Stock Table â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {activeTab === 1 && (
         <div style={{ ...card(), overflow: 'hidden' }}>
           {/* Toolbar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', borderBottom: BORDER, background: '#fafbfc', flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', flex: 1, minWidth: 180 }}>
-              <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: TEXT_LIGHT }}>🔍</span>
-              <input placeholder="Search SKU or item…" value={stockSearch} onChange={e => setStockSearch(e.target.value)} style={{ ...inp, paddingLeft: 32, width: '100%' }} />
+              <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: TEXT_LIGHT }}>ðŸ”</span>
+              <input placeholder="Search SKU or itemâ€¦" value={stockSearch} onChange={e => setStockSearch(e.target.value)} style={{ ...inp, paddingLeft: 32, width: '100%' }} />
             </div>
             <select value={whFilter} onChange={e => setWhFilter(e.target.value)} style={{ ...inp, width: 'auto', minWidth: 160, cursor: 'pointer' }}>
               <option value="All">All Warehouses</option>
-              {warehouseList.map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} — {w.name}</option>)}
+              {warehouseList.map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} â€” {w.name}</option>)}
             </select>
             <div style={{ display: 'flex', gap: 6 }}>
               {['All', 'Active', 'Critical', 'Dead'].map(f => (
@@ -819,12 +819,12 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     <td style={{ padding: '11px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                         <div style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: r.status === 'Critical' ? RED_LIGHT : r.status === 'Dead' ? '#94a3b8' : GREEN }} />
-                        <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: RED }}>{String(r.sku || '—')}</span>
+                        <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: RED }}>{String(r.sku || 'â€”')}</span>
                       </div>
                     </td>
-                    <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{String(r.name || r.itemName || r.sku || '—')}</td>
+                    <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{String(r.name || r.itemName || r.sku || 'â€”')}</td>
                     <td style={{ padding:'11px 16px', color: TEXT_MID }}>{categoryName(r.category)}</td>
-                    <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.warehouse && typeof r.warehouse === 'object' ? (r.warehouse.warehouseId || r.warehouse.id || '—') : (r.warehouse || '—')}</td>
+                    <td style={{ padding:'11px 16px', color: TEXT_MID }}>{r.warehouse && typeof r.warehouse === 'object' ? (r.warehouse.warehouseId || r.warehouse.id || 'â€”') : (r.warehouse || 'â€”')}</td>
                     <td style={{ padding:'11px 16px' }}>
                       <span style={{ display:'inline-block', padding:'3px 10px', borderRadius:20, fontSize:12, fontWeight:700, background: r.status === 'Critical' || (r.minQty > 0 && r.qty < r.minQty) ? '#fef2f2' : '#f0fdf4', color: r.status === 'Critical' || (r.minQty > 0 && r.qty < r.minQty) ? RED_LIGHT : GREEN }}>{r.qty}</span>
                     </td>
@@ -832,9 +832,9 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     <td style={{ padding:'11px 16px' }}><StatusBadge status={r.status} /></td>
                     <td style={{ padding:'11px 16px' }}>
                       <div style={{ display:'flex', gap:6 }}>
-                        <button onClick={() => { setAdjustItem(r); setAdjustQty(String(r.qty)); }} style={{ padding:'4px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600, border:`1px solid ${RED}`, color: RED, background:'transparent', cursor:'pointer', fontFamily:'inherit' }}>✏ Adjust</button>
+                        <button onClick={() => { setAdjustItem(r); setAdjustQty(String(r.qty)); }} style={{ padding:'4px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600, border:`1px solid ${RED}`, color: RED, background:'transparent', cursor:'pointer', fontFamily:'inherit' }}>âœ Adjust</button>
                         <button onClick={() => { setMoveItem(r); setMoveToWH(''); }} style={{ padding:'4px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600, border:'1px solid #e2e8f0', color: TEXT_MID, background:'#f8fafc', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:4 }}><MdSwapHoriz size={14} /> Move</button>
-                        <button onClick={() => handleDeleteStock(r._id, r.sku)} style={{ padding:'4px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600, border:'1px solid #fecaca', color: RED_LIGHT, background:'#fef2f2', cursor:'pointer', fontFamily:'inherit' }}>✕</button>
+                        <button onClick={() => handleDeleteStock(r._id, r.sku)} style={{ padding:'4px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600, border:'1px solid #fecaca', color: RED_LIGHT, background:'#fef2f2', cursor:'pointer', fontFamily:'inherit' }}>âœ•</button>
                       </div>
                     </td>
                   </tr>
@@ -852,7 +852,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         </div>
       )}
 
-      {/* ══ TAB 2 — Warehouses ══════════════════════════════════════════════ */}
+      {/* â•â• TAB 2 â€” Warehouses â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {activeTab === 2 && (
         <div>
           {/* Selector bar */}
@@ -860,7 +860,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             <MdWarehouse size={18} style={{ color: RED, flexShrink: 0 }} />
             <span style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK, flexShrink: 0 }}>Warehouse:</span>
             <select value={selectedWH?.warehouseId || selectedWH?.id || ''} onChange={e => setSelectedWH(warehouseList.find(w => (w.warehouseId || w.id) === e.target.value))} style={{ flex: 1, minWidth: 200, maxWidth: 320, padding: '8px 12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 13, fontWeight: 600, color: TEXT_DARK, background: '#f8fafc', outline: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-              {warehouseList.map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} — {w.name} ({w.location})</option>)}
+              {warehouseList.map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} â€” {w.name} ({w.location})</option>)}
             </select>
             {selectedWH && (() => {
               const pct = selectedWH.capacity > 0 ? Math.round((selectedWH.used / selectedWH.capacity) * 100) : 0;
@@ -880,10 +880,10 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 <div style={{ ...card(), overflow: 'hidden' }}>
                   <div style={{ background: 'linear-gradient(135deg,#c0392b,#e74c3c)', padding: '18px 20px' }}>
                     <div style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>{selectedWH.name}</div>
-                    <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.75)', marginTop: 3 }}>{selectedWH.warehouseId || selectedWH.id} · {selectedWH.location}</div>
+                    <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.75)', marginTop: 3 }}>{selectedWH.warehouseId || selectedWH.id} Â· {selectedWH.location}</div>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#f1f5f9' }}>
-                    {[['Active SKUs', selectedWH.skus ?? 0], ['Manager', selectedWH.manager || '—'], ['Capacity', `${(selectedWH.capacity || 0).toLocaleString()} units`], ['Status', '● Active']].map(([label, val], j) => (
+                    {[['Active SKUs', selectedWH.skus ?? 0], ['Manager', selectedWH.manager || 'â€”'], ['Capacity', `${(selectedWH.capacity || 0).toLocaleString()} units`], ['Status', 'â— Active']].map(([label, val], j) => (
                       <div key={j} style={{ background: '#fff', padding: '12px 16px' }}>
                         <div style={{ fontSize: 11, color: TEXT_LIGHT, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: TEXT_DARK, marginTop: 3 }}>{val}</div>
@@ -922,8 +922,8 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                         {whStock.length === 0 ? <tr><td colSpan={4} style={{ padding: '24px', textAlign: 'center', color: TEXT_LIGHT, fontSize: 13 }}>No stock in this warehouse</td></tr>
                           : whStock.map((r, i) => (
                             <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }} onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                              <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: RED }}>{String(r.sku || '—')}</td>
-                              <td style={{ padding: '10px 14px', fontSize: 12.5, fontWeight: 600, color: TEXT_DARK }}>{String(r.name || '—')}</td>
+                              <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: RED }}>{String(r.sku || 'â€”')}</td>
+                              <td style={{ padding: '10px 14px', fontSize: 12.5, fontWeight: 600, color: TEXT_DARK }}>{String(r.name || 'â€”')}</td>
                               <td style={{ padding: '10px 14px' }}><span style={{ padding: '2px 9px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: r.status === 'Critical' || (r.minQty > 0 && r.qty < r.minQty) ? '#fef2f2' : '#f0fdf4', color: r.status === 'Critical' || (r.minQty > 0 && r.qty < r.minQty) ? RED_LIGHT : GREEN }}>{r.qty}</span></td>
                               <td style={{ padding: '10px 14px' }}><StatusBadge status={r.status} /></td>
                             </tr>
@@ -952,7 +952,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                         <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: GRADIENTS[i % GRADIENTS.length], display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}><MdWarehouse size={20} /></div>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK }}>{wh.name}</div>
-                          <div style={{ fontSize: 11, color: TEXT_LIGHT }}>{wh.warehouseId || wh.id} · {wh.location}</div>
+                          <div style={{ fontSize: 11, color: TEXT_LIGHT }}>{wh.warehouseId || wh.id} Â· {wh.location}</div>
                         </div>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
@@ -972,7 +972,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         </div>
       )}
 
-      {/* ══ TAB 3 — Stock Movement ═══════════════════════════════════════════ */}
+      {/* â•â• TAB 3 â€” Stock Movement â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {activeTab === 3 && (
         <div>
           <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
@@ -989,21 +989,21 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               </div>
             ) : pagedMovs.map((mv, i) => {
               const typeColor = mv.type === 'Inward' ? GREEN : mv.type === 'Outward' ? RED_LIGHT : BLUE;
-              const typeIcon = mv.type === 'Inward' ? '↓' : mv.type === 'Outward' ? '↑' : '⇄';
+              const typeIcon = mv.type === 'Inward' ? 'â†“' : mv.type === 'Outward' ? 'â†‘' : 'â‡„';
               return (
                 <div key={mv._id || i} style={{ ...card(), padding: '16px 20px', borderLeft: `4px solid ${typeColor}`, display: 'flex', alignItems: 'center', gap: 20 }}>
                   <div style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0, background: typeColor + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: typeColor, fontWeight: 900 }}>{typeIcon}</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: TEXT_DARK }}>{String(mv.name || mv.sku || '—')}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: TEXT_DARK }}>{String(mv.name || mv.sku || 'â€”')}</div>
                     <div style={{ display: 'flex', gap: 10, marginTop: 4, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 11.5, fontFamily: 'monospace', color: RED, fontWeight: 600 }}>{String(mv.sku || '—')}</span>
-                      <span style={{ fontSize: 11.5, color: TEXT_LIGHT }}>Ref: {String(mv.ref || '—')}</span>
-                      <span style={{ fontSize: 11.5, color: TEXT_LIGHT }}>{String(mv.movementId || '—')}</span>
+                      <span style={{ fontSize: 11.5, fontFamily: 'monospace', color: RED, fontWeight: 600 }}>{String(mv.sku || 'â€”')}</span>
+                      <span style={{ fontSize: 11.5, color: TEXT_LIGHT }}>Ref: {String(mv.ref || 'â€”')}</span>
+                      <span style={{ fontSize: 11.5, color: TEXT_LIGHT }}>{String(mv.movementId || 'â€”')}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                      <span style={{ fontSize: 12, color: TEXT_MID, fontWeight: 600 }}>{String(mv.from || '—')}</span>
-                      <span style={{ fontSize: 14, color: typeColor }}>→</span>
-                      <span style={{ fontSize: 12, color: TEXT_MID, fontWeight: 600 }}>{String(mv.to || '—')}</span>
+                      <span style={{ fontSize: 12, color: TEXT_MID, fontWeight: 600 }}>{String(mv.from || 'â€”')}</span>
+                      <span style={{ fontSize: 14, color: typeColor }}>â†’</span>
+                      <span style={{ fontSize: 12, color: TEXT_MID, fontWeight: 600 }}>{String(mv.to || 'â€”')}</span>
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -1029,7 +1029,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         </div>
       )}
 
-      {/* ══ TAB 4 — Picking ══════════════════════════════════════════════════ */}
+      {/* â•â• TAB 4 â€” Picking â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {activeTab === 4 && (() => {
         const cols = [
           { label: 'Pending', color: AMBER, items: pickList.filter(p => p.status === 'Pending') },
@@ -1055,7 +1055,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                       sku: p.items?.[0]?.sku || p.sku,
                       item: p.items?.[0]?.itemName || p.item,
                       qty: p.items?.[0]?.quantity || p.qty,
-                      loc: p.items?.[0]?.location || p.loc || '—',
+                      loc: p.items?.[0]?.location || p.loc || 'â€”',
                       picker: p.picker?.name || p.picker || 'Unassigned',
                       status: p.status
                     };
@@ -1069,7 +1069,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                       <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginBottom:2 }}>Order: {displayItem.order}</div>
                       <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginBottom:2 }}>SKU: <span style={{ fontFamily:'monospace', color: RED }}>{displayItem.sku}</span></div>
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:8 }}>
-                        <span style={{ fontSize:11.5, color: TEXT_MID }}>📍 {displayItem.loc}</span>
+                        <span style={{ fontSize:11.5, color: TEXT_MID }}>ðŸ“ {displayItem.loc}</span>
                         <span style={{ background:col.color+'18', color:col.color, borderRadius:12, padding:'2px 9px', fontSize:11, fontWeight:700 }}>Qty: {displayItem.qty}</span>
                       </div>
                       {displayItem.status === 'In Progress' && (
@@ -1081,7 +1081,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                           } catch (e) {
                             toast(e.message || 'Failed to update status', 'error');
                           }
-                        }} style={{ marginTop:10, width:'100%', padding:'6px', borderRadius:8, background: GREEN, color:'#fff', border:'none', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>✓ Mark Complete</button>
+                        }} style={{ marginTop:10, width:'100%', padding:'6px', borderRadius:8, background: GREEN, color:'#fff', border:'none', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>âœ“ Mark Complete</button>
                       )}
                       {displayItem.status === 'Pending' && (
                         <button onClick={async () => {
@@ -1092,7 +1092,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                           } catch (e) {
                             toast(e.message || 'Failed to update status', 'error');
                           }
-                        }} style={{ marginTop:10, width:'100%', padding:'6px', borderRadius:8, background: BLUE, color:'#fff', border:'none', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>▶ Start Picking</button>
+                        }} style={{ marginTop:10, width:'100%', padding:'6px', borderRadius:8, background: BLUE, color:'#fff', border:'none', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>â–¶ Start Picking</button>
                       )}
                     </div>
                     );
@@ -1104,7 +1104,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         );
       })()}
 
-      {/* ══ TAB 5 — Sorting & Packing ════════════════════════════════════════ */}
+      {/* â•â• TAB 5 â€” Sorting & Packing â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {activeTab === 5 && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <div style={{ ...card(), overflow: 'hidden' }}>
@@ -1113,7 +1113,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               <div key={i} style={{ padding: '14px 20px', borderBottom: i < sortList.length - 1 ? BORDER : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>{s.itemName || s.item}</div>
-                  <div style={{ fontSize:11.5, color: TEXT_LIGHT }}>{s.sortId || s.id} · {s.sku} · {s.grade}</div>
+                  <div style={{ fontSize:11.5, color: TEXT_LIGHT }}>{s.sortId || s.id} Â· {s.sku} Â· {s.grade}</div>
                 </div>
                 <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                   <span style={{ fontSize:12, fontWeight:700, color: BLUE }}>{s.quantity || s.qty} units</span>
@@ -1126,7 +1126,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     } catch (e) {
                       toast(e.message || 'Failed to update status', 'error');
                     }
-                  }} style={{ padding:'3px 10px', borderRadius:8, background: GREEN, color:'#fff', border:'none', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>✓ Done</button>}
+                  }} style={{ padding:'3px 10px', borderRadius:8, background: GREEN, color:'#fff', border:'none', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>âœ“ Done</button>}
                 </div>
               </div>
             ))}
@@ -1137,7 +1137,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               <div key={i} style={{ padding: '14px 20px', borderBottom: i < packList.length - 1 ? BORDER : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>{p.packId || p.id}</div>
-                  <div style={{ fontSize:11.5, color: TEXT_LIGHT }}>Order: {p.orderId || p.order} · {p.boxType || p.type} · {p.weight}</div>
+                  <div style={{ fontSize:11.5, color: TEXT_LIGHT }}>Order: {p.orderId || p.order} Â· {p.boxType || p.type} Â· {p.weight}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <StatusBadge status={p.status} />
@@ -1149,7 +1149,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     } catch (e) {
                       toast(e.message || 'Failed to update status', 'error');
                     }
-                  }} style={{ padding:'3px 10px', borderRadius:8, background: GREEN, color:'#fff', border:'none', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>✓ Packed</button>}
+                  }} style={{ padding:'3px 10px', borderRadius:8, background: GREEN, color:'#fff', border:'none', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>âœ“ Packed</button>}
                 </div>
               </div>
             ))}
@@ -1157,7 +1157,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         </div>
       )}
 
-      {/* ══ TAB 6 — Batch Tracking ═══════════════════════════════════════════ */}
+      {/* â•â• TAB 6 â€” Batch Tracking â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {activeTab === 6 && (
         <div style={{ ...card(), overflow: 'hidden' }}>
           <div style={{ padding: '14px 20px', borderBottom: BORDER }}><div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK }}>Batch Register</div></div>
@@ -1211,14 +1211,14 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         </div>
       )}
 
-      {/* ══ TAB 7 — Ageing Stock ═════════════════════════════════════════════ */}
+      {/* â•â• TAB 7 â€” Ageing Stock â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {activeTab === 7 && (
         <div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:16 }}>
             {[
-              { label:'0–30 Days',  value: ageingData.filter(a=>a.bucket==='0–30').length,  color: GREEN     },
-              { label:'31–60 Days', value: ageingData.filter(a=>a.bucket==='31–60').length, color: AMBER     },
-              { label:'61–90 Days', value: ageingData.filter(a=>a.bucket==='61–90').length, color: '#f97316' },
+              { label:'0â€“30 Days',  value: ageingData.filter(a=>a.bucket==='0â€“30').length,  color: GREEN     },
+              { label:'31â€“60 Days', value: ageingData.filter(a=>a.bucket==='31â€“60').length, color: AMBER     },
+              { label:'61â€“90 Days', value: ageingData.filter(a=>a.bucket==='61â€“90').length, color: '#f97316' },
               { label:'90+ Days',   value: ageingData.filter(a=>a.bucket==='90+').length,   color: RED_LIGHT },
             ].map((k, i) => (
               <div key={i} style={{ ...card(), padding:'18px 20px' }}>
@@ -1228,7 +1228,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             ))}
           </div>
           <div style={{ ...card(), overflow:'hidden' }}>
-            <div style={{ padding:'14px 20px', borderBottom: BORDER }}><div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>Ageing Analysis — computed from GRN, Production & Stock Movement</div></div>
+            <div style={{ padding:'14px 20px', borderBottom: BORDER }}><div style={{ fontSize:13, fontWeight:700, color: TEXT_DARK }}>Ageing Analysis â€” computed from GRN, Production & Stock Movement</div></div>
             {ageingData.length === 0 ? <Empty msg="No ageing data available" /> : (
               <div style={{ overflowX:'auto' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
@@ -1240,15 +1240,15 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                   <tbody>
                     {pagedAgeing.map((r, i) => (
                       <tr key={i} style={{ borderBottom:'1px solid #f1f5f9', background: i%2===0 ? '#f8fafc' : '#fff' }}>
-                        <td style={{ padding:'11px 16px', fontFamily:'monospace', fontWeight:700, color: RED }}>{String(r.sku || '—')}</td>
-                        <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{String(r.item || '—')}</td>
-                        <td style={{ padding:'11px 16px', color: TEXT_MID }}>{String(r.whName || r.wh || '—')}</td>
+                        <td style={{ padding:'11px 16px', fontFamily:'monospace', fontWeight:700, color: RED }}>{String(r.sku || 'â€”')}</td>
+                        <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{String(r.item || 'â€”')}</td>
+                        <td style={{ padding:'11px 16px', color: TEXT_MID }}>{String(r.whName || r.wh || 'â€”')}</td>
                         <td style={{ padding:'11px 16px', fontWeight:700, color: BLUE }}>{r.qty}</td>
-                        <td style={{ padding:'11px 16px', color: TEXT_MID }}>{String(r.lastMov || '—')}</td>
+                        <td style={{ padding:'11px 16px', color: TEXT_MID }}>{String(r.lastMov || 'â€”')}</td>
                         <td style={{ padding:'11px 16px' }}><span style={{ fontWeight:700, color: r.days > 90 ? RED_LIGHT : r.days > 60 ? '#f97316' : r.days > 30 ? AMBER : GREEN }}>{r.days}d</span></td>
-                        <td style={{ padding:'11px 16px' }}><span style={{ padding:'2px 9px', borderRadius:20, fontSize:11, fontWeight:700, background: r.days>90 ? '#fef2f2' : r.days>60 ? '#fff7ed' : r.days>30 ? '#fffbeb' : '#f0fdf4', color: r.actionColor }}>{String(r.bucket || '—')}</span></td>
-                        <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{String(r.value || '—')}</td>
-                        <td style={{ padding:'11px 16px' }}><span style={{ fontSize:12, fontWeight:600, color: r.actionColor }}>{String(r.action || '—')}</span></td>
+                        <td style={{ padding:'11px 16px' }}><span style={{ padding:'2px 9px', borderRadius:20, fontSize:11, fontWeight:700, background: r.days>90 ? '#fef2f2' : r.days>60 ? '#fff7ed' : r.days>30 ? '#fffbeb' : '#f0fdf4', color: r.actionColor }}>{String(r.bucket || 'â€”')}</span></td>
+                        <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{String(r.value || 'â€”')}</td>
+                        <td style={{ padding:'11px 16px' }}><span style={{ fontSize:12, fontWeight:600, color: r.actionColor }}>{String(r.action || 'â€”')}</span></td>
                       </tr>
                     ))}
                   </tbody>
@@ -1268,7 +1268,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         </div>
       )}
 
-      {/* ══ TAB 8 — Defective Stock ══════════════════════════════════════════ */}
+      {/* â•â• TAB 8 â€” Defective Stock â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {activeTab === 8 && (
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
           <div style={{ ...card(), overflow: 'hidden' }}>
@@ -1380,7 +1380,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         </div>
       )}
 
-      {/* ══ TAB 9 — Storage Locations ════════════════════════════════════════ */}
+      {/* â•â• TAB 9 â€” Storage Locations â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {activeTab === 9 && (
         <StorageLocationPage 
           externalShowModal={externalShowModal} 
@@ -1388,13 +1388,13 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         />
       )}
 
-      {/* ══ TAB 10 — Pincode Stock ═══════════════════════════════════════════ */}
+      {/* â•â• TAB 10 â€” Pincode Stock â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {activeTab === 10 && <PincodeStockPage />}
 
-      {/* ══ TAB 11 — Returns ══════════════════════════════════════════════════ */}
+      {/* â•â• TAB 11 â€” Returns â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {activeTab === 11 && <WarehouseReceivePage />}
 
-      {/* ══ MODALS ═══════════════════════════════════════════════════════════ */}
+      {/* â•â• MODALS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
 
       {/* Add Stock (tab 0 & 1) */}
       {(activeTab === 0 || activeTab === 1) && (
@@ -1444,7 +1444,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                   poId: poId
                 }));
               }} style={inp}>
-                <option value="">— Select SKU from PO —</option>
+                <option value="">â€” Select SKU from PO â€”</option>
                 {poList.map(po => 
                   po.items && po.items.map((item, idx) => (
                     <option key={`${po._id}-${idx}`} value={`${idx}|${po._id}`}>
@@ -1494,7 +1494,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Category</label>
               <select value={stockForm.category} onChange={e => setStockForm(p=>({...p,category:e.target.value}))} style={inp}>
-                <option value="">— Select Category —</option>
+                <option value="">â€” Select Category â€”</option>
                 {categoryList.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
               </select>
             </div>
@@ -1503,14 +1503,14 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Warehouse</label>
               <select value={stockForm.warehouse} onChange={e => setStockForm(p=>({...p,warehouse:e.target.value}))} style={inp}>
-                <option value="">— Select Warehouse —</option>
-                {warehouseList.map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} — {w.name}</option>)}
+                <option value="">â€” Select Warehouse â€”</option>
+                {warehouseList.map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} â€” {w.name}</option>)}
               </select>
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 10 }}>
             <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Remarks</label>
-            <textarea placeholder="Optional notes…" value={stockForm.remarks} onChange={e => setStockForm(p => ({ ...p, remarks: e.target.value }))} style={{ ...inp, minHeight: 64, resize: 'vertical' }} />
+            <textarea placeholder="Optional notesâ€¦" value={stockForm.remarks} onChange={e => setStockForm(p => ({ ...p, remarks: e.target.value }))} style={{ ...inp, minHeight: 64, resize: 'vertical' }} />
           </div>
         </Modal>
       )}
@@ -1522,7 +1522,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
           {/* Auto-generated ID preview */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, marginBottom: 14 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#15803d' }}>Warehouse ID — auto-generated</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#15803d' }}>Warehouse ID â€” auto-generated</span>
             <span style={{ marginLeft: 'auto', fontSize: 14, fontWeight: 800, color: '#15803d', fontFamily: 'monospace', background: '#dcfce7', padding: '3px 12px', borderRadius: 6, letterSpacing: '0.5px' }}>
               {nextWhId || '...'}
             </span>
@@ -1534,7 +1534,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 <input type={f.type || 'text'} placeholder={f.placeholder} value={whForm[f.key]} onChange={e => setWhForm(p => ({ ...p, [f.key]: e.target.value }))} style={inp} />
               </div>
             ))}
-            {/* Phone — digits only, max 10 */}
+            {/* Phone â€” digits only, max 10 */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Contact Phone</label>
               <input
@@ -1546,13 +1546,13 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 style={inp}
               />
               {whForm.phone && whForm.phone.length > 0 && whForm.phone.length < 10 && (
-                <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 2 }}>⚠ {10 - whForm.phone.length} more digit{10 - whForm.phone.length !== 1 ? 's' : ''} needed</div>
+                <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 2 }}>âš  {10 - whForm.phone.length} more digit{10 - whForm.phone.length !== 1 ? 's' : ''} needed</div>
               )}
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 10 }}>
             <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Address</label>
-            <textarea placeholder="Full address…" value={whForm.address} onChange={e => setWhForm(p => ({ ...p, address: e.target.value }))} style={{ ...inp, minHeight: 56, resize: 'vertical' }} />
+            <textarea placeholder="Full addressâ€¦" value={whForm.address} onChange={e => setWhForm(p => ({ ...p, address: e.target.value }))} style={{ ...inp, minHeight: 56, resize: 'vertical' }} />
           </div>
         </Modal>
       )}
@@ -1569,23 +1569,23 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>SKU *</label>
               <select value={movForm.sku} onChange={e => setMovForm(p => ({ ...p, sku: e.target.value }))} style={inp}>
-                <option value="">— Select SKU —</option>
-                {stockList.map(s => <option key={s._id} value={s.sku}>{s.sku} — {s.name}</option>)}
+                <option value="">â€” Select SKU â€”</option>
+                {stockList.map(s => <option key={s._id} value={s.sku}>{s.sku} â€” {s.name}</option>)}
               </select>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>From *</label>
               <select value={movForm.from} onChange={e => setMovForm(p => ({ ...p, from: e.target.value }))} style={inp}>
                 <option value="Supplier">Supplier</option>
-                {warehouseList.map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} — {w.name}</option>)}
+                {warehouseList.map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} â€” {w.name}</option>)}
                 <option value="Production">Production</option>
               </select>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>To *</label>
               <select value={movForm.to} onChange={e => setMovForm(p => ({ ...p, to: e.target.value }))} style={inp}>
-                <option value="">— Select —</option>
-                {warehouseList.map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} — {w.name}</option>)}
+                <option value="">â€” Select â€”</option>
+                {warehouseList.map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} â€” {w.name}</option>)}
                 <option value="Production">Production</option>
                 <option value="Dispatch">Dispatch</option>
               </select>
@@ -1608,7 +1608,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
           footer={<><button style={btnOutline} onClick={closeModal}>Cancel</button><button style={btnPrimary} onClick={handleCreatePickList}>Create Pick List</button></>}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Order Reference *</label><input placeholder="e.g. ORD-2024-090" value={pickForm.order} onChange={e => setPickForm(p => ({ ...p, order: e.target.value }))} style={inp} /></div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>SKU *</label><select value={pickForm.sku} onChange={e => setPickForm(p => ({ ...p, sku: e.target.value }))} style={inp}><option value="">— Select SKU —</option>{stockList.map(s => <option key={s._id} value={s.sku}>{s.sku} — {s.name}</option>)}</select></div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>SKU *</label><select value={pickForm.sku} onChange={e => setPickForm(p => ({ ...p, sku: e.target.value }))} style={inp}><option value="">â€” Select SKU â€”</option>{stockList.map(s => <option key={s._id} value={s.sku}>{s.sku} â€” {s.name}</option>)}</select></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Storage Location</label><input placeholder="e.g. Zone A / Rack R2" value={pickForm.location} onChange={e => setPickForm(p => ({ ...p, location: e.target.value }))} style={inp} /></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Qty to Pick *</label><input type="number" placeholder="0" value={pickForm.qty} onChange={e => setPickForm(p => ({ ...p, qty: e.target.value }))} style={inp} /></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Assign Picker</label><input placeholder="Picker name" value={pickForm.picker} onChange={e => setPickForm(p => ({ ...p, picker: e.target.value }))} style={inp} /></div>
@@ -1622,7 +1622,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
           footer={<><button style={btnOutline} onClick={closeModal}>Cancel</button><button style={btnPrimary} onClick={handleCreateSortJob}>Create Job</button></>}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Order Reference *</label><input placeholder="e.g. ORD-2024-089" value={sortForm.order} onChange={e => setSortForm(p => ({ ...p, order: e.target.value }))} style={inp} /></div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>SKU *</label><select value={sortForm.sku} onChange={e => setSortForm(p => ({ ...p, sku: e.target.value }))} style={inp}><option value="">— Select SKU —</option>{stockList.map(s => <option key={s._id} value={s.sku}>{s.sku} — {s.name}</option>)}</select></div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>SKU *</label><select value={sortForm.sku} onChange={e => setSortForm(p => ({ ...p, sku: e.target.value }))} style={inp}><option value="">â€” Select SKU â€”</option>{stockList.map(s => <option key={s._id} value={s.sku}>{s.sku} â€” {s.name}</option>)}</select></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Quantity *</label><input type="number" placeholder="0" value={sortForm.qty} onChange={e => setSortForm(p => ({ ...p, qty: e.target.value }))} style={inp} /></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Grade</label><select value={sortForm.grade} onChange={e => setSortForm(p => ({ ...p, grade: e.target.value }))} style={inp}><option>Grade A</option><option>Grade B</option><option>Grade C</option></select></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Box / Package Type</label><select value={sortForm.boxType} onChange={e => setSortForm(p => ({ ...p, boxType: e.target.value }))} style={inp}><option>Standard Box</option><option>Custom Branded</option><option>Bulk Loose</option></select></div>
@@ -1637,9 +1637,9 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
           footer={<><button style={btnOutline} onClick={closeModal}>Cancel</button><button style={btnPrimary} onClick={handleAddBatch}>Add Batch</button></>}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Batch Number *</label><input placeholder="e.g. B-2024-05" value={batchForm.batch} onChange={e => setBatchForm(p => ({ ...p, batch: e.target.value }))} style={inp} /></div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>SKU *</label><select value={batchForm.sku} onChange={e => setBatchForm(p => ({ ...p, sku: e.target.value }))} style={inp}><option value="">— Select SKU —</option>{stockList.map(s => <option key={s._id} value={s.sku}>{s.sku} — {s.name}</option>)}</select></div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>SKU *</label><select value={batchForm.sku} onChange={e => setBatchForm(p => ({ ...p, sku: e.target.value }))} style={inp}><option value="">â€” Select SKU â€”</option>{stockList.map(s => <option key={s._id} value={s.sku}>{s.sku} â€” {s.name}</option>)}</select></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Quantity *</label><input type="number" placeholder="0" value={batchForm.qty} onChange={e => setBatchForm(p => ({ ...p, qty: e.target.value }))} style={inp} /></div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Warehouse</label><select value={batchForm.warehouse} onChange={e => setBatchForm(p => ({ ...p, warehouse: e.target.value }))} style={inp}><option value="">— Select —</option>{warehouseList.map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} — {w.name}</option>)}</select></div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Warehouse</label><select value={batchForm.warehouse} onChange={e => setBatchForm(p => ({ ...p, warehouse: e.target.value }))} style={inp}><option value="">â€” Select â€”</option>{warehouseList.map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} â€” {w.name}</option>)}</select></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Mfg Date *</label><input type="month" value={batchForm.mfg} onChange={e => setBatchForm(p => ({ ...p, mfg: e.target.value }))} style={inp} /></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Expiry Date *</label><input type="month" value={batchForm.exp} onChange={e => setBatchForm(p => ({ ...p, exp: e.target.value }))} style={inp} /></div>
           </div>
@@ -1651,27 +1651,27 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         <Modal open={showModal} onClose={closeModal} title="Log Defective Stock"
           footer={<><button style={btnOutline} onClick={closeModal}>Cancel</button><button style={btnPrimary} onClick={handleLogDefect}>Log Defect</button></>}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>SKU *</label><select value={defectForm.sku} onChange={e => setDefectForm(p => ({ ...p, sku: e.target.value }))} style={inp}><option value="">— Select SKU —</option>{stockList.map(s => <option key={s._id} value={s.sku}>{s.sku} — {s.name}</option>)}</select></div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>SKU *</label><select value={defectForm.sku} onChange={e => setDefectForm(p => ({ ...p, sku: e.target.value }))} style={inp}><option value="">â€” Select SKU â€”</option>{stockList.map(s => <option key={s._id} value={s.sku}>{s.sku} â€” {s.name}</option>)}</select></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Defective Qty *</label><input type="number" placeholder="0" value={defectForm.qty} onChange={e => setDefectForm(p => ({ ...p, qty: e.target.value }))} style={inp} /></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Defect Type</label><select value={defectForm.type} onChange={e => setDefectForm(p => ({ ...p, type: e.target.value }))} style={inp}><option>Dimensional</option><option>Surface Defect</option><option>Packaging Damage</option><option>Functional Failure</option></select></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Source</label><select value={defectForm.source} onChange={e => setDefectForm(p => ({ ...p, source: e.target.value }))} style={inp}><option>GRN Inspection</option><option>Production</option><option>Customer Return</option><option>Internal Audit</option></select></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Stage</label><select value={defectForm.stage} onChange={e => setDefectForm(p => ({ ...p, stage: e.target.value }))} style={inp}><option>QC Hold</option><option>Defective Bin</option><option>Repair</option><option>Scrap</option></select></div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Warehouse</label><select value={defectForm.warehouse} onChange={e => setDefectForm(p => ({ ...p, warehouse: e.target.value }))} style={inp}><option value="">— Select —</option>{warehouseList.map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} — {w.name}</option>)}</select></div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Warehouse</label><select value={defectForm.warehouse} onChange={e => setDefectForm(p => ({ ...p, warehouse: e.target.value }))} style={inp}><option value="">â€” Select â€”</option>{warehouseList.map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} â€” {w.name}</option>)}</select></div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 10 }}>
             <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Remarks</label>
-            <textarea placeholder="Describe the defect…" value={defectForm.remarks} onChange={e => setDefectForm(p => ({ ...p, remarks: e.target.value }))} style={{ ...inp, minHeight: 56, resize: 'vertical' }} />
+            <textarea placeholder="Describe the defectâ€¦" value={defectForm.remarks} onChange={e => setDefectForm(p => ({ ...p, remarks: e.target.value }))} style={{ ...inp, minHeight: 56, resize: 'vertical' }} />
           </div>
         </Modal>
       )}
 
       {/* Adjust Quantity */}
-      <Modal open={!!adjustItem} onClose={() => { setAdjustItem(null); setAdjustQty(''); }} title={`Adjust Quantity — ${adjustItem?.sku}`}
+      <Modal open={!!adjustItem} onClose={() => { setAdjustItem(null); setAdjustQty(''); }} title={`Adjust Quantity â€” ${adjustItem?.sku}`}
         footer={<><button style={btnOutline} onClick={() => { setAdjustItem(null); setAdjustQty(''); }}>Cancel</button><button style={btnPrimary} onClick={handleAdjustQty}>Save</button></>}>
         {adjustItem && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 10, fontSize: 13 }}>
-              <strong>{adjustItem.name}</strong> · Current qty: <strong style={{ color: RED }}>{adjustItem.qty}</strong> · Min: {adjustItem.minQty}
+              <strong>{adjustItem.name}</strong> Â· Current qty: <strong style={{ color: RED }}>{adjustItem.qty}</strong> Â· Min: {adjustItem.minQty}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Adjustment Quantity (+/-) *</label>
@@ -1682,7 +1682,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       </Modal>
 
       {/* Move Stock */}
-      <Modal open={!!moveItem} onClose={() => { setMoveItem(null); setMoveToWH(''); }} title={`Move Stock — ${moveItem?.sku}`}
+      <Modal open={!!moveItem} onClose={() => { setMoveItem(null); setMoveToWH(''); }} title={`Move Stock â€” ${moveItem?.sku}`}
         footer={<><button style={btnOutline} onClick={() => { setMoveItem(null); setMoveToWH(''); }}>Cancel</button><button style={btnPrimary} onClick={handleMoveStock}>Move</button></>}>
         {moveItem && (() => {
           // Normalise the current warehouse ID so we can exclude it from the list
@@ -1697,10 +1697,10 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
           const sourceList = allWarehouseList.length > 0 ? allWarehouseList : warehouseList;
 
           // Show all warehouses except the one the item is currently in
-          // If currentWH is empty / unknown ("—"), show every warehouse
+          // If currentWH is empty / unknown ("â€”"), show every warehouse
           const destinations = sourceList.filter(w => {
             const wid = (w.warehouseId || w.id || '').trim();
-            return !currentWH || currentWH === '—' || wid !== currentWH;
+            return !currentWH || currentWH === 'â€”' || wid !== currentWH;
           });
 
           return (
@@ -1710,8 +1710,8 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 <div style={{ fontWeight: 600, color: TEXT_DARK, marginBottom: 4 }}>{moveItem.name}</div>
                 <div style={{ fontSize: 12, color: TEXT_MID }}>
                   SKU: <span style={{ fontFamily: 'monospace', color: RED, fontWeight: 700 }}>{moveItem.sku}</span>
-                  &nbsp;·&nbsp;Qty: <strong>{moveItem.qty}</strong>
-                  &nbsp;·&nbsp;Currently in: <strong style={{ color: RED }}>{currentWH || '—'}</strong>
+                  &nbsp;Â·&nbsp;Qty: <strong>{moveItem.qty}</strong>
+                  &nbsp;Â·&nbsp;Currently in: <strong style={{ color: RED }}>{currentWH || 'â€”'}</strong>
                 </div>
               </div>
 
@@ -1720,7 +1720,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Move to Warehouse *</label>
                 {destinations.length === 0 ? (
                   <div style={{ padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 9, fontSize: 12.5, color: '#92400e', fontWeight: 500 }}>
-                    ⚠ This is the only warehouse. Add another warehouse to move stock.
+                    âš  This is the only warehouse. Add another warehouse to move stock.
                   </div>
                 ) : (
                   <select
@@ -1734,10 +1734,10 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                       MozAppearance: 'auto',
                     }}
                   >
-                    <option value="">— Select destination warehouse —</option>
+                    <option value="">â€” Select destination warehouse â€”</option>
                     {destinations.map(w => (
                       <option key={w._id || w.warehouseId} value={w.warehouseId || w.id}>
-                        {w.warehouseId || w.id} — {w.name}{w.location ? ` (${w.location})` : ''}
+                        {w.warehouseId || w.id} â€” {w.name}{w.location ? ` (${w.location})` : ''}
                       </option>
                     ))}
                   </select>

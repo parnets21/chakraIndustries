@@ -547,6 +547,24 @@ export default function OEMPage() {
                               <td style={{padding:'10px 14px',fontSize:11,color:'#64748b'}}>{fg.trackingNumber||'—'}</td>
                               <td style={{padding:'10px 14px'}} onClick={e=>e.stopPropagation()}>
                                 <div style={{display:'flex',gap:5}}>
+                                  {(fg.qcStatus==='Failed'||fg.qcStatus==='Rework') && (
+                                    <button onClick={async()=>{
+                                      try{
+                                        await oemFinishedGoodsApi.update(fg._id,{qcStatus:'Rework',status:'In-Storage'});
+                                        toast('Sent for Rework/Washing');
+                                        loadBrandData(activeBrand);
+                                      }catch(e){toast(e.message||'Failed','error');}
+                                    }} style={{padding:'3px 9px',borderRadius:6,fontSize:11,fontWeight:600,border:'1px solid #d97706',color:'#d97706',background:'#fffbeb',cursor:'pointer',fontFamily:'inherit'}}>🔄 Rework</button>
+                                  )}
+                                  {fg.qcStatus==='Passed' && fg.status!=='Dispatch-Ready' && (
+                                    <button onClick={async()=>{
+                                      try{
+                                        await oemFinishedGoodsApi.update(fg._id,{status:'Dispatch-Ready'});
+                                        toast('Marked Dispatch-Ready');
+                                        loadBrandData(activeBrand);
+                                      }catch(e){toast(e.message||'Failed','error');}
+                                    }} style={{padding:'3px 9px',borderRadius:6,fontSize:11,fontWeight:600,border:'1px solid #2563eb',color:'#2563eb',background:'#eff6ff',cursor:'pointer',fontFamily:'inherit'}}>✓ Ready</button>
+                                  )}
                                   <button onClick={()=>handleDeleteFinishedGoods(fg)} style={{padding:'3px 9px',borderRadius:6,fontSize:11,fontWeight:600,border:'1px solid #fecaca',color:'#ef4444',background:'#fef2f2',cursor:'pointer',fontFamily:'inherit'}}>Delete</button>
                                 </div>
                               </td>
@@ -603,7 +621,7 @@ export default function OEMPage() {
           <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Contact Person</label><input className={inp} placeholder="Name" value={brandForm.contactPerson} onChange={e=>setBrandForm(p=>({...p,contactPerson:e.target.value}))} /></div>
           <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Contact Email</label><input type="email" className={inp} placeholder="email@brand.com" value={brandForm.contactEmail} onChange={e=>setBrandForm(p=>({...p,contactEmail:e.target.value}))} /></div>
           <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Contact Phone</label><input type="tel" className={inp} placeholder="10-digit number" maxLength={10} value={brandForm.contactPhone} onChange={e=>setBrandForm(p=>({...p,contactPhone:e.target.value.replace(/\D/g,'').slice(0,10)}))} /></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Status</label><select className={inp} value={brandForm.status||'Active'} onChange={e=>setBrandForm(p=>({...p,status:e.target.value}))}><option>Active</option><option>Inactive</option></select></div>
+          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Status</label><select className={inp} value={brandForm.status||'Active'} onChange={e=>setBrandForm(p=>({...p,status:e.target.value}))}><option>Active</option><option>Inactive</option><option>Suspended</option></select></div>
         </div>
         <div className="flex flex-col gap-1.5 mt-3"><label className="text-xs font-semibold text-gray-600">Notes</label><textarea className={`${inp} resize-y min-h-[60px]`} placeholder="Contract notes..." value={brandForm.notes} onChange={e=>setBrandForm(p=>({...p,notes:e.target.value}))} /></div>
       </Modal>

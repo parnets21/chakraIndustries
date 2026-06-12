@@ -1,8 +1,4 @@
-/**
- * StockItemsPage.jsx
- * Shows Item Master (stock items) within the Inventory section.
- * Route: /inventory/stock-items
- */
+
 import { useState, useEffect, useCallback } from 'react';
 import { itemMasterApi } from '../../api/itemMasterApi';
 import { categoryApi } from '../../api/categoryApi';
@@ -26,7 +22,7 @@ const EMPTY_FORM = {
   hsn: '', gst: '', barcode: '',
 };
 
-export default function StockItemsPage({ externalShowModal = false, onExternalModalClose }) {
+export default function StockItemsPage({ externalShowModal = false, onExternalModalClose, hideAddButton = false }) {
   const [items, setItems]           = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading]       = useState(true);
@@ -128,6 +124,8 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
       ['unitPrice','costPrice','sellingPrice','minQuantity','maxQuantity','reorderPoint','gst'].forEach(k => {
         if (body[k] !== '') body[k] = Number(body[k]);
       });
+      // Convert empty category to null (ObjectId field can't receive empty string)
+      if (!body.category) body.category = undefined;
       if (editingItem) {
         await itemMasterApi.update(editingItem._id, body);
         toast('Item updated', 'success');
@@ -204,7 +202,9 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
             🗑 Delete All ({items.length})
           </button>
         )}
-        <button className="si-btn si-btn-primary" onClick={openAdd}><MdAdd size={16} /> Add Item</button>
+        {!hideAddButton && (
+          <button className="si-btn si-btn-primary" onClick={openAdd}><MdAdd size={16} /> Add Item</button>
+        )}
       </div>
 
       {/* Count */}

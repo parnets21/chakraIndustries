@@ -319,7 +319,7 @@ export default function InventorySubPage({ tab }) {
       <KpiStrip kpis={liveKpis} />
       {tab === 'stock-items' ? (
         <PageCard>
-          <StockItemsPage externalShowModal={showModal} onExternalModalClose={() => setShowModal(false)} />
+          <StockItemsPage externalShowModal={showModal} onExternalModalClose={() => setShowModal(false)} hideAddButton={true} />
         </PageCard>
       ) : (
         <InventoryPage key={tabIndex} initialTab={tabIndex} externalShowModal={showModal} onExternalModalClose={() => setShowModal(false)} />

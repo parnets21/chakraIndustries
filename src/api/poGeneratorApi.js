@@ -13,6 +13,7 @@ export const poGeneratorApi = {
   generateInvoice:   (body)         => fetch(`${BASE}/po-generator/generate-invoice`,               { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   generateInvoiceFromPDF: (body)    => fetch(`${BASE}/po-generator/generate-invoice-from-pdf`,      { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   listInvoices:      (params = {})  => fetch(`${BASE}/po-generator/invoices${q(params)}`,           { headers: authHeaders() }).then(handle),
+  listGRNInvoices:   (params = {})  => fetch(`${BASE}/po-generator/invoices${q({ ...params, prefix: 'GRNINV' })}`, { headers: authHeaders() }).then(handle),
   getInvoiceById:    (id)           => fetch(`${BASE}/po-generator/invoices/${id}`,                  { headers: authHeaders() }).then(handle),
   updateInvoiceStatus:(id, status)  => fetch(`${BASE}/po-generator/invoices/${id}/status`,          { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ status }) }).then(handle),
   updateDelivery:    (id, items)    => fetch(`${BASE}/po-generator/invoices/${id}/delivery`,         { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ items }) }).then(handle),

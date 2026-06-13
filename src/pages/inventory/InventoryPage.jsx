@@ -106,7 +106,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const closeReturns = () => { setInternalShowReturns(false); onExternalReturnsClose?.(); };
 
   // â”€â”€ Forms â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const [stockForm,  setStockForm]  = useState({ sku:'', name:'', qty:'', minQty:'', warehouse:'', unit:'Nos', category:'', batch:'', remarks:'' });
+  const [stockForm,  setStockForm]  = useState({ sku:'', name:'', qty:'', minQty:'', warehouse:'', unit:'Nos', category:'', batch:'', remarks:'', unitPrice:'', gst:'18', hsn:'' });
   const [whForm,     setWhForm]     = useState({ warehouseId:'', name:'', location:'', manager:'', capacity:'', phone:'', type:'Raw Material', address:'' });
   const [nextWhId,   setNextWhId]   = useState('');
   const [movForm,    setMovForm]    = useState({ type:'Inward', sku:'', from:'Supplier', to:'', qty:'', ref:'' });
@@ -327,14 +327,18 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         warehouse: stockForm.warehouse || warehouseList[0]?.warehouseId || 'WH-01',
         unit: stockForm.unit || 'Nos',
         category: stockForm.category || null,
-        batch: stockForm.batch || ''
+        batch: stockForm.batch || '',
+        unitPrice: stockForm.unitPrice ? Number(stockForm.unitPrice) : 0,
+        costPrice: stockForm.unitPrice ? Number(stockForm.unitPrice) : 0,
+        gst: stockForm.gst ? Number(stockForm.gst) : 18,
+        hsn: stockForm.hsn || '',
       };
       
       console.log('Sending payload to backend:', payload);
       
       await inventoryApi.create(payload);
       toast(`Stock entry added â€” ${stockForm.sku}`);
-      setStockForm({ sku:'', name:'', qty:'', minQty:'', warehouse:'', unit:'Nos', category:'', batch:'', remarks:'' });
+      setStockForm({ sku:'', name:'', qty:'', minQty:'', warehouse:'', unit:'Nos', category:'', batch:'', remarks:'', unitPrice:'', gst:'18', hsn:'' });
       dataEvents.emit('inventory:changed');
       closeModal(); loadAll();
     } catch (e) { toast(e.message || 'Failed to add stock', 'error'); }
@@ -1507,6 +1511,32 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 {warehouseList.map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} â€” {w.name}</option>)}
               </select>
             </div>
+            {/* Unit Price */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Unit Price (â‚¹)</label>
+              <input type="number" min="0" placeholder="0.00" value={stockForm.unitPrice} onChange={e => setStockForm(p=>({...p,unitPrice:e.target.value}))} style={inp} />
+            </div>
+
+            {/* GST % */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>GST (%)</label>
+              <select value={stockForm.gst} onChange={e => setStockForm(p=>({...p,gst:e.target.value}))} style={inp}>
+                <option value="0">0%</option>
+                <option value="5">5%</option>
+                <option value="12">12%</option>
+                <option value="18">18%</option>
+                <option value="28">28%</option>
+              </select>
+            </div>
+
+            {/* HSN Code */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>HSN Code</label>
+              <input type="text" placeholder="e.g. 847330" value={stockForm.hsn} onChange={e => setStockForm(p=>({...p,hsn:e.target.value}))} style={inp} />
+            </div>
+          </div>
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '8px 12px', marginTop: 10, fontSize: 12, color: '#15803d', display: 'flex', alignItems: 'center', gap: 6 }}>
+            ðŸ§¾ <span>A <strong>Manual Stock Entry Invoice (MSEI-*)</strong> will be auto-generated and saved under <strong>Inventory â€º Stock Invoices</strong>.</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 10 }}>
             <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Remarks</label>
@@ -1548,6 +1578,29 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               {whForm.phone && whForm.phone.length > 0 && whForm.phone.length < 10 && (
                 <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 2 }}>âš  {10 - whForm.phone.length} more digit{10 - whForm.phone.length !== 1 ? 's' : ''} needed</div>
               )}
+            </div>
+            {/* Unit Price */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Unit Price (â‚¹)</label>
+              <input type="number" min="0" placeholder="0.00" value={stockForm.unitPrice} onChange={e => setStockForm(p=>({...p,unitPrice:e.target.value}))} style={inp} />
+            </div>
+
+            {/* GST % */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>GST (%)</label>
+              <select value={stockForm.gst} onChange={e => setStockForm(p=>({...p,gst:e.target.value}))} style={inp}>
+                <option value="0">0%</option>
+                <option value="5">5%</option>
+                <option value="12">12%</option>
+                <option value="18">18%</option>
+                <option value="28">28%</option>
+              </select>
+            </div>
+
+            {/* HSN Code */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>HSN Code</label>
+              <input type="text" placeholder="e.g. 847330" value={stockForm.hsn} onChange={e => setStockForm(p=>({...p,hsn:e.target.value}))} style={inp} />
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 10 }}>
@@ -1657,6 +1710,9 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Source</label><select value={defectForm.source} onChange={e => setDefectForm(p => ({ ...p, source: e.target.value }))} style={inp}><option>GRN Inspection</option><option>Production</option><option>Customer Return</option><option>Internal Audit</option></select></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Stage</label><select value={defectForm.stage} onChange={e => setDefectForm(p => ({ ...p, stage: e.target.value }))} style={inp}><option>QC Hold</option><option>Defective Bin</option><option>Repair</option><option>Scrap</option></select></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Warehouse</label><select value={defectForm.warehouse} onChange={e => setDefectForm(p => ({ ...p, warehouse: e.target.value }))} style={inp}><option value="">â€” Select â€”</option>{warehouseList.map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} â€” {w.name}</option>)}</select></div>
+          </div>
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '8px 12px', marginTop: 10, fontSize: 12, color: '#15803d', display: 'flex', alignItems: 'center', gap: 6 }}>
+            ðŸ§¾ <span>A <strong>Manual Stock Entry Invoice (MSEI-*)</strong> will be auto-generated and saved under <strong>Inventory â€º Stock Invoices</strong>.</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 10 }}>
             <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Remarks</label>

@@ -178,6 +178,7 @@ export const NAV_ITEMS = [
       { path: '/procurement/po',        label: 'Purchase Orders',       page: 'procurement' },
       { path: '/procurement/grn',       label: 'GRN',                   page: 'procurement' },
       { path: '/procurement/qc',        label: 'Quality Check',         page: 'procurement' },
+      { path: '/procurement/grn-invoices', label: 'GRN Invoices',       page: 'procurement' },
       { path: '/procurement/approvals', label: 'Approvals',             page: 'procurement' },
       { path: '/procurement/excess',    label: 'Excess PO Monitor',     page: 'procurement' },
     ],
@@ -187,6 +188,7 @@ export const NAV_ITEMS = [
     children: [
       { path: '/inventory/dashboard',     label: 'Stock Dashboard',    page: 'inventory' },
       { path: '/inventory/stock-items',   label: 'Stock Items',        page: 'inventory' },
+      { path: '/inventory/stock-invoices',label: 'Stock Invoices',     page: 'inventory' },
       { path: '/inventory/stock',         label: 'Stock Table',        page: 'inventory' },
       { path: '/inventory/warehouses', label: 'Warehouses',         page: 'inventory' },
       { path: '/inventory/movement',   label: 'Stock Movement',     page: 'inventory' },

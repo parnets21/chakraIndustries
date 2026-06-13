@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShell';
 import StatusBadge from '../../components/common/StatusBadge';
 import { qualityCheckApi } from '../../api/qualityCheckApi';
 import { useAuth } from '../../auth/AuthContext';
-import { MdVerifiedUser, MdCheckCircle, MdCancel, MdHourglassEmpty, MdSearch } from 'react-icons/md';
+import { MdVerifiedUser, MdCheckCircle, MdCancel, MdHourglassEmpty, MdSearch, MdReceipt } from 'react-icons/md';
 import { useDataEvent, dataEvents } from '../../utils/dataEvents';
 
 
@@ -15,6 +16,7 @@ const inp = {
 
 export default function QualityCheckPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [qcs, setQcs]               = useState([]);
   const [stats, setStats]           = useState({ total: 0, passed: 0, partial: 0, pending: 0, rejected: 0 });
   const [loading, setLoading]       = useState(false);
@@ -265,8 +267,42 @@ export default function QualityCheckPage() {
           )}
 
           {selectedQC.status !== 'Pending' && (
-            <div style={{ padding: '12px 16px', background: selectedQC.status === 'Passed' ? '#f0fdf4' : '#fef2f2', borderRadius: 10, border: `1px solid ${selectedQC.status === 'Passed' ? '#bbf7d0' : '#fecaca'}`, fontSize: 13, fontWeight: 600, color: selectedQC.status === 'Passed' ? '#16a34a' : '#dc2626' }}>
-              {selectedQC.status === 'Passed' ? '✓ Inspection complete — Approval request has been raised automatically.' : selectedQC.status === 'Partial' ? '⚠ Partial pass — Approval request raised for review.' : '✗ Batch rejected.'}
+            <div style={{ padding: '12px 16px', background: selectedQC.status === 'Passed' ? '#f0fdf4' : selectedQC.status === 'Partial' ? '#fefce8' : '#fef2f2', borderRadius: 10, border: `1px solid ${selectedQC.status === 'Passed' ? '#bbf7d0' : selectedQC.status === 'Partial' ? '#fde68a' : '#fecaca'}` }}>
+              {selectedQC.status === 'Passed' && (
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#16a34a', marginBottom: 6 }}>✓ Inspection complete — all items passed QC.</div>
+                  <div style={{ fontSize: 12, color: '#15803d', display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 10 }}>
+                    <span>📦 Accepted stock has been automatically added to inventory.</span>
+                    <span>🧾 A GRN Receipt Invoice (GRNINV-*) has been automatically generated under Invoice History.</span>
+                    <span>✅ An approval request has been raised for this GRN.</span>
+                  </div>
+                  <button
+                    onClick={() => navigate('/procurement/grn-invoices')}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#15803d', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    <MdReceipt size={14} /> View GRN Invoices
+                  </button>
+                </div>
+              )}
+              {selectedQC.status === 'Partial' && (
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#a16207', marginBottom: 6 }}>⚠ Partial pass — some items passed, some failed.</div>
+                  <div style={{ fontSize: 12, color: '#92400e', display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 10 }}>
+                    <span>📦 Accepted (passed) stock has been automatically added to inventory.</span>
+                    <span>🧾 A partial GRN Receipt Invoice (GRNINV-*) has been automatically generated under Invoice History.</span>
+                    <span>✅ An approval request has been raised for review.</span>
+                  </div>
+                  <button
+                    onClick={() => navigate('/procurement/grn-invoices')}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#a16207', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    <MdReceipt size={14} /> View GRN Invoices
+                  </button>
+                </div>
+              )}
+              {selectedQC.status === 'Rejected' && (
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#dc2626' }}>✗ Batch rejected — no stock added to inventory.</div>
+              )}
             </div>
           )}
         </PageCard>

@@ -640,7 +640,7 @@ export default function InvoiceHistoryPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                  {['#','Invoice No','PO Ref','Vendor','Type','Grand Total','Status','Date','Actions'].map(h => (
+                  {['#','Invoice No','Source','PO / GRN Ref','Vendor','Type','Grand Total','Status','Date','Actions'].map(h => (
                     <th key={h} style={{ padding: '11px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -648,10 +648,22 @@ export default function InvoiceHistoryPage() {
               <tbody>
                 {invoices.map((inv, i) => {
                   const sc = STATUS_COLORS[inv.status] || STATUS_COLORS.Draft;
+                  const isGRNInvoice = inv.invoiceNo?.startsWith('GRNINV-');
                   return (
-                    <tr key={inv._id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                    <tr key={inv._id} style={{ borderBottom: '1px solid #f1f5f9', background: isGRNInvoice ? '#f0fdf4' : (i % 2 === 0 ? '#fff' : '#fafafa') }}>
                       <td style={{ padding: '11px 12px', fontSize: 12, color: '#94a3b8', fontWeight: 700 }}>{i+1}</td>
                       <td style={{ padding: '11px 12px', fontWeight: 700, color: '#c0392b', fontSize: 13 }}>{inv.invoiceNo}</td>
+                      <td style={{ padding: '11px 12px' }}>
+                        {isGRNInvoice ? (
+                          <span style={{ padding: '3px 9px', borderRadius: 20, fontSize: 10.5, fontWeight: 700, background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0' }}>
+                            🔄 GRN Auto
+                          </span>
+                        ) : (
+                          <span style={{ padding: '3px 9px', borderRadius: 20, fontSize: 10.5, fontWeight: 700, background: '#f1f5f9', color: '#475569' }}>
+                            Manual
+                          </span>
+                        )}
+                      </td>
                       <td style={{ padding: '11px 12px', fontSize: 13, color: '#1d4ed8', fontWeight: 600 }}>{inv.poRef||'—'}</td>
                       <td style={{ padding: '11px 12px', fontSize: 13, color: '#1e293b' }}>{inv.vendorName||'—'}</td>
                       <td style={{ padding: '11px 12px' }}>

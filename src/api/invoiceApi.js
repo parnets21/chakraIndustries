@@ -38,4 +38,8 @@ export const invoiceApi = {
   deleteAll:    ()            => fetchWithRetry(getUrl('/invoices/delete-all'), { method: 'POST', headers: authHeaders() }),
   sendEmail:    (id, body)    => fetchWithRetry(getUrl(`/invoices/${id}/send-email`), { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }),
   getByInvoiceNo: (invoiceNo) => fetchWithRetry(getUrl(`/invoices/no/${invoiceNo}`), { headers: authHeaders() }),
+  // Convenience: fetch only GRN receipt invoices (auto-generated when QC passes)
+  getGRNInvoices:         (params = {}) => fetchWithRetry(getUrl('/invoices', { ...params, invoiceSource: 'grn_receipt' }), { headers: authHeaders() }),
+  // Convenience: fetch only manual stock entry invoices
+  getManualStockInvoices: (params = {}) => fetchWithRetry(getUrl('/invoices', { ...params, invoiceSource: 'manual_stock_entry' }), { headers: authHeaders() }),
 };

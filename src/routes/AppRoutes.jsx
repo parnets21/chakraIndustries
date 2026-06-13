@@ -24,12 +24,14 @@ import PurchaseOrdersPage      from '../pages/procurement/PurchaseOrdersPage';
 import GRNPage                 from '../pages/procurement/GRNPage';
 import QualityCheckPage        from '../pages/procurement/QualityCheckPage';
 import ExcessPOMonitorPage     from '../pages/procurement/ExcessPOMonitorPage';
+import GRNReceiptsInvoicePage  from '../pages/procurement/GRNReceiptsInvoicePage';
 
 // Vendor Portal (Public - No Auth Required)
 import VendorQuotationPage from '../pages/vendor/VendorQuotationPage';
 
 // Inventory
 import InventorySubPage from '../pages/inventory/InventorySubPage';
+import StockEntryInvoicesPage from '../pages/inventory/StockEntryInvoicesPage';
 
 // Production
 import ProductionSubPage from '../pages/production/ProductionSubPage';
@@ -112,6 +114,7 @@ export default function AppRoutes() {
       <Route path="/procurement/po"           element={<P element={<PurchaseOrdersPage />} />} />
       <Route path="/procurement/grn"          element={<P element={<GRNPage />} />} />
       <Route path="/procurement/qc"           element={<P element={<QualityCheckPage />} />} />
+      <Route path="/procurement/grn-invoices" element={<P element={<GRNReceiptsInvoicePage />} />} />
       <Route path="/procurement/excess"       element={<P element={<ExcessPOMonitorPage />} />} />
 
       {/* Inventory */}
@@ -129,6 +132,7 @@ export default function AppRoutes() {
       <Route path="/inventory/pincode"     element={<P element={<ErrorBoundary><InventorySubPage tab="pincode" /></ErrorBoundary>} />} />
       <Route path="/inventory/stock-items" element={<P element={<ErrorBoundary><InventorySubPage tab="stock-items" /></ErrorBoundary>} />} />
       <Route path="/inventory/returns"     element={<P element={<ErrorBoundary><InventorySubPage tab="returns" /></ErrorBoundary>} />} />
+      <Route path="/inventory/stock-invoices" element={<P element={<StockEntryInvoicesPage />} />} />
 
       {/* Production */}
       <Route path="/production"             element={<Navigate to="/production/bom" replace />} />

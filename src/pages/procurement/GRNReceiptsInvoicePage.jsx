@@ -7,6 +7,7 @@ import Modal from '../../components/common/Modal';
 import {
   MdReceipt, MdSearch, MdPrint, MdDownload, MdVisibility,
   MdCheckCircle, MdHourglassEmpty, MdAttachMoney, MdFilterList,
+  MdPayment, MdAdd, MdDelete, MdClose,
 } from 'react-icons/md';
 
 // ── Status colour map ─────────────────────────────────────────────────────────
@@ -139,6 +140,316 @@ ${inv.notes ? `<div style="border:1px solid #ccc;border-top:none;padding:8px 14p
 </div></body></html>`;
 }
 
+// Payment Tracking Content Component
+function PaymentTrackingContent({ 
+  invoice, 
+  payments, 
+  loadingPayments, 
+  calculatePaymentStats,
+  showAddPayment,
+  setShowAddPayment,
+  newPayment,
+  setNewPayment,
+  handleAddPayment,
+  addingPayment,
+}) {
+  const stats = calculatePaymentStats(invoice, payments);
+  
+  const paymentStatusStyle = {
+    'Unpaid': { bg: '#fee2e2', color: '#dc2626' },
+    'Partially Paid': { bg: '#fef3c7', color: '#d97706' },
+    'Fully Paid': { bg: '#dcfce7', color: '#16a34a' },
+  }[stats.paymentStatus] || { bg: '#f1f5f9', color: '#64748b' };
+
+  return (
+    <div>
+      {/* Payment Summary Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 16 }}>
+        {[
+          { label: 'Vendor', value: invoice.vendorName || '—' },
+          { label: 'PO Number', value: invoice.poRef || '—', mono: true },
+          { label: 'GRN Number', value: invoice.poRef || '—', mono: true },
+          { label: 'Invoice Number', value: invoice.invoiceNo, mono: true },
+          { label: 'Invoice Date', value: fmtD(invoice.createdAt) },
+          { label: 'Total Invoice Amount', value: fmt(stats.totalAmount), bold: true, color: '#1e293b' },
+          { label: 'Amount Paid', value: fmt(stats.amountPaid), bold: true, color: '#16a34a' },
+          { label: 'Balance Due', value: fmt(stats.balanceDue), bold: true, color: '#c0392b' },
+          { label: 'Payment Due Date', value: invoice.paymentDueDate ? fmtD(invoice.paymentDueDate) : 'Not set' },
+          { 
+            label: 'Days Remaining', 
+            value: stats.daysOverdue 
+              ? `${stats.daysOverdue} days overdue` 
+              : stats.daysRemaining 
+                ? `${stats.daysRemaining} days` 
+                : '—',
+            color: stats.daysOverdue ? '#dc2626' : stats.daysRemaining ? '#16a34a' : '#64748b',
+          },
+          { 
+            label: 'Payment Status', 
+            value: stats.paymentStatus, 
+            badge: true,
+          },
+        ].map(({ label, value, mono, bold, color, badge }) => (
+          <div key={label} style={{ background: '#f8fafc', borderRadius: 8, padding: '12px', border: '1px solid #e2e8f0' }}>
+            <div style={{ fontSize: 10.5, color: '#94a3b8', marginBottom: 4 }}>{label}</div>
+            {badge ? (
+              <div style={{ 
+                display: 'inline-block', 
+                padding: '4px 10px', 
+                borderRadius: 20, 
+                fontSize: 12, 
+                fontWeight: 700, 
+                ...paymentStatusStyle 
+              }}>
+                {value}
+              </div>
+            ) : (
+              <div style={{ 
+                fontSize: 13, 
+                fontWeight: bold ? 800 : 600, 
+                color: color || '#1e293b', 
+                fontFamily: mono ? 'monospace' : 'inherit' 
+              }}>
+                {value}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Add Payment Button */}
+      <div style={{ marginBottom: 16 }}>
+        <button
+          onClick={() => setShowAddPayment(true)}
+          style={{
+            padding: '10px 16px',
+            background: '#c0392b',
+            color: 'white',
+            border: 'none',
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          <MdAdd size={16} />
+          Add Payment
+        </button>
+      </div>
+
+      {/* Add Payment Form */}
+      {showAddPayment && (
+        <div style={{ 
+          background: '#f8fafc', 
+          border: '1px solid #e2e8f0', 
+          borderRadius: 10, 
+          padding: 16, 
+          marginBottom: 16 
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0, color: '#1e293b' }}>Record New Payment</h3>
+            <button
+              onClick={() => setShowAddPayment(false)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}
+            >
+              <MdClose size={20} />
+            </button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+                Payment Amount
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={newPayment.amount}
+                onChange={(e) => setNewPayment({ ...newPayment, amount: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontFamily: 'inherit',
+                  boxSizing: 'border-box',
+                }}
+                placeholder="Enter amount"
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+                Payment Date
+              </label>
+              <input
+                type="date"
+                value={newPayment.date}
+                onChange={(e) => setNewPayment({ ...newPayment, date: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontFamily: 'inherit',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+                Payment Mode
+              </label>
+              <select
+                value={newPayment.mode}
+                onChange={(e) => setNewPayment({ ...newPayment, mode: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontFamily: 'inherit',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cash">Cash</option>
+                <option value="Cheque">Cheque</option>
+                <option value="UPI">UPI</option>
+                <option value="Credit Card">Credit Card</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+                Transaction Reference
+              </label>
+              <input
+                type="text"
+                value={newPayment.reference}
+                onChange={(e) => setNewPayment({ ...newPayment, reference: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontFamily: 'inherit',
+                  boxSizing: 'border-box',
+                }}
+                placeholder="Reference number"
+              />
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+                Remarks
+              </label>
+              <textarea
+                value={newPayment.remarks}
+                onChange={(e) => setNewPayment({ ...newPayment, remarks: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontFamily: 'inherit',
+                  minHeight: 60,
+                  boxSizing: 'border-box',
+                }}
+                placeholder="Add remarks (optional)"
+              />
+            </div>
+          </div>
+          <div style={{ marginTop: 12, textAlign: 'right' }}>
+            <button
+              onClick={handleAddPayment}
+              disabled={addingPayment || !newPayment.amount}
+              style={{
+                padding: '9px 18px',
+                background: addingPayment || !newPayment.amount ? '#94a3b8' : '#16a34a',
+                color: 'white',
+                border: 'none',
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: addingPayment || !newPayment.amount ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              {addingPayment ? 'Saving…' : 'Save Payment'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Payment History Table */}
+      <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+          <h3 style={{ fontSize: 13, fontWeight: 700, margin: 0, color: '#1e293b' }}>Payment History</h3>
+        </div>
+        {loadingPayments ? (
+          <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Loading payments…</div>
+        ) : payments.length === 0 ? (
+          <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>No payments recorded yet</div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#f1f5f9' }}>
+                  {['Date', 'Amount', 'Mode', 'Reference', 'Remarks'].map((header) => (
+                    <th
+                      key={header}
+                      style={{
+                        padding: '10px 16px',
+                        textAlign: 'left',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: '#64748b',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        borderBottom: '1px solid #e2e8f0',
+                      }}
+                    >
+                      {header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[...payments].sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt)).map((payment, idx) => (
+                  <tr key={payment._id || idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '12px 16px', fontSize: 13, color: '#1e293b' }}>
+                      {fmtD(payment.date || payment.createdAt)}
+                    </td>
+                    <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 700, color: '#16a34a' }}>
+                      {fmt(payment.amount)}
+                    </td>
+                    <td style={{ padding: '12px 16px', fontSize: 13, color: '#1e293b' }}>
+                      {payment.mode}
+                    </td>
+                    <td style={{ padding: '12px 16px', fontSize: 13, color: '#1e293b', fontFamily: 'monospace' }}>
+                      {payment.reference || '—'}
+                    </td>
+                    <td style={{ padding: '12px 16px', fontSize: 13, color: '#64748b' }}>
+                      {payment.remarks || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page Component ───────────────────────────────────────────────────────
 export default function GRNReceiptsInvoicePage() {
   const [invoices, setInvoices]   = useState([]);
@@ -148,6 +459,21 @@ export default function GRNReceiptsInvoicePage() {
   const [viewInv, setViewInv]     = useState(null);
   const [updating, setUpdating]   = useState(null);
   const [downloading, setDownloading] = useState(null);
+  const [invoicePayments, setInvoicePayments] = useState({}); // { invoiceId: payments[]
+  
+  // Payment tracking state
+  const [showPayments, setShowPayments] = useState(false);
+  const [payments, setPayments] = useState([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [showAddPayment, setShowAddPayment] = useState(false);
+  const [addingPayment, setAddingPayment] = useState(false);
+  const [newPayment, setNewPayment] = useState({
+    amount: '',
+    date: new Date().toISOString().split('T')[0],
+    mode: 'Bank Transfer',
+    reference: '',
+    remarks: '',
+  });
 
   // KPI counts
   const total    = invoices.length;
@@ -155,6 +481,111 @@ export default function GRNReceiptsInvoicePage() {
   const approved = invoices.filter(i => i.status === 'Approved').length;
   const paid     = invoices.filter(i => i.status === 'Paid').length;
   const totalVal = invoices.reduce((s, i) => s + (Number(i.grandTotal) || 0), 0);
+  
+  // Fetch payments for an invoice from API
+  const fetchPayments = useCallback(async (invoiceId) => {
+    setLoadingPayments(true);
+    try {
+      const res = await poGeneratorApi.listPayments(invoiceId);
+      const paymentsData = res.data || [];
+      setPayments(paymentsData);
+      setInvoicePayments(prev => ({ ...prev, [invoiceId]: paymentsData }));
+    } catch (e) {
+      console.error(e);
+      // If API fails, use empty array (no payments)
+      setPayments([]);
+      setInvoicePayments(prev => ({ ...prev, [invoiceId]: [] }));
+    } finally {
+      setLoadingPayments(false);
+    }
+  }, []);
+  
+  // Fetch payments for all invoices (optional, for displaying in table
+  const fetchAllInvoicePayments = useCallback(async () => {
+    try {
+      // We'll fetch payments for each invoice when we view them individually
+      // For large lists, we'll fetch on view only when hover or show placeholder
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+  
+  // Calculate payment stats for an invoice
+  const calculatePaymentStats = useCallback((invoice, paymentList) => {
+    const totalAmount = Number(invoice.grandTotal) || 0;
+    const amountPaid = paymentList.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const balanceDue = totalAmount - amountPaid;
+    
+    let paymentStatus = 'Unpaid';
+    if (amountPaid >= totalAmount) {
+      paymentStatus = 'Fully Paid';
+    } else if (amountPaid > 0) {
+      paymentStatus = 'Partially Paid';
+    }
+    
+    // Calculate days remaining / overdue
+    let daysRemaining = null;
+    let daysOverdue = null;
+    if (invoice.paymentDueDate) {
+      const dueDate = new Date(invoice.paymentDueDate);
+      const today = new Date();
+      const diffTime = dueDate - today;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays >= 0) {
+        daysRemaining = diffDays;
+      } else {
+        daysOverdue = Math.abs(diffDays);
+      }
+    }
+    
+    return {
+      totalAmount,
+      amountPaid,
+      balanceDue,
+      paymentStatus,
+      daysRemaining,
+      daysOverdue,
+    };
+  }, []);
+  
+  // Handle adding a payment
+  const handleAddPayment = async () => {
+    if (!viewInv || !newPayment.amount) return;
+    
+    setAddingPayment(true);
+    try {
+      const paymentData = {
+        ...newPayment,
+        amount: Number(newPayment.amount),
+      };
+      
+      await poGeneratorApi.addPayment(viewInv._id, paymentData);
+      
+      // Refresh payments list to get latest data
+      await fetchPayments(viewInv._id);
+      
+      // Reset form
+      setNewPayment({
+        amount: '',
+        date: new Date().toISOString().split('T')[0],
+        mode: 'Bank Transfer',
+        reference: '',
+        remarks: '',
+      });
+      setShowAddPayment(false);
+    } catch (e) {
+      alert(`Failed to add payment: ${e.message}`);
+    } finally {
+      setAddingPayment(false);
+    }
+  };
+  
+  // When viewInv changes, fetch payments immediately
+  useEffect(() => {
+    if (viewInv) {
+      fetchPayments(viewInv._id);
+    }
+  }, [viewInv, fetchPayments]);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -163,7 +594,11 @@ export default function GRNReceiptsInvoicePage() {
       if (statusFilter) params.status = statusFilter;
       if (search.trim()) params.search = search.trim();
       const res = await poGeneratorApi.listInvoices(params);
-      setInvoices(res.data || []);
+      const invoiceList = res.data || [];
+      setInvoices(invoiceList);
+      
+      // Reset invoice payments (no hardcoded data)
+      setInvoicePayments({});
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, [search, statusFilter]);
@@ -295,7 +730,7 @@ export default function GRNReceiptsInvoicePage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 860 }}>
               <thead>
                 <tr style={{ background: '#f8fafc' }}>
-                  {['#', 'Invoice No.', 'GRN / PO Ref', 'Vendor', 'QC Type', 'Items', 'Grand Total', 'Status', 'Date', 'Actions'].map(h => (
+                  {['#', 'Invoice No.', 'GRN / PO Ref', 'Vendor', 'QC Type', 'Items', 'Grand Total', 'Status', 'Payment Status', 'Date', 'Actions'].map(h => (
                     <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 10.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.5px', borderBottom: '1px solid #f1f5f9', whiteSpace: 'nowrap' }}>
                       {h}
                     </th>
@@ -303,14 +738,22 @@ export default function GRNReceiptsInvoicePage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((inv, i) => {
+                {filtered.map((inv, idx) => {
                   const sc = STATUS_STYLE[inv.status] || STATUS_STYLE.Draft;
+                  const invPayments = invoicePayments[inv._id] || [];
+                  const invStats = calculatePaymentStats(inv, invPayments);
+                  const paymentStatusStyle = {
+                    'Unpaid': { bg: '#fee2e2', color: '#dc2626' },
+                    'Partially Paid': { bg: '#fef3c7', color: '#d97706' },
+                    'Fully Paid': { bg: '#dcfce7', color: '#16a34a' },
+                  }[invStats.paymentStatus] || { bg: '#f1f5f9', color: '#64748b' };
+                  
                   return (
                     <tr key={inv._id} style={{ borderBottom: '1px solid #f8fafc' }}
                       onMouseEnter={e => e.currentTarget.style.background = '#fefce8'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
-                      <td style={{ padding: '11px 12px', fontSize: 12, color: '#94a3b8', fontWeight: 700 }}>{i + 1}</td>
+                      <td style={{ padding: '11px 12px', fontSize: 12, color: '#94a3b8', fontWeight: 700 }}>{idx + 1}</td>
                       <td style={{ padding: '11px 12px' }}>
                         <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#c0392b', fontSize: 13 }}>{inv.invoiceNo}</span>
                         <span style={{ marginLeft: 6, padding: '2px 7px', borderRadius: 20, fontSize: 10, fontWeight: 700, background: '#dcfce7', color: '#15803d' }}>
@@ -333,12 +776,32 @@ export default function GRNReceiptsInvoicePage() {
                           {inv.status}
                         </span>
                       </td>
+                      <td style={{ padding: '11px 12px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, ...paymentStatusStyle, display: 'inline-block', width: 'fit-content' }}>
+                            {invStats.paymentStatus}
+                          </span>
+                          <div style={{ fontSize: '10px', color: '#64748b' }}>
+                            Total: {fmt(invStats.totalAmount)}
+                            <br />
+                            Paid: {fmt(invStats.amountPaid)} | Balance: {fmt(invStats.balanceDue)}
+                            <br />
+                            Payments: {invPayments.length}
+                            {inv.paymentDueDate && (
+                              <>
+                                <br />
+                                Due: {fmtD(inv.paymentDueDate)}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </td>
                       <td style={{ padding: '11px 12px', fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>
                         {fmtD(inv.createdAt)}
                       </td>
                       <td style={{ padding: '11px 12px' }}>
                         <div style={{ display: 'flex', gap: 5 }}>
-                          <button onClick={() => setViewInv(inv)} title="View"
+                          <button onClick={() => { setViewInv(inv); setShowPayments(false); }} title="View"
                             style={{ padding: '5px 10px', background: '#eff6ff', color: '#1d4ed8', border: 'none', borderRadius: 7, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                             <MdVisibility size={13} /> View
                           </button>
@@ -364,7 +827,7 @@ export default function GRNReceiptsInvoicePage() {
       {/* ── View / Approve Modal ── */}
       <Modal
         open={!!viewInv}
-        onClose={() => setViewInv(null)}
+        onClose={() => { setViewInv(null); setShowPayments(false); setShowAddPayment(false); }}
         title={`GRN Receipt Invoice — ${viewInv?.invoiceNo}`}
         size="xl"
         footer={
@@ -392,7 +855,7 @@ export default function GRNReceiptsInvoicePage() {
                 style={{ padding: '8px 14px', background: '#fefce8', color: '#a16207', border: '1px solid #fde68a', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: downloading === viewInv?._id ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 5, opacity: downloading === viewInv?._id ? 0.6 : 1 }}>
                 <MdDownload size={15} /> {downloading === viewInv?._id ? 'Generating…' : 'Download PDF'}
               </button>
-              <button onClick={() => setViewInv(null)}
+              <button onClick={() => { setViewInv(null); setShowPayments(false); setShowAddPayment(false); }}
                 style={{ padding: '8px 14px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Close
               </button>
@@ -401,28 +864,72 @@ export default function GRNReceiptsInvoicePage() {
         }
       >
         {viewInv && (
-          <>
-            {/* Summary strip */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 16 }}>
-              {[
-                { label: 'Invoice No.', value: viewInv.invoiceNo, mono: true },
-                { label: 'GRN / PO Ref', value: viewInv.poRef || '—', mono: true },
-                { label: 'Vendor', value: viewInv.vendorName || '—' },
-                { label: 'Grand Total', value: fmt(viewInv.grandTotal), bold: true, color: '#c0392b' },
-                { label: 'QC Type', value: viewInv.invoiceType === 'partial' ? 'Partial QC' : 'Full QC Passed' },
-                { label: 'Status', value: viewInv.status },
-              ].map(({ label, value, mono, bold, color }) => (
-                <div key={label} style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 12px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: 10.5, color: '#94a3b8', marginBottom: 3 }}>{label}</div>
-                  <div style={{ fontSize: 13, fontWeight: bold ? 800 : 600, color: color || '#1e293b', fontFamily: mono ? 'monospace' : 'inherit' }}>{value}</div>
-                </div>
-              ))}
+          <div>
+            {/* Tabs */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16, borderBottom: '1px solid #e2e8f0' }}>
+              <button
+                onClick={() => setShowPayments(false)}
+                style={{
+                  padding: '10px 16px', border: 'none', cursor: 'pointer', background: 'transparent',
+                  fontSize: 13, fontWeight: 600, color: !showPayments ? '#c0392b' : '#64748b',
+                  borderBottom: !showPayments ? '2px solid #c0392b' : '2px solid transparent',
+                  fontFamily: 'inherit'
+                }}
+              >
+                Invoice Details
+              </button>
+              <button
+                onClick={() => setShowPayments(true)}
+                style={{
+                  padding: '10px 16px', border: 'none', cursor: 'pointer', background: 'transparent',
+                  fontSize: 13, fontWeight: 600, color: showPayments ? '#c0392b' : '#64748b',
+                  borderBottom: showPayments ? '2px solid #c0392b' : '2px solid transparent',
+                  fontFamily: 'inherit'
+                }}
+              >
+                <MdPayment style={{ marginRight: 6, display: 'inline', verticalAlign: 'middle' }} />
+                Payment Tracking
+              </button>
             </div>
-            {/* Invoice HTML preview */}
-            <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}
-              dangerouslySetInnerHTML={{ __html: buildInvoiceHTML(viewInv) }}
-            />
-          </>
+
+            {!showPayments ? (
+              <>
+                {/* Summary strip */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 16 }}>
+                  {[
+                    { label: 'Invoice No.', value: viewInv.invoiceNo, mono: true },
+                    { label: 'GRN / PO Ref', value: viewInv.poRef || '—', mono: true },
+                    { label: 'Vendor', value: viewInv.vendorName || '—' },
+                    { label: 'Grand Total', value: fmt(viewInv.grandTotal), bold: true, color: '#c0392b' },
+                    { label: 'QC Type', value: viewInv.invoiceType === 'partial' ? 'Partial QC' : 'Full QC Passed' },
+                    { label: 'Status', value: viewInv.status },
+                  ].map(({ label, value, mono, bold, color }) => (
+                    <div key={label} style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 12px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: 10.5, color: '#94a3b8', marginBottom: 3 }}>{label}</div>
+                      <div style={{ fontSize: 13, fontWeight: bold ? 800 : 600, color: color || '#1e293b', fontFamily: mono ? 'monospace' : 'inherit' }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+                {/* Invoice HTML preview */}
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}
+                  dangerouslySetInnerHTML={{ __html: buildInvoiceHTML(viewInv) }}
+                />
+              </>
+            ) : (
+              <PaymentTrackingContent 
+                invoice={viewInv}
+                payments={payments}
+                loadingPayments={loadingPayments}
+                calculatePaymentStats={calculatePaymentStats}
+                showAddPayment={showAddPayment}
+                setShowAddPayment={setShowAddPayment}
+                newPayment={newPayment}
+                setNewPayment={setNewPayment}
+                handleAddPayment={handleAddPayment}
+                addingPayment={addingPayment}
+              />
+            )}
+          </div>
         )}
       </Modal>
     </div>

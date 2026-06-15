@@ -13,6 +13,7 @@ import { qualityCheckApi } from '../../api/qualityCheckApi';
 import { vendorApi } from '../../api/vendorApi';
 import { inventoryApi } from '../../api/inventoryApi';
 import { inventoryFlowApi } from '../../api/inventoryFlowApi';
+import { erpDealerOrderApi } from '../../api/erpDealerOrderApi';
 import { MdProductionQuantityLimits } from 'react-icons/md';
 import { GiReturnArrow } from 'react-icons/gi';
 import { useDataEvent } from '../../utils/dataEvents';
@@ -72,6 +73,7 @@ export default function DashboardPage() {
   const [qcStats, setQcStats]             = useState({ total: 0, passed: 0, pending: 0, partial: 0, rejected: 0 });
   const [vendorStats, setVendorStats]     = useState({ total: 0, active: 0 });
   const [inventoryStats, setInventoryStats] = useState({ total: 0, critical: 0 });
+  const [dealerOrderStats, setDealerOrderStats] = useState({});
   const [recentPOs, setRecentPOs]         = useState([]);
   const [pendingApprovals, setPendingApprovals] = useState([]);
   const [lowStock, setLowStock]           = useState([]);
@@ -80,7 +82,7 @@ export default function DashboardPage() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [prRes, poRes, grnRes, approvalRes, qcRes, vendorRes, invRes, appListRes, flowRes] = await Promise.allSettled([
+      const [prRes, poRes, grnRes, approvalRes, qcRes, vendorRes, invRes, appListRes, flowRes, dealerStatsRes] = await Promise.allSettled([
         prApi.getAll(),
         poApi.getAll(),
         grnApi.getAll(),
@@ -90,6 +92,7 @@ export default function DashboardPage() {
         inventoryApi.getAll(),
         approvalApi.getAll({ status: 'Pending' }),
         inventoryFlowApi.getDashboard(),
+        erpDealerOrderApi.getDashboardStats(),
       ]);
 
       if (prRes.status === 'fulfilled') {
@@ -118,6 +121,7 @@ export default function DashboardPage() {
       }
       if (appListRes.status === 'fulfilled') setPendingApprovals((appListRes.value.data || []).slice(0, 4));
       if (flowRes.status === 'fulfilled') setFlowData(flowRes.value.data || null);
+      if (dealerStatsRes.status === 'fulfilled') setDealerOrderStats(dealerStatsRes.value.data || {});
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, []);
@@ -132,12 +136,14 @@ export default function DashboardPage() {
   useDataEvent('approval:changed',  fetchAll);
   useDataEvent('qc:changed',        fetchAll);
   useDataEvent('inventory:changed', fetchAll);
+  useDataEvent('dealer-order:changed', fetchAll);
 
   const fmt = (n) => n >= 100000 ? `₹${(n/100000).toFixed(1)}L` : `₹${(n||0).toLocaleString('en-IN')}`;
 
   const kpis = [
     { label: 'Total PO Value',     value: fmt(poStats.totalValue),          sub: `${poStats.total} purchase orders`,    gradient: 'linear-gradient(135deg,#ef4444,#b91c1c)', icon: <SalesIcon />,   link: '/procurement/po' },
     { label: 'Pending Approvals',  value: String(approvalStats.pending||0), sub: `${approvalStats.total||0} total`,     gradient: 'linear-gradient(135deg,#f59e0b,#d97706)', icon: <OrderIcon />,   link: '/procurement/approvals' },
+    { label: 'Dealer Orders',      value: String(dealerOrderStats.totalOrders||0), sub: `${dealerOrderStats.pendingApprovals||0} pending`, gradient: 'linear-gradient(135deg,#8b5cf6,#6d28d9)', icon: <TruckIcon />, link: '/orders/dealers' },
     { label: 'Inventory Items',    value: String(inventoryStats.total||0),  sub: `${inventoryStats.critical||0} critical`, gradient: 'linear-gradient(135deg,#22c55e,#15803d)', icon: <BoxIcon />,     link: '/inventory/stock' },
     { label: 'Active Vendors',     value: String(vendorStats.active||0),    sub: `${vendorStats.total||0} total`,       gradient: 'linear-gradient(135deg,#a855f7,#7c3aed)', icon: <FactoryIcon />, link: '/procurement/vendors' },
     { label: 'GRNs Pending QC',    value: String(grnStats.pending||0),      sub: `${grnStats.total||0} total GRNs`,     gradient: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', icon: <TruckIcon />,   link: '/procurement/grn' },
@@ -145,6 +151,7 @@ export default function DashboardPage() {
 
   const alerts = [
     { label: 'Pending PRs',       value: prStats.pending,           color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  icon: <ClipboardIcon />,                        link: '/procurement/pr' },
+    { label: 'Pending Dealer Approvals', value: dealerOrderStats.pendingApprovals||0, color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', icon: <TruckIcon size={24} />, link: '/orders/dealers' },
     { label: 'Pending Approvals', value: approvalStats.pending||0,  color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   icon: <GiReturnArrow size={24} />,              link: '/procurement/approvals' },
     { label: 'QC Pending',        value: qcStats.pending||0,        color: '#22c55e', bg: 'rgba(34,197,94,0.1)',   icon: <TruckDispatchIcon />,                    link: '/procurement/qc' },
     { label: 'Critical Stock',    value: inventoryStats.critical||0, color: '#a855f7', bg: 'rgba(168,85,247,0.1)', icon: <MdProductionQuantityLimits size={24} />, link: '/inventory/stock' },
@@ -205,11 +212,11 @@ export default function DashboardPage() {
         }
         @media(min-width:768px) { .db-charts-1 { grid-template-columns:2fr 1fr; } }
 
-        /* Operational alerts — 2 cols on mobile, 4 on desktop */
+        /* Operational alerts — 2 cols on mobile, 5 on desktop */
         .db-alerts {
           display:grid; grid-template-columns:repeat(2,1fr); gap:12px;
         }
-        @media(min-width:768px) { .db-alerts { grid-template-columns:repeat(4,1fr); } }
+        @media(min-width:768px) { .db-alerts { grid-template-columns:repeat(5,1fr); } }
 
         /* Charts row 2 — stacked on mobile, side-by-side on desktop */
         .db-charts-2 {
@@ -262,6 +269,7 @@ export default function DashboardPage() {
           <div className="db-banner-stats" style={{ position:'relative', zIndex:1 }}>
             {[
               { label:'Total POs',    value: loading ? '—' : poStats.total,              color:'#ef4444' },
+              { label:'Dealer Orders', value: loading ? '—' : dealerOrderStats.totalOrders||0, color:'#8b5cf6' },
               { label:'Pending Appr', value: loading ? '—' : approvalStats.pending||0,   color:'#f59e0b' },
               { label:'QC Passed',    value: loading ? '—' : qcStats.passed||0,          color:'#22c55e' },
             ].map((s, i) => (

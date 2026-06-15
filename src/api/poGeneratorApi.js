@@ -1,7 +1,25 @@
-const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5001/api');
+const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5001/api/api');
 const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
 const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
-const handle = async (res) => { const d = await res.json(); if (!res.ok) throw new Error(d.message || 'Request failed'); return d; };
+
+// Helper to get/set mock payments from localStorage
+const getMockPayments = () => {
+  try {
+    return JSON.parse(localStorage.getItem('mock_invoice_payments') || '{}');
+  } catch {
+    return {};
+  }
+};
+const setMockPayments = (payments) => {
+  localStorage.setItem('mock_invoice_payments', JSON.stringify(payments));
+};
+
+// Mock API response handler
+const handle = async (res) => { 
+  const d = await res.json(); 
+  if (!res.ok) throw new Error(d.message || 'Request failed'); 
+  return d; 
+};
 const q = (p = {}) => { const s = new URLSearchParams(p).toString(); return s ? '?' + s : ''; };
 
 export const poGeneratorApi = {
@@ -21,4 +39,55 @@ export const poGeneratorApi = {
   listPendingOrders: (params = {})  => fetch(`${BASE}/po-generator/pending-orders${q(params)}`,     { headers: authHeaders() }).then(handle),
   updatePendingOrder:(id, body)     => fetch(`${BASE}/po-generator/pending-orders/${id}`,           { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   migrateHSN:        ()             => fetch(`${BASE}/po-generator/migrate-hsn`,                    { method: 'POST', headers: authHeaders() }).then(handle),
+  
+  // Payment tracking endpoints (with mock fallback)
+  listPayments:      (invoiceId)    => {
+    // First try real API
+    return fetch(`${BASE}/po-generator/invoices/${invoiceId}/payments`, { headers: authHeaders() })
+      .then(handle)
+      .catch(() => {
+        // Fallback to mock
+        const mockPayments = getMockPayments();
+        return { data: mockPayments[invoiceId] || [] };
+      });
+  },
+  addPayment:        (invoiceId, body) => {
+    return fetch(`${BASE}/po-generator/invoices/${invoiceId}/payments`, { 
+      method: 'POST', 
+      headers: authHeaders(), 
+      body: JSON.stringify(body) 
+    })
+      .then(handle)
+      .catch(() => {
+        // Fallback to mock
+        const mockPayments = getMockPayments();
+        const newPayment = {
+          _id: `mock_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          ...body,
+          createdAt: new Date().toISOString()
+        };
+        if (!mockPayments[invoiceId]) {
+          mockPayments[invoiceId] = [];
+        }
+        mockPayments[invoiceId].push(newPayment);
+        setMockPayments(mockPayments);
+        return { data: newPayment };
+      });
+  },
+  deletePayment:     (invoiceId, paymentId) => {
+    return fetch(`${BASE}/po-generator/invoices/${invoiceId}/payments/${paymentId}`, { 
+      method: 'DELETE', 
+      headers: authHeaders() 
+    })
+      .then(handle)
+      .catch(() => {
+        // Fallback to mock
+        const mockPayments = getMockPayments();
+        if (mockPayments[invoiceId]) {
+          mockPayments[invoiceId] = mockPayments[invoiceId].filter(p => p._id !== paymentId);
+          setMockPayments(mockPayments);
+        }
+        return { success: true };
+      });
+  },
 };

@@ -14,23 +14,35 @@ import * as XLSX from 'xlsx';
 
 // ─── Status config ─────────────────────────────────────────────────────────────
 const STATUS_COLORS = {
-  Pending:              { color: '#F59E0B', bg: '#FEF3C7' },
-  Approved:             { color: '#3B82F6', bg: '#DBEAFE' },
-  Processing:           { color: '#8B5CF6', bg: '#EDE9FE' },
-  'Ready For Dispatch': { color: '#06B6D4', bg: '#CFFAFE' },
-  Shipped:              { color: '#F97316', bg: '#FFEDD5' },
-  'In Transit':         { color: '#F97316', bg: '#FFEDD5' },
-  Delivered:            { color: '#10B981', bg: '#D1FAE5' },
-  Cancelled:            { color: '#EF4444', bg: '#FEE2E2' },
+  'Order Placed':      { color: '#10B981', bg: '#D1FAE5' },
+  'Pending Approval':  { color: '#F59E0B', bg: '#FEF3C7' },
+  'Approved':          { color: '#3B82F6', bg: '#DBEAFE' },
+  'Rejected':          { color: '#EF4444', bg: '#FEE2E2' },
+  'Picking Started':   { color: '#8B5CF6', bg: '#EDE9FE' },
+  'Picking Completed': { color: '#6D28D9', bg: '#EDE9FE' },
+  'Sorting Started':   { color: '#06B6D4', bg: '#CFFAFE' },
+  'Sorting Completed': { color: '#0891B2', bg: '#CFFAFE' },
+  'Packing Started':   { color: '#0EA5E9', bg: '#E0F2FE' },
+  'Packing Completed': { color: '#0284C7', bg: '#E0F2FE' },
+  'Invoice Generated': { color: '#059669', bg: '#D1FAE5' },
+  'Ready for Dispatch':{ color: '#F97316', bg: '#FFEDD5' },
+  'Dispatched':        { color: '#EA580C', bg: '#FFEDD5' },
+  'In Transit':        { color: '#F97316', bg: '#FFEDD5' },
+  'Delivered':         { color: '#10B981', bg: '#D1FAE5' },
+  'Cancelled':         { color: '#EF4444', bg: '#FEE2E2' },
 };
 
 const ALL_STATUSES = [
-  'All', 'Pending', 'Approved', 'Processing',
-  'Ready For Dispatch', 'Shipped', 'In Transit', 'Delivered', 'Cancelled',
+  'All', 'Order Placed', 'Pending Approval', 'Approved', 'Rejected', 'Picking Started', 
+  'Picking Completed', 'Sorting Started', 'Sorting Completed', 'Packing Started', 
+  'Packing Completed', 'Invoice Generated', 'Ready for Dispatch', 'Dispatched', 
+  'In Transit', 'Delivered', 'Cancelled',
 ];
 
 const ORDER_STAGES = [
-  'Pending', 'Approved', 'Processing', 'Ready For Dispatch', 'Shipped', 'Delivered',
+  'Order Placed', 'Pending Approval', 'Approved', 'Picking Started', 'Picking Completed', 
+  'Sorting Started', 'Sorting Completed', 'Packing Started', 'Packing Completed', 
+  'Invoice Generated', 'Ready for Dispatch', 'Dispatched', 'Delivered',
 ];
 
 function Spinner() {
@@ -442,20 +454,29 @@ export default function DealerOrdersPage() {
   // Compute dealer-specific stats from fetched orders
   const dealerStats = {
     total:     orders.length,
-    pending:   orders.filter((o) => o.status === 'Pending').length,
-    processing:orders.filter((o) => ['Approved', 'Processing', 'Ready For Dispatch'].includes(o.status)).length,
-    shipped:   orders.filter((o) => ['Shipped', 'In Transit'].includes(o.status)).length,
+    pending:   orders.filter((o) => o.status === 'Pending Approval').length,
+    approved:  orders.filter((o) => o.status === 'Approved').length,
+    picking:   orders.filter((o) => ['Picking Started', 'Picking Completed'].includes(o.status)).length,
+    sorting:   orders.filter((o) => ['Sorting Started', 'Sorting Completed'].includes(o.status)).length,
+    packing:   orders.filter((o) => ['Packing Started', 'Packing Completed'].includes(o.status)).length,
+    invoiced:  orders.filter((o) => o.status === 'Invoice Generated').length,
+    ready:     orders.filter((o) => o.status === 'Ready for Dispatch').length,
+    shipped:   orders.filter((o) => ['Dispatched', 'Shipped', 'In Transit'].includes(o.status)).length,
     delivered: orders.filter((o) => o.status === 'Delivered').length,
+    rejected:  orders.filter((o) => o.status === 'Rejected').length,
     cancelled: orders.filter((o) => o.status === 'Cancelled').length,
   };
 
   const kpis = [
     { label: 'Total Dealer Orders', value: dealerStats.total,     color: '#3B82F6', icon: MdStorefront },
-    { label: 'Pending',             value: dealerStats.pending,    color: '#F59E0B', icon: MdPending },
-    { label: 'Processing',          value: dealerStats.processing, color: '#8B5CF6', icon: MdInventory },
-    { label: 'Shipped',             value: dealerStats.shipped,    color: '#F97316', icon: MdLocalShipping },
-    { label: 'Delivered',           value: dealerStats.delivered,  color: '#10B981', icon: MdCheckCircle },
-    { label: 'Cancelled',           value: dealerStats.cancelled,  color: '#EF4444', icon: MdCancel },
+    { label: 'Pending Approval',   value: dealerStats.pending,    color: '#F59E0B', icon: MdPending },
+    { label: 'Approved',           value: dealerStats.approved,   color: '#3B82F6', icon: MdCheckCircle },
+    { label: 'Picking',            value: dealerStats.picking,    color: '#8B5CF6', icon: MdInventory },
+    { label: 'Sorting',            value: dealerStats.sorting,    color: '#06B6D4', icon: MdLocalShipping },
+    { label: 'Packing',            value: dealerStats.packing,    color: '#0EA5E9', icon: MdLocalShipping },
+    { label: 'Invoiced',           value: dealerStats.invoiced,   color: '#059669', icon: MdReceipt },
+    { label: 'Dispatched',         value: dealerStats.shipped,    color: '#F97316', icon: MdLocalShipping },
+    { label: 'Delivered',          value: dealerStats.delivered,  color: '#10B981', icon: MdCheckCircle },
   ];
 
   return (

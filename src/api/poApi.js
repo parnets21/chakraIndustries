@@ -25,4 +25,8 @@ export const poApi = {
   delete: (id) => fetch(`${BASE}/purchase-orders/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
   bulkUpload: (formData) =>
     fetch(`${BASE}/purchase-orders/bulk-upload`, { method: 'POST', headers: authHeadersFormData(), body: formData }).then(handle),
+  sendEmail: (id, to) =>
+    fetch(`${BASE}/purchase-orders/${id}/send-email`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ to }) }).then(handle),
+  sendWhatsApp: (id, to) =>
+    fetch(`${BASE}/purchase-orders/${id}/send-whatsapp`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ to }) }).then(handle),
 };

@@ -5,14 +5,24 @@ import BulkPOUpload from './BulkPOUpload';
 import { poApi } from '../../../api/poApi';
 import { vendorApi } from '../../../api/vendorApi';   
 import { rfqApi } from '../../../api/rfqApi';
-import { MdVisibility, MdDeleteOutline, MdCheckCircle, MdCancel, MdSend } from 'react-icons/md';
-import { FaEdit } from 'react-icons/fa';
+import { MdVisibility, MdDeleteOutline, MdCheckCircle, MdCancel, MdSend, MdPrint, MdEmail } from 'react-icons/md';
+import { FaEdit, FaWhatsapp } from 'react-icons/fa';
 import { dataEvents } from '../../../utils/dataEvents';
 
 const EMPTY_FORM = {
   vendor: '', linkedRFQ: '', deliveryDate: '',
   paymentTerms: 'Net 30', remarks: '',
   items: [{ name: '', qty: 1, unit: 'Nos', basePrice: 0, gst: 18 }],
+};
+
+// Function to format currency
+const fmtAmt = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
+
+// Function to format date
+const fmtDate = (d) => {
+  if (!d) return '—';
+  try { return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); }
+  catch { return d; }
 };
 
 export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved }) {
@@ -298,6 +308,111 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
     }
   };
 
+  // Print PO function
+  const handlePrint = (po) => {
+    const printWindow = window.open('', '_blank');
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${po.poId}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          .header { text-align: center; margin-bottom: 30px; }
+          .header h1 { color: #c0392b; margin: 0; }
+          .details { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background-color: #f5f5f5; }
+          .total { text-align: right; font-weight: bold; }
+          .grand-total { font-size: 18px; color: #c0392b; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Sri Chakra Industries</h1>
+          <h2>Purchase Order - ${po.poId}</h2>
+        </div>
+        <div class="details">
+          <div><strong>Vendor:</strong> ${po.vendor?.companyName || '—'}</div>
+          <div><strong>Date:</strong> ${fmtDate(po.createdAt)}</div>
+          ${po.deliveryDate ? `<div><strong>Delivery Date:</strong> ${fmtDate(po.deliveryDate)}</div>` : ''}
+          <div><strong>Status:</strong> ${po.status}</div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Qty</th>
+              <th>Unit</th>
+              <th>Unit Price</th>
+              <th>GST %</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${po.items.map(item => `
+              <tr>
+                <td>${item.name}</td>
+                <td>${item.qty}</td>
+                <td>${item.unit}</td>
+                <td>${fmtAmt(item.basePrice)}</td>
+                <td>${item.gst}%</td>
+                <td>${fmtAmt(item.total)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={5} class="total">Subtotal:</td>
+              <td class="total">${fmtAmt(po.subtotal)}</td>
+            </tr>
+            <tr>
+              <td colSpan={5} class="total">GST Total:</td>
+              <td class="total">${fmtAmt(po.gstTotal)}</td>
+            </tr>
+            <tr>
+              <td colSpan={5} class="total grand-total">Grand Total:</td>
+              <td class="total grand-total">${fmtAmt(po.grandTotal)}</td>
+            </tr>
+          </tfoot>
+        </table>
+        ${po.remarks ? `<div><strong>Remarks:</strong> ${po.remarks}</div>` : ''}
+      </body>
+      </html>
+    `;
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
+
+  // Send PO Email function
+  const handleSendEmail = async (po) => {
+    try {
+      const to = prompt('Enter recipient email:', po.vendor?.email || '');
+      if (!to) return;
+      await poApi.sendEmail(po._id, to);
+      alert('✓ PO sent via email successfully!');
+      fetchPOs();
+    } catch (e) {
+      alert(`❌ Error: ${e.message}`);
+    }
+  };
+
+  // Send PO WhatsApp function
+  const handleSendWhatsApp = async (po) => {
+    try {
+      const to = prompt('Enter recipient phone number (with country code):', po.vendor?.phone || '');
+      if (!to) return;
+      await poApi.sendWhatsApp(po._id, to);
+      alert('✓ PO sent via WhatsApp successfully!');
+      fetchPOs();
+    } catch (e) {
+      alert(`❌ Error: ${e.message}`);
+    }
+  };
+
   const totals = calcTotals();
 
   return (
@@ -319,7 +434,7 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
         ) : (
           <div style={{ overflowX: 'auto', width: '100%' }}>
-            <table style={{ width: '100%', minWidth: '900px' }}>
+            <table style={{ width: '100%', minWidth: '1100px' }}>
               <thead>
                 <tr>
                   <th style={{ padding: '11px 12px' }}>PO ID</th>
@@ -341,17 +456,34 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
                     <td style={{ fontWeight: 600, color: 'var(--primary)', whiteSpace: 'nowrap', padding: '12px' }}>{p.poId}</td>
                     <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>{p.vendor?.companyName || '—'}</td>
                     <td style={{ padding: '12px' }}>{p.items?.length || 0}</td>
-                    <td style={{ fontWeight: 600, whiteSpace: 'nowrap', padding: '12px' }}>₹{Math.round(p.subtotal).toLocaleString()}</td>
-                    <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>₹{Math.round(p.gstTotal).toLocaleString()}</td>
-                    <td style={{ fontWeight: 700, color: 'var(--primary-dark)', whiteSpace: 'nowrap', padding: '12px' }}>₹{Math.round(p.grandTotal).toLocaleString()}</td>
+                    <td style={{ fontWeight: 600, whiteSpace: 'nowrap', padding: '12px' }}>{fmtAmt(p.subtotal)}</td>
+                    <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>{fmtAmt(p.gstTotal)}</td>
+                    <td style={{ fontWeight: 700, color: 'var(--primary-dark)', whiteSpace: 'nowrap', padding: '12px' }}>{fmtAmt(p.grandTotal)}</td>
                     <td style={{ color: '#64748b', fontSize: 12, whiteSpace: 'nowrap', padding: '12px' }}>
                       {new Date(p.createdAt).toLocaleDateString('en-IN')}
                     </td>
                     <td style={{ whiteSpace: 'nowrap', padding: '12px' }}><StatusBadge status={p.status} /></td>
                     <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <button className="btn btn-sm" title="View" style={{ background: '#f1f5f9', color: 'var(--text)', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setViewPO(p)}>
+                        <button className="btn btn-sm" title="View" style={{ background: '#f1f5f9', color: 'var(--text)', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={async () => {
+                          try {
+                            const res = await poApi.getById(p._id);
+                            setViewPO(res.data);
+                          } catch (e) {
+                            console.error('Error fetching PO details:', e);
+                            setViewPO(p);
+                          }
+                        }}>
                           <MdVisibility size={16} />
+                        </button>
+                        <button className="btn btn-sm" title="Print" style={{ background: '#eff6ff', color: '#2563eb', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => handlePrint(p)}>
+                          <MdPrint size={16} />
+                        </button>
+                        <button className="btn btn-sm" title="Send Email" style={{ background: '#e0f2fe', color: '#0284c7', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => handleSendEmail(p)}>
+                          <MdEmail size={16} />
+                        </button>
+                        <button className="btn btn-sm" title="Send WhatsApp" style={{ background: '#dcfce7', color: '#16a34a', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => handleSendWhatsApp(p)}>
+                          <FaWhatsapp size={16} />
                         </button>
                         <button className="btn btn-sm" title="Edit" style={{ background: '#fef3c7', color: '#92400e', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => handleEdit(p)}>
                           <FaEdit size={16} />
@@ -402,7 +534,12 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
 
       {/* View PO Modal */}
       <Modal open={!!viewPO} onClose={() => setViewPO(null)} title={`Purchase Order: ${viewPO?.poId}`} size="lg"
-        footer={<button className="btn btn-primary" onClick={() => setViewPO(null)}>Close</button>}>
+        footer={
+          <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+            <button className="btn btn-outline" onClick={() => handlePrint(viewPO)}><MdPrint /> Print</button>
+            <button className="btn btn-primary" onClick={() => setViewPO(null)}>Close</button>
+          </div>
+        }>
         {viewPO && (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px 20px', marginBottom: 20 }}>
@@ -459,28 +596,69 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
                       <td style={{ padding: '10px 12px', fontWeight: 600 }}>{item.name}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'right' }}>{item.qty}</td>
                       <td style={{ padding: '10px 12px' }}>{item.unit}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>₹{parseFloat(item.basePrice).toLocaleString()}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>{fmtAmt(item.basePrice)}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'right' }}>{item.gst}%</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>₹{Math.round(item.total).toLocaleString()}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>{fmtAmt(item.total)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr style={{ background: '#F8FAFC' }}>
                     <td colSpan={5} style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600 }}>Subtotal:</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>₹{Math.round(viewPO.subtotal).toLocaleString()}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>{fmtAmt(viewPO.subtotal)}</td>
                   </tr>
                   <tr style={{ background: '#F8FAFC' }}>
                     <td colSpan={5} style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600 }}>GST Total:</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>₹{Math.round(viewPO.gstTotal).toLocaleString()}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>{fmtAmt(viewPO.gstTotal)}</td>
                   </tr>
                   <tr style={{ background: '#FEF2F2' }}>
                     <td colSpan={5} style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, fontSize: 14 }}>Grand Total:</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900, color: '#c0392b', fontSize: 16 }}>₹{Math.round(viewPO.grandTotal).toLocaleString()}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900, color: '#c0392b', fontSize: 16 }}>{fmtAmt(viewPO.grandTotal)}</td>
                   </tr>
                 </tfoot>
               </table>
             </div>
+
+            {/* Sent History */}
+            {viewPO.sentHistory && viewPO.sentHistory.length > 0 && (
+              <div style={{ marginTop: 24 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>Sent History</div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: '#F8FAFC' }}>
+                        <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#64748B', fontSize: 11 }}>DATE</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#64748B', fontSize: 11 }}>METHOD</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#64748B', fontSize: 11 }}>RECIPIENT</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#64748B', fontSize: 11 }}>SENT BY</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {viewPO.sentHistory.map((entry, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #E2E8F0' }}>
+                          <td style={{ padding: '10px 12px' }}>{new Date(entry.sentAt).toLocaleString('en-IN')}</td>
+                          <td style={{ padding: '10px 12px' }}>
+                            <span style={{ 
+                              display: 'inline-block',
+                              padding: '4px 8px',
+                              borderRadius: 4,
+                              fontSize: 12,
+                              fontWeight: 600,
+                              background: entry.method === 'email' ? '#e0f2fe' : '#dcfce7',
+                              color: entry.method === 'email' ? '#0284c7' : '#16a34a'
+                            }}>
+                              {entry.method.charAt(0).toUpperCase() + entry.method.slice(1)}
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px 12px' }}>{entry.recipient}</td>
+                          <td style={{ padding: '10px 12px' }}>{entry.sentBy?.name || entry.sentBy?.email || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </>
         )}
       </Modal>
@@ -653,7 +831,7 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
                       <input type="number" className="form-input" value={item.gst}
                         onChange={e => handleItemChange(i, 'gst', e.target.value)} style={{ width: 70, textAlign: 'right' }} />
                     </td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>₹{Math.round(itemTotal).toLocaleString()}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>{fmtAmt(itemTotal)}</td>
                     <td style={{ padding: '8px 12px' }}>
                       {formData.items.length > 1 && (
                         <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#dc2626', padding: '4px 8px' }}
@@ -669,13 +847,13 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
 
         <div style={{ background: '#f8fafc', borderRadius: 8, padding: 16, marginLeft: 'auto', maxWidth: 280 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
-            <span>Subtotal</span><span style={{ fontWeight: 600 }}>₹{Math.round(totals.subtotal).toLocaleString()}</span>
+            <span>Subtotal</span><span style={{ fontWeight: 600 }}>{fmtAmt(totals.subtotal)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
-            <span>GST Total</span><span style={{ fontWeight: 600 }}>₹{Math.round(totals.gstTotal).toLocaleString()}</span>
+            <span>GST Total</span><span style={{ fontWeight: 600 }}>{fmtAmt(totals.gstTotal)}</span>
           </div>
           <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 8, display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800, color: '#c0392b' }}>
-            <span>Grand Total</span><span>₹{Math.round(totals.grandTotal).toLocaleString()}</span>
+            <span>Grand Total</span><span>{fmtAmt(totals.grandTotal)}</span>
           </div>
         </div>
 
@@ -733,7 +911,7 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
             <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14, textAlign: 'left', maxWidth: 320, margin: '0 auto' }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 8 }}>PO DETAILS</div>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#ef4444', marginBottom: 4 }}>{statusModal.po.poId}</div>
-              <div style={{ fontSize: 12, color: '#475569' }}>{statusModal.po.vendor?.companyName} · ₹{Math.round(statusModal.po.grandTotal || 0).toLocaleString('en-IN')}</div>
+              <div style={{ fontSize: 12, color: '#475569' }}>{statusModal.po.vendor?.companyName} · {fmtAmt(statusModal.po.grandTotal)}</div>
             </div>
           )}
         </div>

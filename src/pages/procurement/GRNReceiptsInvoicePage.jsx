@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShell';
 import StatusBadge from '../../components/common/StatusBadge';
 import { poGeneratorApi } from '../../api/poGeneratorApi';
@@ -452,6 +453,7 @@ function PaymentTrackingContent({
 
 // ── Main Page Component ───────────────────────────────────────────────────────
 export default function GRNReceiptsInvoicePage() {
+  const navigate = useNavigate();
   const [invoices, setInvoices]   = useState([]);
   const [loading, setLoading]     = useState(true);
   const [search, setSearch]       = useState('');
@@ -800,7 +802,7 @@ export default function GRNReceiptsInvoicePage() {
                         {fmtD(inv.createdAt)}
                       </td>
                       <td style={{ padding: '11px 12px' }}>
-                        <div style={{ display: 'flex', gap: 5 }}>
+                        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                           <button onClick={() => { setViewInv(inv); setShowPayments(false); }} title="View"
                             style={{ padding: '5px 10px', background: '#eff6ff', color: '#1d4ed8', border: 'none', borderRadius: 7, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                             <MdVisibility size={13} /> View
@@ -812,6 +814,20 @@ export default function GRNReceiptsInvoicePage() {
                           <button onClick={() => handleDownload(inv)} disabled={downloading === inv._id} title="Download PDF"
                             style={{ padding: '5px 10px', background: downloading === inv._id ? '#f1f5f9' : '#fef9c3', color: '#a16207', border: 'none', borderRadius: 7, fontSize: 12, cursor: downloading === inv._id ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, opacity: downloading === inv._id ? 0.6 : 1 }}>
                             <MdDownload size={13} /> {downloading === inv._id ? '…' : 'PDF'}
+                          </button>
+                          <button 
+                            onClick={() => navigate('/returns/credit-note', { state: { invoice: inv } })}
+                            title="Create Credit Note"
+                            style={{ padding: '5px 10px', background: '#dbeafe', color: '#1d4ed8', border: 'none', borderRadius: 7, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                          >
+                            <MdAdd size={13} /> Credit Note
+                          </button>
+                          <button 
+                            onClick={() => navigate('/returns/debit-note', { state: { invoice: inv } })}
+                            title="Create Debit Note"
+                            style={{ padding: '5px 10px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 7, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                          >
+                            <MdAdd size={13} /> Debit Note
                           </button>
                         </div>
                       </td>
@@ -847,6 +863,18 @@ export default function GRNReceiptsInvoicePage() {
               )}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
+              <button 
+                onClick={() => navigate('/returns/credit-note', { state: { invoice: viewInv } })}
+                style={{ padding: '8px 14px', background: '#dbeafe', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+              >
+                <MdAdd size={15} /> Create Credit Note
+              </button>
+              <button 
+                onClick={() => navigate('/returns/debit-note', { state: { invoice: viewInv } })}
+                style={{ padding: '8px 14px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+              >
+                <MdAdd size={15} /> Create Debit Note
+              </button>
               <button onClick={() => viewInv && handlePrint(viewInv)}
                 style={{ padding: '8px 14px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                 <MdPrint size={15} /> Print

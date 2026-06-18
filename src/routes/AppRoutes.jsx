@@ -51,6 +51,8 @@ import RealTimeTrackingPage from '../pages/logistics/RealTimeTrackingPage';
 // Returns
 import ReturnsSubPage from '../pages/returns/ReturnsSubPage';
 import ReturnRequestDetailPage from '../pages/returns/ReturnRequestDetailPage';
+import CreditNotePage from '../pages/returns/CreditNotePage';
+import DebitNotePage from '../pages/returns/DebitNotePage';
 
 // Finance
 import FinanceSubPage from '../pages/finance/FinanceSubPage';
@@ -187,6 +189,8 @@ export default function AppRoutes() {
       <Route path="/returns/reconciliation" element={<P element={<ReturnsSubPage tab="reconciliation" />} />} />
       <Route path="/returns/loss"           element={<P element={<ReturnsSubPage tab="loss" />} />} />
       <Route path="/returns/detail/:id"     element={<P element={<ReturnRequestDetailPage />} />} />
+      <Route path="/returns/credit-note"    element={<P element={<CreditNotePage />} />} />
+      <Route path="/returns/debit-note"     element={<P element={<DebitNotePage />} />} />
 
       {/* Finance */}
       <Route path="/finance"                    element={<Navigate to="/finance/dashboard" replace />} />

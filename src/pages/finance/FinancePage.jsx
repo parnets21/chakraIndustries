@@ -15,7 +15,9 @@ const tabs = [
   'Outstanding Invoices',
   'Bank & Cash Accounts',
   'Payment History',
-  'Financial Reports'
+  'Financial Reports',
+  'Vendor Credit Notes',
+  'Vendor Debit Notes',
 ];
 
 const th = 'bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap';
@@ -861,6 +863,148 @@ function FinancialReportsTab() {
   );
 }
 
+function VendorCreditNotesTab() {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedVendor, setSelectedVendor] = useState('');
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const res = await financeApi.getVendorCreditNotes(selectedVendor);
+        setData(res.data || []);
+      } catch (e) {
+        toast('Failed to load vendor credit notes', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, [selectedVendor]);
+
+  const mockData = data.length ? data : [
+    { id: 1, cnId: 'CN-001', vendorName: 'ABC Suppliers', invoiceNumber: 'INV-001', amount: 25000, status: 'Open', date: '2026-06-15' },
+    { id: 2, cnId: 'CN-002', vendorName: 'XYZ Vendors', invoiceNumber: 'INV-002', amount: 15000, status: 'Closed', date: '2026-06-10' },
+  ];
+
+  const uniqueVendors = [...new Set(mockData.map(item => item.vendorName))];
+
+  if (loading) return <Spinner />;
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <div className="text-sm font-bold text-gray-800">Vendor Credit Notes</div>
+          <div className="text-xs text-gray-400 mt-0.5">{mockData.length} credit notes</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <select value={selectedVendor} onChange={(e) => setSelectedVendor(e.target.value)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}>
+            <option value="">All Vendors</option>
+            {uniqueVendors.map(vendor => <option key={vendor} value={vendor}>{vendor}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="overflow-x-auto rounded-xl border border-gray-200">
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr>
+              {['CN ID', 'Vendor Name', 'Invoice No', 'Amount', 'Status', 'Date'].map(h => (
+                <th key={h} className={th}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {mockData.map((item) => (
+              <tr key={item.id} className={tr}>
+                <td className={td} style={{ fontWeight: 600, color: '#3b82f6' }}>{item.cnId}</td>
+                <td className={td} style={{ fontWeight: 600 }}>{item.vendorName}</td>
+                <td className={td}>{item.invoiceNumber}</td>
+                <td className={td} style={{ fontWeight: 700, color: '#10b981' }}>{fmt(item.amount)}</td>
+                <td className={td}>
+                  <StatusBadge status={item.status} type={item.status === 'Closed' ? 'success' : item.status === 'Disputed' ? 'danger' : 'warning'} />
+                </td>
+                <td className={td}>{item.date}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function VendorDebitNotesTab() {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedVendor, setSelectedVendor] = useState('');
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const res = await financeApi.getVendorDebitNotes(selectedVendor);
+        setData(res.data || []);
+      } catch (e) {
+        toast('Failed to load vendor debit notes', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, [selectedVendor]);
+
+  const mockData = data.length ? data : [
+    { id: 1, dnId: 'DN-001', vendorName: 'ABC Suppliers', invoiceNumber: 'INV-001', amount: 30000, status: 'Pending', date: '2026-06-15' },
+    { id: 2, dnId: 'DN-002', vendorName: 'XYZ Vendors', invoiceNumber: 'INV-002', amount: 20000, status: 'Approved', date: '2026-06-10' },
+  ];
+
+  const uniqueVendors = [...new Set(mockData.map(item => item.vendorName))];
+
+  if (loading) return <Spinner />;
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <div className="text-sm font-bold text-gray-800">Vendor Debit Notes</div>
+          <div className="text-xs text-gray-400 mt-0.5">{mockData.length} debit notes</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <select value={selectedVendor} onChange={(e) => setSelectedVendor(e.target.value)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}>
+            <option value="">All Vendors</option>
+            {uniqueVendors.map(vendor => <option key={vendor} value={vendor}>{vendor}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="overflow-x-auto rounded-xl border border-gray-200">
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr>
+              {['DN ID', 'Vendor Name', 'Invoice No', 'Amount', 'Status', 'Date'].map(h => (
+                <th key={h} className={th}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {mockData.map((item) => (
+              <tr key={item.id} className={tr}>
+                <td className={td} style={{ fontWeight: 600, color: '#ef4444' }}>{item.dnId}</td>
+                <td className={td} style={{ fontWeight: 600 }}>{item.vendorName}</td>
+                <td className={td}>{item.invoiceNumber}</td>
+                <td className={td} style={{ fontWeight: 700, color: '#ef4444' }}>{fmt(item.amount)}</td>
+                <td className={td}>
+                  <StatusBadge status={item.status} type={item.status === 'Approved' ? 'success' : item.status === 'Rejected' ? 'danger' : 'warning'} />
+                </td>
+                <td className={td}>{item.date}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 const tabComponents = {
   0: DashboardTab,
   1: AccountsPayableTab,
@@ -873,6 +1017,8 @@ const tabComponents = {
   8: BankCashAccountsTab,
   9: PaymentHistoryTab,
   10: FinancialReportsTab,
+  11: VendorCreditNotesTab,
+  12: VendorDebitNotesTab,
 };
 
 export default function FinancePage({ initialTab = 0 }) {

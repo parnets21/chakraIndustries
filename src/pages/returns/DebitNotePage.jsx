@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import Modal from '../../components/common/Modal';
 import { debitNoteApi } from '../../api/debitNoteApi';
 import { grnApi } from '../../api/grnApi';
@@ -20,6 +21,7 @@ const lbl = 'text-xs font-semibold text-gray-600';
 const fld = 'flex flex-col gap-1.5';
 
 export default function DebitNotePage({ initialTab = 0 }) {
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [debitNotes, setDebitNotes] = useState([]);
   const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, posted: 0 });
@@ -30,6 +32,30 @@ export default function DebitNotePage({ initialTab = 0 }) {
   const [loading, setLoading] = useState(false);
   const [grns, setGrns] = useState([]);
   const [pos, setPOs] = useState([]);
+
+  useEffect(() => {
+    if (location.state?.invoice) {
+      const inv = location.state.invoice;
+      setShowCreate(true);
+      setForm({
+        ...EMPTY_FORM,
+        vendorName: inv.vendorName || '',
+        invoiceNo: inv.invoiceNo || '',
+        grnId: inv.poRef || inv.grnRef || '',
+        poId: inv.poRef || '',
+        debitAmount: inv.grandTotal || 0,
+        totalAmount: inv.grandTotal || 0,
+        recoveryAmount: inv.grandTotal || 0,
+        items: (inv.items || []).map(item => ({
+          productName: item.itemName || item.description || '',
+          quantity: item.quantity || item.invoicedQty || 1,
+          rate: item.rate || item.basePrice || 0,
+          amount: item.amount || item.lineTotal || 0,
+          gstRate: item.gstRate || item.gst || 18
+        }))
+      });
+    }
+  }, [location.state]);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);

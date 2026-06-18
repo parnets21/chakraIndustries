@@ -76,4 +76,18 @@ export const financeApi = {
     const q = new URLSearchParams(params).toString();
     return fetch(`${BASE}/finance/reports/${type}${q ? '?' + q : ''}`, { headers: authHeaders() }).then(handle);
   },
+
+  // Vendor Credit Notes
+  getVendorCreditNotes: (vendorId) => {
+    const params = vendorId ? { vendorId } : {};
+    const q = new URLSearchParams(params).toString();
+    return fetch(`${BASE}/finance/vendor-credit-notes${q ? '?' + q : ''}`, { headers: authHeaders() }).then(handle);
+  },
+
+  // Vendor Debit Notes
+  getVendorDebitNotes: (vendorId) => {
+    const params = vendorId ? { vendorId } : {};
+    const q = new URLSearchParams(params).toString();
+    return fetch(`${BASE}/finance/vendor-debit-notes${q ? '?' + q : ''}`, { headers: authHeaders() }).then(handle);
+  },
 };

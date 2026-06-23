@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import StatusBadge from '../../../components/common/StatusBadge';
 import Modal from '../../../components/common/Modal';
+import Pagination from '../../../components/common/Pagination';
 import BulkPOUpload from './BulkPOUpload';
 import { poApi } from '../../../api/poApi';
 import { vendorApi } from '../../../api/vendorApi';   
@@ -31,6 +32,8 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
   const [rfqs, setRFQs]             = useState([]);
   const [loading, setLoading]       = useState(false);
   const [filterStatus, setFilterStatus] = useState('');
+  const [page, setPage]             = useState(1);
+  const [pageSize, setPageSize]     = useState(25);
   const [viewPO, setViewPO] = useState(null);
   const [editPO, setEditPO] = useState(null);
   const [deletePO, setDeletePO] = useState(null);
@@ -413,6 +416,15 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
     }
   };
 
+  // Calculate paginated POs
+  const startIndex = (page - 1) * pageSize;
+  const paginatedPOs = pos.slice(startIndex, startIndex + pageSize);
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [filterStatus]);
+
   const totals = calcTotals();
 
   return (
@@ -433,25 +445,26 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
         {loading ? (
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
         ) : (
-          <div style={{ overflowX: 'auto', width: '100%' }}>
-            <table style={{ width: '100%', minWidth: '1100px' }}>
-              <thead>
-                <tr>
-                  <th style={{ padding: '11px 12px' }}>PO ID</th>
-                  <th style={{ padding: '11px 12px' }}>Vendor</th>
-                  <th style={{ padding: '11px 12px' }}>Items</th>
-                  <th style={{ padding: '11px 12px' }}>Subtotal</th>
-                  <th style={{ padding: '11px 12px' }}>GST</th>
-                  <th style={{ padding: '11px 12px' }}>Grand Total</th>
-                  <th style={{ padding: '11px 12px' }}>Date</th>
-                  <th style={{ padding: '11px 12px' }}>Status</th>
-                  <th style={{ padding: '11px 12px' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pos.length === 0 ? (
-                  <tr><td colSpan={9} style={{ textAlign: 'center', padding: 24, color: '#94a3b8' }}>No purchase orders found</td></tr>
-                ) : pos.map((p) => (
+          <>
+            <div style={{ overflowX: 'auto', width: '100%' }}>
+              <table style={{ width: '100%', minWidth: '1100px' }}>
+                <thead>
+                  <tr>
+                    <th style={{ padding: '11px 12px' }}>PO ID</th>
+                    <th style={{ padding: '11px 12px' }}>Vendor</th>
+                    <th style={{ padding: '11px 12px' }}>Items</th>
+                    <th style={{ padding: '11px 12px' }}>Subtotal</th>
+                    <th style={{ padding: '11px 12px' }}>GST</th>
+                    <th style={{ padding: '11px 12px' }}>Grand Total</th>
+                    <th style={{ padding: '11px 12px' }}>Date</th>
+                    <th style={{ padding: '11px 12px' }}>Status</th>
+                    <th style={{ padding: '11px 12px' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pos.length === 0 ? (
+                    <tr><td colSpan={9} style={{ textAlign: 'center', padding: 24, color: '#94a3b8' }}>No purchase orders found</td></tr>
+                  ) : paginatedPOs.map((p) => (
                   <tr key={p._id}>
                     <td style={{ fontWeight: 600, color: 'var(--primary)', whiteSpace: 'nowrap', padding: '12px' }}>{p.poId}</td>
                     <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>{p.vendor?.companyName || '—'}</td>
@@ -516,6 +529,16 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
               </tbody>
             </table>
           </div>
+          {pos.length > 0 && (
+            <Pagination
+              total={pos.length}
+              page={page}
+              pageSize={pageSize}
+              onPage={setPage}
+              onPageSize={setPageSize}
+            />
+          )}
+        </>
         )}
       </div>
 

@@ -90,4 +90,8 @@ export const financeApi = {
     const q = new URLSearchParams(params).toString();
     return fetch(`${BASE}/finance/vendor-debit-notes${q ? '?' + q : ''}`, { headers: authHeaders() }).then(handle);
   },
+
+  // Dynamic lookup lists for modal dropdowns
+  getVendorsList: () => fetch(`${BASE}/finance/vendors-list`, { headers: authHeaders() }).then(handle),
+  getDealersList: () => fetch(`${BASE}/finance/dealers-list`, { headers: authHeaders() }).then(handle),
 };

@@ -94,57 +94,8 @@ const inp =
 const lbl = 'text-xs font-semibold text-gray-600 mb-1 block';
 const fld = 'flex flex-col';
 
-// ─── Seed data ─────────────────────────────────────────────────────────────────
-const SEED = [
-  {
-    _id: 'LOSS-2026-001',
-    lossId: 'LOSS-2026-001',
-    mrId: 'MR-2026-004',
-    party: 'ABC Suppliers Pvt Ltd',
-    invoiceNumber: 'INV-2026-1234',
-    lossType: 'Transit Damage',
-    rootCause: 'Improper Packing',
-    products: [
-      { productName: 'Steel Rods', skuCode: 'SKU-001', batchNo: 'B-001', damagedQty: 50, unitRate: 250 },
-    ],
-    lossAmount: 12500,
-    recoverableAmount: 8000,
-    recoveryStatus: 'Partial Recovery',
-    priority: 'High',
-    responsibleDepartment: 'Procurement',
-    assignedTo: 'Ramesh Gupta',
-    createdDate: '2026-05-06',
-    status: 'In Progress',
-    tallyStatus: 'Pending',
-    resolutionNotes: 'Claim filed with supplier',
-    correctiveAction: 'Revised packing SOP',
-    preventiveAction: 'Pre-dispatch inspection mandatory',
-  },
-  {
-    _id: 'LOSS-2026-002',
-    lossId: 'LOSS-2026-002',
-    mrId: 'MR-2026-003',
-    party: 'XYZ Industries',
-    invoiceNumber: 'INV-2026-5678',
-    lossType: 'QC Rejected',
-    rootCause: 'Substandard Material',
-    products: [
-      { productName: 'Copper Wire', skuCode: 'SKU-042', batchNo: 'B-007', damagedQty: 30, unitRate: 150 },
-    ],
-    lossAmount: 4500,
-    recoverableAmount: 4500,
-    recoveryStatus: 'Full Recovery',
-    priority: 'Critical',
-    responsibleDepartment: 'Quality',
-    assignedTo: 'Priya Sharma',
-    createdDate: '2026-05-13',
-    status: 'Closed',
-    tallyStatus: 'Synced',
-    resolutionNotes: 'Full debit note raised',
-    correctiveAction: 'Supplier blacklisted for 90 days',
-    preventiveAction: 'Third-party QC for this supplier',
-  },
-];
+// ─── Seed data removed — all records load from the API via loadRecords() ──────
+
 
 // ─── Compute aging ─────────────────────────────────────────────────────────────
 function daysAgo(dateStr) {

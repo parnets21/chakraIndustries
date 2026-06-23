@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import Modal from '../../../components/common/Modal';
+import Pagination from '../../../components/common/Pagination';
 import { clientApi } from '../../../api/clientApi';
 import { categoryApi } from '../../../api/categoryApi';
 import { dataEvents } from '../../../utils/dataEvents';
@@ -36,6 +37,8 @@ export default function ClientsTab({
   const [viewClient, setViewClient] = useState(null);
   const [formErrors, setFormErrors] = useState({});
   const [successMsg, setSuccessMsg] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const fetchClients = useCallback(async () => {
     setLoading(true); setError('');
@@ -131,6 +134,15 @@ export default function ClientsTab({
 
   const f = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
 
+  // Calculate paginated clients
+  const startIndex = (page - 1) * pageSize;
+  const paginatedClients = clients.slice(startIndex, startIndex + pageSize);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [search, filterStatus, filterCategory]);
+
   const statusColor = (s) =>
     s === 'Active' ? { bg: '#ecfdf5', color: '#047857' } :
     s === 'Inactive' ? { bg: '#f3f4f6', color: '#6b7280' } :
@@ -192,14 +204,14 @@ export default function ClientsTab({
 
       {/* Desktop Table */}
       {!loading && clients.length > 0 && (
-        <div className="ct-table-wrap">
+        <div className="ct-table-wrap" style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}>
           <table className="ct-table">
             <thead><tr>
               <th>Client ID</th><th>Name</th><th>Contact</th><th>Phone</th>
-              <th>City</th><th>Category</th><th>Status</th><th>Actions</th>
+              <th>City</th><th>State</th><th>Category</th><th>Status</th><th>Actions</th>
             </tr></thead>
             <tbody>
-              {clients.map(c => {
+              {paginatedClients.map(c => {
                 const sc = statusColor(c.status);
                 return (
                   <tr key={c._id}>
@@ -208,6 +220,7 @@ export default function ClientsTab({
                     <td>{c.contact}</td>
                     <td>{c.phone}</td>
                     <td>{c.city}</td>
+                    <td>{c.state}</td>
                     <td><span style={{ display:'inline-block', padding:'3px 10px', borderRadius:12, fontSize:11, fontWeight:600, background:'#dbeafe', color:'#1e40af' }}>{c.category}</span></td>
                     <td><span style={{ display:'inline-block', padding:'3px 10px', borderRadius:12, fontSize:11, fontWeight:600, background:sc.bg, color:sc.color }}>{c.status}</span></td>
                     <td style={{ display:'flex', gap:6 }}>
@@ -223,10 +236,20 @@ export default function ClientsTab({
         </div>
       )}
 
+      {!loading && clients.length > 0 && (
+        <Pagination
+          total={clients.length}
+          page={page}
+          pageSize={pageSize}
+          onPage={setPage}
+          onPageSize={setPageSize}
+        />
+      )}
+
       {/* Mobile Cards */}
       {!loading && clients.length > 0 && (
         <div className="ct-cards">
-          {clients.map(c => {
+          {paginatedClients.map(c => {
             const sc = statusColor(c.status);
             return (
               <div key={c._id} className="ct-card">

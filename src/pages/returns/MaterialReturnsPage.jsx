@@ -79,16 +79,9 @@ const STAGE_COLORS = {
   CLOSED:{bg:"#f3f4f6",text:"#374151"}
 };
 
-const INIT_RETURNS = [
-  { mrId:"MR-2026-0024", docketId:"DKT-789456", invoiceNo:"INV-2026-1234", supplierName:"ABC Suppliers Pvt Ltd", productName:"Stainless Steel Sheet", returnQty:10, stage:"In_Transit", qcStatus:"Pending", finStatus:"Partial", priority:"High", value:12500, returnReason:"Damaged during transit", pickupAddress:"123 Industrial Area, Phase 2, Delhi-110001", awbNo:"AWB123456789", vehicle:"HR55AB1234", transport:"Blue Dart", driverName:"Rakesh Kumar", driverMobile:"9876543210", currentLocation:"Gurgaon, Haryana", expectedDelivery:"15 May 2026", eta:"15 May 2026, 06:00 PM", createdOn:"12 May 2026", createdBy:"Priya Sharma", invoiceValue:12500, returnValue:12500, recoverableAmt:10000, recoveredAmt:6000, debitNote:4000, creditNote:6000, pendingAmt:4000, financialClosure:"No", recoveryStatus:"In Progress", returnType:"Material Return" },
-  { mrId:"MR-2026-0023", docketId:"DKT-789455", invoiceNo:"INV-2026-1233", supplierName:"XYZ Industries", productName:"Copper Wire", returnQty:25, stage:"Received_At_Warehouse", qcStatus:"Completed", finStatus:"Reconciled", priority:"Medium", value:18750, returnReason:"Quality not as per specification", pickupAddress:"45 Electronic City, Bangalore-560100", awbNo:"AWB987654321", vehicle:"KA01AB5678", transport:"VRL Logistics", driverName:"Suresh Kumar", driverMobile:"9876501234", currentLocation:"Bangalore", expectedDelivery:"10 May 2026", eta:"10 May 2026, 04:00 PM", createdOn:"08 May 2026", createdBy:"Ravi Kumar", invoiceValue:18750, returnValue:18750, recoverableAmt:18750, recoveredAmt:18750, debitNote:18750, creditNote:18750, pendingAmt:0, financialClosure:"Yes", recoveryStatus:"Completed", returnType:"Material Return" },
-  { mrId:"MR-2026-0022", docketId:"DKT-789454", invoiceNo:"INV-2026-1232", supplierName:"Global Components", productName:"Aluminum Frame", returnQty:5, stage:"QC_In_Progress", qcStatus:"In_Progress", finStatus:"Pending", priority:"High", value:7250, returnReason:"Wrong dimensions delivered", pickupAddress:"78 MIDC Area, Pune-411021", awbNo:"AWB456789123", vehicle:"MH12CD9012", transport:"DTDC", driverName:"Anil Patil", driverMobile:"9765432198", currentLocation:"Pune Warehouse", expectedDelivery:"12 May 2026", eta:"12 May 2026, 02:00 PM", createdOn:"09 May 2026", createdBy:"Anjali Singh", invoiceValue:7250, returnValue:7250, recoverableAmt:7250, recoveredAmt:0, debitNote:0, creditNote:0, pendingAmt:7250, financialClosure:"No", recoveryStatus:"Pending", returnType:"Material Return" },
-  { mrId:"MR-2026-0021", docketId:"DKT-789453", invoiceNo:"INV-2026-1231", supplierName:"Tech Solutions Ltd", productName:"Motor Housing", returnQty:8, stage:"Approved", qcStatus:"Pending", finStatus:"Pending", priority:"Medium", value:9600, returnReason:"Manufacturing defect", pickupAddress:"92 Electronic Complex, Chennai-600032", awbNo:"–", vehicle:"–", transport:"–", driverName:"–", driverMobile:"–", currentLocation:"–", expectedDelivery:"–", eta:"–", createdOn:"08 May 2026", createdBy:"Suresh Patel", invoiceValue:9600, returnValue:9600, recoverableAmt:9600, recoveredAmt:0, debitNote:0, creditNote:0, pendingAmt:9600, financialClosure:"No", recoveryStatus:"Pending", returnType:"Material Return" },
-  { mrId:"MR-2026-0020", docketId:"DKT-789452", invoiceNo:"INV-2026-1230", supplierName:"ABC Suppliers Pvt Ltd", productName:"Bearing Set", returnQty:12, stage:"Closed", qcStatus:"Completed", finStatus:"Reconciled", priority:"Low", value:15300, returnReason:"Wrong size delivered", pickupAddress:"34 Industrial Estate, Kolkata-700046", awbNo:"AWB321654987", vehicle:"WB01EF3456", transport:"Delhivery", driverName:"Rahim Khan", driverMobile:"9812345678", currentLocation:"Kolkata", expectedDelivery:"05 May 2026", eta:"05 May 2026, 11:00 AM", createdOn:"01 May 2026", createdBy:"Priya Sharma", invoiceValue:15300, returnValue:15300, recoverableAmt:15300, recoveredAmt:15300, debitNote:15300, creditNote:15300, pendingAmt:0, financialClosure:"Yes", recoveryStatus:"Completed", returnType:"Material Return" },
-  { mrId:"MR-2026-0019", docketId:"DKT-789451", invoiceNo:"INV-2026-1229", supplierName:"Prime Components", productName:"Gear Box", returnQty:3, stage:"Transport_Pickup", qcStatus:"Pending", finStatus:"Pending", priority:"Medium", value:6450, returnReason:"Defective unit", pickupAddress:"55 GIDC, Ahmedabad-380024", awbNo:"AWB654321789", vehicle:"GJ01GH7890", transport:"Blue Dart", driverName:"Harish Shah", driverMobile:"9023456789", currentLocation:"Ahmedabad Hub", expectedDelivery:"18 May 2026", eta:"18 May 2026, 03:00 PM", createdOn:"07 May 2026", createdBy:"Ravi Kumar", invoiceValue:6450, returnValue:6450, recoverableAmt:6450, recoveredAmt:0, debitNote:0, creditNote:0, pendingAmt:6450, financialClosure:"No", recoveryStatus:"Pending", returnType:"Material Return" },
-  { mrId:"MR-2026-0018", docketId:"DKT-789450", invoiceNo:"INV-2026-1228", supplierName:"XYZ Industries", productName:"Steel Rod", returnQty:20, stage:"Out_For_Delivery", qcStatus:"Pending", finStatus:"Partial", priority:"High", value:22000, returnReason:"Damaged during transit", pickupAddress:"67 SEZ Phase 3, Noida-201305", awbNo:"AWB789123456", vehicle:"UP16IJ2345", transport:"VRL Logistics", driverName:"Ramesh Yadav", driverMobile:"9634567890", currentLocation:"Noida Distribution Center", expectedDelivery:"16 May 2026", eta:"16 May 2026, 05:00 PM", createdOn:"06 May 2026", createdBy:"Anjali Singh", invoiceValue:22000, returnValue:22000, recoverableAmt:22000, recoveredAmt:5000, debitNote:5000, creditNote:0, pendingAmt:17000, financialClosure:"No", recoveryStatus:"In Progress", returnType:"Material Return" },
-  { mrId:"MR-2026-0017", docketId:"DKT-789449", invoiceNo:"INV-2026-1227", supplierName:"ABC Suppliers Pvt Ltd", productName:"Electric Motor", returnQty:4, stage:"Delivered", qcStatus:"Completed", finStatus:"Partial", priority:"Medium", value:9000, returnReason:"Wrong model", pickupAddress:"89 Industrial Park, Hyderabad-500018", awbNo:"AWB112233445", vehicle:"TS09KL6789", transport:"DTDC", driverName:"Venkat Reddy", driverMobile:"9512345678", currentLocation:"Hyderabad Warehouse", expectedDelivery:"04 May 2026", eta:"04 May 2026, 01:00 PM", createdOn:"30 Apr 2026", createdBy:"Suresh Patel", invoiceValue:9000, returnValue:9000, recoverableAmt:9000, recoveredAmt:4500, debitNote:9000, creditNote:4500, pendingAmt:4500, financialClosure:"No", recoveryStatus:"In Progress", returnType:"Material Return" },
-];
+// ── INIT_RETURNS removed — page loads live data via materialReturnApi.getAll() ──
+
+
 
 const ACTIVITY_LOGS = [
   { initials:"PS", color:"#ef4444", name:"Priya Sharma", detail:"Return created", date:"12 May 2026 10:30 AM" },
@@ -889,9 +882,24 @@ function DonutChart() {
   );
 }
 
-function HBarChart() {
-  const data = [["ABC Suppliers",8,"#ef4444"],["XYZ Industries",6,"#f97316"],["Prime Components",4,"#3b82f6"],["Global Components",3,"#10b981"],["Tech Solutions",3,"#8b5cf6"]];
-  const max = 8;
+// Top-returns-by-supplier chart — driven by live returns data passed as props
+function HBarChart({ returns = [] }) {
+  // Aggregate return counts per supplier from live data
+  const supplierCounts = {};
+  returns.forEach(r => {
+    if (r.supplierName) supplierCounts[r.supplierName] = (supplierCounts[r.supplierName] || 0) + 1;
+  });
+  const COLORS = ['#ef4444','#f97316','#3b82f6','#10b981','#8b5cf6','#f59e0b','#06b6d4','#ec4899'];
+  const data = Object.entries(supplierCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([name, v], i) => [name, v, COLORS[i % COLORS.length]]);
+  const max = data[0]?.[1] || 1;
+
+  if (data.length === 0) {
+    return <div style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', padding: '20px 0' }}>No return data yet</div>;
+  }
+
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
       {data.map(([name,v,color],i) => (
@@ -907,16 +915,19 @@ function HBarChart() {
   );
 }
 
-function LossChart() {
-  const h=110, pad=20, max=200000;
-  const lH=(24500/max)*(h-pad), rH=(145230/max)*(h-pad);
+// Loss vs Recovered chart — driven by live stats passed as props
+function LossChart({ lossValue = 0, recoveredValue = 0 }) {
+  const h = 110, pad = 20;
+  const maxVal = Math.max(lossValue, recoveredValue, 1);
+  const lH = Math.max(4, (lossValue / maxVal) * (h - pad));
+  const rH = Math.max(4, (recoveredValue / maxVal) * (h - pad));
+  const fmtK = v => v >= 100000 ? `₹${(v/100000).toFixed(1)}L` : v >= 1000 ? `₹${(v/1000).toFixed(0)}K` : `₹${v}`;
   return (
     <svg width={160} height={h+28}>
-      {[0,50,100,150,200].map((v,i)=><text key={i} x={2} y={h-pad-(v/200)*(h-pad)+4} fontSize={7} fill="#9ca3af">₹{v}K</text>)}
       <rect x={32} y={h-pad-lH} width={40} height={lH} fill="#ef4444" rx={3}/>
-      <text x={52} y={h-pad-lH-5} textAnchor="middle" fontSize={8} fontWeight={700} fill="#ef4444">₹24.5K</text>
+      {lossValue > 0 && <text x={52} y={h-pad-lH-5} textAnchor="middle" fontSize={8} fontWeight={700} fill="#ef4444">{fmtK(lossValue)}</text>}
       <rect x={88} y={h-pad-rH} width={40} height={rH} fill="#10b981" rx={3}/>
-      <text x={108} y={h-pad-rH-5} textAnchor="middle" fontSize={8} fontWeight={700} fill="#10b981">₹1.45L</text>
+      {recoveredValue > 0 && <text x={108} y={h-pad-rH-5} textAnchor="middle" fontSize={8} fontWeight={700} fill="#10b981">{fmtK(recoveredValue)}</text>}
       <text x={52} y={h+16} textAnchor="middle" fontSize={8} fill="#6b7280">Loss</text>
       <text x={108} y={h+16} textAnchor="middle" fontSize={8} fill="#6b7280">Recovered</text>
     </svg>
@@ -1335,12 +1346,12 @@ export default function MaterialReturnsPage() {
           <div>
             <div style={{ fontWeight:700, fontSize:12, color:"#111", marginBottom:2, display:"flex", alignItems:"center", gap:5 }}><BarChart2 size={12} color="#10b981"/> Top Returns by Supplier</div>
             <div style={{ fontSize:10, color:"#9ca3af", marginBottom:12 }}>This month</div>
-            <HBarChart />
+            <HBarChart returns={returns} />
           </div>
           <div>
             <div style={{ fontWeight:700, fontSize:12, color:"#111", marginBottom:2, display:"flex", alignItems:"center", gap:5 }}><DollarSign size={12} color="#8b5cf6"/> Loss vs Recovered</div>
             <div style={{ fontSize:10, color:"#9ca3af", marginBottom:8 }}>This month</div>
-            <LossChart />
+            <LossChart lossValue={stats.lossValue || 0} recoveredValue={stats.returnValue || 0} />
           </div>
         </div>
       </div>

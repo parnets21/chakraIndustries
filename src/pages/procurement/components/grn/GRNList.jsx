@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import StatusBadge from '../../../../components/common/StatusBadge';
 import Modal from '../../../../components/common/Modal';
+import Pagination from '../../../../components/common/Pagination';
 import { grnApi } from '../../../../api/grnApi';
 import { useDataEvent } from '../../../../utils/dataEvents';
 import { MdVisibility, MdDeleteOutline } from 'react-icons/md';
@@ -10,6 +11,8 @@ const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit',
 export default function GRNList({ onView, refresh }) {
   const [grns, setGrns]         = useState([]);
   const [loading, setLoading]   = useState(false);
+  const [page, setPage]         = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [deleteGRN, setDeleteGRN] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -47,6 +50,10 @@ export default function GRNList({ onView, refresh }) {
     }
   };
 
+  // Calculate paginated GRNs
+  const startIndex = (page - 1) * pageSize;
+  const paginatedGRNs = grns.slice(startIndex, startIndex + pageSize);
+
   return (
     <>
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -59,24 +66,25 @@ export default function GRNList({ onView, refresh }) {
         ) : grns.length === 0 ? (
           <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>No GRNs found</div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', minWidth: 700 }}>
-              <thead>
-                <tr>
-                  <th style={{ padding: '11px 12px' }}>GRN ID</th>
-                  <th style={{ padding: '11px 12px' }}>PO Ref</th>
-                  <th style={{ padding: '11px 12px' }}>Vendor</th>
-                  <th style={{ padding: '11px 12px', textAlign: 'center' }}>Ordered</th>
-                  <th style={{ padding: '11px 12px', textAlign: 'center' }}>Received</th>
-                  <th style={{ padding: '11px 12px' }}>Date</th>
-                  <th style={{ padding: '11px 12px' }}>Status</th>
-                  <th style={{ padding: '11px 12px' }}>QC Status</th>
-                  <th style={{ padding: '11px 12px' }}>Approval</th>
-                  <th style={{ padding: '11px 12px' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {grns.map((g) => (
+          <>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', minWidth: 700 }}>
+                <thead>
+                  <tr>
+                    <th style={{ padding: '11px 12px' }}>GRN ID</th>
+                    <th style={{ padding: '11px 12px' }}>PO Ref</th>
+                    <th style={{ padding: '11px 12px' }}>Vendor</th>
+                    <th style={{ padding: '11px 12px', textAlign: 'center' }}>Ordered</th>
+                    <th style={{ padding: '11px 12px', textAlign: 'center' }}>Received</th>
+                    <th style={{ padding: '11px 12px' }}>Date</th>
+                    <th style={{ padding: '11px 12px' }}>Status</th>
+                    <th style={{ padding: '11px 12px' }}>QC Status</th>
+                    <th style={{ padding: '11px 12px' }}>Approval</th>
+                    <th style={{ padding: '11px 12px' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedGRNs.map((g) => (
                   <tr key={g._id}>
                     <td style={{ fontWeight: 600, color: 'var(--primary)', fontFamily: 'monospace', fontSize: 12, padding: '12px' }}>
                       {g.grnId}
@@ -119,6 +127,16 @@ export default function GRNList({ onView, refresh }) {
               </tbody>
             </table>
           </div>
+          {grns.length > 0 && (
+            <Pagination
+              total={grns.length}
+              page={page}
+              pageSize={pageSize}
+              onPage={setPage}
+              onPageSize={setPageSize}
+            />
+          )}
+        </>
         )}
       </div>
 

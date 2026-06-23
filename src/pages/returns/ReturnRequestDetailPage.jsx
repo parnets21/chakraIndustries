@@ -261,15 +261,15 @@ export default function ReturnRequestDetailPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Invoice no.</span>
-                  <span className="font-semibold text-red-600">{returnData.invoiceNo || 'INV-2026-1234'}</span>
+                  <span className="font-semibold text-red-600">{returnData.invoiceNo || '—'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Invoice amount</span>
-                  <span className="font-semibold">₹{(returnData.invoiceAmount || 4200).toLocaleString('en-IN')}</span>
+                  <span className="font-semibold">₹{returnData.invoiceAmount ? returnData.invoiceAmount.toLocaleString('en-IN') : '—'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Return amount</span>
-                  <span className="font-semibold">₹{(returnData.value || 4200).toLocaleString('en-IN')}</span>
+                  <span className="font-semibold">₹{returnData.value ? returnData.value.toLocaleString('en-IN') : '—'}</span>
                 </div>
               </div>
             </div>

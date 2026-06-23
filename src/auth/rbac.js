@@ -265,6 +265,7 @@ export const NAV_ITEMS = [
       { path: '/finance/dealer-receipts',    label: 'Dealer Receipts',       page: 'finance' },
       { path: '/finance/supplier-ledger',    label: 'Supplier Ledger',       page: 'finance' },
       { path: '/finance/dealer-ledger',      label: 'Dealer Ledger',         page: 'finance' },
+      { path: '/finance/tally-ledger',       label: 'Tally Ledger',          page: 'finance' },
       { path: '/finance/outstanding-invoices', label: 'Outstanding Invoices', page: 'finance' },
       { path: '/finance/bank-cash-accounts', label: 'Bank & Cash Accounts',  page: 'finance' },
       { path: '/finance/payment-history',    label: 'Payment History',       page: 'finance' },

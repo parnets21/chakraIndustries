@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import StatusBadge from '../../components/common/StatusBadge';
-import { toast } from '../../components/common/Toast';
-import { tallyApi } from '../../api/tallyApi';
+import StatusBadge from '../../components/common/StatusBadge.jsx';
+import { toast } from '../../components/common/Toast.jsx';
+import { tallyApi } from '../../api/tallyApi.js';
+import { dataEvents } from '../../utils/dataEvents.js';
 
 // ── Style tokens ──────────────────────────────────────────────────────────────
 const inputCls   = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 placeholder:text-gray-400 font-[inherit]';
@@ -22,12 +23,13 @@ const btnExportSm = 'inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-
 // ── What can be imported from Tally ──────────────────────────────────────────
 const IMPORT_ENTITIES = [
   { key: 'Items',    label: 'Stock Items',       icon: '📦', desc: 'Products, raw materials, HSN codes, GST rates' },
-  { key: 'Ledgers',  label: 'Ledgers & Parties', icon: '📒', desc: 'Vendors (Sundry Creditors), Clients (Sundry Debtors)' },
+  { key: 'Ledgers',  label: 'Ledgers & Parties', icon: '📒', desc: 'All ledgers including Vendors and Clients' },
   { key: 'Purchase', label: 'Purchase Vouchers', icon: '🛒', desc: 'All purchase entries from Tally Day Book' },
   { key: 'Sales',    label: 'Sales Vouchers',    icon: '💰', desc: 'All sales entries from Tally Day Book' },
   { key: 'Payment',  label: 'Payment Vouchers',  icon: '💸', desc: 'Payment transactions from Tally' },
   { key: 'Receipt',  label: 'Receipt Vouchers',  icon: '🧾', desc: 'Receipt transactions from Tally' },
   { key: 'Journal',  label: 'Journal Vouchers',  icon: '📋', desc: 'Journal entries from Tally' },
+  { key: 'Contra',   label: 'Contra Vouchers',   icon: '🔄', desc: 'Contra entries from Tally (bank transfers, cash deposits)' },
 ];
 
 // ── What can be exported to Tally ─────────────────────────────────────────────
@@ -193,8 +195,10 @@ export default function TallyPage({ initialTab = 0 }) {
   const [diagInfo, setDiagInfo]     = useState(null);
   const [logTypeFilter, setLogTypeFilter]     = useState('All Types');
   const [logStatusFilter, setLogStatusFilter] = useState('All Status');
+  const [expandedLogId, setExpandedLogId] = useState(null);
   const [config, setConfig] = useState({
     port: '9000', companyName: '', tallyLocalUrl: '', authType: 'None',
+    financialYearStart: '2026-04-01',
     autoSync: true, syncInterval: 'Every 15 minutes',
     syncPrefs: { masterData: true, purchaseVouchers: true, salesVouchers: true, paymentVouchers: true, receiptVouchers: true, journalVouchers: false },
   });
@@ -266,6 +270,11 @@ export default function TallyPage({ initialTab = 0 }) {
                             setStreamPhase(dir === 'import' ? '✅ Import Complete' : '✅ Export Complete');
                             if (ev.stats) setStreamStats(ev.stats);
                             esRef.current?.close(); reload();
+                            // Emit data events to refresh all relevant pages!
+                            dataEvents.emit('vendor:changed');
+                            dataEvents.emit('item:changed');
+                            dataEvents.emit('client:changed');
+                            dataEvents.emit('ledger:changed');
                             if (activeTab === 3) loadLogs(); break;
         case 'error':       push('error', `❌ ${ev.message}`);
                             setStreamDone(true); setStreamRunning(false); setStreamPhase('❌ Failed');
@@ -462,12 +471,12 @@ export default function TallyPage({ initialTab = 0 }) {
           </div>
 
           {/* Quick nav */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 10, marginBottom: 4 }}>
             {[
               { label: 'Stock Items', icon: '📦', path: '/item-master',         clr: '#3b82f6' },
               { label: 'Vendors',     icon: '🏭', path: '/procurement/vendors', clr: '#10b981' },
-              { label: 'Ledgers',     icon: '📒', path: '/finance/ledger',      clr: '#f59e0b' },
-              { label: 'Tally Data',  icon: '📥', path: '/tally/data',          clr: '#c0392b' },
+              { label: 'Ledgers',     icon: '📒', path: '/finance/tally-ledger',clr: '#f59e0b' },
+              { label: 'Vouchers',    icon: '📥', path: '/finance/tally-ledger',clr: '#c0392b' },
             ].map(c => (
               <button key={c.label} onClick={() => navigate(c.path)}
                 style={{ background: '#fff', border: `1.5px solid ${c.clr}25`, borderRadius: 12, padding: '12px 14px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s' }}
@@ -477,6 +486,70 @@ export default function TallyPage({ initialTab = 0 }) {
                 <span style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{c.label}</span>
               </button>
             ))}
+          </div>
+
+          {/* Import History Table — all modules that have been imported */}
+          <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid #e2e8f0', padding: '20px 22px', marginTop: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#1e293b' }}>Import History</div>
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>All modules imported from Tally — updates after every sync</div>
+              </div>
+              <button onClick={reload} style={{ fontSize: 12, padding: '6px 14px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>↻ Refresh</button>
+            </div>
+            {masterData.length === 0 ? (
+              <div style={{ padding: '32px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                No data imported yet. Click <strong>Import from Tally</strong> to begin.
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto', borderRadius: 10, border: '1.5px solid #e2e8f0' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr>
+                      {['Module', 'Type', 'Total Records', 'Imported', 'Pending', 'Last Sync', 'Status', ''].map(h => (
+                        <th key={h} className={thCls}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {masterData.map((m, i) => (
+                      <tr key={i} className={trCls}>
+                        <td className={tdCls}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 18 }}>{m.icon || '📄'}</span>
+                            <span style={{ fontWeight: 700, color: '#1e293b' }}>{m.category}</span>
+                          </div>
+                        </td>
+                        <td className={tdCls}>
+                          <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99,
+                            background: m.moduleType === 'master' ? '#eff6ff' : '#f0fdf4',
+                            color: m.moduleType === 'master' ? '#2563eb' : '#16a34a' }}>
+                            {m.moduleType === 'master' ? 'Master' : 'Voucher'}
+                          </span>
+                        </td>
+                        <td className={tdCls} style={{ fontWeight: 700 }}>{m.total.toLocaleString('en-IN')}</td>
+                        <td className={tdCls} style={{ fontWeight: 700, color: '#16a34a' }}>{m.synced.toLocaleString('en-IN')}</td>
+                        <td className={tdCls} style={{ color: m.pending > 0 ? '#f59e0b' : '#94a3b8', fontWeight: m.pending > 0 ? 700 : 400 }}>{m.pending || '—'}</td>
+                        <td className={tdCls} style={{ fontSize: 11, color: '#94a3b8' }}>{m.lastSync}</td>
+                        <td className={tdCls}>
+                          <StatusBadge
+                            status={m.status}
+                            type={m.status === 'Synced' ? 'success' : m.status === 'Partial' ? 'warning' : m.status === 'Not Imported' ? 'danger' : 'warning'}
+                          />
+                        </td>
+                        <td className={tdCls}>
+                          <button className={btnImportSm}
+                            onClick={() => ask('import', m.voucherType || m.category)}
+                            disabled={streamRunning}>
+                            📥
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -511,6 +584,22 @@ export default function TallyPage({ initialTab = 0 }) {
 
           {/* entity cards — 2 col grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 12, marginBottom: 24 }}>
+            {/* ── Sales Register shortcut card ── */}
+            <div style={{ background: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', border: '2px solid #16a34a', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>📊</div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#14532d' }}>Sales Register</div>
+                  <div style={{ fontSize: 11, color: '#16a34a', marginTop: 2 }}>Import by date range (April–June)</div>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/tally/sales-register')}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '7px 12px', borderRadius: 8, background: '#16a34a', color: '#fff', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                📊 Open
+              </button>
+            </div>
+
             {IMPORT_ENTITIES.map(e => (
               <div key={e.key} style={{ background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, transition: 'border-color 0.15s' }}
                 onMouseEnter={ev => ev.currentTarget.style.borderColor = '#86efac'}
@@ -531,24 +620,46 @@ export default function TallyPage({ initialTab = 0 }) {
 
           {/* status table */}
           <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>Import Status</div>
-          {masterData.length === 0 ? <Spinner /> : (
+          {masterData.length === 0 ? (
+            <div style={{ padding: '32px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+              No data imported yet. Run <strong>Import All from Tally</strong> above to populate.
+            </div>
+          ) : (
             <div style={{ overflowX: 'auto', borderRadius: 12, border: '1.5px solid #e2e8f0' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr>{['Entity', 'Total in ERP', 'Imported', 'Pending', 'Failed', 'Last Import', 'Status', ''].map(h => <th key={h} className={thCls}>{h}</th>)}</tr>
+                  <tr>{['Module', 'Type', 'Total', 'Imported', 'Pending', 'Failed', 'Last Import', 'Status', ''].map(h => <th key={h} className={thCls}>{h}</th>)}</tr>
                 </thead>
                 <tbody>
                   {masterData.map((m, i) => (
                     <tr key={i} className={trCls}>
-                      <td className={tdCls} style={{ fontWeight: 600 }}>{m.category}</td>
-                      <td className={tdCls} style={{ fontWeight: 700 }}>{m.total}</td>
-                      <td className={tdCls} style={{ fontWeight: 700, color: '#16a34a' }}>{m.synced}</td>
-                      <td className={tdCls} style={{ color: m.pending > 0 ? '#f59e0b' : '#94a3b8', fontWeight: m.pending > 0 ? 700 : 400 }}>{m.pending}</td>
-                      <td className={tdCls} style={{ color: m.failed > 0 ? '#ef4444' : '#94a3b8', fontWeight: m.failed > 0 ? 700 : 400 }}>{m.failed}</td>
-                      <td className={tdCls} style={{ fontSize: 11, color: '#94a3b8' }}>{m.lastSync}</td>
-                      <td className={tdCls}><StatusBadge status={m.status} type={m.status === 'Synced' ? 'success' : m.status === 'Partial' ? 'warning' : 'danger'} /></td>
                       <td className={tdCls}>
-                        <button className={btnImportSm} onClick={() => ask('import', m.category)} disabled={streamRunning}>📥</button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 17 }}>{m.icon || '📄'}</span>
+                          <span style={{ fontWeight: 700 }}>{m.category}</span>
+                        </div>
+                      </td>
+                      <td className={tdCls}>
+                        <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99,
+                          background: m.moduleType === 'master' ? '#eff6ff' : '#f0fdf4',
+                          color: m.moduleType === 'master' ? '#2563eb' : '#16a34a' }}>
+                          {m.moduleType === 'master' ? 'Master' : 'Voucher'}
+                        </span>
+                      </td>
+                      <td className={tdCls} style={{ fontWeight: 700 }}>{(m.total || 0).toLocaleString('en-IN')}</td>
+                      <td className={tdCls} style={{ fontWeight: 700, color: '#16a34a' }}>{(m.synced || 0).toLocaleString('en-IN')}</td>
+                      <td className={tdCls} style={{ color: m.pending > 0 ? '#f59e0b' : '#94a3b8', fontWeight: m.pending > 0 ? 700 : 400 }}>{m.pending > 0 ? m.pending : '—'}</td>
+                      <td className={tdCls} style={{ color: m.failed > 0 ? '#ef4444' : '#94a3b8', fontWeight: m.failed > 0 ? 700 : 400 }}>{m.failed > 0 ? m.failed : '—'}</td>
+                      <td className={tdCls} style={{ fontSize: 11, color: '#94a3b8' }}>{m.lastSync}</td>
+                      <td className={tdCls}>
+                        <StatusBadge status={m.status} type={m.status === 'Synced' ? 'success' : m.status === 'Partial' ? 'warning' : 'danger'} />
+                      </td>
+                      <td className={tdCls}>
+                        <button className={btnImportSm}
+                          onClick={() => ask('import', m.voucherType || m.category)}
+                          disabled={streamRunning}>
+                          📥
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -665,38 +776,92 @@ export default function TallyPage({ initialTab = 0 }) {
             <div style={{ overflowX: 'auto', borderRadius: 12, border: '1.5px solid #e2e8f0' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr>{['ID', 'Type', 'Direction', 'Status', 'Records', 'Time', 'Duration', 'Error', ''].map(h => <th key={h} className={thCls}>{h}</th>)}</tr>
+                  <tr>{['', 'ID', 'Type', 'Direction', 'Status', 'Records', 'Time', 'Duration', 'Error', ''].map(h => <th key={h} className={thCls}>{h}</th>)}</tr>
                 </thead>
                 <tbody>
                   {syncLogs.length === 0 ? (
-                    <tr><td colSpan={9} style={{ padding: '36px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>No logs yet. Run an import or export to see history here.</td></tr>
+                    <tr><td colSpan={10} style={{ padding: '36px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>No logs yet. Run an import or export to see history here.</td></tr>
                   ) : syncLogs.map((log, i) => {
                     const isExp = (log.direction || '').includes('ERP');
+                    const isExpanded = expandedLogId === log._id || expandedLogId === log.syncId;
+                    const hasModules = log.modules && log.modules.length > 0;
                     return (
-                      <tr key={i} className={trCls}>
-                        <td className={tdCls} style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 600, color: isExp ? '#2563eb' : '#16a34a', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.syncId}</td>
-                        <td className={tdCls}>
-                          <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99, background: isExp ? '#eff6ff' : '#f0fdf4', color: isExp ? '#2563eb' : '#16a34a' }}>{log.type}</span>
-                        </td>
-                        <td className={tdCls}>
-                          <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 99, background: isExp ? '#dbeafe' : '#dcfce7', color: isExp ? '#1d4ed8' : '#15803d' }}>
-                            {log.direction || (isExp ? 'ERP → Tally' : 'Tally → ERP')}
-                          </span>
-                        </td>
-                        <td className={tdCls}><StatusBadge status={log.status} type={log.status === 'Success' ? 'success' : log.status === 'Partial' ? 'warning' : 'danger'} /></td>
-                        <td className={tdCls} style={{ fontWeight: 700 }}>{log.records || 0}</td>
-                        <td className={tdCls} style={{ fontSize: 11, color: '#94a3b8' }}>{new Date(log.createdAt).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</td>
-                        <td className={tdCls} style={{ fontFamily: 'monospace', fontSize: 11 }}>{log.duration || '—'}</td>
-                        <td className={tdCls} style={{ fontSize: 11, color: log.error ? '#ef4444' : '#94a3b8', fontWeight: log.error ? 600 : 400, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.error || '—'}</td>
-                        <td className={tdCls}>
-                          {log.status === 'Failed' && (
-                            <button className={isExp ? btnExportSm : btnImportSm} disabled={streamRunning}
-                              onClick={() => { const isE = (log.direction||'').includes('ERP'); ask(isE ? 'export' : 'import', log.type || 'Full'); }}>
-                              ↺ Retry
-                            </button>
-                          )}
-                        </td>
-                      </tr>
+                      <>
+                        <tr key={log._id || i} className={trCls} style={{ cursor: 'pointer' }} onClick={() => setExpandedLogId(isExpanded ? null : log._id || log.syncId)}>
+                          <td className={tdCls} style={{ width: 30, textAlign: 'center' }}>
+                            {hasModules ? (isExpanded ? '▼' : '▶') : ''}
+                          </td>
+                          <td className={tdCls} style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 600, color: isExp ? '#2563eb' : '#16a34a', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.syncId}</td>
+                          <td className={tdCls}>
+                            <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99, background: isExp ? '#eff6ff' : '#f0fdf4', color: isExp ? '#2563eb' : '#16a34a' }}>{log.type}</span>
+                          </td>
+                          <td className={tdCls}>
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 99, background: isExp ? '#dbeafe' : '#dcfce7', color: isExp ? '#1d4ed8' : '#15803d' }}>
+                              {log.direction || (isExp ? 'ERP → Tally' : 'Tally → ERP')}
+                            </span>
+                          </td>
+                          <td className={tdCls}><StatusBadge status={log.status} type={log.status === 'Success' ? 'success' : log.status === 'Partial' ? 'warning' : 'danger'} /></td>
+                          <td className={tdCls} style={{ fontWeight: 700 }}>{log.records || 0}</td>
+                          <td className={tdCls} style={{ fontSize: 11, color: '#94a3b8' }}>{new Date(log.createdAt).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</td>
+                          <td className={tdCls} style={{ fontFamily: 'monospace', fontSize: 11 }}>{log.duration || '—'}</td>
+                          <td className={tdCls} style={{ fontSize: 11, color: log.error ? '#ef4444' : '#94a3b8', fontWeight: log.error ? 600 : 400, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.error || '—'}</td>
+                          <td className={tdCls}>
+                            {log.status === 'Failed' && (
+                              <button className={isExp ? btnExportSm : btnImportSm} disabled={streamRunning}
+                                onClick={(e) => { e.stopPropagation(); const isE = (log.direction||'').includes('ERP'); ask(isE ? 'export' : 'import', log.type || 'Full'); }}>
+                                ↺ Retry
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                        {isExpanded && hasModules && (
+                          <tr>
+                            <td colSpan={10} style={{ padding: 0 }}>
+                              <div style={{ padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 12 }}>Module Details</div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+                                  {log.modules.map((mod, j) => (
+                                    <div key={j} style={{ background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', padding: '12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{mod.name}</div>
+                                        <button 
+                                          onClick={(e) => { e.stopPropagation(); navigate(mod.route); }}
+                                          className={btnImportSm}
+                                          style={{ fontSize: 11, padding: '4px 8px' }}>
+                                          👁 View
+                                        </button>
+                                      </div>
+                                      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                                        <div style={{ fontSize: 11, color: '#64748b' }}>
+                                          Count: <span style={{ fontWeight: 700, color: '#3b82f6' }}>{mod.count}</span>
+                                        </div>
+                                        {mod.created !== undefined && mod.created > 0 && (
+                                          <div style={{ fontSize: 11, color: '#64748b' }}>
+                                            Created: <span style={{ fontWeight: 700, color: '#10b981' }}>{mod.created}</span>
+                                          </div>
+                                        )}
+                                        {mod.updated !== undefined && mod.updated > 0 && (
+                                          <div style={{ fontSize: 11, color: '#64748b' }}>
+                                            Updated: <span style={{ fontWeight: 700, color: '#f59e0b' }}>{mod.updated}</span>
+                                          </div>
+                                        )}
+                                        {mod.failed !== undefined && mod.failed > 0 && (
+                                          <div style={{ fontSize: 11, color: '#64748b' }}>
+                                            Failed: <span style={{ fontWeight: 700, color: '#ef4444' }}>{mod.failed}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div style={{ fontSize: 10, color: '#94a3b8' }}>
+                                        {new Date(mod.timestamp).toLocaleString('en-IN')}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     );
                   })}
                 </tbody>
@@ -737,6 +902,18 @@ export default function TallyPage({ initialTab = 0 }) {
               <input className={inputCls} value={config.companyName || ''} onChange={e => setConfig(p => ({ ...p, companyName: e.target.value }))} placeholder="Leave blank = active company" />
               <div style={{ fontSize: 11, color: config.companyName ? '#f59e0b' : '#16a34a', marginTop: 3 }}>
                 {config.companyName ? 'Must match Tally exactly (case-sensitive)' : 'Uses whichever company is currently open in Tally'}
+              </div>
+            </div>
+            <div className={fieldCls}>
+              <label className={labelCls}>Financial Year Start <span style={{ color: '#ef4444' }}>*</span></label>
+              <input
+                type="date"
+                className={inputCls}
+                value={config.financialYearStart ? new Date(config.financialYearStart).toISOString().split('T')[0] : '2026-04-01'}
+                onChange={e => setConfig(p => ({ ...p, financialYearStart: e.target.value }))}
+              />
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
+                First day of your Tally company's financial year (e.g. 01 Apr 2026). Voucher import starts from this date.
               </div>
             </div>
             <div className={fieldCls}>

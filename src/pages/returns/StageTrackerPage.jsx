@@ -116,49 +116,9 @@ const FIELD_SOURCE = {
 };
 
 // ─── Sample Data ──────────────────────────────────────────────────────────────
-const SAMPLE_RETURNS = [
-  {
-    _id: 'ret_001', mrId: 'MR-2026-004',
-    returnType: 'Material Return', supplierName: 'ABC Suppliers Pvt Ltd',
-    supplierType: 'Dealer', contactNumber: '+91 98765 43210',
-    email: 'abc@dealer.com',
-    address: 'Shop No. 15, Market Complex, Sector 18, Noida, UP - 201301',
-    invoiceNo: 'INV-2026-1234', invoiceAmount: 4200, value: 12500,
-    skuCount: 5, returnQty: 120, stage: 'Initiated',
-    transportStatus: 'Pickup Done', warehouseStatus: 'Pending',
-    qcStatus: 'Pending', financeStatus: 'CN Pending',
-    aging: 3, priority: 'High', assignedTo: 'Warehouse Team',
-    createdAt: new Date('2026-05-10T10:30:00').toISOString(),
-    lastUpdated: new Date(Date.now() - 10 * 60000).toISOString(),
-    createdBy: 'Priya Sharma',
-    creditNoteId: null, debitNoteId: null,
-    gstAdjustment: 'Pending', tallySync: 'Pending', reconciliation: 'Open',
-    items: [
-      { sku: 'SKU-7644', productName: 'Steel Rods',  returnQty: 50, unitPrice: 150, total: 7500, reason: 'Damaged',    qcResult: 'Pending' },
-      { sku: 'SKU-8821', productName: 'Copper Wire', returnQty: 70, unitPrice: 71,  total: 5000, reason: 'Wrong item', qcResult: 'Pending' },
-    ],
-  },
-  {
-    _id: 'ret_002', mrId: 'MR-2026-005',
-    returnType: 'Purchase Return', supplierName: 'Rajesh Traders',
-    supplierType: 'Distributor', contactNumber: '+91 87654 32109',
-    email: 'info@rajeshtraders.com',
-    address: 'Plot No. 45, Industrial Area, Phase 2, Gurgaon, HR - 122015',
-    invoiceNo: 'INV-2026-1235', invoiceAmount: 8500, value: 8500,
-    skuCount: 1, returnQty: 5, stage: 'Approved',
-    transportStatus: 'Dispatched', warehouseStatus: 'Received',
-    qcStatus: 'Approved', financeStatus: 'CN Generated',
-    aging: 1, priority: 'Medium', assignedTo: 'Suresh Kumar',
-    createdAt: new Date('2026-05-12T14:20:00').toISOString(),
-    lastUpdated: new Date(Date.now() - 2 * 3600000).toISOString(),
-    createdBy: 'Suresh Kumar',
-    creditNoteId: 'CN-2026-001', debitNoteId: null,
-    gstAdjustment: 'Completed', tallySync: 'Synced', reconciliation: 'Closed',
-    items: [
-      { sku: 'SKU-9001', productName: 'Electronic Component', returnQty: 5, unitPrice: 1700, total: 8500, reason: 'Defective', qcResult: 'Approved' },
-    ],
-  },
-];
+// ─── SAMPLE_RETURNS removed — page shows empty state when API returns no data ──
+
+
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function timeAgo(dateStr) {
@@ -1078,14 +1038,11 @@ export default function StageTrackerPage({ returns: propReturns, onStageUpdate }
     setLoading(true);
     try {
       const res = await materialReturnApi.getAll();
-      let data = (res.data || []).map(normalizeReturn);
-      if (data.length === 0) data = SAMPLE_RETURNS.map(normalizeReturn);
+      const data = (res.data || []).map(normalizeReturn);
       setReturns(data);
       if (!selectedReturn && data.length > 0) setSelectedReturn(data[0]);
     } catch {
-      const sample = SAMPLE_RETURNS.map(normalizeReturn);
-      setReturns(sample);
-      if (!selectedReturn && sample.length > 0) setSelectedReturn(sample[0]);
+      setReturns([]);
     } finally { setLoading(false); }
   }, [propReturns]);
 

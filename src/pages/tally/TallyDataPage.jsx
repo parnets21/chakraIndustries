@@ -5,10 +5,11 @@
  * Each tab fetches from the real API and displays the data.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { itemMasterApi }     from '../../api/itemMasterApi';
-import { vendorApi }         from '../../api/vendorApi';
-import { clientApi }         from '../../api/clientApi';
-import { accountsLedgerApi } from '../../api/accountsLedgerApi';
+import { itemMasterApi }     from '../../api/itemMasterApi.js';
+import { vendorApi }         from '../../api/vendorApi.js';
+import { clientApi }         from '../../api/clientApi.js';
+import { accountsLedgerApi } from '../../api/accountsLedgerApi.js';
+import { useDataEvent } from '../../utils/dataEvents.js';
 
 const C = {
   red: '#c0392b', redLight: '#fef2f2', redBorder: '#fecaca',
@@ -89,14 +90,21 @@ function ItemsTab() {
   const [error, setError]   = useState('');
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError('');
-    itemMasterApi.getAll()
-      .then(r => setData(r.data || []))
-      .catch(e => setError(e.message || 'Failed to fetch stock items'))
-      .finally(() => setLoading(false));
+    try {
+      const r = await itemMasterApi.getAll();
+      setData(r.data || []);
+    } catch (e) {
+      setError(e.message || 'Failed to fetch stock items');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useDataEvent('item:changed', fetchData);
 
   const rows = data.filter(x =>
     !search || x.name?.toLowerCase().includes(search.toLowerCase()) || x.sku?.toLowerCase().includes(search.toLowerCase())
@@ -144,14 +152,21 @@ function VendorsTab() {
   const [error, setError]   = useState('');
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError('');
-    vendorApi.getAll()
-      .then(r => setData(r.data || []))
-      .catch(e => setError(e.message || 'Failed to fetch vendors'))
-      .finally(() => setLoading(false));
+    try {
+      const r = await vendorApi.getAll();
+      setData(r.data || []);
+    } catch (e) {
+      setError(e.message || 'Failed to fetch vendors');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useDataEvent('vendor:changed', fetchData);
 
   const rows = data.filter(x =>
     !search || x.companyName?.toLowerCase().includes(search.toLowerCase()) || x.city?.toLowerCase().includes(search.toLowerCase())
@@ -199,14 +214,21 @@ function ClientsTab() {
   const [error, setError]   = useState('');
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError('');
-    clientApi.getAll()
-      .then(r => setData(r.data || []))
-      .catch(e => setError(e.message || 'Failed to fetch clients'))
-      .finally(() => setLoading(false));
+    try {
+      const r = await clientApi.getAll();
+      setData(r.data || []);
+    } catch (e) {
+      setError(e.message || 'Failed to fetch clients');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useDataEvent('client:changed', fetchData);
 
   const rows = data.filter(x =>
     !search || x.name?.toLowerCase().includes(search.toLowerCase()) || x.city?.toLowerCase().includes(search.toLowerCase())
@@ -256,14 +278,21 @@ function LedgersTab() {
   const [search, setSearch] = useState('');
   const [groupFilter, setGroupFilter] = useState('');
 
-  useEffect(() => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError('');
-    accountsLedgerApi.getAll()
-      .then(r => setData(r.data || []))
-      .catch(e => setError(e.message || 'Failed to fetch ledgers'))
-      .finally(() => setLoading(false));
+    try {
+      const r = await accountsLedgerApi.getAll();
+      setData(r.data || []);
+    } catch (e) {
+      setError(e.message || 'Failed to fetch ledgers');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useDataEvent('ledger:changed', fetchData);
 
   const rows = data.filter(x => {
     const matchSearch = !search || x.ledgerName?.toLowerCase().includes(search.toLowerCase());
@@ -320,27 +349,32 @@ function LedgersTab() {
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
+// ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function TallyDataPage() {
   const [active, setActive] = useState('items');
   const [counts, setCounts] = useState({ items: '…', vendors: '…', clients: '…', ledgers: '…' });
 
-  // Load counts once on mount
-  useEffect(() => {
-    Promise.allSettled([
+  const loadCounts = useCallback(async () => {
+    const [i, v, c, l] = await Promise.allSettled([
       itemMasterApi.getAll(),
       vendorApi.getAll(),
       clientApi.getAll(),
       accountsLedgerApi.getAll(),
-    ]).then(([i, v, c, l]) => {
-      setCounts({
-        items:   i.status === 'fulfilled' ? (i.value.data || []).length : '?',
-        vendors: v.status === 'fulfilled' ? (v.value.data || []).length : '?',
-        clients: c.status === 'fulfilled' ? (c.value.data || []).length : '?',
-        ledgers: l.status === 'fulfilled' ? (l.value.data || []).length : '?',
-      });
+    ]);
+    setCounts({
+      items:   i.status === 'fulfilled' ? (i.value.data || []).length : '?',
+      vendors: v.status === 'fulfilled' ? (v.value.data || []).length : '?',
+      clients: c.status === 'fulfilled' ? (c.value.data || []).length : '?',
+      ledgers: l.status === 'fulfilled' ? (l.value.data || []).length : '?',
     });
   }, []);
+
+  // Load counts once on mount and when data changes
+  useEffect(() => { loadCounts(); }, [loadCounts]);
+  useDataEvent('vendor:changed', loadCounts);
+  useDataEvent('item:changed', loadCounts);
+  useDataEvent('client:changed', loadCounts);
+  useDataEvent('ledger:changed', loadCounts);
 
   return (
     <div style={{ padding: 20 }}>

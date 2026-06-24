@@ -16,6 +16,7 @@ const btnO = 'inline-flex items-center gap-1.5 px-4 py-2 border border-red-600 t
 const EMPTY_BRAND = { name:'', code:'', color:'#c0392b', billingType:'Per Unit', ratePerUnit:'', gstRate:18, paymentTerms:'Net 30', monthlyTarget:'', contactPerson:'', contactEmail:'', contactPhone:'', notes:'', status:'Active' };
 const EMPTY_PROD  = { productName:'', oemSku:'', oemPartNo:'', unitPrice:'', leadTimeDays:'', warrantyMonths:'', minOrderQty:1, uom:'Set', bom:'', preferredRegions:'', autoSelectPriority:0, notes:'', status:'Active' };
 const EMPTY_WO    = { product:'', qty:'', shift:'General', priority:'Normal', startDate:'', endDate:'', remarks:'' };
+const EMPTY_ORDER = { product:'', quantity:'', bomId:'', unit:'Nos', expectedDeliveryDate:'', remarks:'' };
 
 function Spinner() {
   return <div style={{display:'flex',justifyContent:'center',padding:40}}><div style={{width:32,height:32,border:'3px solid #f1f5f9',borderTop:'3px solid #c0392b',borderRadius:'50%',animation:'spin 0.7s linear infinite'}}/><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>;
@@ -49,6 +50,7 @@ export default function OEMPage() {
   const [showProdModal, setShowProdModal]     = useState(false);
   const [editProd, setEditProd]               = useState(null);
   const [showWOModal, setShowWOModal]         = useState(false);
+  const [showOrderModal, setShowOrderModal]   = useState(false);
   const [showProgressModal, setShowProgressModal] = useState(null);
   const [progressVal, setProgressVal]         = useState('');
   const [showAutoSelect, setShowAutoSelect]   = useState(false);
@@ -61,6 +63,7 @@ export default function OEMPage() {
   const [brandForm, setBrandForm] = useState(EMPTY_BRAND);
   const [prodForm, setProdForm]   = useState(EMPTY_PROD);
   const [woForm, setWoForm]       = useState(EMPTY_WO);
+  const [orderForm, setOrderForm] = useState(EMPTY_ORDER);
 
   //  Loaders 
   const loadBrands = useCallback(async () => {
@@ -153,6 +156,34 @@ export default function OEMPage() {
       toast('Work order created'); setShowWOModal(false); setWoForm(EMPTY_WO); loadBrandData(activeBrand);
     } catch (e) { toast(e.message || 'Failed to create work order', 'error'); }
   };
+
+  const openAddOrder = () => { setOrderForm(EMPTY_ORDER); setShowOrderModal(true); };
+  const handleOrderProductChange = (value) => {
+    const prod = products.find(p => p.productName === value);
+    setOrderForm(prev => ({ ...prev, product: value, bomId: prod?.bom?._id || '' }));
+  };
+  const handleCreateOrder = async () => {
+    if (!orderForm.product.trim()) { toast('Product is required', 'error'); return; }
+    if (!orderForm.quantity || parseInt(orderForm.quantity) < 1) { toast('Quantity must be at least 1', 'error'); return; }
+    const bomId = orderForm.bomId || products.find(p => p.productName === orderForm.product)?.bom?._id;
+    if (!bomId) { toast('BOM is required for OEM order', 'error'); return; }
+    try {
+      await oemOrderApi.create({
+        oemBrand: activeBrand._id,
+        product: orderForm.product,
+        quantity: parseInt(orderForm.quantity),
+        bomId,
+        unit: orderForm.unit,
+        expectedDeliveryDate: orderForm.expectedDeliveryDate || undefined,
+        remarks: orderForm.remarks || undefined,
+      });
+      toast('OEM order created');
+      setShowOrderModal(false);
+      setOrderForm(EMPTY_ORDER);
+      loadBrandData(activeBrand);
+    } catch (e) { toast(e.message || 'Failed to create OEM order', 'error'); }
+  };
+
   const handleUpdateProgress = async () => {
     if (!showProgressModal) return;
     const val = parseInt(progressVal);
@@ -249,6 +280,7 @@ export default function OEMPage() {
         <button onClick={openAddBrand} style={{display:'inline-flex',alignItems:'center',gap:6,padding:'8px 16px',borderRadius:10,background:'linear-gradient(135deg,#ef4444,#b91c1c)',color:'#fff',border:'none',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',boxShadow:'0 3px 10px rgba(185,28,28,0.3)'}}><MdAdd size={15}/>Add OEM Brand</button>
         {innerTab==='Products' && activeBrand && <button onClick={openAddProd} style={{display:'inline-flex',alignItems:'center',gap:6,padding:'8px 16px',borderRadius:10,background:'transparent',color:'#c0392b',border:'1.5px solid #c0392b',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>+ Add Product</button>}
         {innerTab==='Work Orders' && activeBrand && <button onClick={() => setShowWOModal(true)} style={{display:'inline-flex',alignItems:'center',gap:6,padding:'8px 16px',borderRadius:10,background:'transparent',color:'#c0392b',border:'1.5px solid #c0392b',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>+ New Work Order</button>}
+        {innerTab==='Orders' && activeBrand && <button onClick={openAddOrder} style={{display:'inline-flex',alignItems:'center',gap:6,padding:'8px 16px',borderRadius:10,background:'transparent',color:'#c0392b',border:'1.5px solid #c0392b',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>+ New OEM Order</button>}
       </div>
 
       {/*  Global Stats  */}
@@ -547,6 +579,24 @@ export default function OEMPage() {
                               <td style={{padding:'10px 14px',fontSize:11,color:'#64748b'}}>{fg.trackingNumber||'—'}</td>
                               <td style={{padding:'10px 14px'}} onClick={e=>e.stopPropagation()}>
                                 <div style={{display:'flex',gap:5}}>
+                                  {(fg.qcStatus==='Failed'||fg.qcStatus==='Rework') && (
+                                    <button onClick={async()=>{
+                                      try{
+                                        await oemFinishedGoodsApi.update(fg._id,{qcStatus:'Rework',status:'In-Storage'});
+                                        toast('Sent for Rework/Washing');
+                                        loadBrandData(activeBrand);
+                                      }catch(e){toast(e.message||'Failed','error');}
+                                    }} style={{padding:'3px 9px',borderRadius:6,fontSize:11,fontWeight:600,border:'1px solid #d97706',color:'#d97706',background:'#fffbeb',cursor:'pointer',fontFamily:'inherit'}}>🔄 Rework</button>
+                                  )}
+                                  {fg.qcStatus==='Passed' && fg.status!=='Dispatch-Ready' && (
+                                    <button onClick={async()=>{
+                                      try{
+                                        await oemFinishedGoodsApi.update(fg._id,{status:'Dispatch-Ready'});
+                                        toast('Marked Dispatch-Ready');
+                                        loadBrandData(activeBrand);
+                                      }catch(e){toast(e.message||'Failed','error');}
+                                    }} style={{padding:'3px 9px',borderRadius:6,fontSize:11,fontWeight:600,border:'1px solid #2563eb',color:'#2563eb',background:'#eff6ff',cursor:'pointer',fontFamily:'inherit'}}>✓ Ready</button>
+                                  )}
                                   <button onClick={()=>handleDeleteFinishedGoods(fg)} style={{padding:'3px 9px',borderRadius:6,fontSize:11,fontWeight:600,border:'1px solid #fecaca',color:'#ef4444',background:'#fef2f2',cursor:'pointer',fontFamily:'inherit'}}>Delete</button>
                                 </div>
                               </td>
@@ -603,7 +653,7 @@ export default function OEMPage() {
           <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Contact Person</label><input className={inp} placeholder="Name" value={brandForm.contactPerson} onChange={e=>setBrandForm(p=>({...p,contactPerson:e.target.value}))} /></div>
           <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Contact Email</label><input type="email" className={inp} placeholder="email@brand.com" value={brandForm.contactEmail} onChange={e=>setBrandForm(p=>({...p,contactEmail:e.target.value}))} /></div>
           <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Contact Phone</label><input type="tel" className={inp} placeholder="10-digit number" maxLength={10} value={brandForm.contactPhone} onChange={e=>setBrandForm(p=>({...p,contactPhone:e.target.value.replace(/\D/g,'').slice(0,10)}))} /></div>
-          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Status</label><select className={inp} value={brandForm.status||'Active'} onChange={e=>setBrandForm(p=>({...p,status:e.target.value}))}><option>Active</option><option>Inactive</option></select></div>
+          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Status</label><select className={inp} value={brandForm.status||'Active'} onChange={e=>setBrandForm(p=>({...p,status:e.target.value}))}><option>Active</option><option>Inactive</option><option>Suspended</option></select></div>
         </div>
         <div className="flex flex-col gap-1.5 mt-3"><label className="text-xs font-semibold text-gray-600">Notes</label><textarea className={`${inp} resize-y min-h-[60px]`} placeholder="Contract notes..." value={brandForm.notes} onChange={e=>setBrandForm(p=>({...p,notes:e.target.value}))} /></div>
       </Modal>
@@ -650,6 +700,29 @@ export default function OEMPage() {
           <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Priority</label><select className={inp} value={woForm.priority} onChange={e=>setWoForm(p=>({...p,priority:e.target.value}))}><option>Normal</option><option>High</option><option>Urgent</option></select></div>
         </div>
         <div className="flex flex-col gap-1.5 mt-3"><label className="text-xs font-semibold text-gray-600">Remarks</label><textarea className={`${inp} resize-y min-h-[60px]`} placeholder="Additional instructions..." value={woForm.remarks} onChange={e=>setWoForm(p=>({...p,remarks:e.target.value}))} /></div>
+      </Modal>
+
+      {/* New OEM Order */}
+      <Modal open={showOrderModal} onClose={()=>setShowOrderModal(false)} title={`New OEM Order — ${activeBrand?.name||''}`}
+        footer={<><button className={btnO} onClick={()=>setShowOrderModal(false)}>Cancel</button><button className={btnP} onClick={handleCreateOrder}>Create OEM Order</button></>}> 
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Product *</label>
+            <select className={inp} value={orderForm.product} onChange={e=>handleOrderProductChange(e.target.value)}>
+              <option value="">— Select Product —</option>
+              {products.map(p=><option key={p._id} value={p.productName}>{p.productName}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Quantity *</label><input type="number" min="1" className={inp} placeholder="0" value={orderForm.quantity} onChange={e=>setOrderForm(p=>({...p,quantity:e.target.value}))} /></div>
+          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">BOM *</label>
+            <select className={inp} value={orderForm.bomId} onChange={e=>setOrderForm(p=>({...p,bomId:e.target.value}))}>
+              <option value="">— Select BOM —</option>
+              {bomList.map(b=><option key={b._id} value={b._id}>{b.bomId} — {b.product}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Unit</label><input className={inp} value={orderForm.unit} onChange={e=>setOrderForm(p=>({...p,unit:e.target.value}))} /></div>
+          <div className="flex flex-col gap-1.5"><label className="text-xs font-semibold text-gray-600">Expected Delivery</label><input type="date" className={inp} value={orderForm.expectedDeliveryDate} onChange={e=>setOrderForm(p=>({...p,expectedDeliveryDate:e.target.value}))} /></div>
+        </div>
+        <div className="flex flex-col gap-1.5 mt-3"><label className="text-xs font-semibold text-gray-600">Remarks</label><textarea className={`${inp} resize-y min-h-[60px]`} placeholder="Order notes..." value={orderForm.remarks} onChange={e=>setOrderForm(p=>({...p,remarks:e.target.value}))} /></div>
       </Modal>
 
       {/* Update Progress */}

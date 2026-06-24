@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5001/api');
+const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5000/api');
 
 const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
 const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
@@ -13,6 +13,7 @@ export const itemMasterApi = {
   create: (body) => fetch(`${BASE}/item-master`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   update: (id, body) => fetch(`${BASE}/item-master/${id}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   delete: (id) => fetch(`${BASE}/item-master/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
+  deleteAll: () => fetch(`${BASE}/item-master/delete-all`, { method: 'DELETE', headers: authHeaders() }).then(handle),
 
   // Search & Filter
   search: (query) => fetch(`${BASE}/item-master/search?q=${encodeURIComponent(query)}`, { headers: authHeaders() }).then(handle),

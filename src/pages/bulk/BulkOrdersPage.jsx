@@ -184,11 +184,19 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
     try {
       // Get the selected quotation to get items array
       const selectedQuotation = quotations.find(q => q._id === newDeliveryForm.quotationId);
+      // Map lineItems: BulkQuotation stores `item` field, DeliverySchedule model expects `itemName`
+      const mappedItems = (selectedQuotation?.lineItems || []).map(li => ({
+        sku: li.sku || '',
+        itemName: li.item || li.itemName || '',
+        qty: li.qty || 0,
+        unitPrice: li.unitPrice || 0,
+        total: li.total || 0,
+      }));
       const res = await bulkOrderApi.createSchedule({
         quotationId: newDeliveryForm.quotationId || null,
         client: newDeliveryForm.client,
-        items: selectedQuotation?.lineItems || [],
-        totalItems: parseInt(newDeliveryForm.items) || (selectedQuotation?.lineItems?.length) || 0,
+        items: mappedItems,
+        totalItems: mappedItems.length || parseInt(newDeliveryForm.items) || 0,
         totalQty: parseInt(newDeliveryForm.qty) || 0,
         deliveryDate: newDeliveryForm.deliveryDate,
         slot: newDeliveryForm.slot,
@@ -293,7 +301,7 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
             columns={[
               { key: 'quotationId', label: 'Quote ID', render: v => <span className="font-semibold text-red-700">{v}</span> },
               { key: 'client', label: 'Client', render: v => <span className="font-semibold">{v}</span> },
-              { key: 'items', label: 'SKU', render: v => Array.isArray(v) ? v.length : v },
+              { key: 'items', label: 'SKU Count', render: v => Array.isArray(v) ? v.length : (typeof v === 'number' ? v : '—') },
               { key: 'value', label: 'Value', render: v => <span className="font-bold text-red-700">{fmtMoney(v)}</span> },
               { key: 'packaging', label: 'Packaging' },
               { key: 'validity', label: 'Valid Till', render: v => v ? new Date(v).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—' },
@@ -515,14 +523,13 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
             <select className={selectCls} value={newDeliveryForm.quotationId} onChange={(e) => {
               const quotation = quotations.find(q => q._id === e.target.value);
               if (quotation) {
-                const totalQty = Array.isArray(quotation.items) 
-                  ? quotation.items.reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0)
-                  : 0;
+                const lineItems = quotation.lineItems || [];
+                const totalQty = lineItems.reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0);
                 setNewDeliveryForm({
                   ...newDeliveryForm,
                   quotationId: e.target.value,
-                  client: quotation.clientName,
-                  items: Array.isArray(quotation.items) ? quotation.items.length.toString() : '',
+                  client: quotation.client || quotation.clientName || '',
+                  items: lineItems.length.toString(),
                   qty: totalQty.toString(),
                 });
               } else {
@@ -532,7 +539,7 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
               <option value="">Select a quotation</option>
               {quotations.map(q => (
                 <option key={q._id} value={q._id}>
-                  {q.quoteId} - {q.clientName}
+                  {q.quotationId} - {q.client || q.clientName}
                 </option>
               ))}
             </select>
@@ -633,8 +640,8 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
         {viewQuote && (
           <div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '14px 20px', marginBottom: 20 }}>
-              {[['Quote ID', viewQuote.quoteId], ['Client', viewQuote.clientName], ['Packaging', viewQuote.packaging],
-                ['Payment Terms', viewQuote.paymentTerms], ['Grand Total', fmtMoney(viewQuote.grandTotal)],
+              {[['Quote ID', viewQuote.quotationId], ['Client', viewQuote.client], ['Packaging', viewQuote.packaging],
+                ['Payment Terms', viewQuote.paymentTerms || 'Net 30'], ['Grand Total', fmtMoney(viewQuote.value || viewQuote.grandTotal)],
                 ['Valid Till', viewQuote.validity ? new Date(viewQuote.validity).toLocaleDateString('en-IN') : '—'],
                 ['Status', viewQuote.status],
               ].map(([label, value]) => (
@@ -646,7 +653,7 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
                 </div>
               ))}
             </div>
-            {Array.isArray(viewQuote.items) && viewQuote.items.length > 0 && (
+            {Array.isArray(viewQuote.lineItems) && viewQuote.lineItems.length > 0 && (
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 10 }}>LINE ITEMS</div>
                 <div style={{ overflowX: 'auto', borderRadius: 10, border: '1px solid #e2e8f0' }}>
@@ -655,7 +662,7 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
                       {['Item','SKU','Qty','Unit Price','Discount','Total'].map(h => <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>{h}</th>)}
                     </tr></thead>
                     <tbody>
-                      {viewQuote.items.map((it, i) => (
+                      {viewQuote.lineItems.map((it, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                           <td style={{ padding: '10px 12px', fontWeight: 600 }}>{it.item}</td>
                           <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontSize: 11, color: '#ef4444' }}>{it.sku || '—'}</td>

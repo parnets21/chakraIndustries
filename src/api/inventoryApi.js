@@ -1,6 +1,6 @@
 import { globalRateLimiter } from '../utils/rateLimiter.js';
 
-const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5001/api');
+const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5000/api');
 
 const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
 const authHeaders = (isGet = false) => {
@@ -54,12 +54,13 @@ const rateLimitedFetchWithRetry = async (url, options = {}, retries = 2) => {
 
 export const inventoryApi = {
   // ── Stock Items ────────────────────────────────────────────────────────────
-  getAll:    (params = {}) => rateLimitedFetchWithRetry(`${BASE}/inventory${q(params)}`,          { headers: authHeaders(true) }),
-  getStats:  ()            => rateLimitedFetchWithRetry(`${BASE}/inventory/stats`,                 { headers: authHeaders(true) }),
-  create:    (body)        => rateLimitedFetchWithRetry(`${BASE}/inventory`,                       { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }),
-  adjust:    (id, body)    => rateLimitedFetchWithRetry(`${BASE}/inventory/${id}/adjust`,          { method: 'PATCH',  headers: authHeaders(), body: JSON.stringify(body) }),
-  move:      (id, body)    => rateLimitedFetchWithRetry(`${BASE}/inventory/${id}/move`,            { method: 'PATCH',  headers: authHeaders(), body: JSON.stringify(body) }),
-  delete:    (id)          => rateLimitedFetchWithRetry(`${BASE}/inventory/${id}`,                 { method: 'DELETE', headers: authHeaders() }),
+  getAll:      (params = {}) => rateLimitedFetchWithRetry(`${BASE}/inventory${q(params)}`,          { headers: authHeaders(true) }),
+  getStats:    ()            => rateLimitedFetchWithRetry(`${BASE}/inventory/stats`,                 { headers: authHeaders(true) }),
+  getDropdown: ()            => rateLimitedFetchWithRetry(`${BASE}/inventory/dropdown`,              { headers: authHeaders(true) }),
+  create:      (body)        => rateLimitedFetchWithRetry(`${BASE}/inventory`,                       { method: 'POST',   headers: authHeaders(), body: JSON.stringify(body) }),
+  adjust:      (id, body)    => rateLimitedFetchWithRetry(`${BASE}/inventory/${id}/adjust`,          { method: 'PATCH',  headers: authHeaders(), body: JSON.stringify(body) }),
+  move:        (id, body)    => rateLimitedFetchWithRetry(`${BASE}/inventory/${id}/move`,            { method: 'PATCH',  headers: authHeaders(), body: JSON.stringify(body) }),
+  delete:      (id)          => rateLimitedFetchWithRetry(`${BASE}/inventory/${id}`,                 { method: 'DELETE', headers: authHeaders() }),
 
   // ── Warehouses ─────────────────────────────────────────────────────────────
   getWarehouses:      ()         => rateLimitedFetchWithRetry(`${BASE}/inventory/warehouses`,           { headers: authHeaders(true) }),

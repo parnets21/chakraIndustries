@@ -172,11 +172,13 @@ export const NAV_ITEMS = [
     children: [
       { path: '/procurement/vendors',   label: 'Vendors',               page: 'procurement' },
       { path: '/procurement/clients',   label: 'Clients',               page: 'procurement' },
+      { path: '/procurement/dealers',   label: 'Dealers',               page: 'procurement' },
       { path: '/procurement/pr',        label: 'Purchase Requisition',  page: 'procurement' },
       { path: '/procurement/rfq',       label: 'RFQ',                   page: 'procurement' },
       { path: '/procurement/po',        label: 'Purchase Orders',       page: 'procurement' },
       { path: '/procurement/grn',       label: 'GRN',                   page: 'procurement' },
       { path: '/procurement/qc',        label: 'Quality Check',         page: 'procurement' },
+      { path: '/procurement/grn-invoices', label: 'GRN Invoices',       page: 'procurement' },
       { path: '/procurement/approvals', label: 'Approvals',             page: 'procurement' },
       { path: '/procurement/excess',    label: 'Excess PO Monitor',     page: 'procurement' },
     ],
@@ -186,6 +188,7 @@ export const NAV_ITEMS = [
     children: [
       { path: '/inventory/dashboard',     label: 'Stock Dashboard',    page: 'inventory' },
       { path: '/inventory/stock-items',   label: 'Stock Items',        page: 'inventory' },
+      { path: '/inventory/stock-invoices',label: 'Stock Invoices',     page: 'inventory' },
       { path: '/inventory/stock',         label: 'Stock Table',        page: 'inventory' },
       { path: '/inventory/warehouses', label: 'Warehouses',         page: 'inventory' },
       { path: '/inventory/movement',   label: 'Stock Movement',     page: 'inventory' },
@@ -209,7 +212,13 @@ export const NAV_ITEMS = [
     ],
   },
   { path: '/oem',    label: 'OEM',    page: 'oem',    icon: 'MdStar' },
-  { path: '/orders', label: 'Orders', page: 'orders', icon: 'MdAssignment' },
+  {
+    label: 'Orders', page: 'orders', icon: 'MdAssignment',
+    children: [
+      { path: '/orders',         label: 'Sales Orders',   page: 'orders' },
+      { path: '/orders/dealer',  label: 'Dealer App Orders', page: 'orders' },
+    ],
+  },
   {
     label: 'Bulk Orders', page: 'bulk', icon: 'MdBusinessCenter',
     children: [
@@ -249,12 +258,18 @@ export const NAV_ITEMS = [
   {
     label: 'Finance', page: 'finance', icon: 'MdAccountBalance',
     children: [
-      { path: '/finance/ledger',   label: 'Ledger',              page: 'finance' },
-      { path: '/finance/brs',      label: 'BRS',                 page: 'finance' },
-      { path: '/finance/payments', label: 'Payments',            page: 'finance' },
-      { path: '/finance/notes',    label: 'Credit/Debit Notes',  page: 'finance' },
-      { path: '/finance/matching', label: 'Ledger Matching',     page: 'finance' },
-      { path: '/finance/cntracks', label: 'CN Tracking',         page: 'creditnotes' },
+      { path: '/finance/dashboard',          label: 'Dashboard',             page: 'finance' },
+      { path: '/finance/accounts-payable',   label: 'Accounts Payable',      page: 'finance' },
+      { path: '/finance/accounts-receivable', label: 'Accounts Receivable',  page: 'finance' },
+      { path: '/finance/supplier-payments',  label: 'Supplier Payments',     page: 'finance' },
+      { path: '/finance/dealer-receipts',    label: 'Dealer Receipts',       page: 'finance' },
+      { path: '/finance/supplier-ledger',    label: 'Supplier Ledger',       page: 'finance' },
+      { path: '/finance/dealer-ledger',      label: 'Dealer Ledger',         page: 'finance' },
+      { path: '/finance/outstanding-invoices', label: 'Outstanding Invoices', page: 'finance' },
+      { path: '/finance/bank-cash-accounts', label: 'Bank & Cash Accounts',  page: 'finance' },
+      { path: '/finance/payment-history',    label: 'Payment History',       page: 'finance' },
+      { path: '/finance/financial-reports',  label: 'Financial Reports',     page: 'finance' },
+      { path: '/finance/cntracks',           label: 'CN Tracking',           page: 'creditnotes' },
     ],
   },
   {

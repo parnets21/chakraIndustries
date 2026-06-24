@@ -1,12 +1,10 @@
-/**
- * StockItemsPage.jsx
- * Shows Item Master (stock items) within the Inventory section.
- * Route: /inventory/stock-items
- */
+
 import { useState, useEffect, useCallback } from 'react';
 import { itemMasterApi } from '../../api/itemMasterApi';
+import { inventoryApi } from '../../api/inventoryApi';
 import { categoryApi } from '../../api/categoryApi';
 import Modal from '../../components/common/Modal';
+import Pagination from '../../components/common/Pagination';
 import { toast } from '../../components/common/Toast';
 import { MdSearch, MdAdd, MdEdit, MdDelete, MdInventory2 } from 'react-icons/md';
 import * as XLSX from 'xlsx';
@@ -21,13 +19,15 @@ const lbl = { fontSize: 11.5, fontWeight: 600, color: '#475569', marginBottom: 5
 const EMPTY_FORM = {
   sku: '', name: '', description: '', category: '', unit: 'units',
   unitPrice: '', costPrice: '', sellingPrice: '',
+  qty: '', warehouse: '',
   minQuantity: '', maxQuantity: '', reorderPoint: '',
   hsn: '', gst: '', barcode: '',
 };
 
-export default function StockItemsPage({ externalShowModal = false, onExternalModalClose }) {
+export default function StockItemsPage({ externalShowModal = false, onExternalModalClose, hideAddButton = false }) {
   const [items, setItems]           = useState([]);
   const [categories, setCategories] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [search, setSearch]         = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -36,6 +36,8 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
   const [saving, setSaving]         = useState(false);
   const [form, setForm]             = useState(EMPTY_FORM);
   const [formErrors, setFormErrors] = useState({});
+  const [page, setPage]             = useState(1);
+  const [pageSize, setPageSize]     = useState(25);
 
   // Allow parent (InventorySubPage) to open the Add modal via externalShowModal
   useEffect(() => {
@@ -61,12 +63,30 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
     }
   }, []);
 
-  useEffect(() => { loadItems(); loadCategories(); }, [loadItems, loadCategories]);
+  const loadWarehouses = useCallback(async () => {
+    try {
+      const res = await inventoryApi.getWarehouses();
+      const data = res.data || [];
+      setWarehouses(data);
+      if (!form.warehouse && data.length > 0) {
+        setForm(prev => ({ ...prev, warehouse: data[0].id || data[0].warehouseId || data[0].name || '' }));
+      }
+    } catch (e) {
+      toast(e.message || 'Failed to load warehouses', 'error');
+    }
+  }, [form.warehouse]);
+
+  useEffect(() => { loadItems(); loadCategories(); loadWarehouses(); }, [loadItems, loadCategories, loadWarehouses]);
 
   const filteredItems = items.filter(item =>
     !search || item.name?.toLowerCase().includes(search.toLowerCase()) ||
     item.sku?.toLowerCase().includes(search.toLowerCase())
   );
+
+  // Reset to page 1 whenever filters or search change
+  useEffect(() => { setPage(1); }, [search, statusFilter]);
+
+  const pagedItems = filteredItems.slice((page - 1) * pageSize, page * pageSize);
 
   const openAdd = () => { setForm(EMPTY_FORM); setEditingItem(null); setFormErrors({}); setShowModal(true); };
   const openEdit = (item) => {
@@ -92,11 +112,24 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
     } catch (e) { toast(e.message, 'error'); }
   };
 
+  const handleDeleteAll = async () => {
+    if (!window.confirm(`Delete ALL ${filteredItems.length} stock items? This action cannot be undone.`)) return;
+    if (!window.confirm('Are you absolutely sure? This will permanently remove every stock item.')) return;
+    try {
+      const res = await itemMasterApi.deleteAll();
+      toast(res.message || 'All stock items deleted', 'success');
+      loadItems();
+    } catch (e) { toast(e.message || 'Failed to delete all items', 'error'); }
+  };
+
   const validateForm = () => {
     const errors = {};
     if (!form.sku.trim()) errors.sku = 'SKU is required';
     if (!form.name.trim()) errors.name = 'Name is required';
     if (!form.unit.trim()) errors.unit = 'Unit is required';
+    if (!editingItem && form.qty && Number(form.qty) > 0 && !form.warehouse) {
+      errors.warehouse = 'Warehouse is required when initial quantity is set';
+    }
     return errors;
   };
 
@@ -107,16 +140,41 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
     try {
       const body = { ...form };
       // Convert numeric strings
-      ['unitPrice','costPrice','sellingPrice','minQuantity','maxQuantity','reorderPoint','gst'].forEach(k => {
+      ['unitPrice','costPrice','sellingPrice','minQuantity','maxQuantity','reorderPoint','gst','qty'].forEach(k => {
         if (body[k] !== '') body[k] = Number(body[k]);
       });
+      // Convert empty category to null (ObjectId field can't receive empty string)
+      if (!body.category) body.category = undefined;
+
       if (editingItem) {
         await itemMasterApi.update(editingItem._id, body);
         toast('Item updated', 'success');
       } else {
-        await itemMasterApi.create(body);
-        toast('Item created', 'success');
+        const itemResponse = await itemMasterApi.create(body);
+        const createdItem = itemResponse?.data;
+
+        if (body.qty > 0) {
+          try {
+            await inventoryApi.create({
+              itemMasterId: createdItem?._id,
+              sku: createdItem?.sku || body.sku,
+              name: createdItem?.name || body.name,
+              qty: body.qty,
+              minQty: body.minQuantity || 0,
+              warehouse: body.warehouse || warehouses[0]?.id || 'WH-01',
+              unit: body.unit || 'Nos',
+              category: body.category || null,
+              batch: body.batch || '',
+            });
+            toast('Item created and assigned to warehouse stock', 'success');
+          } catch (stockErr) {
+            toast(`Item created, but warehouse stock creation failed: ${stockErr.message}`, 'warning');
+          }
+        } else {
+          toast('Item created', 'success');
+        }
       }
+
       setShowModal(false);
       loadItems();
     } catch (e) { setFormErrors({ _general: e.message }); }
@@ -181,7 +239,14 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
           <option>Active</option><option>Inactive</option><option>Discontinued</option>
         </select>
         <button className="si-btn si-btn-outline" onClick={handleExport}>⬇ Export</button>
-        <button className="si-btn si-btn-primary" onClick={openAdd}><MdAdd size={16} /> Add Item</button>
+        {items.length > 0 && (
+          <button className="si-btn" onClick={handleDeleteAll} style={{ background:'#fee2e2', color:'#dc2626', border:'1.5px solid #fecaca' }}>
+            🗑 Delete All ({items.length})
+          </button>
+        )}
+        {!hideAddButton && (
+          <button className="si-btn si-btn-primary" onClick={openAdd}><MdAdd size={16} /> Add Item</button>
+        )}
       </div>
 
       {/* Count */}
@@ -200,7 +265,7 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
               <th>Reorder</th><th>HSN</th><th>GST%</th><th>Status</th><th>Actions</th>
             </tr></thead>
             <tbody>
-              {filteredItems.map(item => (
+              {pagedItems.map(item => (
                 <tr key={item._id}>
                   <td style={{ fontFamily:'monospace', fontSize:11, fontWeight:600, color:'#64748b' }}>{item.sku}</td>
                   <td style={{ fontWeight:500, maxWidth:180 }}>{item.name}</td>
@@ -221,6 +286,13 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
               ))}
             </tbody>
           </table>
+          <Pagination
+            total={filteredItems.length}
+            page={page}
+            pageSize={pageSize}
+            onPage={setPage}
+            onPageSize={setPageSize}
+          />
         </div>
       )}
 
@@ -257,6 +329,15 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
           <div><label style={lbl}>Unit *</label>
             <select style={{...inp, borderColor:formErrors.unit?'#ef4444':'#e2e8f0'}} value={form.unit} onChange={f('unit')}>
               {['units','kg','g','mg','litre','ml','metre','cm','box','pack','set','piece','dozen'].map(u=><option key={u}>{u}</option>)}
+            </select>
+          </div>
+          <div><label style={lbl}>Initial Quantity</label><input style={inp} type="number" min="0" placeholder="0" value={form.qty} onChange={f('qty')} /></div>
+          <div><label style={lbl}>Warehouse</label>
+            <select style={inp} value={form.warehouse} onChange={f('warehouse')}>
+              <option value="">Select warehouse</option>
+              {warehouses.map(wh => (
+                <option key={wh.id || wh._id || wh.warehouseId} value={wh.id || wh._id || wh.warehouseId || wh.name}>{wh.name || wh.warehouseId || wh.id}</option>
+              ))}
             </select>
           </div>
           <div><label style={lbl}>Cost Price (₹)</label><input style={inp} type="number" min="0" placeholder="0" value={form.costPrice} onChange={f('costPrice')} /></div>

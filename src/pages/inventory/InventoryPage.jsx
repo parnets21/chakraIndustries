@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import StatusBadge from '../../components/common/StatusBadge';
 import BarChart from '../../components/charts/BarChart';
 import Modal from '../../components/common/Modal';
+import Pagination from '../../components/common/Pagination';
 import StorageLocationPage from './StorageLocationPage';
 import PincodeStockPage from './PincodeStockPage';
 import WarehouseReceivePage from '../returns/WarehouseReceivePage';
@@ -23,7 +24,7 @@ import { getAgeingStock } from '../../api/ageingStockApi';
 import { materialReturnApi } from '../../api/materialReturnApi';
 import { dataEvents } from '../../utils/dataEvents';
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
+// ─── Design tokens ─────────────────────────────────────────────────
 const BG_CARD = '#ffffff';
 const BORDER = '1px solid #e8edf2';
 const RADIUS_LG = 18;
@@ -81,7 +82,7 @@ const categoryName = (category) => {
   return category.name || category.categoryName || category.label || '—';
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Main Component ─────────────────────────────────────────────────
 export default function InventoryPage({ initialTab = 0, externalShowModal = false, onExternalModalClose, externalShowReturns = false, onExternalReturnsClose }) {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -105,7 +106,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const closeReturns = () => { setInternalShowReturns(false); onExternalReturnsClose?.(); };
 
   // ── Forms ──────────────────────────────────────────────────────────────────
-  const [stockForm,  setStockForm]  = useState({ sku:'', name:'', qty:'', minQty:'', warehouse:'', unit:'Nos', category:'', batch:'', remarks:'' });
+  const [stockForm,  setStockForm]  = useState({ sku:'', name:'', qty:'', minQty:'', warehouse:'', unit:'Nos', category:'', batch:'', remarks:'', unitPrice:'', gst:'18', hsn:'' });
   const [whForm,     setWhForm]     = useState({ warehouseId:'', name:'', location:'', manager:'', capacity:'', phone:'', type:'Raw Material', address:'' });
   const [nextWhId,   setNextWhId]   = useState('');
   const [movForm,    setMovForm]    = useState({ type:'Inward', sku:'', from:'Supplier', to:'', qty:'', ref:'' });
@@ -114,6 +115,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const [adjustMode, setAdjustMode] = useState('add');
   const [moveItem, setMoveItem] = useState(null);
   const [moveToWH, setMoveToWH] = useState('');
+  const [allWarehouseList, setAllWarehouseList] = useState([]);
 
   // ── Filters ────────────────────────────────────────────────────────────────
   const [stockFilter, setStockFilter] = useState('All');
@@ -126,6 +128,18 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
   const [grnList,     setGrnList]     = useState([]);
   const [poList,      setPoList]      = useState([]);
   const [poItems,     setPoItems]     = useState({});
+
+  // ── Pagination state ───────────────────────────────────────────────────────
+  const [stockPage,    setStockPage]    = useState(1);
+  const [stockPageSz,  setStockPageSz]  = useState(25);
+  const [movPage,      setMovPage]      = useState(1);
+  const [movPageSz,    setMovPageSz]    = useState(25);
+  const [batchPage,    setBatchPage]    = useState(1);
+  const [batchPageSz,  setBatchPageSz]  = useState(25);
+  const [ageingPage,   setAgeingPage]   = useState(1);
+  const [ageingPageSz, setAgeingPageSz] = useState(25);
+  const [defectPage,   setDefectPage]   = useState(1);
+  const [defectPageSz, setDefectPageSz] = useState(25);
 
   // ── Local-only tabs (no backend yet) ──────────────────────────────────────
   const [pickList, setPickList] = useState([]);
@@ -268,6 +282,20 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       return sku.toLowerCase().includes(q) || name.toLowerCase().includes(q);
     });
 
+  // ── Reset pages when filters change ───────────────────────────────────────
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setStockPage(1); }, [stockFilter, whFilter, stockSearch]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setMovPage(1); }, [movTab]);
+
+  // ── Paged slices ──────────────────────────────────────────────────────────
+  const pagedStock   = filteredStock.slice((stockPage - 1) * stockPageSz, stockPage * stockPageSz);
+  const filteredMovs = movementList.filter(m => m.type === movTab);
+  const pagedMovs    = filteredMovs.slice((movPage - 1) * movPageSz, movPage * movPageSz);
+  const pagedBatch   = batchList.slice((batchPage - 1) * batchPageSz, batchPage * batchPageSz);
+  const pagedAgeing  = ageingData.slice((ageingPage - 1) * ageingPageSz, ageingPage * ageingPageSz);
+  const pagedDefect  = defectList.slice((defectPage - 1) * defectPageSz, defectPage * defectPageSz);
+
   const lowStockItems = stockList.filter(s =>
     s.status === 'Critical' || (s.minQty > 0 && s.qty < s.minQty && s.qty > 0)
   );
@@ -298,15 +326,19 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         minQty: stockForm.minQty || 0,
         warehouse: stockForm.warehouse || warehouseList[0]?.warehouseId || 'WH-01',
         unit: stockForm.unit || 'Nos',
-        category: stockForm.category || '',
-        batch: stockForm.batch || ''
+        category: stockForm.category || null,
+        batch: stockForm.batch || '',
+        unitPrice: stockForm.unitPrice ? Number(stockForm.unitPrice) : 0,
+        costPrice: stockForm.unitPrice ? Number(stockForm.unitPrice) : 0,
+        gst: stockForm.gst ? Number(stockForm.gst) : 18,
+        hsn: stockForm.hsn || '',
       };
       
       console.log('Sending payload to backend:', payload);
       
       await inventoryApi.create(payload);
       toast(`Stock entry added — ${stockForm.sku}`);
-      setStockForm({ sku:'', name:'', qty:'', minQty:'', warehouse:'', unit:'Nos', category:'', batch:'', remarks:'' });
+      setStockForm({ sku:'', name:'', qty:'', minQty:'', warehouse:'', unit:'Nos', category:'', batch:'', remarks:'', unitPrice:'', gst:'18', hsn:'' });
       dataEvents.emit('inventory:changed');
       closeModal(); loadAll();
     } catch (e) { toast(e.message || 'Failed to add stock', 'error'); }
@@ -332,6 +364,15 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
         .catch(() => setNextWhId(''));
     }
   }, [activeTab, showModal]);
+
+  // Fetch ALL warehouses (including inactive) when the Move modal opens
+  useEffect(() => {
+    if (moveItem) {
+      inventoryApi.getAllWarehouses()
+        .then(res => setAllWarehouseList(res.data || []))
+        .catch(() => setAllWarehouseList(warehouseList)); // fallback to already-loaded list
+    }
+  }, [moveItem]); // eslint-disable-line
 
   const handleDeleteWarehouse = async (id) => {
     if (!window.confirm('Delete this warehouse? This cannot be undone.')) return;
@@ -591,72 +632,83 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
     <div>
       {/* ══ TAB 0 — Stock Dashboard ══════════════════════════════════════════ */}
       {activeTab === 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <style>{`@keyframes fadeSlideUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
           {/* ── Low stock alert ── */}
           {lowStockItems.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 20px', background: 'linear-gradient(135deg,#fffbeb,#fef9ec)', border: '1px solid #fde68a', borderRadius: 14, boxShadow: '0 4px 16px rgba(245,158,11,0.1)', animation: 'fadeSlideUp 0.3s ease' }}>
-              <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg,#f59e0b,#d97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(245,158,11,0.4)' }}>
-                <MdWarning size={20} color="#fff" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 24px', background: 'linear-gradient(135deg,#fffbeb,#fef9ec)', border: '1px solid #fde68a', borderRadius: 16, boxShadow: '0 4px 20px rgba(245,158,11,0.15)', animation: 'fadeSlideUp 0.3s ease' }}>
+              <div style={{ width: 48, height: 48, borderRadius: 14, background: 'linear-gradient(135deg,#f59e0b,#d97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 6px 16px rgba(245,158,11,0.4)' }}>
+                <MdWarning size={24} color="#fff" />
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e' }}>{lowStockItems.length} item{lowStockItems.length > 1 ? 's' : ''} below minimum stock level</div>
-                <div style={{ fontSize: 11.5, color: '#b45309', marginTop: 3 }}>{lowStockItems.slice(0, 4).map(s => s.name).join(' · ')}{lowStockItems.length > 4 && <strong> +{lowStockItems.length - 4} more</strong>}</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#92400e' }}>{lowStockItems.length} item{lowStockItems.length > 1 ? 's' : ''} below minimum stock level</div>
+                <div style={{ fontSize: 12, color: '#b45309', marginTop: 4 }}>{lowStockItems.slice(0, 5).map(s => s.name).join(' · ')}{lowStockItems.length > 5 && <strong> +{lowStockItems.length - 5} more</strong>}</div>
               </div>
-              <button onClick={() => toast('Redirecting to Purchase Requisition…', 'info')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, background: 'linear-gradient(135deg,#f59e0b,#d97706)', color: '#fff', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', boxShadow: '0 3px 12px rgba(245,158,11,0.4)' }}>
-                Create PR <MdArrowForward size={14} />
+              <button onClick={() => { toast('Redirecting to Purchase Requisition…', 'info'); navigate('/procurement/pr'); }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 12, background: 'linear-gradient(135deg,#f59e0b,#d97706)', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', boxShadow: '0 4px 14px rgba(245,158,11,0.45)', transition: 'all 0.15s ease' }} onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'} onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
+                Create PR <MdArrowForward size={16} />
               </button>
             </div>
           )}
 
-          {/* ── Main 2-col grid ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 16, alignItems: 'start' }}>
-
-            {/* ── LEFT: Chart + Movements ── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-              {/* Chart */}
-              <div style={{ background: '#fff', borderRadius: 18, border: BORDER, boxShadow: SHADOW, overflow: 'hidden' }}>
-                <div style={{ padding: '18px 22px 14px', borderBottom: BORDER, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: TEXT_DARK }}>Stock by Warehouse</div>
-                    <div style={{ fontSize: 11.5, color: TEXT_LIGHT, marginTop: 2 }}>Total units stored per location</div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 12 }}>
-                    {[{ l: 'Active', color: GREEN }, { l: 'Critical', color: AMBER }, { l: 'Dead', color: '#94a3b8' }].map(x => (
-                      <div key={x.l} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: TEXT_MID, fontWeight: 600 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: 2, background: x.color }} />{String(x.l)}
-                      </div>
-                    ))}
-                  </div>
+          {/* ── KPI Cards ── */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+            {[
+              { label: 'Total SKUs', value: stockList.length, color: BLUE, icon: MdInventory },
+              { label: 'Total Stock', value: stockList.reduce((acc, s) => acc + Number(s.qty || 0), 0).toLocaleString(), color: GREEN, icon: MdWarehouse },
+              { label: 'Low Stock', value: lowStockItems.length, color: AMBER, icon: MdWarning },
+              { label: 'Warehouses', value: warehouseList.length, color: PURPLE, icon: MdLocationOn }
+            ].map((kpi, i) => (
+              <div key={i} style={{ background: '#fff', borderRadius: 20, border: BORDER, boxShadow: SHADOW, padding: '22px 24px', display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ width: 52, height: 52, borderRadius: 14, background: `linear-gradient(135deg,${kpi.color},${kpi.color}dd)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 6px 16px ${kpi.color}30` }}>
+                  <kpi.icon size={26} color="#fff" />
                 </div>
-                <div style={{ padding: '18px 22px 14px' }}>
-                  {chartData.length > 0 ? <BarChart data={chartData} height={200} /> : <Empty msg="No stock data yet" />}
+                <div>
+                  <div style={{ fontSize: 28, fontWeight: 900, color: TEXT_DARK, lineHeight: 1.2 }}>{kpi.value}</div>
+                  <div style={{ fontSize: 12, color: TEXT_LIGHT, fontWeight: 600, marginTop: 2 }}>{kpi.label}</div>
                 </div>
               </div>
+            ))}
+          </div>
 
-              {/* Recent movements */}
-              <div style={{ background: '#fff', borderRadius: 18, border: BORDER, boxShadow: SHADOW, overflow: 'hidden' }}>
-                <div style={{ padding: '16px 22px', borderBottom: BORDER, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: TEXT_DARK }}>Recent Movements</div>
-                  <span style={{ padding: '3px 10px', borderRadius: 20, background: '#f1f5f9', fontSize: 11.5, fontWeight: 700, color: TEXT_MID }}>{movementList.length} total</span>
+          {/* ── Main 3-col grid ── */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: 20, alignItems: 'start' }}>
+
+            {/* ── LEFT: Stock by Warehouse Chart ── */}
+            <div style={{ background: '#fff', borderRadius: 20, border: BORDER, boxShadow: SHADOW, overflow: 'hidden' }}>
+              <div style={{ padding: '20px 24px 16px', borderBottom: BORDER, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: TEXT_DARK }}>Stock Distribution</div>
+                  <div style={{ fontSize: 12, color: TEXT_LIGHT, marginTop: 3 }}>Units stored per warehouse</div>
                 </div>
+              </div>
+              <div style={{ padding: '22px 24px 20px' }}>
+                {chartData.length > 0 ? <BarChart data={chartData} height={220} /> : <Empty msg="No stock data yet" />}
+              </div>
+            </div>
+
+            {/* ── MIDDLE: Recent Movements ── */}
+            <div style={{ background: '#fff', borderRadius: 20, border: BORDER, boxShadow: SHADOW, overflow: 'hidden' }}>
+              <div style={{ padding: '20px 24px 16px', borderBottom: BORDER, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: TEXT_DARK }}>Recent Movements</div>
+                <span style={{ padding: '4px 12px', borderRadius: 20, background: '#f1f5f9', fontSize: 12, fontWeight: 700, color: TEXT_MID }}>{movementList.length} total</span>
+              </div>
+              <div style={{ maxHeight: 420, overflowY: 'auto' }}>
                 {movementList.length === 0 ? (
-                  <div style={{ padding: '32px 22px', textAlign: 'center', color: TEXT_LIGHT, fontSize: 12.5 }}>No movements recorded yet</div>
-                ) : movementList.slice(0, 6).map((mv, i) => {
+                  <div style={{ padding: '40px 24px', textAlign: 'center', color: TEXT_LIGHT, fontSize: 13 }}>No movements recorded yet</div>
+                ) : movementList.slice(0, 8).map((mv, i) => {
                   const tc = mv.type === 'Inward' ? '#10b981' : mv.type === 'Outward' ? RED_LIGHT : BLUE;
                   const ti = mv.type === 'Inward' ? '↓' : mv.type === 'Outward' ? '↑' : '⇄';
                   return (
-                    <div key={mv._id || i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 22px', borderBottom: i < Math.min(movementList.length, 6) - 1 ? '1px solid #f8fafc' : 'none' }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 10, background: tc + '15', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, color: tc, fontWeight: 900, flexShrink: 0 }}>{ti}</div>
+                    <div key={mv._id || i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 24px', borderBottom: i < Math.min(movementList.length, 8) - 1 ? '1px solid #f8fafc' : 'none', transition: 'background 0.1s' }} onMouseEnter={(e) => e.currentTarget.style.background = '#fafbfc'} onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}>
+                      <div style={{ width: 42, height: 42, borderRadius: 12, background: tc + '15', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: tc, fontWeight: 900, flexShrink: 0 }}>{ti}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{String(mv.name || mv.sku || '—')}</div>
                         <div style={{ fontSize: 11, color: TEXT_LIGHT, marginTop: 2 }}>{String(mv.from || '—')} → {String(mv.to || '—')}</div>
                       </div>
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 800, color: tc }}>{mv.qty}</div>
-                        <div style={{ fontSize: 10.5, color: TEXT_LIGHT, marginTop: 1 }}>units · {new Date(mv.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</div>
+                        <div style={{ fontSize: 15, fontWeight: 900, color: tc }}>{mv.qty}</div>
+                        <div style={{ fontSize: 10.5, color: TEXT_LIGHT, marginTop: 2 }}>{new Date(mv.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</div>
                       </div>
                     </div>
                   );
@@ -664,39 +716,39 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               </div>
             </div>
 
-            {/* ── RIGHT: Alerts + Warehouse capacity ── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* ── RIGHT: Alerts + Warehouse Capacity ── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
               {/* Alerts panel */}
-              <div style={{ background: '#fff', borderRadius: 18, border: BORDER, boxShadow: SHADOW, overflow: 'hidden' }}>
-                <div style={{ padding: '16px 20px', borderBottom: BORDER, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: TEXT_DARK }}>Stock Alerts</div>
+              <div style={{ background: '#fff', borderRadius: 20, border: BORDER, boxShadow: SHADOW, overflow: 'hidden' }}>
+                <div style={{ padding: '20px 24px 16px', borderBottom: BORDER, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: TEXT_DARK }}>Stock Alerts</div>
                   {(lowStockItems.length + stockList.filter(s => s.status === 'Dead').length) > 0 ? (
-                    <span style={{ padding: '3px 10px', borderRadius: 20, background: '#fef2f2', color: RED_LIGHT, fontSize: 11.5, fontWeight: 700 }}>
+                    <span style={{ padding: '4px 12px', borderRadius: 20, background: '#fef2f2', color: RED_LIGHT, fontSize: 12, fontWeight: 700 }}>
                       {lowStockItems.length + stockList.filter(s => s.status === 'Dead').length} issues
                     </span>
                   ) : (
-                    <span style={{ padding: '3px 10px', borderRadius: 20, background: '#f0fdf4', color: '#16a34a', fontSize: 11.5, fontWeight: 700 }}>All clear</span>
+                    <span style={{ padding: '4px 12px', borderRadius: 20, background: '#f0fdf4', color: '#16a34a', fontSize: 12, fontWeight: 700 }}>All clear</span>
                   )}
                 </div>
                 {lowStockItems.length === 0 && stockList.filter(s => s.status === 'Dead').length === 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '28px 20px', gap: 8 }}>
-                    <MdCheckCircle size={32} color="#22c55e" />
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#16a34a' }}>All stock levels healthy</div>
-                    <div style={{ fontSize: 11.5, color: TEXT_LIGHT }}>No alerts at this time</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '36px 24px', gap: 10 }}>
+                    <MdCheckCircle size={36} color="#22c55e" />
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#16a34a' }}>All stock levels healthy</div>
+                    <div style={{ fontSize: 12, color: TEXT_LIGHT }}>No alerts at this time</div>
                   </div>
                 ) : (
-                  <div>
+                  <div style={{ maxHeight: 300, overflowY: 'auto' }}>
                     {[
                       ...stockList.filter(s => s.status === 'Dead').map(s => ({ label: String(s.name || '—'), sku: String(s.sku || '—'), sub: 'Dead stock · 0 units', color: '#94a3b8', leftBar: '#94a3b8', bg: '#fafafa' })),
-                      ...lowStockItems.map(s => ({ label: String(s.name || '—'), sku: String(s.sku || '—'), sub: `${s.qty} units · min ${s.minQty || 0}`, color: (s.minQty > 0 && s.qty < s.minQty * 0.5) || s.status === 'Critical' ? RED_LIGHT : AMBER, leftBar: (s.minQty > 0 && s.qty < s.minQty * 0.5) || s.status === 'Critical' ? RED_LIGHT : AMBER, bg: (s.minQty > 0 && s.qty < s.minQty * 0.5) || s.status === 'Critical' ? '#fff8f8' : '#fffdf5' })),
-                    ].slice(0, 7).map((a, i, arr) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: i < arr.length - 1 ? '1px solid #f8fafc' : 'none', background: a.bg, borderLeft: `3px solid ${a.leftBar}` }}>
+                      ...lowStockItems.map(s => ({ label: String(s.name || '—'), sku: String(s.sku || '—'), sub: `${s.qty} units · min ${s.minQty || 0}`, color: (s.minQty > 0 && s.qty < s.minQty * 0.5) || s.status === 'Critical' ? RED_LIGHT : AMBER, leftBar: (s.minQty > 0 && s.qty < s.minQty * 0.5) || s.status === 'Critical' ? RED_LIGHT : AMBER, bg: (s.minQty > 0 && s.qty < s.minQty * 0.5) || s.status === 'Critical' ? '#fef2f2' : '#fffdf5' })),
+                    ].slice(0, 8).map((a, i, arr) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 24px', borderBottom: i < arr.length - 1 ? '1px solid #f8fafc' : 'none', background: a.bg, borderLeft: `4px solid ${a.leftBar}` }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 12.5, fontWeight: 700, color: TEXT_DARK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.label}</div>
-                          <div style={{ fontSize: 11, color: TEXT_LIGHT, marginTop: 1, fontFamily: 'monospace' }}>{a.sku}</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.label}</div>
+                          <div style={{ fontSize: 11, color: TEXT_LIGHT, marginTop: 2, fontFamily: 'monospace' }}>{a.sku}</div>
                         </div>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: a.color, whiteSpace: 'nowrap' }}>{a.sub}</div>
+                        <div style={{ fontSize: 11.5, fontWeight: 700, color: a.color, whiteSpace: 'nowrap' }}>{a.sub}</div>
                       </div>
                     ))}
                   </div>
@@ -704,40 +756,42 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               </div>
 
               {/* Warehouse capacity */}
-              <div style={{ background: '#fff', borderRadius: 18, border: BORDER, boxShadow: SHADOW, overflow: 'hidden' }}>
-                <div style={{ padding: '16px 20px', borderBottom: BORDER, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg,#c0392b,#e74c3c)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <MdWarehouse size={16} color="#fff" />
+              <div style={{ background: '#fff', borderRadius: 20, border: BORDER, boxShadow: SHADOW, overflow: 'hidden' }}>
+                <div style={{ padding: '20px 24px 16px', borderBottom: BORDER, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#c0392b,#e74c3c)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <MdWarehouse size={20} color="#fff" />
                   </div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: TEXT_DARK }}>Warehouse Capacity</div>
-                  <span style={{ marginLeft: 'auto', fontSize: 11.5, color: TEXT_LIGHT }}>{warehouseList.length} locations</span>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: TEXT_DARK }}>Warehouse Capacity</div>
+                  <span style={{ marginLeft: 'auto', fontSize: 12, color: TEXT_LIGHT }}>{warehouseList.length} locations</span>
                 </div>
-                {warehouseList.length === 0 ? (
-                  <div style={{ padding: '24px 20px', textAlign: 'center', color: TEXT_LIGHT, fontSize: 12 }}>No warehouses configured</div>
-                ) : warehouseList.map((wh, i) => {
-                  const pct = wh.capacity > 0 ? Math.round((wh.used / wh.capacity) * 100) : 0;
-                  const bc = pct > 85 ? RED_LIGHT : pct > 70 ? AMBER : GREEN;
-                  return (
-                    <div key={i} style={{ padding: '14px 20px', borderBottom: i < warehouseList.length - 1 ? '1px solid #f8fafc' : 'none' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <div>
-                          <span style={{ fontSize: 12.5, fontWeight: 800, color: TEXT_DARK }}>{String(wh.warehouseId || wh.id || '—')}</span>
-                          <span style={{ fontSize: 11, color: TEXT_LIGHT, marginLeft: 7 }}>{String(wh.name || '—')}</span>
+                <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+                  {warehouseList.length === 0 ? (
+                    <div style={{ padding: '32px 24px', textAlign: 'center', color: TEXT_LIGHT, fontSize: 13 }}>No warehouses configured</div>
+                  ) : warehouseList.map((wh, i) => {
+                    const pct = wh.capacity > 0 ? Math.round((wh.used / wh.capacity) * 100) : 0;
+                    const bc = pct > 85 ? RED_LIGHT : pct > 70 ? AMBER : GREEN;
+                    return (
+                      <div key={i} style={{ padding: '18px 24px', borderBottom: i < warehouseList.length - 1 ? '1px solid #f8fafc' : 'none' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                          <div>
+                            <span style={{ fontSize: 13, fontWeight: 800, color: TEXT_DARK }}>{String(wh.warehouseId || wh.id || '—')}</span>
+                            <span style={{ fontSize: 11.5, color: TEXT_LIGHT, marginLeft: 8 }}>{String(wh.name || '—')}</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontSize: 11.5, color: TEXT_LIGHT }}>{wh.skus ?? 0} SKUs</span>
+                            <span style={{ padding: '3px 10px', borderRadius: 16, fontSize: 11, fontWeight: 800, background: bc + '18', color: bc }}>{pct}%</span>
+                          </div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 11, color: TEXT_LIGHT }}>{wh.skus ?? 0} SKUs</span>
-                          <span style={{ padding: '2px 9px', borderRadius: 20, fontSize: 11.5, fontWeight: 800, background: bc + '18', color: bc }}>{pct}%</span>
+                        <div style={{ height: 8, background: '#f1f5f9', borderRadius: 5, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${pct}%`, background: bc, borderRadius: 5, transition: 'width 0.6s ease' }} />
+                        </div>
+                        <div style={{ fontSize: 11, color: TEXT_LIGHT, marginTop: 6 }}>
+                          {(wh.used || 0).toLocaleString()} / {(wh.capacity || 0).toLocaleString()} units
                         </div>
                       </div>
-                      <div style={{ height: 7, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${pct}%`, background: bc, borderRadius: 4, transition: 'width 0.6s ease' }} />
-                      </div>
-                      <div style={{ fontSize: 10.5, color: TEXT_LIGHT, marginTop: 5 }}>
-                        {(wh.used || 0).toLocaleString()} / {(wh.capacity || 0).toLocaleString()} units
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
 
             </div>
@@ -751,8 +805,8 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
           {/* Toolbar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', borderBottom: BORDER, background: '#fafbfc', flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', flex: 1, minWidth: 180 }}>
-              <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: TEXT_LIGHT }}>🔍</span>
-              <input placeholder="Search SKU or item…" value={stockSearch} onChange={e => setStockSearch(e.target.value)} style={{ ...inp, paddingLeft: 32, width: '100%' }} />
+              <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: TEXT_LIGHT }}>ðŸ”</span>
+              <input placeholder="Search SKU or item”¦" value={stockSearch} onChange={e => setStockSearch(e.target.value)} style={{ ...inp, paddingLeft: 32, width: '100%' }} />
             </div>
             <select value={whFilter} onChange={e => setWhFilter(e.target.value)} style={{ ...inp, width: 'auto', minWidth: 160, cursor: 'pointer' }}>
               <option value="All">All Warehouses</option>
@@ -777,7 +831,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               <tbody>
                 {filteredStock.length === 0 ? (
                   <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: TEXT_LIGHT }}>No stock items found</td></tr>
-                ) : filteredStock.map((r, i) => (
+                ) : pagedStock.map((r, i) => (
                   <tr key={r._id || i} style={{ background: i % 2 === 0 ? '#f8fafc' : '#fff', borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: '11px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -795,9 +849,9 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     <td style={{ padding:'11px 16px' }}><StatusBadge status={r.status} /></td>
                     <td style={{ padding:'11px 16px' }}>
                       <div style={{ display:'flex', gap:6 }}>
-                        <button onClick={() => { setAdjustItem(r); setAdjustQty(String(r.qty)); }} style={{ padding:'4px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600, border:`1px solid ${RED}`, color: RED, background:'transparent', cursor:'pointer', fontFamily:'inherit' }}>✏ Adjust</button>
+                        <button onClick={() => { setAdjustItem(r); setAdjustQty(String(r.qty)); }} style={{ padding:'4px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600, border:`1px solid ${RED}`, color: RED, background:'transparent', cursor:'pointer', fontFamily:'inherit' }}>âœ Adjust</button>
                         <button onClick={() => { setMoveItem(r); setMoveToWH(''); }} style={{ padding:'4px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600, border:'1px solid #e2e8f0', color: TEXT_MID, background:'#f8fafc', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:4 }}><MdSwapHoriz size={14} /> Move</button>
-                        <button onClick={() => handleDeleteStock(r._id, r.sku)} style={{ padding:'4px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600, border:'1px solid #fecaca', color: RED_LIGHT, background:'#fef2f2', cursor:'pointer', fontFamily:'inherit' }}>✕</button>
+                        <button onClick={() => handleDeleteStock(r._id, r.sku)} style={{ padding:'4px 10px', borderRadius: RADIUS_SM, fontSize:11, fontWeight:600, border:'1px solid #fecaca', color: RED_LIGHT, background:'#fef2f2', cursor:'pointer', fontFamily:'inherit' }}>âœ•</button>
                       </div>
                     </td>
                   </tr>
@@ -805,6 +859,13 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               </tbody>
             </table>
           </div>
+          <Pagination
+            total={filteredStock.length}
+            page={stockPage}
+            pageSize={stockPageSz}
+            onPage={setStockPage}
+            onPageSize={setStockPageSz}
+          />
         </div>
       )}
 
@@ -839,7 +900,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.75)', marginTop: 3 }}>{selectedWH.warehouseId || selectedWH.id} · {selectedWH.location}</div>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: '#f1f5f9' }}>
-                    {[['Active SKUs', selectedWH.skus ?? 0], ['Manager', selectedWH.manager || '—'], ['Capacity', `${(selectedWH.capacity || 0).toLocaleString()} units`], ['Status', '● Active']].map(([label, val], j) => (
+                    {[['Active SKUs', selectedWH.skus ?? 0], ['Manager', selectedWH.manager || '—'], ['Capacity', `${(selectedWH.capacity || 0).toLocaleString()} units`], ['Status', 'â— Active']].map(([label, val], j) => (
                       <div key={j} style={{ background: '#fff', padding: '12px 16px' }}>
                         <div style={{ fontSize: 11, color: TEXT_LIGHT, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: TEXT_DARK, marginTop: 3 }}>{val}</div>
@@ -935,15 +996,15 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             {[{ label: 'Inward', color: GREEN }, { label: 'Outward', color: RED_LIGHT }, { label: 'Transfer', color: BLUE }].map(({ label, color }) => (
               <button key={label} onClick={() => setMovTab(label)} style={{ padding: '8px 22px', borderRadius: 24, fontSize: 13, fontWeight: 700, border: movTab === label ? 'none' : '1.5px solid #e2e8f0', background: movTab === label ? color : '#fff', color: movTab === label ? '#fff' : TEXT_MID, cursor: 'pointer', fontFamily: 'inherit', boxShadow: movTab === label ? `0 3px 10px ${color}40` : 'none', transition: 'all 0.15s' }}>{label}</button>
             ))}
-            <span style={{ marginLeft: 'auto', fontSize: 12, color: TEXT_LIGHT, alignSelf: 'center' }}>{movementList.filter(m => m.type === movTab).length} records</span>
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: TEXT_LIGHT, alignSelf: 'center' }}>{filteredMovs.length} records</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {movementList.filter(m => m.type === movTab).length === 0 ? (
+            {filteredMovs.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 20px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
                 <div style={{ fontSize: 14, color: TEXT_LIGHT, fontWeight: 600 }}>No {movTab.toLowerCase()} movements yet</div>
                 <button onClick={() => setInternalModal(true)} style={{ marginTop: 12, padding: '8px 16px', borderRadius: 8, background: BLUE, color: '#fff', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ Record Movement</button>
               </div>
-            ) : movementList.filter(m => m.type === movTab).map((mv, i) => {
+            ) : pagedMovs.map((mv, i) => {
               const typeColor = mv.type === 'Inward' ? GREEN : mv.type === 'Outward' ? RED_LIGHT : BLUE;
               const typeIcon = mv.type === 'Inward' ? '↓' : mv.type === 'Outward' ? '↑' : '⇄';
               return (
@@ -958,7 +1019,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
                       <span style={{ fontSize: 12, color: TEXT_MID, fontWeight: 600 }}>{String(mv.from || '—')}</span>
-                      <span style={{ fontSize: 14, color: typeColor }}>→</span>
+                      <span style={{ fontSize: 14, color: typeColor }}>â†’</span>
                       <span style={{ fontSize: 12, color: TEXT_MID, fontWeight: 600 }}>{String(mv.to || '—')}</span>
                     </div>
                   </div>
@@ -971,6 +1032,17 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               );
             })}
           </div>
+          {filteredMovs.length > movPageSz && (
+            <div style={{ marginTop: 12 }}>
+              <Pagination
+                total={filteredMovs.length}
+                page={movPage}
+                pageSize={movPageSz}
+                onPage={setMovPage}
+                onPageSize={setMovPageSz}
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -1014,7 +1086,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                       <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginBottom:2 }}>Order: {displayItem.order}</div>
                       <div style={{ fontSize:11.5, color: TEXT_LIGHT, marginBottom:2 }}>SKU: <span style={{ fontFamily:'monospace', color: RED }}>{displayItem.sku}</span></div>
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:8 }}>
-                        <span style={{ fontSize:11.5, color: TEXT_MID }}>📍 {displayItem.loc}</span>
+                        <span style={{ fontSize:11.5, color: TEXT_MID }}>ðŸ“ {displayItem.loc}</span>
                         <span style={{ background:col.color+'18', color:col.color, borderRadius:12, padding:'2px 9px', fontSize:11, fontWeight:700 }}>Qty: {displayItem.qty}</span>
                       </div>
                       {displayItem.status === 'In Progress' && (
@@ -1026,7 +1098,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                           } catch (e) {
                             toast(e.message || 'Failed to update status', 'error');
                           }
-                        }} style={{ marginTop:10, width:'100%', padding:'6px', borderRadius:8, background: GREEN, color:'#fff', border:'none', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>✓ Mark Complete</button>
+                        }} style={{ marginTop:10, width:'100%', padding:'6px', borderRadius:8, background: GREEN, color:'#fff', border:'none', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>âœ“ Mark Complete</button>
                       )}
                       {displayItem.status === 'Pending' && (
                         <button onClick={async () => {
@@ -1037,7 +1109,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                           } catch (e) {
                             toast(e.message || 'Failed to update status', 'error');
                           }
-                        }} style={{ marginTop:10, width:'100%', padding:'6px', borderRadius:8, background: BLUE, color:'#fff', border:'none', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>▶ Start Picking</button>
+                        }} style={{ marginTop:10, width:'100%', padding:'6px', borderRadius:8, background: BLUE, color:'#fff', border:'none', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>â–¶ Start Picking</button>
                       )}
                     </div>
                     );
@@ -1071,7 +1143,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     } catch (e) {
                       toast(e.message || 'Failed to update status', 'error');
                     }
-                  }} style={{ padding:'3px 10px', borderRadius:8, background: GREEN, color:'#fff', border:'none', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>✓ Done</button>}
+                  }} style={{ padding:'3px 10px', borderRadius:8, background: GREEN, color:'#fff', border:'none', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>âœ“ Done</button>}
                 </div>
               </div>
             ))}
@@ -1094,7 +1166,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     } catch (e) {
                       toast(e.message || 'Failed to update status', 'error');
                     }
-                  }} style={{ padding:'3px 10px', borderRadius:8, background: GREEN, color:'#fff', border:'none', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>✓ Packed</button>}
+                  }} style={{ padding:'3px 10px', borderRadius:8, background: GREEN, color:'#fff', border:'none', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>âœ“ Packed</button>}
                 </div>
               </div>
             ))}
@@ -1115,7 +1187,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                   </tr>
                 </thead>
                 <tbody>
-                  {batchList.map((b, i) => {
+                  {pagedBatch.map((b, i) => {
                     const mfgDate = b.mfgDate ? new Date(b.mfgDate).toLocaleDateString('en-IN', {month:'short', year:'numeric'}) : b.mfg;
                     const expDate = b.expiryDate ? new Date(b.expiryDate).toLocaleDateString('en-IN', {month:'short', year:'numeric'}) : b.exp;
                     const shelfPct = b.shelfLifePercentage || b.shelfPct || 0;
@@ -1143,6 +1215,15 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 </tbody>
               </table>
             </div>
+          )}
+          {batchList.length > batchPageSz && (
+            <Pagination
+              total={batchList.length}
+              page={batchPage}
+              pageSize={batchPageSz}
+              onPage={setBatchPage}
+              onPageSize={setBatchPageSz}
+            />
           )}
         </div>
       )}
@@ -1174,7 +1255,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     </tr>
                   </thead>
                   <tbody>
-                    {ageingData.map((r, i) => (
+                    {pagedAgeing.map((r, i) => (
                       <tr key={i} style={{ borderBottom:'1px solid #f1f5f9', background: i%2===0 ? '#f8fafc' : '#fff' }}>
                         <td style={{ padding:'11px 16px', fontFamily:'monospace', fontWeight:700, color: RED }}>{String(r.sku || '—')}</td>
                         <td style={{ padding:'11px 16px', fontWeight:600, color: TEXT_DARK }}>{String(r.item || '—')}</td>
@@ -1192,6 +1273,15 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
               </div>
             )}
           </div>
+          {ageingData.length > ageingPageSz && (
+            <Pagination
+              total={ageingData.length}
+              page={ageingPage}
+              pageSize={ageingPageSz}
+              onPage={setAgeingPage}
+              onPageSize={setAgeingPageSz}
+            />
+          )}
         </div>
       )}
 
@@ -1209,7 +1299,7 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                     </tr>
                   </thead>
                   <tbody>
-                    {defectList.map((d, i) => {
+                    {pagedDefect.map((d, i) => {
                       const createdDate = d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-IN', {day:'2-digit', month:'short'}) : d.date;
                       return (
                       <tr key={i} onClick={() => fetchDefectLogs(d._id)} style={{ borderBottom:'1px solid #f1f5f9', cursor: 'pointer', background: selectedDefectId === d._id ? '#fef2f2' : 'transparent' }} onMouseEnter={e => !selectedDefectId || selectedDefectId !== d._id ? e.currentTarget.style.background = '#f8fafc' : null} onMouseLeave={e => !selectedDefectId || selectedDefectId !== d._id ? e.currentTarget.style.background = 'transparent' : null}>
@@ -1240,6 +1330,15 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                   </tbody>
                 </table>
               </div>
+            )}
+            {defectList.length > defectPageSz && (
+              <Pagination
+                total={defectList.length}
+                page={defectPage}
+                pageSize={defectPageSz}
+                onPage={setDefectPage}
+                onPageSize={setDefectPageSz}
+              />
             )}
           </div>
           <div style={{ ...card(), overflow: 'hidden' }}>
@@ -1425,10 +1524,36 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 {warehouseList.map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} — {w.name}</option>)}
               </select>
             </div>
+            {/* Unit Price */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Unit Price (â‚¹)</label>
+              <input type="number" min="0" placeholder="0.00" value={stockForm.unitPrice} onChange={e => setStockForm(p=>({...p,unitPrice:e.target.value}))} style={inp} />
+            </div>
+
+            {/* GST % */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>GST (%)</label>
+              <select value={stockForm.gst} onChange={e => setStockForm(p=>({...p,gst:e.target.value}))} style={inp}>
+                <option value="0">0%</option>
+                <option value="5">5%</option>
+                <option value="12">12%</option>
+                <option value="18">18%</option>
+                <option value="28">28%</option>
+              </select>
+            </div>
+
+            {/* HSN Code */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>HSN Code</label>
+              <input type="text" placeholder="e.g. 847330" value={stockForm.hsn} onChange={e => setStockForm(p=>({...p,hsn:e.target.value}))} style={inp} />
+            </div>
+          </div>
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '8px 12px', marginTop: 10, fontSize: 12, color: '#15803d', display: 'flex', alignItems: 'center', gap: 6 }}>
+            ðŸ§¾ <span>A <strong>Manual Stock Entry Invoice (MSEI-*)</strong> will be auto-generated and saved under <strong>Inventory ”º Stock Invoices</strong>.</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 10 }}>
             <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Remarks</label>
-            <textarea placeholder="Optional notes…" value={stockForm.remarks} onChange={e => setStockForm(p => ({ ...p, remarks: e.target.value }))} style={{ ...inp, minHeight: 64, resize: 'vertical' }} />
+            <textarea placeholder="Optional notes”¦" value={stockForm.remarks} onChange={e => setStockForm(p => ({ ...p, remarks: e.target.value }))} style={{ ...inp, minHeight: 64, resize: 'vertical' }} />
           </div>
         </Modal>
       )}
@@ -1464,13 +1589,36 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
                 style={inp}
               />
               {whForm.phone && whForm.phone.length > 0 && whForm.phone.length < 10 && (
-                <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 2 }}>⚠ {10 - whForm.phone.length} more digit{10 - whForm.phone.length !== 1 ? 's' : ''} needed</div>
+                <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 2 }}>âš  {10 - whForm.phone.length} more digit{10 - whForm.phone.length !== 1 ? 's' : ''} needed</div>
               )}
+            </div>
+            {/* Unit Price */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>Unit Price (â‚¹)</label>
+              <input type="number" min="0" placeholder="0.00" value={stockForm.unitPrice} onChange={e => setStockForm(p=>({...p,unitPrice:e.target.value}))} style={inp} />
+            </div>
+
+            {/* GST % */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>GST (%)</label>
+              <select value={stockForm.gst} onChange={e => setStockForm(p=>({...p,gst:e.target.value}))} style={inp}>
+                <option value="0">0%</option>
+                <option value="5">5%</option>
+                <option value="12">12%</option>
+                <option value="18">18%</option>
+                <option value="28">28%</option>
+              </select>
+            </div>
+
+            {/* HSN Code */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:TEXT_MID }}>HSN Code</label>
+              <input type="text" placeholder="e.g. 847330" value={stockForm.hsn} onChange={e => setStockForm(p=>({...p,hsn:e.target.value}))} style={inp} />
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 10 }}>
             <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Address</label>
-            <textarea placeholder="Full address…" value={whForm.address} onChange={e => setWhForm(p => ({ ...p, address: e.target.value }))} style={{ ...inp, minHeight: 56, resize: 'vertical' }} />
+            <textarea placeholder="Full address”¦" value={whForm.address} onChange={e => setWhForm(p => ({ ...p, address: e.target.value }))} style={{ ...inp, minHeight: 56, resize: 'vertical' }} />
           </div>
         </Modal>
       )}
@@ -1576,9 +1724,12 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Stage</label><select value={defectForm.stage} onChange={e => setDefectForm(p => ({ ...p, stage: e.target.value }))} style={inp}><option>QC Hold</option><option>Defective Bin</option><option>Repair</option><option>Scrap</option></select></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Warehouse</label><select value={defectForm.warehouse} onChange={e => setDefectForm(p => ({ ...p, warehouse: e.target.value }))} style={inp}><option value="">— Select —</option>{warehouseList.map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} — {w.name}</option>)}</select></div>
           </div>
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '8px 12px', marginTop: 10, fontSize: 12, color: '#15803d', display: 'flex', alignItems: 'center', gap: 6 }}>
+            ðŸ§¾ <span>A <strong>Manual Stock Entry Invoice (MSEI-*)</strong> will be auto-generated and saved under <strong>Inventory ”º Stock Invoices</strong>.</span>
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 10 }}>
             <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Remarks</label>
-            <textarea placeholder="Describe the defect…" value={defectForm.remarks} onChange={e => setDefectForm(p => ({ ...p, remarks: e.target.value }))} style={{ ...inp, minHeight: 56, resize: 'vertical' }} />
+            <textarea placeholder="Describe the defect”¦" value={defectForm.remarks} onChange={e => setDefectForm(p => ({ ...p, remarks: e.target.value }))} style={{ ...inp, minHeight: 56, resize: 'vertical' }} />
           </div>
         </Modal>
       )}
@@ -1602,20 +1753,68 @@ export default function InventoryPage({ initialTab = 0, externalShowModal = fals
       {/* Move Stock */}
       <Modal open={!!moveItem} onClose={() => { setMoveItem(null); setMoveToWH(''); }} title={`Move Stock — ${moveItem?.sku}`}
         footer={<><button style={btnOutline} onClick={() => { setMoveItem(null); setMoveToWH(''); }}>Cancel</button><button style={btnPrimary} onClick={handleMoveStock}>Move</button></>}>
-        {moveItem && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 10, fontSize: 13 }}>
-              <strong>{moveItem.name}</strong> · Currently in: <strong style={{ color: RED }}>{moveItem.warehouse}</strong>
+        {moveItem && (() => {
+          // Normalise the current warehouse ID so we can exclude it from the list
+          const currentWH = (
+            typeof moveItem.warehouse === 'object'
+              ? (moveItem.warehouse?.warehouseId || moveItem.warehouse?.id || '')
+              : (moveItem.warehouse || '')
+          ).trim();
+
+          // Use allWarehouseList (all statuses) so every warehouse is available as a destination.
+          // Fall back to warehouseList if allWarehouseList hasn't loaded yet.
+          const sourceList = allWarehouseList.length > 0 ? allWarehouseList : warehouseList;
+
+          // Show all warehouses except the one the item is currently in
+          // If currentWH is empty / unknown ("—"), show every warehouse
+          const destinations = sourceList.filter(w => {
+            const wid = (w.warehouseId || w.id || '').trim();
+            return !currentWH || currentWH === '—' || wid !== currentWH;
+          });
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Current location info */}
+              <div style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 10, fontSize: 13, border: '1px solid #e2e8f0' }}>
+                <div style={{ fontWeight: 600, color: TEXT_DARK, marginBottom: 4 }}>{moveItem.name}</div>
+                <div style={{ fontSize: 12, color: TEXT_MID }}>
+                  SKU: <span style={{ fontFamily: 'monospace', color: RED, fontWeight: 700 }}>{moveItem.sku}</span>
+                  &nbsp;·&nbsp;Qty: <strong>{moveItem.qty}</strong>
+                  &nbsp;·&nbsp;Currently in: <strong style={{ color: RED }}>{currentWH || '—'}</strong>
+                </div>
+              </div>
+
+              {/* Destination selector */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Move to Warehouse *</label>
+                {destinations.length === 0 ? (
+                  <div style={{ padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 9, fontSize: 12.5, color: '#92400e', fontWeight: 500 }}>
+                    âš  This is the only warehouse. Add another warehouse to move stock.
+                  </div>
+                ) : (
+                  <select
+                    value={moveToWH}
+                    onChange={e => setMoveToWH(e.target.value)}
+                    style={{
+                      ...inp,
+                      cursor: 'pointer',
+                      appearance: 'auto',
+                      WebkitAppearance: 'auto',
+                      MozAppearance: 'auto',
+                    }}
+                  >
+                    <option value="">— Select destination warehouse —</option>
+                    {destinations.map(w => (
+                      <option key={w._id || w.warehouseId} value={w.warehouseId || w.id}>
+                        {w.warehouseId || w.id} — {w.name}{w.location ? ` (${w.location})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: TEXT_MID }}>Move to Warehouse *</label>
-              <select value={moveToWH} onChange={e => setMoveToWH(e.target.value)} style={inp}>
-                <option value="">— Select Warehouse —</option>
-                {warehouseList.filter(w => (w.warehouseId || w.id) !== moveItem.warehouse).map(w => <option key={w._id} value={w.warehouseId || w.id}>{w.warehouseId || w.id} — {w.name}</option>)}
-              </select>
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </Modal>
 
       {/* Warehouse Return Receive Page Overlay */}

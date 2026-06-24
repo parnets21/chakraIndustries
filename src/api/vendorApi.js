@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5001/api');
+const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5000/api');
 
 const getToken = () => {
   const token = localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
@@ -50,6 +50,14 @@ export const vendorApi = {
     }).then(handle),
   delete: (id) => fetch(`${BASE}/vendors/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
   getStats: () => fetch(`${BASE}/vendors/stats`, { headers: authHeaders() }).then(handle),
+
+  // Send email to vendor
+  sendEmail: (body) =>
+    fetch(`${BASE}/vendors/send-email`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(body),
+    }).then(handle),
 
   // Vendor price mapping
   getPrices: (vendorId) =>

@@ -60,10 +60,18 @@ export default function SingleProductInvoices({
             <tbody>
               {invoices.map((inv, i) => {
                 const item = inv.items?.[0] || {};
+                const isManualStock = inv.invoiceNo?.startsWith('MSEI-') || inv.invoiceSource === 'manual_stock_entry';
                 return (
-                  <tr key={inv._id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#f8fafc' : '#fff' }}>
+                  <tr key={inv._id} style={{ borderBottom: '1px solid #f1f5f9', background: isManualStock ? '#fffbeb' : (i % 2 === 0 ? '#f8fafc' : '#fff') }}>
                     <td style={{ padding: '9px 12px', color: TEXT_LIGHT, fontWeight: 700, fontSize: 11 }}>{(page - 1) * PAGE_SIZE + i + 1}</td>
-                    <td style={{ padding: '9px 12px', fontFamily: 'monospace', fontWeight: 700, color: RED, whiteSpace: 'nowrap' }}>{inv.invoiceNo}</td>
+                    <td style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontFamily: 'monospace', fontWeight: 700, color: RED }}>{inv.invoiceNo}</span>
+                      {isManualStock && (
+                        <span style={{ marginLeft: 6, padding: '2px 7px', borderRadius: 20, fontSize: 10, fontWeight: 700, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
+                          📦 Stock Entry
+                        </span>
+                      )}
+                    </td>
                     <td style={{ padding: '9px 12px', fontFamily: 'monospace', fontSize: 11, color: TEXT_MID, whiteSpace: 'nowrap' }}>{inv.uniqueId || '—'}</td>
                     <td style={{ padding: '9px 12px', fontFamily: 'monospace', fontSize: 11, color: BLUE, whiteSpace: 'nowrap' }}>{inv.purchaseOrderRef || '—'}</td>
                     <td style={{ padding: '9px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.poDate || '—'}</td>

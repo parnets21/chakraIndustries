@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5001/api');
+const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5000/api/api');
 
 const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
 const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
@@ -25,4 +25,8 @@ export const poApi = {
   delete: (id) => fetch(`${BASE}/purchase-orders/${id}`, { method: 'DELETE', headers: authHeaders() }).then(handle),
   bulkUpload: (formData) =>
     fetch(`${BASE}/purchase-orders/bulk-upload`, { method: 'POST', headers: authHeadersFormData(), body: formData }).then(handle),
+  sendEmail: (id, to) =>
+    fetch(`${BASE}/purchase-orders/${id}/send-email`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ to }) }).then(handle),
+  sendWhatsApp: (id, to) =>
+    fetch(`${BASE}/purchase-orders/${id}/send-whatsapp`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ to }) }).then(handle),
 };

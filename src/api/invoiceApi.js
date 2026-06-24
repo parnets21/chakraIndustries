@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5001/api');
+const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5000/api/api');
 const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
 const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
 
@@ -29,6 +29,7 @@ export const invoiceApi = {
   getStats:     ()            => fetchWithRetry(getUrl('/invoices/stats'), { headers: authHeaders() }),
   getById:      (id)          => fetchWithRetry(getUrl(`/invoices/${id}`), { headers: authHeaders() }),
   create:       (body)        => fetchWithRetry(getUrl('/invoices'), { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }),
+  createFromSalesOrder: (orderId) => fetchWithRetry(getUrl(`/invoices/from-order/${orderId}`), { method: 'POST', headers: authHeaders() }),
   bulkUpload:   (body)        => fetchWithRetry(getUrl('/invoices/bulk-upload'), { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }),
   migrateTypes: ()            => fetchWithRetry(getUrl('/invoices/migrate-types'), { method: 'POST', headers: authHeaders() }),
   update:       (id, body)    => fetchWithRetry(getUrl(`/invoices/${id}`), { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) }),
@@ -37,4 +38,8 @@ export const invoiceApi = {
   deleteAll:    ()            => fetchWithRetry(getUrl('/invoices/delete-all'), { method: 'POST', headers: authHeaders() }),
   sendEmail:    (id, body)    => fetchWithRetry(getUrl(`/invoices/${id}/send-email`), { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }),
   getByInvoiceNo: (invoiceNo) => fetchWithRetry(getUrl(`/invoices/no/${invoiceNo}`), { headers: authHeaders() }),
+  // Convenience: fetch only GRN receipt invoices (auto-generated when QC passes)
+  getGRNInvoices:         (params = {}) => fetchWithRetry(getUrl('/invoices', { ...params, invoiceSource: 'grn_receipt' }), { headers: authHeaders() }),
+  // Convenience: fetch only manual stock entry invoices
+  getManualStockInvoices: (params = {}) => fetchWithRetry(getUrl('/invoices', { ...params, invoiceSource: 'manual_stock_entry' }), { headers: authHeaders() }),
 };

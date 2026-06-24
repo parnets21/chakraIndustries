@@ -51,7 +51,7 @@ export default function AgeingStockPage() {
     );
   }
 
-  const buckets = ['0–30', '31–60', '61–90', '90+'];
+  const buckets = ['0-30', '31-60', '61-90', '90+'];
   const filtered = filter === 'All' ? ageingData : ageingData.filter(item => item.bucket === filter);
 
   return (
@@ -139,9 +139,9 @@ export default function AgeingStockPage() {
                     <td className="px-4 py-3 text-sm font-bold text-gray-800">{row.days}d</td>
                     <td className="px-4 py-3">
                       <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${
-                        row.bucket === '0–30' ? 'bg-green-100 text-green-800' :
-                        row.bucket === '31–60' ? 'bg-amber-100 text-amber-800' :
-                        row.bucket === '61–90' ? 'bg-orange-100 text-orange-800' :
+                        row.bucket === '0-30' ? 'bg-green-100 text-green-800' :
+                        row.bucket === '31-60' ? 'bg-amber-100 text-amber-800' :
+                        row.bucket === '61-90' ? 'bg-orange-100 text-orange-800' :
                         'bg-red-100 text-red-800'
                       }`}>
                         {row.bucket}

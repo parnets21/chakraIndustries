@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import Modal from '../../components/common/Modal';
 import { toast } from '../../components/common/Toast';
 import { bomApi, workOrderApi, mrpApi } from '../../api/bomApi';
+import { inventoryApi } from '../../api/inventoryApi';
+import { vendorApi } from '../../api/vendorApi';
 
 const STATUS_COLOR = {
   Active: '#16a34a', Draft: '#d97706', Obsolete: '#94a3b8',
@@ -18,11 +20,11 @@ const COMP_TYPES      = ['Raw', 'Semi-Finished', 'Consumable', 'Packaging'];
 const SHIFT_OPTIONS   = ['General', 'Morning', 'Evening', 'Night'];
 const PRIORITY_OPTIONS = ['Low', 'Normal', 'High', 'Urgent'];
 
-const EMPTY_BOM  = { product: '', productCode: '', version: 'v1.0', type: BOM_TYPES[0], uom: UOM_OPTIONS[0], description: '', overheadPct: 0, labourCost: 0 };
-const EMPTY_COMP = { itemName: '', itemCode: '', qty: '', unit: UNIT_OPTIONS[0], type: COMP_TYPES[0], level: 1, unitCost: '', scrapFactor: 0, remarks: '', isOptional: false };
+const EMPTY_BOM  = { productItemMasterId: '', product: '', productCode: '', version: 'v1.0', type: BOM_TYPES[0], uom: UOM_OPTIONS[0], description: '', overheadPct: 0, labourCost: 0 };
+const EMPTY_COMP = { itemMasterId: '', itemName: '', itemCode: '', description: '', qty: '', unit: UNIT_OPTIONS[0], type: COMP_TYPES[0], level: 1, unitCost: '', scrapFactor: 0, remarks: '', isOptional: false, preferredVendorId: '', preferredVendorName: '' };
 const EMPTY_ALT  = { itemName: '', itemCode: '', unitCost: '', leadTimeDays: '', priority: 0, notes: '' };
-const EMPTY_WO   = { product: '', bomId: '', qty: '', shift: SHIFT_OPTIONS[0], priority: PRIORITY_OPTIONS[1], startDate: '', endDate: '', productionLine: '', machine: '', assignedTeam: '', supervisor: '', remarks: '' };
-const EMPTY_QC   = { passedQty: '', rejectedQty: '', defectType: '', inspectedBy: '', remarks: '' };
+const EMPTY_WO   = { productItemMasterId: '', product: '', bomId: '', qty: '', shift: SHIFT_OPTIONS[0], priority: PRIORITY_OPTIONS[1], startDate: '', endDate: '', productionLine: '', machine: '', assignedTeam: '', supervisor: '', remarks: '' };
+const EMPTY_QC   = { passedQty: '', reworkQty: '', rejectedQty: '', defectType: '', inspectedBy: '', remarks: '' };
 
 function Spinner() {
   return (
@@ -102,7 +104,7 @@ function WIPCard({ wo, onSaveConsumption }) {
   );
 }
 
-function WastageRow({ wo, m, idx, onSave }) {
+function WastageRow({ wo, m, onSave }) {
   const [qty, setQty] = useState(String(m.wastedQty || ''));
   const [reason, setReason] = useState(m.wastageReason || '');
   return (
@@ -110,7 +112,7 @@ function WastageRow({ wo, m, idx, onSave }) {
       <span style={{ fontSize:11, color:'#64748b', minWidth:110 }}>{m.itemName}</span>
       <input type="number" min={0} step="0.01" value={qty} placeholder="Wasted qty" onChange={e => setQty(e.target.value)} style={{ width:70, padding:'2px 6px', border:'1px solid #e2e8f0', borderRadius:4, fontSize:11, fontFamily:'inherit' }} />
       <input type="text" value={reason} placeholder="Reason" onChange={e => setReason(e.target.value)} style={{ width:100, padding:'2px 6px', border:'1px solid #e2e8f0', borderRadius:4, fontSize:11, fontFamily:'inherit' }} />
-      <button onClick={() => onSave(wo, idx, qty, reason)} style={{ padding:'2px 8px', borderRadius:5, fontSize:10, fontWeight:600, border:'1px solid #ef4444', color:'#ef4444', background:'transparent', cursor:'pointer', fontFamily:'inherit' }}>Save</button>
+      <button onClick={() => onSave(wo, m._id, qty, reason)} style={{ padding:'2px 8px', borderRadius:5, fontSize:10, fontWeight:600, border:'1px solid #ef4444', color:'#ef4444', background:'transparent', cursor:'pointer', fontFamily:'inherit' }}>Save</button>
       {(m.wastedQty||0) > 0 && <span style={{ fontSize:10, color:'#ef4444', fontWeight:700 }}>Wasted: {m.wastedQty} {m.unit}</span>}
     </div>
   );
@@ -118,7 +120,7 @@ function WastageRow({ wo, m, idx, onSave }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ProductionPage({ initialTab = 0 }) {
-  const [activeTab] = useState(initialTab);
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   const [bomList, setBomList]         = useState([]);
   const [selectedBOM, setSelectedBOM] = useState(null);
@@ -128,6 +130,17 @@ export default function ProductionPage({ initialTab = 0 }) {
   const [mrpRuns, setMrpRuns]         = useState([]);
   const [selectedMRP, setSelectedMRP] = useState(null);
   const [mrpLoading, setMrpLoading]   = useState(false);
+
+  // Item search state (used in Add Component modal)
+  const [itemSearchTerm, setItemSearchTerm] = useState('');
+  const [itemSearchResults, setItemSearchResults] = useState([]);
+
+  // Item Master items — for New BOM and New Work Order product selectors only
+  const [itemMasterItems, setItemMasterItems] = useState([]);
+
+  // Vendors
+  const [vendorList, setVendorList] = useState([]);
+  const [sendingEmail, setSendingEmail] = useState(null); // componentId being emailed
 
   const [showBOMModal, setShowBOMModal]           = useState(false);
   const [showCompModal, setShowCompModal]         = useState(false);
@@ -181,7 +194,29 @@ export default function ProductionPage({ initialTab = 0 }) {
     finally { setMrpLoading(false); }
   }, []);
 
-  useEffect(() => { loadBOMs(); loadWOs(); loadMRP(); }, [loadBOMs, loadWOs, loadMRP]);
+  const loadVendors = useCallback(async () => {
+    try {
+      const r = await vendorApi.getAll({ status: 'Active' });
+      setVendorList(r.data || []);
+    } catch (e) { /* non-critical */ }
+  }, []);
+
+  // Loads stock items from /inventory/stock — same items visible at http://localhost:5173/inventory/stock
+  // Used ONLY for New BOM "Select Product" and New Work Order "Select Product" dropdowns
+  const loadItemMaster = useCallback(async () => {
+    try {
+      const r = await inventoryApi.getDropdown();
+      setItemMasterItems((r.data || []).map(i => ({
+        _id:       i._id,
+        name:      i.name  || i.sku || '',
+        sku:       i.sku   || '',
+        unit:      i.unit  || 'Nos',
+        costPrice: i.costPrice || 0,
+      })));
+    } catch { /* non-critical */ }
+  }, []);
+
+  useEffect(() => { loadBOMs(); loadWOs(); loadMRP(); loadVendors(); loadItemMaster(); }, [loadBOMs, loadWOs, loadMRP, loadVendors, loadItemMaster]);
 
   const handleCreateBOM = async () => {
     if (!bomForm.product.trim()) { toast('Product name is required', 'error'); return; }
@@ -238,21 +273,79 @@ export default function ProductionPage({ initialTab = 0 }) {
   };
 
   const handleAddComponent = async () => {
-    if (!compForm.itemName.trim()) { toast('Item name is required', 'error'); return; }
+    if (!compForm.itemMasterId) { toast('Select an item from Item Master', 'error'); return; }
     if (!compForm.qty || parseFloat(compForm.qty) <= 0) { toast('Quantity must be > 0', 'error'); return; }
     if (!selectedBOM) { toast('Select a BOM first', 'error'); return; }
     try {
-      const res = await bomApi.addComponent(selectedBOM._id, { ...compForm, qty: parseFloat(compForm.qty), unitCost: parseFloat(compForm.unitCost) || 0 });
+      const res = await bomApi.addComponent(selectedBOM._id, { 
+        itemMasterId: compForm.itemMasterId, 
+        itemName: compForm.itemName,
+        itemCode: compForm.itemCode,
+        unit: compForm.unit,
+        qty: parseFloat(compForm.qty), 
+        scrapFactor: parseFloat(compForm.scrapFactor) || 0,
+        type: compForm.type,
+        isOptional: compForm.isOptional,
+        preferredVendorId: compForm.preferredVendorId || undefined,
+        preferredVendorName: compForm.preferredVendorName || '',
+        unitCost: parseFloat(compForm.unitCost) || undefined,
+      });
       toast('Component added');
       setCompForm(EMPTY_COMP);
       setShowCompModal(false);
+      setItemSearchTerm('');
+      setItemSearchResults([]);
       setSelectedBOM(res.data);
       setBomList(prev => prev.map(b => b._id === res.data._id ? res.data : b));
     } catch (e) { toast(e.message || 'Failed', 'error'); }
   };
 
-  const handleDeleteComponent = async (bomId, componentId, itemName) => {
-    if (!window.confirm(`Remove "${itemName}"?`)) return;
+  const handleSendVendorEmail = async (component) => {
+    if (!component.preferredVendorId) {
+      toast('No vendor assigned. Please select a Preferred Vendor first.', 'error');
+      return;
+    }
+    if (!selectedBOM) return;
+
+    setSendingEmail(component._id);
+    try {
+      const res = await vendorApi.sendEmail({
+        vendorId:   typeof component.preferredVendorId === 'object'
+                      ? component.preferredVendorId._id
+                      : component.preferredVendorId,
+        itemName:   component.itemName,
+        itemCode:   component.itemCode,
+        qty:        component.qty,
+        unit:       component.unit,
+        bomProduct: selectedBOM.product,
+        bomId:      selectedBOM.bomId,
+      });
+
+      // Update rfqStatus to Sent in local state
+      const markSent = (c) => c._id === component._id ? { ...c, rfqStatus: 'Sent' } : c;
+      setSelectedBOM(prev => ({ ...prev, components: prev.components.map(markSent) }));
+      setBomList(prev => prev.map(b =>
+        b._id === selectedBOM._id
+          ? { ...b, components: (b.components || []).map(markSent) }
+          : b
+      ));
+
+      toast(`✅ Email sent successfully to vendor!`, 'success');
+    } catch (e) {
+      const msg = e.message || '';
+      if (msg.includes('not configured') || msg.includes('SMTP')) {
+        toast('❌ Gmail SMTP not configured. Open backend/.env → set SMTP_USER and SMTP_PASS → restart server.', 'error');
+      } else if (msg.includes('no email address')) {
+        toast('❌ Vendor has no email address saved. Update vendor details first.', 'error');
+      } else {
+        toast(`❌ Failed to send email: ${msg || 'Please try again.'}`, 'error');
+      }
+    } finally {
+      setSendingEmail(null);
+    }
+  };
+
+  const handleDeleteComponent = async (bomId, componentId, itemName) => {    if (!window.confirm(`Remove "${itemName}"?`)) return;
     try {
       const res = await bomApi.deleteComponent(bomId, componentId);
       toast('Component removed');
@@ -323,7 +416,12 @@ export default function ProductionPage({ initialTab = 0 }) {
   const handleRecordQC = async () => {
     if (!showQCModal) return;
     try {
-      const res = await workOrderApi.recordQC(showQCModal._id, { ...qcForm, passedQty: parseInt(qcForm.passedQty) || 0, rejectedQty: parseInt(qcForm.rejectedQty) || 0 });
+      const res = await workOrderApi.recordQC(showQCModal._id, { 
+        ...qcForm, 
+        passedQty: parseInt(qcForm.passedQty) || 0, 
+        reworkQty: parseInt(qcForm.reworkQty) || 0,
+        rejectedQty: parseInt(qcForm.rejectedQty) || 0 
+      });
       setWoList(prev => prev.map(w => w._id === res.data._id ? res.data : w));
       toast('QC recorded — finished goods posted to inventory');
       setShowQCModal(null);
@@ -339,10 +437,10 @@ export default function ProductionPage({ initialTab = 0 }) {
     } catch (e) { toast(e.message || 'Failed', 'error'); }
   };
 
-  const handleSaveWastage = async (wo, consumptionIndex, wastedQty, wastageReason) => {
+  const handleSaveWastage = async (wo, consumptionId, wastedQty, wastageReason) => {
     if (!wastedQty || parseFloat(wastedQty) <= 0) { toast('Enter a valid wastage quantity', 'error'); return; }
     try {
-      const res = await workOrderApi.recordWastage(wo._id, { consumptionIndex, wastedQty: parseFloat(wastedQty), wastageReason });
+      const res = await workOrderApi.recordWastage(wo._id, { consumptionId, wastedQty: parseFloat(wastedQty), wastageReason });
       setWoList(prev => prev.map(w => w._id === res.data._id ? res.data : w));
       toast('Wastage recorded');
     } catch (e) { toast(e.message || 'Failed', 'error'); }
@@ -375,8 +473,23 @@ export default function ProductionPage({ initialTab = 0 }) {
   const outlineBtn = { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:10, background:'transparent', color:'#c0392b', border:'1.5px solid #c0392b', cursor:'pointer', fontSize:13, fontWeight:600, fontFamily:'inherit' };
   const inp = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]';
 
+  const PROD_TABS = ['BOM', 'Work Orders', 'MRP / Material Plan', 'QC & Finished Goods', 'Wastage'];
+
   return (
     <div>
+      {/* Tab Navigation */}
+      <div style={{ display:'flex', gap:4, marginBottom:20, borderBottom:'2px solid #f1f5f9', flexWrap:'wrap' }}>
+        {PROD_TABS.map((t, i) => (
+          <button key={i} onClick={() => setActiveTab(i)} style={{
+            padding:'8px 18px', fontSize:13, fontWeight:600, fontFamily:'inherit',
+            border:'none', background:'none', cursor:'pointer', borderRadius:'8px 8px 0 0',
+            color: activeTab === i ? '#c0392b' : '#64748b',
+            borderBottom: activeTab === i ? '2px solid #c0392b' : '2px solid transparent',
+            marginBottom: -2,
+          }}>{t}</button>
+        ))}
+      </div>
+
       {/* Action Bar */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, marginBottom:20, flexWrap:'wrap' }}>
         {activeTab === 0 && (
@@ -434,22 +547,46 @@ export default function ProductionPage({ initialTab = 0 }) {
             ) : (
               <div style={{ overflowX:'auto' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse' }}>
-                  <thead><tr>{['#','Item','Code','Qty','Unit','Type','Unit Cost','Total',''].map(h=><Th key={h}>{h}</Th>)}</tr></thead>
+                  <thead><tr>{['#','Item','Code','Qty','Scrap %','Total Req Qty','Unit','Type','Per Price (₹)','Total Cost','Vendor','Status','Action'].map(h=><Th key={h}>{h}</Th>)}</tr></thead>
                   <tbody>
                     {selectedBOM.components.map((c,i) => {
-                      const total = c.qty*(1+(c.scrapFactor||0)/100)*(c.unitCost||0);
+                      const scrapQty = c.qty * ((c.scrapFactor || 0) / 100);
+                      const totalQty = c.qty + scrapQty;
+                      const totalCost = totalQty * (c.unitCost || 0);
                       return (
                         <tr key={c._id} style={{ background:i%2===0?'#fff':'#fafafa' }}>
                           <Td style={{ color:'#94a3b8', fontWeight:600 }}>{i+1}</Td>
                           <Td style={{ fontWeight:700 }}>{c.itemName}{c.isOptional&&<span style={{ fontSize:10, color:'#94a3b8', marginLeft:4 }}>(opt)</span>}</Td>
                           <Td style={{ fontFamily:'monospace', fontSize:11.5, color:'#64748b' }}>{c.itemCode||'—'}</Td>
                           <Td style={{ fontWeight:700, color:'#c0392b' }}>{c.qty}</Td>
-                          <Td style={{ color:'#64748b' }}>{c.unit}</Td>
+                          <Td style={{ color:'#64748b' }}>{c.scrapFactor || 0}%</Td>
+                          <Td style={{ fontWeight:700, color:'#7c3aed' }}>{Math.round(totalQty * 1000) / 1000}</Td>
+                          <Td style={{ color:'#064748b' }}>{c.unit}</Td>
                           <Td><Badge label={c.type} color="#64748b" /></Td>
-                          <Td style={{ color:'#64748b' }}>₹{(c.unitCost||0).toLocaleString()}</Td>
-                          <Td style={{ fontWeight:700 }}>₹{Math.round(total).toLocaleString()}</Td>
+                          <Td style={{ fontWeight:700, color:'#0369a1' }}>₹{(c.unitCost||0).toLocaleString()}</Td>
+                          <Td style={{ fontWeight:700 }}>₹{Math.round(totalCost).toLocaleString()}</Td>
+                          <Td style={{ fontSize:11, color:'#475569' }}>{c.preferredVendorName || '—'}</Td>
                           <Td>
-                            <button onClick={()=>handleDeleteComponent(selectedBOM._id,c._id,c.itemName)} style={{ padding:'2px 7px', borderRadius:5, fontSize:10, fontWeight:600, border:'1px solid #fecaca', color:'#ef4444', background:'#fef2f2', cursor:'pointer', fontFamily:'inherit' }}>✕</button>
+                            {c.rfqStatus === 'Sent'
+                              ? <Badge label="Email Sent" color="#16a34a" />
+                              : c.rfqStatus === 'Quotation Received'
+                              ? <Badge label="Quotation Rcvd" color="#2563eb" />
+                              : c.preferredVendorId
+                              ? <Badge label="Not Sent" color="#dc2626" />
+                              : <span style={{ fontSize:10, color:'#94a3b8' }}>—</span>
+                            }
+                          </Td>
+                          <Td>
+                            <div style={{ display:'flex', gap:4 }}>
+                              {c.preferredVendorId && c.rfqStatus !== 'Sent' && (
+                                <button
+                                  onClick={() => handleSendVendorEmail(c)}
+                                  disabled={sendingEmail === c._id}
+                                  style={{ padding:'2px 7px', borderRadius:5, fontSize:10, fontWeight:600, border:'1px solid #2563eb', color:'#2563eb', background:'transparent', cursor:'pointer', fontFamily:'inherit', opacity: sendingEmail === c._id ? 0.6 : 1 }}
+                                >{sendingEmail === c._id ? '...' : '✉ Email'}</button>
+                              )}
+                              <button onClick={()=>handleDeleteComponent(selectedBOM._id,c._id,c.itemName)} style={{ padding:'2px 7px', borderRadius:5, fontSize:10, fontWeight:600, border:'1px solid #fecaca', color:'#ef4444', background:'#fef2f2', cursor:'pointer', fontFamily:'inherit' }}>✕</button>
+                            </div>
                           </Td>
                         </tr>
                       );
@@ -457,9 +594,9 @@ export default function ProductionPage({ initialTab = 0 }) {
                   </tbody>
                   <tfoot>
                     <tr style={{ background:'#f8fafc', borderTop:'2px solid #e2e8f0' }}>
-                      <td colSpan={7} style={{ padding:'9px 12px', fontWeight:700, fontSize:12, textAlign:'right', color:'#1e293b' }}>Total Material Cost:</td>
+                      <td colSpan={9} style={{ padding:'9px 12px', fontWeight:700, fontSize:12, textAlign:'right', color:'#1e293b' }}>Total Material Cost:</td>
                       <td style={{ padding:'9px 12px', fontWeight:800, fontSize:13, color:'#c0392b' }}>₹{(selectedBOM.materialCost||0).toLocaleString()}</td>
-                      <td />
+                      <td colSpan={3} />
                     </tr>
                   </tfoot>
                 </table>
@@ -496,7 +633,7 @@ export default function ProductionPage({ initialTab = 0 }) {
                             <span style={{ fontSize:11, fontWeight:700, color:pc, minWidth:30 }}>{pct}%</span>
                           </div>
                         </Td>
-                        <Td><Badge label={wo.status} color={STATUS_COLOR[wo.status]||'#64748b'} /></Td>
+                        <Td><Badge label={wo.status} color={(STATUS_COLOR[wo.status] || '#64748b')} /></Td>
                         <Td>
                           <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
                             {wo.status==='Pending' && wo.bomId && (
@@ -609,7 +746,7 @@ export default function ProductionPage({ initialTab = 0 }) {
           ) : (
             <div style={{ overflowX:'auto' }}>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12.5 }}>
-                <thead><tr>{['WO ID','Product','Qty','Produced','Rejected','Status','Action'].map(h=><Th key={h}>{h}</Th>)}</tr></thead>
+                <thead><tr>{['WO ID','Product','Qty','Produced','Rework','Rejected','Status','Action'].map(h=><Th key={h}>{h}</Th>)}</tr></thead>
                 <tbody>
                   {woList.filter(w=>w.status==='QC Pending').map((wo,i) => (
                     <tr key={wo._id} style={{ borderBottom:'1px solid #f1f5f9', background:i%2===0?'#fff':'#fafafa' }}>
@@ -617,10 +754,11 @@ export default function ProductionPage({ initialTab = 0 }) {
                       <Td style={{ fontWeight:600 }}>{wo.product}</Td>
                       <Td style={{ fontWeight:700 }}>{wo.qty}</Td>
                       <Td style={{ fontWeight:700, color:'#16a34a' }}>{wo.produced}</Td>
-                      <Td style={{ color:wo.rejected>0?'#ef4444':'#94a3b8' }}>{wo.rejected||0}</Td>
-                      <Td><Badge label={wo.status} color={STATUS_COLOR[wo.status]||'#64748b'} /></Td>
+                      <Td style={{ color: ((wo.qcResult && wo.qcResult.reworkQty) || 0) > 0 ? '#f59e0b' : '#94a3b8' }}>{(wo.qcResult && wo.qcResult.reworkQty) || 0}</Td>
+                      <Td style={{ color: (wo.rejected || 0) > 0 ? '#ef4444' : '#94a3b8' }}>{wo.rejected || 0}</Td>
+                      <Td><Badge label={wo.status} color={(STATUS_COLOR[wo.status] || '#64748b')} /></Td>
                       <Td>
-                        <button onClick={()=>{setShowQCModal(wo);setQcForm({...EMPTY_QC,passedQty:String(wo.produced)});}} style={{ padding:'4px 10px', borderRadius:6, fontSize:11, fontWeight:600, border:'1px solid #f59e0b', color:'#d97706', background:'transparent', cursor:'pointer', fontFamily:'inherit' }}>Record QC</button>
+                        <button onClick={() => { setShowQCModal(wo); setQcForm({...EMPTY_QC, passedQty: String(wo.produced)}); }} style={{ padding:'4px 10px', borderRadius:6, fontSize:11, fontWeight:600, border:'1px solid #f59e0b', color:'#d97706', background:'transparent', cursor:'pointer', fontFamily:'inherit' }}>Record QC</button>
                       </Td>
                     </tr>
                   ))}
@@ -650,7 +788,7 @@ export default function ProductionPage({ initialTab = 0 }) {
                     <Badge label={wo.status} color={STATUS_COLOR[wo.status]||'#64748b'} />
                   </div>
                   {wo.materialConsumption.map((m,idx) => (
-                    <WastageRow key={m._id||idx} wo={wo} m={m} idx={idx} onSave={handleSaveWastage} />
+                    <WastageRow key={m._id||idx} wo={wo} m={m} onSave={handleSaveWastage} />
                   ))}
                 </div>
               ))}
@@ -663,7 +801,36 @@ export default function ProductionPage({ initialTab = 0 }) {
       {showBOMModal && (
         <Modal open={showBOMModal} title="New BOM" onClose={()=>{setShowBOMModal(false);setBomForm(EMPTY_BOM);}}>
           <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2"><label className="text-xs font-semibold text-gray-500 block mb-1">Product Name *</label><input className={inp} value={bomForm.product} onChange={e=>setBomForm(p=>({...p,product:e.target.value}))} placeholder="e.g. LED Bulb 9W" /></div>
+            <div className="col-span-2">
+              <label className="text-xs font-semibold text-gray-500 block mb-1">Select Product (from Item Master) *</label>
+              <select 
+                className={inp}
+                value={bomForm.productItemMasterId}
+                onChange={(e) => {
+                  const selectedItem = itemMasterItems.find(i => i._id === e.target.value);
+                  if (selectedItem) {
+                    setBomForm({
+                      ...bomForm,
+                      productItemMasterId: selectedItem._id,
+                      product: selectedItem.name,
+                      productCode: selectedItem.sku,
+                      uom: selectedItem.unit || UOM_OPTIONS[0]
+                    });
+                  } else {
+                    setBomForm({...bomForm, productItemMasterId: '', product: '', productCode: '', uom: UOM_OPTIONS[0]});
+                  }
+                }}
+              >
+                <option value="">-- Select Product --</option>
+                {itemMasterItems.length === 0
+                  ? <option disabled value="">Loading items...</option>
+                  : itemMasterItems.map(item => (
+                    <option key={item._id} value={item._id}>{item.name} ({item.sku})</option>
+                  ))
+                }
+              </select>
+            </div>
+            <div className="col-span-2"><label className="text-xs font-semibold text-gray-500 block mb-1">Product Name (auto-filled)</label><input className={inp} value={bomForm.product} readOnly placeholder="Auto-filled" /></div>
             <div><label className="text-xs font-semibold text-gray-500 block mb-1">Product Code</label><input className={inp} value={bomForm.productCode} onChange={e=>setBomForm(p=>({...p,productCode:e.target.value}))} placeholder="SKU-001" /></div>
             <div><label className="text-xs font-semibold text-gray-500 block mb-1">Version</label><input className={inp} value={bomForm.version} onChange={e=>setBomForm(p=>({...p,version:e.target.value}))} /></div>
             <div><label className="text-xs font-semibold text-gray-500 block mb-1">Type</label>
@@ -689,27 +856,137 @@ export default function ProductionPage({ initialTab = 0 }) {
 
       {/* ── Modal: Add Component ── */}
       {showCompModal && (
-        <Modal open={showCompModal} title={`Add Component — ${selectedBOM?.product}`} onClose={()=>{setShowCompModal(false);setCompForm(EMPTY_COMP);}}>
+        <Modal open={showCompModal} title={`Add Component — ${selectedBOM?.product}`} onClose={()=>{setShowCompModal(false);setCompForm(EMPTY_COMP);setItemSearchTerm('');setItemSearchResults([]);}}>
           <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2"><label className="text-xs font-semibold text-gray-500 block mb-1">Item Name *</label><input className={inp} value={compForm.itemName} onChange={e=>setCompForm(p=>({...p,itemName:e.target.value}))} placeholder="e.g. Copper Wire" /></div>
-            <div><label className="text-xs font-semibold text-gray-500 block mb-1">Item Code</label><input className={inp} value={compForm.itemCode} onChange={e=>setCompForm(p=>({...p,itemCode:e.target.value}))} /></div>
-            <div><label className="text-xs font-semibold text-gray-500 block mb-1">Quantity *</label><input type="number" min={0} step="0.01" className={inp} value={compForm.qty} onChange={e=>setCompForm(p=>({...p,qty:e.target.value}))} /></div>
-            <div><label className="text-xs font-semibold text-gray-500 block mb-1">Unit</label>
-              <select className={inp} value={compForm.unit} onChange={e=>setCompForm(p=>({...p,unit:e.target.value}))}>
-                {UNIT_OPTIONS.map(u=><option key={u}>{u}</option>)}
+            <div className="col-span-2">
+              <label className="text-xs font-semibold text-gray-500 block mb-1">Select Item (from Item Master) *</label>
+              <select
+                className={inp}
+                value={compForm.itemMasterId || ''}
+                onChange={(e) => {
+                  // Source: bomList — each BOM's product is an option
+                  const bom = bomList.find(b => String(b.productItemMasterId?._id || b.productItemMasterId) === e.target.value);
+                  if (bom) {
+                    const masterId = String(bom.productItemMasterId?._id || bom.productItemMasterId);
+                    setCompForm({
+                      ...compForm,
+                      itemMasterId: masterId,
+                      itemName:     bom.product,
+                      itemCode:     bom.productCode || '',
+                      unit:         bom.uom || UNIT_OPTIONS[0],
+                      unitCost:     ''
+                    });
+                    setItemSearchTerm(bom.product);
+                    setItemSearchResults([]);
+                  } else {
+                    setCompForm({ ...compForm, itemMasterId: '', itemName: '', itemCode: '', unit: UNIT_OPTIONS[0], unitCost: '' });
+                    setItemSearchTerm('');
+                  }
+                }}
+              >
+                <option value="">--- Select an item ---</option>
+                {bomList.length === 0
+                  ? <option disabled value="">No BOMs available</option>
+                  : bomList.map(bom => {
+                    const masterId = String(bom.productItemMasterId?._id || bom.productItemMasterId || bom._id);
+                    return (
+                      <option key={bom._id} value={masterId}>
+                        {bom.product}{bom.productCode ? ` (${bom.productCode})` : ''}
+                      </option>
+                    );
+                  })
+                }
               </select>
             </div>
+            <div className="col-span-2">
+              <label className="text-xs font-semibold text-gray-500 block mb-1">Or search items...</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  className={inp}
+                  type="text"
+                  value={itemSearchTerm}
+                  placeholder="Search BOM items..."
+                  onChange={(e) => {
+                    const term = e.target.value;
+                    setItemSearchTerm(term);
+                    if (term.length >= 1) {
+                      const q = term.toLowerCase();
+                      setItemSearchResults(
+                        bomList.filter(b =>
+                          b.product.toLowerCase().includes(q) ||
+                          (b.productCode || '').toLowerCase().includes(q)
+                        ).slice(0, 20)
+                      );
+                    } else {
+                      setItemSearchResults([]);
+                    }
+                  }}
+                />
+                {itemSearchResults.length > 0 && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0,
+                    backgroundColor: '#fff', border: '1px solid #e2e8f0',
+                    borderRadius: '8px', zIndex: 50, maxHeight: '200px', overflowY: 'auto'
+                  }}>
+                    {itemSearchResults.map(bom => {
+                      const masterId = String(bom.productItemMasterId?._id || bom.productItemMasterId || bom._id);
+                      return (
+                        <div
+                          key={bom._id}
+                          style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9' }}
+                          onClick={() => {
+                            setCompForm({
+                              ...compForm,
+                              itemMasterId: masterId,
+                              itemName:     bom.product,
+                              itemCode:     bom.productCode || '',
+                              unit:         bom.uom || UNIT_OPTIONS[0],
+                              unitCost:     ''
+                            });
+                            setItemSearchTerm(bom.product);
+                            setItemSearchResults([]);
+                          }}
+                        >
+                          <div style={{ fontWeight: 600 }}>{bom.product}</div>
+                          <div style={{ fontSize: 11, color: '#94a3b8' }}>{bom.productCode || bom.bomId} · {bom.uom}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="col-span-2"><label className="text-xs font-semibold text-gray-500 block mb-1">Item Name (auto-filled)</label><input className={inp} value={compForm.itemName} readOnly placeholder="Auto-filled" /></div>
+            <div><label className="text-xs font-semibold text-gray-500 block mb-1">Item Code</label><input className={inp} value={compForm.itemCode} readOnly placeholder="Auto-filled" /></div>
+            <div><label className="text-xs font-semibold text-gray-500 block mb-1">Quantity *</label><input type="number" min={0} step="0.01" className={inp} value={compForm.qty} onChange={e=>setCompForm(p=>({...p,qty:e.target.value}))} placeholder="Enter quantity" /></div>
+            <div><label className="text-xs font-semibold text-gray-500 block mb-1">Unit</label><input className={inp} value={compForm.unit} readOnly placeholder="Auto-filled" /></div>
+            <div><label className="text-xs font-semibold text-gray-500 block mb-1">Per Price (₹) *</label><input type="number" min={0} step="0.01" className={inp} value={compForm.unitCost} onChange={e=>setCompForm(p=>({...p,unitCost:e.target.value}))} placeholder="Enter price per unit" /></div>
             <div><label className="text-xs font-semibold text-gray-500 block mb-1">Type</label>
               <select className={inp} value={compForm.type} onChange={e=>setCompForm(p=>({...p,type:e.target.value}))}>
                 {COMP_TYPES.map(t=><option key={t}>{t}</option>)}
               </select>
             </div>
-            <div><label className="text-xs font-semibold text-gray-500 block mb-1">Unit Cost (₹)</label><input type="number" min={0} step="0.01" className={inp} value={compForm.unitCost} onChange={e=>setCompForm(p=>({...p,unitCost:e.target.value}))} /></div>
             <div><label className="text-xs font-semibold text-gray-500 block mb-1">Scrap Factor %</label><input type="number" min={0} max={100} className={inp} value={compForm.scrapFactor} onChange={e=>setCompForm(p=>({...p,scrapFactor:parseFloat(e.target.value)||0}))} /></div>
+            <div className="col-span-2">
+              <label className="text-xs font-semibold text-gray-500 block mb-1">Preferred Vendor *</label>
+              <select
+                className={inp}
+                value={compForm.preferredVendorId}
+                onChange={e => {
+                  const v = vendorList.find(v => v._id === e.target.value);
+                  setCompForm(p => ({ ...p, preferredVendorId: v?._id || '', preferredVendorName: v?.companyName || '' }));
+                }}
+              >
+                <option value="">— Select Vendor —</option>
+                {vendorList.map(v => (
+                  <option key={v._id} value={v._id}>{v.companyName} ({v.vendorId})</option>
+                ))}
+              </select>
+            </div>
             <div className="col-span-2 flex items-center gap-2"><input type="checkbox" id="opt" checked={compForm.isOptional} onChange={e=>setCompForm(p=>({...p,isOptional:e.target.checked}))} /><label htmlFor="opt" className="text-xs text-gray-600">Optional component</label></div>
           </div>
           <div className="flex justify-end gap-2 mt-4">
-            <button onClick={()=>{setShowCompModal(false);setCompForm(EMPTY_COMP);}} style={{ ...outlineBtn, padding:'7px 14px', fontSize:12 }}>Cancel</button>
+            <button onClick={()=>{setShowCompModal(false);setCompForm(EMPTY_COMP);setItemSearchTerm('');setItemSearchResults([]);}} style={{ ...outlineBtn, padding:'7px 14px', fontSize:12 }}>Cancel</button>
             <button onClick={handleAddComponent} style={{ ...primaryBtn, padding:'7px 14px', fontSize:12 }}>Add Component</button>
           </div>
         </Modal>
@@ -769,11 +1046,41 @@ export default function ProductionPage({ initialTab = 0 }) {
       {showWOModal && (
         <Modal open={showWOModal} title="New Work Order" onClose={()=>{setShowWOModal(false);setWoForm(EMPTY_WO);}}>
           <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2"><label className="text-xs font-semibold text-gray-500 block mb-1">Product *</label><input className={inp} value={woForm.product} onChange={e=>setWoForm(p=>({...p,product:e.target.value}))} placeholder="Product name" /></div>
+            <div className="col-span-2">
+              <label className="text-xs font-semibold text-gray-500 block mb-1">Select Product (from Item Master) *</label>
+              <select 
+                className={inp}
+                value={woForm.productItemMasterId || ''}
+                onChange={(e) => {
+                  const selectedItem = itemMasterItems.find(i => i._id === e.target.value);
+                  if (selectedItem) {
+                    // Find matching BOM if exists
+                    const matchingBOM = bomList.find(b => b.productItemMasterId === selectedItem._id);
+                    setWoForm({
+                      ...woForm,
+                      productItemMasterId: selectedItem._id,
+                      product: selectedItem.name,
+                      bomId: matchingBOM ? matchingBOM._id : ''
+                    });
+                  } else {
+                    setWoForm({...woForm, productItemMasterId: '', product: '', bomId: ''});
+                  }
+                }}
+              >
+                <option value="">--- Select Product ---</option>
+                {itemMasterItems.map(item => (
+                  <option key={item._id} value={item._id}>{item.name} ({item.sku})</option>
+                ))}
+              </select>
+            </div>
             <div><label className="text-xs font-semibold text-gray-500 block mb-1">Link BOM</label>
               <select className={inp} value={woForm.bomId} onChange={e=>setWoForm(p=>({...p,bomId:e.target.value}))}>
                 <option value="">— No BOM —</option>
-                {bomList.filter(b=>b.approvalStatus==='Approved').map(b=><option key={b._id} value={b._id}>{b.product} ({b.bomId})</option>)}
+                {bomList.map(b=>(
+                  <option key={b._id} value={b._id}>
+                    {b.product} ({b.bomId}) - {b.approvalStatus || 'Draft'}
+                  </option>
+                ))}
               </select>
             </div>
             <div><label className="text-xs font-semibold text-gray-500 block mb-1">Quantity *</label><input type="number" min={1} className={inp} value={woForm.qty} onChange={e=>setWoForm(p=>({...p,qty:e.target.value}))} /></div>
@@ -820,12 +1127,13 @@ export default function ProductionPage({ initialTab = 0 }) {
       {showQCModal && (
         <Modal open={!!showQCModal} title={`Record QC — ${showQCModal.woId}`} onClose={()=>{setShowQCModal(null);setQcForm(EMPTY_QC);}}>
           <div className="text-xs text-gray-500 mb-3">Product: <strong>{showQCModal.product}</strong> · Produced: <strong>{showQCModal.produced}</strong></div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div><label className="text-xs font-semibold text-gray-500 block mb-1">Passed Qty</label><input type="number" min={0} className={inp} value={qcForm.passedQty} onChange={e=>setQcForm(p=>({...p,passedQty:e.target.value}))} /></div>
+            <div><label className="text-xs font-semibold text-gray-500 block mb-1">Rework Qty</label><input type="number" min={0} className={inp} value={qcForm.reworkQty} onChange={e=>setQcForm(p=>({...p,reworkQty:e.target.value}))} /></div>
             <div><label className="text-xs font-semibold text-gray-500 block mb-1">Rejected Qty</label><input type="number" min={0} className={inp} value={qcForm.rejectedQty} onChange={e=>setQcForm(p=>({...p,rejectedQty:e.target.value}))} /></div>
             <div><label className="text-xs font-semibold text-gray-500 block mb-1">Defect Type</label><input className={inp} value={qcForm.defectType} onChange={e=>setQcForm(p=>({...p,defectType:e.target.value}))} placeholder="e.g. Dimensional" /></div>
             <div><label className="text-xs font-semibold text-gray-500 block mb-1">Inspected By</label><input className={inp} value={qcForm.inspectedBy} onChange={e=>setQcForm(p=>({...p,inspectedBy:e.target.value}))} /></div>
-            <div className="col-span-2"><label className="text-xs font-semibold text-gray-500 block mb-1">Remarks</label><textarea className={inp} rows={2} value={qcForm.remarks} onChange={e=>setQcForm(p=>({...p,remarks:e.target.value}))} /></div>
+            <div className="col-span-3"><label className="text-xs font-semibold text-gray-500 block mb-1">Remarks</label><textarea className={inp} rows={2} value={qcForm.remarks} onChange={e=>setQcForm(p=>({...p,remarks:e.target.value}))} /></div>
           </div>
           <div className="flex justify-end gap-2 mt-4">
             <button onClick={()=>{setShowQCModal(null);setQcForm(EMPTY_QC);}} style={{ ...outlineBtn, padding:'7px 14px', fontSize:12 }}>Cancel</button>

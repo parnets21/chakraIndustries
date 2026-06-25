@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Modal from '../../../../components/common/Modal';
+import Pagination from '../../../../components/common/Pagination';
 import { rfqApi } from '../../../../api/rfqApi';
 import { vendorApi } from '../../../../api/vendorApi';
 import { prApi } from '../../../../api/prApi';
@@ -11,6 +12,8 @@ export default function RFQList({ onCompare, refresh }) {
   const [rfqs, setRfqs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [deleteRFQ, setDeleteRFQ] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [viewRFQ, setViewRFQ] = useState(null);
@@ -155,6 +158,15 @@ export default function RFQList({ onCompare, refresh }) {
     setEditAttachments(prev => prev.filter((_, i) => i !== idx));
   };
 
+  // Calculate paginated RFQs
+  const startIndex = (page - 1) * pageSize;
+  const paginatedRFQs = rfqs.slice(startIndex, startIndex + pageSize);
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [filterStatus]);
+
   return (
     <>
       <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'transparent', border: 'none', boxShadow: 'none' }}>
@@ -173,24 +185,25 @@ export default function RFQList({ onCompare, refresh }) {
         {loading ? (
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
         ) : (
-          <div style={{ overflowX: 'auto', width: '100%', background: 'transparent' }}>
-            <table style={{ width: '100%', minWidth: '900px', background: 'transparent' }}>
-              <thead>
-                <tr style={{ background: 'transparent' }}>
-                  <th style={{ padding: '11px 12px', textAlign: 'left', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>RFQ ID</th>
-                  <th style={{ padding: '11px 12px', textAlign: 'left', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Title</th>
-                  <th style={{ padding: '11px 12px', textAlign: 'left', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Vendors</th>
-                  <th style={{ padding: '11px 12px', textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Items</th>
-                  <th style={{ padding: '11px 12px', textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Due Date</th>
-                  <th style={{ padding: '11px 12px', textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Priority</th>
-                  <th style={{ padding: '11px 12px', textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Status</th>
-                  <th style={{ padding: '11px 12px', textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rfqs.length === 0 ? (
-                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: 24, color: '#94a3b8', fontSize: 13 }}>No RFQs found</td></tr>
-                ) : rfqs.map((r) => (
+          <>
+            <div style={{ overflowX: 'auto', width: '100%', background: 'transparent' }}>
+              <table style={{ width: '100%', minWidth: '900px', background: 'transparent' }}>
+                <thead>
+                  <tr style={{ background: 'transparent' }}>
+                    <th style={{ padding: '11px 12px', textAlign: 'left', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>RFQ ID</th>
+                    <th style={{ padding: '11px 12px', textAlign: 'left', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Title</th>
+                    <th style={{ padding: '11px 12px', textAlign: 'left', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Vendors</th>
+                    <th style={{ padding: '11px 12px', textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Items</th>
+                    <th style={{ padding: '11px 12px', textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Due Date</th>
+                    <th style={{ padding: '11px 12px', textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Priority</th>
+                    <th style={{ padding: '11px 12px', textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Status</th>
+                    <th style={{ padding: '11px 12px', textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e2e8f0' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rfqs.length === 0 ? (
+                    <tr><td colSpan={8} style={{ textAlign: 'center', padding: 24, color: '#94a3b8', fontSize: 13 }}>No RFQs found</td></tr>
+                  ) : paginatedRFQs.map((r) => (
                   <tr key={r._id} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s' }} onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                     <td style={{ fontWeight: 700, color: '#ef4444', whiteSpace: 'nowrap', padding: '12px', fontSize: 12, fontFamily: 'monospace' }}>{r.rfqId}</td>
                     <td style={{ fontWeight: 600, padding: '12px', fontSize: 13, color: '#1e293b', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.title}</td>
@@ -334,6 +347,16 @@ export default function RFQList({ onCompare, refresh }) {
               </tbody>
             </table>
           </div>
+          {rfqs.length > 0 && (
+            <Pagination
+              total={rfqs.length}
+              page={page}
+              pageSize={pageSize}
+              onPage={setPage}
+              onPageSize={setPageSize}
+            />
+          )}
+        </>
         )}
       </div>
 

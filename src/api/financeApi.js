@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5000/api/api');
+const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5001/api');
 
 const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
 const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
@@ -90,4 +90,8 @@ export const financeApi = {
     const q = new URLSearchParams(params).toString();
     return fetch(`${BASE}/finance/vendor-debit-notes${q ? '?' + q : ''}`, { headers: authHeaders() }).then(handle);
   },
+
+  // Dynamic lookup lists for modal dropdowns
+  getVendorsList: () => fetch(`${BASE}/finance/vendors-list`, { headers: authHeaders() }).then(handle),
+  getDealersList: () => fetch(`${BASE}/finance/dealers-list`, { headers: authHeaders() }).then(handle),
 };

@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5000/api/api');
+const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5001/api');
 const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
 const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
 
@@ -39,6 +39,12 @@ export const poGeneratorApi = {
   listPendingOrders: (params = {})  => fetch(`${BASE}/po-generator/pending-orders${q(params)}`,     { headers: authHeaders() }).then(handle),
   updatePendingOrder:(id, body)     => fetch(`${BASE}/po-generator/pending-orders/${id}`,           { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   migrateHSN:        ()             => fetch(`${BASE}/po-generator/migrate-hsn`,                    { method: 'POST', headers: authHeaders() }).then(handle),
+
+  // Company management
+  listCompanies:     ()             => fetch(`${BASE}/po-generator/companies`,                       { headers: authHeaders() }).then(handle),
+  createCompany:     (body)         => fetch(`${BASE}/po-generator/companies`,                       { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  updateCompany:     (id, body)     => fetch(`${BASE}/po-generator/companies/${id}`,                 { method: 'PUT',  headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+  deleteCompany:     (id)           => fetch(`${BASE}/po-generator/companies/${id}`,                 { method: 'DELETE', headers: authHeaders() }).then(handle),
   
   // Payment tracking endpoints (with mock fallback)
   listPayments:      (invoiceId)    => {

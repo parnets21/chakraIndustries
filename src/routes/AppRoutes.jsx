@@ -52,6 +52,7 @@ import ReturnRequestDetailPage from '../pages/returns/ReturnRequestDetailPage';
 import FinanceSubPage from '../pages/finance/FinanceSubPage';
 import CreditNoteTrackingPage from '../pages/finance/CreditNoteTrackingPage';
 import InvoiceGeneratorPage from '../pages/finance/InvoiceGeneratorPage';
+import LedgerDetailPage from '../pages/finance/LedgerDetailPage';
 
 // PO Generator
 import POGeneratorDashboard from '../pages/pogenerator/POGeneratorDashboard';
@@ -65,6 +66,7 @@ import InvoiceHistoryPage   from '../pages/pogenerator/InvoiceHistoryPage';
 // Tally Integration
 import TallySubPage from '../pages/tally/TallySubPage';
 import TallyDataPage from '../pages/tally/TallyDataPage';
+import SalesRegisterPage from '../pages/tally/SalesRegisterPage';
 
 // Forecasting
 import ForecastingSubPage from '../pages/forecasting/ForecastingSubPage';
@@ -181,16 +183,24 @@ export default function AppRoutes() {
       <Route path="/returns/detail/:id"     element={<P element={<ReturnRequestDetailPage />} />} />
 
       {/* Finance */}
-      <Route path="/finance"           element={<Navigate to="/finance/ledger" replace />} />
-      <Route path="/finance/ledger"    element={<P element={<FinanceSubPage tab="ledger" />} />} />
-      <Route path="/finance/brs"       element={<P element={<FinanceSubPage tab="brs" />} />} />
-      <Route path="/finance/payments"  element={<P element={<FinanceSubPage tab="payments" />} />} />
-      <Route path="/finance/notes"     element={<P element={<FinanceSubPage tab="notes" />} />} />
-      <Route path="/finance/matching"  element={<P element={<FinanceSubPage tab="matching" />} />} />
-      <Route path="/finance/cntracks"  element={<P element={<CreditNoteTrackingPage />} />} />
-      <Route path="/finance/invoices"         element={<Navigate to="/finance/invoices/single" replace />} />
-      <Route path="/finance/invoices/single"  element={<P element={<InvoiceGeneratorPage type="single" />} />} />
-      <Route path="/finance/invoices/multi"   element={<P element={<InvoiceGeneratorPage type="multi" />} />} />
+      <Route path="/finance"                    element={<Navigate to="/finance/dashboard" replace />} />
+      <Route path="/finance/dashboard"          element={<P element={<FinanceSubPage tab="dashboard" />} />} />
+      <Route path="/finance/accounts-payable"   element={<P element={<FinanceSubPage tab="accounts-payable" />} />} />
+      <Route path="/finance/accounts-receivable" element={<P element={<FinanceSubPage tab="accounts-receivable" />} />} />
+      <Route path="/finance/supplier-payments"  element={<P element={<FinanceSubPage tab="supplier-payments" />} />} />
+      <Route path="/finance/dealer-receipts"    element={<P element={<FinanceSubPage tab="dealer-receipts" />} />} />
+      <Route path="/finance/supplier-ledger"    element={<P element={<FinanceSubPage tab="supplier-ledger" />} />} />
+      <Route path="/finance/dealer-ledger"      element={<P element={<FinanceSubPage tab="dealer-ledger" />} />} />
+      <Route path="/finance/tally-ledger"       element={<P element={<FinanceSubPage tab="tally-ledger" />} />} />
+      <Route path="/finance/outstanding-invoices" element={<P element={<FinanceSubPage tab="outstanding-invoices" />} />} />
+      <Route path="/finance/bank-cash-accounts" element={<P element={<FinanceSubPage tab="bank-cash-accounts" />} />} />
+      <Route path="/finance/payment-history"    element={<P element={<FinanceSubPage tab="payment-history" />} />} />
+      <Route path="/finance/financial-reports"  element={<P element={<FinanceSubPage tab="financial-reports" />} />} />
+      <Route path="/finance/ledger/:id"         element={<P element={<LedgerDetailPage />} />} />
+      <Route path="/finance/cntracks"           element={<P element={<CreditNoteTrackingPage />} />} />
+      <Route path="/finance/invoices"           element={<Navigate to="/finance/invoices/single" replace />} />
+      <Route path="/finance/invoices/single"    element={<P element={<InvoiceGeneratorPage type="single" />} />} />
+      <Route path="/finance/invoices/multi"     element={<P element={<InvoiceGeneratorPage type="multi" />} />} />
 
       {/* PO Generator */}
       <Route path="/po-generator"                      element={<P element={<POGeneratorDashboard />} />} />
@@ -252,6 +262,7 @@ export default function AppRoutes() {
       <Route path="/tally/data"         element={<P element={<TallyDataPage />} />} />
       <Route path="/tally/logs"         element={<P element={<TallySubPage tab="logs" />} />} />
       <Route path="/tally/settings"     element={<P element={<TallySubPage tab="settings" />} />} />
+      <Route path="/tally/sales-register" element={<P element={<SalesRegisterPage />} />} />
       {/* legacy routes — redirect to new paths */}
       <Route path="/tally/dashboard"    element={<Navigate to="/tally/overview" replace />} />
       <Route path="/tally/master"       element={<Navigate to="/tally/import" replace />} />

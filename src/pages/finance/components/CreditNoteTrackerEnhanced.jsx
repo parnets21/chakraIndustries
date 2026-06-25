@@ -99,6 +99,11 @@ export default function CreditNoteTrackerEnhanced() {
     return days > 0 ? days : 0;
   };
 
+  const getDaysUntilDue = (dueDate) => {
+    const days = Math.floor((new Date(dueDate) - new Date()) / (1000 * 60 * 60 * 24));
+    return days > 0 ? days : 0;
+  };
+
   const handleSave = async () => {
     if (!formData.vendor || !formData.amount || !formData.dueDate) {
       alert('Vendor, amount and due date are required');

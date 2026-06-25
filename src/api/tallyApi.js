@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5000/api/api');
+const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5001/api');
 const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
 const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
 
@@ -99,12 +99,36 @@ export const tallyApi = {
 
   // ── Vouchers (All types: Sales, Purchase, Payment, Receipt, Journal, Contra)
   getVouchers:      (p = {}) => fetch(`${BASE}/tally/vouchers${q(p)}`,           { headers: authHeaders() }).then(handle),
+  getVoucherById:   (id)     => fetch(`${BASE}/tally/vouchers/${id}`,            { headers: authHeaders() }).then(handle),
   createVoucher:    (body)   => fetch(`${BASE}/tally/vouchers`,                  { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   updateVoucher:    (id, body) => fetch(`${BASE}/tally/vouchers/${id}`,          { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   deleteVoucher:    (id)     => fetch(`${BASE}/tally/vouchers/${id}`,            { method: 'DELETE', headers: authHeaders() }).then(handle),
 
+  // Reset voucher sync states so next import re-fetches all amounts from Tally
+  resetVoucherSyncStates: () =>
+    fetch(`${BASE}/tally/reset-voucher-sync-states`, { method: 'POST', headers: authHeaders(), body: '{}' }).then(handle),
+
   // ── GUID sync status ───────────────────────────────────────────────────────
   getGuidStatus:    ()       => fetch(`${BASE}/tally/guid-status`,               { headers: authHeaders() }).then(handle),
+
+  // ── Sales Register: Import + Query (April–June) ────────────────────────────
+  /**
+   * importSalesRegister — pull Sales vouchers for a specific date range.
+   * @param {string} fromDate - "YYYY-MM-DD"
+   * @param {string} toDate   - "YYYY-MM-DD"
+   */
+  importSalesRegister: ({ fromDate, toDate }) =>
+    fetch(`${BASE}/tally/import-sales-register`, {
+      method: 'POST', headers: authHeaders(),
+      body: JSON.stringify({ fromDate, toDate }),
+    }).then(handle),
+
+  /**
+   * getSalesInvoices — query imported Sales Register vouchers by date range.
+   * Returns { vouchers, invoices, voucherTotal, invoiceTotal, totalSalesRecords }
+   */
+  getSalesInvoices: (p = {}) =>
+    fetch(`${BASE}/tally/sales-invoices${q(p)}`,  { headers: authHeaders() }).then(handle),
 
   // ── Full diagnostics (config + connectivity + DB counts + recent logs) ─────
   getDiagnostics:   ()       => fetch(`${BASE}/tally/diagnostics`,               { headers: authHeaders() }).then(handle),

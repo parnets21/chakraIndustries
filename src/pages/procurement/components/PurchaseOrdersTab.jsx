@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import StatusBadge from '../../../components/common/StatusBadge';
 import Modal from '../../../components/common/Modal';
+import Pagination from '../../../components/common/Pagination';
 import BulkPOUpload from './BulkPOUpload';
 import { poApi } from '../../../api/poApi';
 import { vendorApi } from '../../../api/vendorApi';   
 import { rfqApi } from '../../../api/rfqApi';
-import { MdVisibility, MdDeleteOutline, MdCheckCircle, MdCancel, MdSend } from 'react-icons/md';
+import { MdVisibility, MdDeleteOutline, MdCheckCircle, MdCancel, MdSend, MdPrint, MdDownload, MdEmail } from 'react-icons/md';
 import { FaEdit } from 'react-icons/fa';
 import { dataEvents } from '../../../utils/dataEvents';
 
@@ -21,11 +22,17 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
   const [rfqs, setRFQs]             = useState([]);
   const [loading, setLoading]       = useState(false);
   const [filterStatus, setFilterStatus] = useState('');
+  const [dateFrom, setDateFrom]     = useState('');
+  const [dateTo, setDateTo]         = useState('');
+  const [page, setPage]             = useState(1);
+  const [pageSize, setPageSize]     = useState(25);
   const [viewPO, setViewPO] = useState(null);
   const [editPO, setEditPO] = useState(null);
   const [deletePO, setDeletePO] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [statusModal, setStatusModal] = useState(null); // { po, action: 'Approved'|'Cancelled'|'Pending' }
+  const [emailModal, setEmailModal] = useState(null);   // { po, to: '' }
+  const [sendingEmail, setSendingEmail] = useState(false);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -81,7 +88,8 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
 
     return rfqs.filter(rfq => {
       return rfq.quotations?.some(q => {
-        const qVendorId = typeof q.vendor === 'object' ? (q.vendor._id || q.vendor) : q.vendor;
+        if (!q || !q.vendor) return false;
+        const qVendorId = typeof q.vendor === 'object' ? (q.vendor._id || '') : q.vendor;
         return qVendorId === vendorId;
       });
     });
@@ -89,6 +97,24 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
 
   // Auto-populate items when RFQ is selected (used by handleRFQChange)
   useEffect(() => { fetchPOs(); }, [filterStatus]);
+
+  // Apply date filter client-side
+  const filteredPOs = pos.filter(p => {
+    if (!dateFrom && !dateTo) return true;
+    const created = new Date(p.createdAt);
+    created.setHours(0, 0, 0, 0);
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      from.setHours(0, 0, 0, 0);
+      if (created < from) return false;
+    }
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      if (created > to) return false;
+    }
+    return true;
+  });
 
   useEffect(() => {
     if (showPOModal) {
@@ -114,7 +140,8 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
       if (prev.linkedRFQ) {
         const rfq = rfqs.find(r => r._id === prev.linkedRFQ);
         const quotation = rfq?.quotations?.find(q => {
-          const qVendorId = typeof q.vendor === 'object' ? (q.vendor._id || q.vendor) : q.vendor;
+          if (!q || !q.vendor) return false;
+          const qVendorId = typeof q.vendor === 'object' ? (q.vendor._id || '') : q.vendor;
           return qVendorId === vendorId;
         });
 
@@ -133,8 +160,9 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
 
       if (matchingRFQs.length === 1) {
         const rfq = matchingRFQs[0];
-        const quotation = rfq.quotations.find(q => {
-          const qVendorId = typeof q.vendor === 'object' ? (q.vendor._id || q.vendor) : q.vendor;
+        const quotation = rfq.quotations?.find(q => {
+          if (!q || !q.vendor) return false;
+          const qVendorId = typeof q.vendor === 'object' ? (q.vendor._id || '') : q.vendor;
           return qVendorId === vendorId;
         });
         return {
@@ -162,12 +190,12 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
       quotation = rfq.quotations?.find(q => (q.vendor?._id || q.vendor) === formData.vendor);
     }
     if (!quotation && rfq.quotations?.length) {
-      quotation = rfq.quotations.reduce((best, q) =>
-        (q.totalAmount || 0) < (best.totalAmount || Infinity) ? q : best
-      , rfq.quotations[0]);
+      quotation = rfq.quotations.reduce((best, q) => {
+        if (!q || !q.vendor) return best;
+        return (q.totalAmount || 0) < (best.totalAmount || Infinity) ? q : best;
+      }, rfq.quotations[0]);
     }
-
-    const vendorId = quotation ? (quotation.vendor?._id || quotation.vendor) : (rfq.vendors?.[0]?._id || '');
+    const vendorId = quotation ? (quotation.vendor?._id || quotation.vendor || '') : (rfq.vendors?.[0]?._id || '');
 
     setFormData(prev => ({
       ...prev,
@@ -298,13 +326,242 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
     }
   };
 
+  // Print PO function
+  const handlePrint = (po) => {
+    const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN') : '—';
+    const fmtAmt  = (n) => `₹${(parseFloat(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    const printWindow = window.open('', '_blank');
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${po.poId}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          .header { text-align: center; margin-bottom: 30px; }
+          .header h1 { color: #c0392b; margin: 0; }
+          .details { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background-color: #f5f5f5; }
+          .total { text-align: right; font-weight: bold; }
+          .grand-total { font-size: 18px; color: #c0392b; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Sri Chakra Industries</h1>
+          <h2>Purchase Order - ${po.poId}</h2>
+        </div>
+        <div class="details">
+          <div><strong>Vendor:</strong> ${po.vendor?.companyName || '—'}</div>
+          <div><strong>Date:</strong> ${fmtDate(po.createdAt)}</div>
+          ${po.deliveryDate ? `<div><strong>Delivery Date:</strong> ${fmtDate(po.deliveryDate)}</div>` : ''}
+          <div><strong>Payment Terms:</strong> ${po.paymentTerms || '—'}</div>
+          <div><strong>Status:</strong> ${po.status}</div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Qty</th>
+              <th>Unit</th>
+              <th>Unit Price</th>
+              <th>GST %</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${(po.items || []).map(item => `
+              <tr>
+                <td>${item.name}</td>
+                <td>${item.qty}</td>
+                <td>${item.unit}</td>
+                <td>${fmtAmt(item.basePrice)}</td>
+                <td>${item.gst}%</td>
+                <td>${fmtAmt(item.total)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="5" class="total">Subtotal:</td>
+              <td class="total">${fmtAmt(po.subtotal)}</td>
+            </tr>
+            <tr>
+              <td colspan="5" class="total">GST Total:</td>
+              <td class="total">${fmtAmt(po.gstTotal)}</td>
+            </tr>
+            <tr>
+              <td colspan="5" class="total grand-total">Grand Total:</td>
+              <td class="total grand-total">${fmtAmt(po.grandTotal)}</td>
+            </tr>
+          </tfoot>
+        </table>
+        ${po.remarks ? `<div><strong>Remarks:</strong> ${po.remarks}</div>` : ''}
+      </body>
+      </html>
+    `;
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
+
+  // Download PO as HTML file
+  const handleDownload = (po) => {
+    const fmtD = (d) => d ? new Date(d).toLocaleDateString('en-IN') : '—';
+    const fmtA = (n) => `₹${(parseFloat(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>${po.poId}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 30px; color: #1e293b; }
+    .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #c0392b; padding-bottom: 16px; }
+    .header h1 { color: #c0392b; margin: 0 0 4px; font-size: 22px; }
+    .header h2 { margin: 0; font-size: 16px; color: #475569; }
+    .details { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; margin-bottom: 20px; font-size: 13px; }
+    .details strong { color: #64748b; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }
+    th { background: #f1f5f9; padding: 8px 12px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; }
+    td { border-bottom: 1px solid #e2e8f0; padding: 9px 12px; }
+    .tr { text-align: right; }
+    .totals { margin-left: auto; max-width: 260px; font-size: 13px; }
+    .totals-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #e2e8f0; }
+    .grand { font-size: 16px; font-weight: 800; color: #c0392b; }
+    .remarks { font-size: 13px; color: #475569; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Sri Chakra Industries</h1>
+    <h2>Purchase Order — ${po.poId}</h2>
+  </div>
+  <div class="details">
+    <div><strong>Vendor:</strong> ${po.vendor?.companyName || '—'}</div>
+    <div><strong>Date:</strong> ${fmtD(po.createdAt)}</div>
+    <div><strong>Delivery Date:</strong> ${fmtD(po.deliveryDate)}</div>
+    <div><strong>Payment Terms:</strong> ${po.paymentTerms || '—'}</div>
+    <div><strong>Status:</strong> ${po.status}</div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Item</th><th class="tr">Qty</th><th>Unit</th>
+        <th class="tr">Base Price</th><th class="tr">GST %</th><th class="tr">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${(po.items || []).map(it => `
+        <tr>
+          <td>${it.name}</td>
+          <td class="tr">${it.qty}</td>
+          <td>${it.unit}</td>
+          <td class="tr">${fmtA(it.basePrice)}</td>
+          <td class="tr">${it.gst}%</td>
+          <td class="tr">${fmtA(it.total)}</td>
+        </tr>`).join('')}
+    </tbody>
+  </table>
+  <div class="totals">
+    <div class="totals-row"><span>Subtotal</span><span>${fmtA(po.subtotal)}</span></div>
+    <div class="totals-row"><span>GST Total</span><span>${fmtA(po.gstTotal)}</span></div>
+    <div class="totals-row grand"><span>Grand Total</span><span>${fmtA(po.grandTotal)}</span></div>
+  </div>
+  ${po.remarks ? `<div class="remarks"><strong>Remarks:</strong> ${po.remarks}</div>` : ''}
+</body>
+</html>`;
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${po.poId}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Send PO Email function — opens email modal
+  const handleSendEmail = (po) => {
+    setEmailModal({ po, to: po.vendor?.email || '' });
+  };
+
+  const handleEmailSubmit = async () => {
+    if (!emailModal?.to) return;
+    setSendingEmail(true);
+    try {
+      await poApi.sendEmail(emailModal.po._id, emailModal.to);
+      setEmailModal(null);
+      alert('✓ PO sent via email successfully!');
+      fetchPOs();
+    } catch (e) {
+      alert(`❌ Error: ${e.message}`);
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
+  // Send PO WhatsApp function
+  const handleSendWhatsApp = async (po) => {
+    try {
+      const to = prompt('Enter recipient phone number (with country code):', po.vendor?.phone || '');
+      if (!to) return;
+      await poApi.sendWhatsApp(po._id, to);
+      alert('✓ PO sent via WhatsApp successfully!');
+      fetchPOs();
+    } catch (e) {
+      alert(`❌ Error: ${e.message}`);
+    }
+  };
+
+  // Calculate paginated POs
+  const startIndex = (page - 1) * pageSize;
+  const paginatedPOs = filteredPOs.slice(startIndex, startIndex + pageSize);
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [filterStatus, dateFrom, dateTo]);
+
   const totals = calcTotals();
 
   return (
     <>
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '14px 22px', borderBottom: '1px solid var(--border)', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '14px 22px', borderBottom: '1px solid var(--border)', gap: 10, flexWrap: 'wrap' }}>
           <BulkPOUpload onSuccess={fetchPOs} />
+          {/* Date range filter */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>From</span>
+            <input
+              type="date"
+              className="form-input"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              style={{ fontSize: 13, padding: '6px 10px', maxWidth: 150 }}
+            />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>To</span>
+            <input
+              type="date"
+              className="form-input"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              style={{ fontSize: 13, padding: '6px 10px', maxWidth: 150 }}
+            />
+          </div>
+          {(dateFrom || dateTo) && (
+            <button
+              className="btn btn-sm btn-outline"
+              onClick={() => { setDateFrom(''); setDateTo(''); }}
+              style={{ fontSize: 12, padding: '6px 10px', color: '#64748b' }}
+              title="Clear date filter"
+            >
+              ✕ Clear
+            </button>
+          )}
           <select className="form-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ maxWidth: 160 }}>
             <option value="">All Status</option>
             <option>Draft</option>
@@ -318,25 +575,26 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
         {loading ? (
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
         ) : (
-          <div style={{ overflowX: 'auto', width: '100%' }}>
-            <table style={{ width: '100%', minWidth: '900px' }}>
-              <thead>
-                <tr>
-                  <th style={{ padding: '11px 12px' }}>PO ID</th>
-                  <th style={{ padding: '11px 12px' }}>Vendor</th>
-                  <th style={{ padding: '11px 12px' }}>Items</th>
-                  <th style={{ padding: '11px 12px' }}>Subtotal</th>
-                  <th style={{ padding: '11px 12px' }}>GST</th>
-                  <th style={{ padding: '11px 12px' }}>Grand Total</th>
-                  <th style={{ padding: '11px 12px' }}>Date</th>
-                  <th style={{ padding: '11px 12px' }}>Status</th>
-                  <th style={{ padding: '11px 12px' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pos.length === 0 ? (
-                  <tr><td colSpan={9} style={{ textAlign: 'center', padding: 24, color: '#94a3b8' }}>No purchase orders found</td></tr>
-                ) : pos.map((p) => (
+          <>
+            <div style={{ overflowX: 'auto', width: '100%' }}>
+              <table style={{ width: '100%', minWidth: '1100px' }}>
+                <thead>
+                  <tr>
+                    <th style={{ padding: '11px 12px' }}>PO ID</th>
+                    <th style={{ padding: '11px 12px' }}>Vendor</th>
+                    <th style={{ padding: '11px 12px' }}>Items</th>
+                    <th style={{ padding: '11px 12px' }}>Subtotal</th>
+                    <th style={{ padding: '11px 12px' }}>GST</th>
+                    <th style={{ padding: '11px 12px' }}>Grand Total</th>
+                    <th style={{ padding: '11px 12px' }}>Date</th>
+                    <th style={{ padding: '11px 12px' }}>Status</th>
+                    <th style={{ padding: '11px 12px' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPOs.length === 0 ? (
+                    <tr><td colSpan={9} style={{ textAlign: 'center', padding: 24, color: '#94a3b8' }}>No purchase orders found</td></tr>
+                  ) : paginatedPOs.map((p) => (
                   <tr key={p._id}>
                     <td style={{ fontWeight: 600, color: 'var(--primary)', whiteSpace: 'nowrap', padding: '12px' }}>{p.poId}</td>
                     <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>{p.vendor?.companyName || '—'}</td>
@@ -355,6 +613,15 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
                         </button>
                         <button className="btn btn-sm" title="Edit" style={{ background: '#fef3c7', color: '#92400e', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => handleEdit(p)}>
                           <FaEdit size={16} />
+                        </button>
+                        <button className="btn btn-sm" title="Print" style={{ background: '#f0fdf4', color: '#15803d', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #bbf7d0', borderRadius: 6 }} onClick={() => handlePrint(p)}>
+                          <MdPrint size={16} />
+                        </button>
+                        <button className="btn btn-sm" title="Download" style={{ background: '#eff6ff', color: '#1d4ed8', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #bfdbfe', borderRadius: 6 }} onClick={() => handleDownload(p)}>
+                          <MdDownload size={16} />
+                        </button>
+                        <button className="btn btn-sm" title="Send Email" style={{ background: '#fdf4ff', color: '#7e22ce', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e9d5ff', borderRadius: 6 }} onClick={() => handleSendEmail(p)}>
+                          <MdEmail size={16} />
                         </button>
                         {(p.status === 'Draft' || p.status === 'Pending') && (
                           <button className="btn btn-sm" title="Approve PO" style={{ background: '#dcfce7', color: '#16a34a', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #bbf7d0', borderRadius: 6 }}
@@ -384,6 +651,16 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
               </tbody>
             </table>
           </div>
+          {filteredPOs.length > 0 && (
+            <Pagination
+              total={filteredPOs.length}
+              page={page}
+              pageSize={pageSize}
+              onPage={setPage}
+              onPageSize={setPageSize}
+            />
+          )}
+        </>
         )}
       </div>
 
@@ -687,8 +964,55 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
         </div>
       </Modal>
 
-      {/* Status Change Modal */}
+      {/* Send Email Modal */}
       <Modal
+        open={!!emailModal}
+        onClose={() => setEmailModal(null)}
+        title="Send Purchase Order via Email"
+        footer={
+          <>
+            <button className="btn btn-outline" onClick={() => setEmailModal(null)} disabled={sendingEmail}>Cancel</button>
+            <button
+              className="btn btn-primary"
+              onClick={handleEmailSubmit}
+              disabled={sendingEmail || !emailModal?.to}
+              style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)', minWidth: 110 }}
+            >
+              {sendingEmail ? 'Sending...' : '✉ Send Email'}
+            </button>
+          </>
+        }
+      >
+        {emailModal && (
+          <div style={{ padding: '4px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
+              <MdEmail size={24} style={{ color: '#7e22ce', flexShrink: 0 }} />
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>{emailModal.po.poId}</div>
+                <div style={{ fontSize: 12, color: '#64748b' }}>{emailModal.po.vendor?.companyName} · ₹{Math.round(emailModal.po.grandTotal || 0).toLocaleString('en-IN')}</div>
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Recipient Email Address *</label>
+              <input
+                type="email"
+                className="form-input"
+                placeholder="vendor@example.com"
+                value={emailModal.to}
+                onChange={e => setEmailModal(prev => ({ ...prev, to: e.target.value }))}
+                autoFocus
+              />
+              {emailModal.po.vendor?.email && emailModal.to !== emailModal.po.vendor.email && (
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                  Vendor email on file: <span style={{ fontWeight: 600, color: '#7e22ce', cursor: 'pointer' }} onClick={() => setEmailModal(prev => ({ ...prev, to: prev.po.vendor.email }))}>{emailModal.po.vendor.email}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Status Change Modal */}      <Modal
         open={!!statusModal}
         onClose={() => setStatusModal(null)}
         title={

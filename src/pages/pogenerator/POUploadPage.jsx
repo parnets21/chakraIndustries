@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { poGeneratorApi } from '../../api/poGeneratorApi';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -383,6 +383,11 @@ export default function POUploadPage() {
   const [viewInvoice, setViewInvoice]     = useState(null);
   const [viewLoading, setViewLoading]     = useState('');
   const [deletingInvoice, setDeletingInvoice] = useState('');
+  // Company filter
+  const [companies, setCompanies]         = useState([]);
+  const [selectedCompany, setSelectedCompany] = useState(''); // '' = All Companies
+  // Company override for PDF upload form (user can pick / confirm company before creating invoice)
+  const [pdfCompanyId, setPdfCompanyId]   = useState(''); // '' = auto-detect from buyerName
 
   const loadUploadSummary = useCallback(async (date = selectedUploadDate) => {
     setSummaryLoading(true); setSummaryError('');
@@ -391,7 +396,12 @@ export default function POUploadPage() {
     finally { setSummaryLoading(false); }
   }, [selectedUploadDate]);
 
-  useEffect(() => { loadUploadSummary(selectedUploadDate); }, [loadUploadSummary, selectedUploadDate]);
+  const loadCompanies = useCallback(async () => {
+    try { const res = await poGeneratorApi.listCompanies(); setCompanies(res.data || []); }
+    catch { /* non-critical */ }
+  }, []);
+
+  useEffect(() => { loadUploadSummary(selectedUploadDate); loadCompanies(); }, [loadUploadSummary, selectedUploadDate, loadCompanies]);
 
   const handleViewInvoice = async (invoice) => {
     if (!invoice?._id) return;
@@ -437,8 +447,8 @@ export default function POUploadPage() {
             lineAmount: it.lineAmount || +(it.qty * it.rate).toFixed(2),
           }))
         : [{ name: '', hsn: '', qty: 1, unit: 'Nos', rate: 0, discount: 0, cgst: 0, sgst: 0, igst: 0, gst: 0, taxableValue: 0, lineAmount: 0 }]);
-      setShowPDFPanel(true);
-    } catch (err) {
+      setPdfCompanyId(''); // reset company selection for new PDF
+      setShowPDFPanel(true);    } catch (err) {
       console.error('PDF parse error:', err);
       setParseError(`Failed to read PDF: ${err.message || 'Unknown error'}. Make sure it is a text-based PDF.`);
     } finally { setParsing(false); if (fileRef.current) fileRef.current.value = ''; }
@@ -449,8 +459,13 @@ export default function POUploadPage() {
     if (!parsedPO || validItems.length === 0) { alert('Please add at least one item with name, qty and rate.'); return; }
     setPdfInvoicing(true); setPdfInvoiceMsg('');
     try {
+      // If user explicitly chose a company, override buyerName with the canonical company name
+      const chosenCompany = pdfCompanyId ? companies.find(c => c._id === pdfCompanyId) : null;
       const res = await poGeneratorApi.generateInvoiceFromPDF({
-        poNumber: parsedPO.poNumber, vendorName: parsedPO.vendor, buyerName: parsedPO.buyerName,
+        poNumber: parsedPO.poNumber,
+        vendorName: parsedPO.vendor,
+        buyerName: chosenCompany ? chosenCompany.companyName : parsedPO.buyerName,
+        companyId: pdfCompanyId || undefined,
         buyerAddress: parsedPO.buyerAddress || '', buyerGSTIN: parsedPO.buyerGSTIN || '',
         shipToName: parsedPO.shipToName || '', shipToAddress: parsedPO.shipToAddress || '',
         items: validItems.map(it => {
@@ -513,6 +528,7 @@ export default function POUploadPage() {
       const today = todayKey(); setSelectedUploadDate(today);
       setPdfInvoiceMsg(res.message || 'Invoice created!');
       await loadUploadSummary(today);
+      loadCompanies(); // refresh company list — new company may have been auto-created
     } catch (e) { setPdfInvoiceMsg('Error: ' + e.message); }
     finally { setPdfInvoicing(false); }
   };
@@ -634,9 +650,22 @@ export default function POUploadPage() {
               </div>
               Daily PO Upload View
             </div>
-            <div style={{ fontSize:12, color:'#94a3b8', marginTop:4, marginLeft:40 }}>Select a date to review uploaded POs and generated invoices</div>
+            <div style={{ fontSize:12, color:'#94a3b8', marginTop:4, marginLeft:40 }}>Select a date and company to filter invoices</div>
           </div>
-          <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0, flexWrap:'wrap', justifyContent:'flex-end' }}>
+
+            {/* ── Company dropdown ── */}
+            <select
+              value={selectedCompany}
+              onChange={e => setSelectedCompany(e.target.value)}
+              style={{ height:36, padding:'0 10px', border:'1.5px solid #e2e8f0', borderRadius:9, fontSize:13, fontFamily:'inherit', color:'#0f172a', background:'#fff', outline:'none', minWidth:160, cursor:'pointer' }}
+            >
+              <option value="">All Companies</option>
+              {companies.map(c => (
+                <option key={c._id} value={c._id}>{c.companyName}</option>
+              ))}
+            </select>
+
             <input type="date" value={selectedUploadDate} onChange={e => setSelectedUploadDate(e.target.value)}
               style={{ height:36, padding:'0 12px', border:'1.5px solid #e2e8f0', borderRadius:9, fontSize:13, fontFamily:'inherit', color:'#0f172a', background:'#fff', outline:'none' }} />
             <button onClick={() => loadUploadSummary(selectedUploadDate)} disabled={summaryLoading}
@@ -676,7 +705,7 @@ export default function POUploadPage() {
           <table className="po-table" style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
             <thead>
               <tr style={{ background:'#f8fafc' }}>
-                {['Upload Time','PO Number','Invoice No','Vendor','Buyer','Items','Amount','Status','Actions'].map(h => (
+                {['Upload Time','PO Number','Invoice No','Company','Vendor','Buyer','Items','Amount','Status','Actions'].map(h => (
                   <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.7px', borderBottom:'1px solid #f1f5f9' }}>{h}</th>
                 ))}
               </tr>
@@ -690,13 +719,33 @@ export default function POUploadPage() {
                   </div>
                 </td></tr>
               )}
-              {!summaryLoading && (uploadSummary?.selected?.invoices || []).map((inv, ri) => (
+              {!summaryLoading && (() => {
+                const allInvoices = uploadSummary?.selected?.invoices || [];
+                const filtered = selectedCompany
+                  ? allInvoices.filter(inv => inv.companyId === selectedCompany || String(inv.companyId) === selectedCompany)
+                  : allInvoices;
+                if (!filtered.length) return (
+                  <tr><td colSpan={9} style={{ padding:32, textAlign:'center' }}>
+                    <div style={{ fontSize:32, marginBottom:8 }}>📭</div>
+                    <div style={{ fontSize:13, color:'#94a3b8', fontWeight:600 }}>
+                      {selectedCompany
+                        ? `No invoices for ${companies.find(c => c._id === selectedCompany)?.companyName || 'selected company'} on this date`
+                        : 'No PO uploads found for this date'}
+                    </div>
+                  </td></tr>
+                );
+                return filtered.map((inv, ri) => (
                 <tr key={inv._id} style={{ borderBottom:'1px solid #f8fafc', cursor:'pointer', transition:'background 0.1s' }}
                   onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
                   onMouseLeave={e => e.currentTarget.style.background='transparent'}>
                   <td style={{ padding:'11px 14px', color:'#94a3b8', whiteSpace:'nowrap', fontSize:11.5 }}>{formatDateTime(inv.createdAt)}</td>
                   <td style={{ padding:'11px 14px', color:'#c0392b', fontWeight:800, whiteSpace:'nowrap' }}>{inv.poRef || '—'}</td>
                   <td style={{ padding:'11px 14px', color:'#1d4ed8', fontWeight:700, whiteSpace:'nowrap' }}>{inv.invoiceNo}</td>
+                  <td style={{ padding:'11px 14px', minWidth:130 }}>
+                    {inv.companyName
+                      ? <span style={{ fontSize:12, fontWeight:600, color:'#1e293b' }}>{inv.companyName}</span>
+                      : <span style={{ color:'#94a3b8', fontSize:11 }}>—</span>}
+                  </td>
                   <td style={{ padding:'11px 14px', color:'#334155', minWidth:140 }}>{inv.vendorName || '—'}</td>
                   <td style={{ padding:'11px 14px', color:'#334155', minWidth:140 }}>{inv.buyerName || '—'}</td>
                   <td style={{ padding:'11px 14px', textAlign:'center' }}>
@@ -719,13 +768,8 @@ export default function POUploadPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
-              {!summaryLoading && !(uploadSummary?.selected?.invoices || []).length && (
-                <tr><td colSpan={9} style={{ padding:32, textAlign:'center' }}>
-                  <div style={{ fontSize:32, marginBottom:8 }}>📭</div>
-                  <div style={{ fontSize:13, color:'#94a3b8', fontWeight:600 }}>No PO uploads found for this date</div>
-                </td></tr>
-              )}
+              ));})()} 
+              {/* empty state handled inside the IIFE above */}
             </tbody>
           </table>
         </div>
@@ -844,8 +888,27 @@ export default function POUploadPage() {
                 <div style={{ fontSize:13, fontWeight:700, color:(parsedPO.shipToName||parsedPO.buyerName)?'#15803d':'#92400e' }}>{parsedPO.shipToName||parsedPO.buyerName||'Not detected'}</div>
                 {parsedPO.shipToAddress && <div style={{ fontSize:11, color:'#475569', marginTop:3, whiteSpace:'pre-line' }}>{parsedPO.shipToAddress}</div>}
               </div>
-            </div>
 
+              {/* Company selector */}
+              <div style={{ background:'#f0f4ff', border:'1.5px solid #bfdbfe', borderRadius:10, padding:'12px 14px', gridColumn:'span 2' }}>
+                <div style={{ fontSize:10, fontWeight:700, color:'#1d4ed8', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6 }}>Company</div>
+                <select
+                  value={pdfCompanyId}
+                  onChange={e => setPdfCompanyId(e.target.value)}
+                  style={{ width:'100%', height:34, padding:'0 10px', border:'1.5px solid #bfdbfe', borderRadius:8, fontSize:13, fontFamily:'inherit', color:'#0f172a', background:'#fff', outline:'none', cursor:'pointer' }}
+                >
+                  <option value="">— Auto-detect from Bill To ({parsedPO.buyerName || 'unknown'}) —</option>
+                  {companies.map(c => (
+                    <option key={c._id} value={c._id}>{c.companyName}</option>
+                  ))}
+                </select>
+                <div style={{ fontSize:11, color:'#475569', marginTop:5 }}>
+                  {pdfCompanyId
+                    ? `✅ Invoice will be tagged to: ${companies.find(c => c._id === pdfCompanyId)?.companyName}`
+                    : 'Auto-detect will match or create a company from the "Bill To" name above'}
+                </div>
+              </div>
+            </div>
             {parsedPO.items.length === 0 && (
               <div style={{ background:'#fef9c3', border:'1px solid #fde68a', borderRadius:9, padding:'10px 14px', marginBottom:14, fontSize:12.5, color:'#92400e', display:'flex', alignItems:'center', gap:8 }}>
                 <span style={{ fontSize:16 }}>⚠️</span>

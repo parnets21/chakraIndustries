@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import StatusBadge from '../../../../components/common/StatusBadge';
 import PRApprovalBadge from './PRApprovalBadge';
 import Modal from '../../../../components/common/Modal';
+import Pagination from '../../../../components/common/Pagination';
 import { prApi } from '../../../../api/prApi';
 import { FaRegTrashAlt } from 'react-icons/fa';
 import { MdVisibility, MdEdit, MdCheckCircle, MdCancel } from 'react-icons/md';
@@ -28,6 +29,8 @@ export default function PRList({ onEdit, refresh, viewOnly }) {
   const [prs, setPrs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [viewPR, setViewPR] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -70,6 +73,15 @@ export default function PRList({ onEdit, refresh, viewOnly }) {
     } catch (e) { alert(e.message); }
     finally { setApproving(false); }
   };
+
+  // Calculate paginated PRs
+  const startIndex = (page - 1) * pageSize;
+  const paginatedPRs = prs.slice(startIndex, startIndex + pageSize);
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [filterStatus]);
 
   const ActionButtons = ({ p }) => (
     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -134,57 +146,59 @@ export default function PRList({ onEdit, refresh, viewOnly }) {
           <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
         ) : prs.length === 0 ? (
           <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>No records found</div>
-        ) : isMobile ? (
-          /* ── Mobile card list ── */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            {prs.map((p, idx) => (
-              <div key={p._id} style={{
-                padding: '14px 16px',
-                borderBottom: idx < prs.length - 1 ? '1px solid #f1f5f9' : 'none',
-              }}>
-                {/* Row 1: PR ID + status */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: 13 }}>{p.prId}</span>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <span style={priorityStyle(p.priority)}>{p.priority}</span>
-                    <StatusBadge status={p.status} />
-                  </div>
-                </div>
-                {/* Row 2: dept */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ fontSize: 13, color: '#334155', fontWeight: 500 }}>{p.department}</span>
-                </div>
-                {/* Row 3: meta */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>{p.items?.length ?? 0} items</span>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>By {p.requestedBy}</span>
-                  {p.requiredBy && (
-                    <span style={{ fontSize: 11, color: '#64748b' }}>
-                      Due {new Date(p.requiredBy).toLocaleDateString('en-IN')}
-                    </span>
-                  )}
-                </div>
-                {/* Row 4: approval + actions */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <PRApprovalBadge status={p.status} />
-                  <ActionButtons p={p} />
-                </div>
-              </div>
-            ))}
-          </div>
         ) : (
-          /* ── Desktop table ── */
-          <div style={{ overflowX: 'auto', width: '100%' }}>
-            <table style={{ width: '100%', minWidth: 860 }}>
-              <thead>
-                <tr>
-                  {['PR ID','Department','Items','Requested By','Required By','Priority','Approval','Status','Actions'].map(h => (
-                    <th key={h} style={{ padding: '11px 12px', whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {prs.map((p) => (
+          <>
+            {isMobile ? (
+              /* ── Mobile card list ── */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                {paginatedPRs.map((p, idx) => (
+                  <div key={p._id} style={{
+                    padding: '14px 16px',
+                    borderBottom: idx < paginatedPRs.length - 1 ? '1px solid #f1f5f9' : 'none',
+                  }}>
+                    {/* Row 1: PR ID + status */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: 13 }}>{p.prId}</span>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <span style={priorityStyle(p.priority)}>{p.priority}</span>
+                        <StatusBadge status={p.status} />
+                      </div>
+                    </div>
+                    {/* Row 2: dept */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <span style={{ fontSize: 13, color: '#334155', fontWeight: 500 }}>{p.department}</span>
+                    </div>
+                    {/* Row 3: meta */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, color: '#64748b' }}>{p.items?.length ?? 0} items</span>
+                      <span style={{ fontSize: 11, color: '#64748b' }}>By {p.requestedBy}</span>
+                      {p.requiredBy && (
+                        <span style={{ fontSize: 11, color: '#64748b' }}>
+                          Due {new Date(p.requiredBy).toLocaleDateString('en-IN')}
+                        </span>
+                      )}
+                    </div>
+                    {/* Row 4: approval + actions */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <PRApprovalBadge status={p.status} />
+                      <ActionButtons p={p} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* ── Desktop table ── */
+              <div style={{ overflowX: 'auto', width: '100%' }}>
+                <table style={{ width: '100%', minWidth: 860 }}>
+                  <thead>
+                    <tr>
+                      {['PR ID','Department','Items','Requested By','Required By','Priority','Approval','Status','Actions'].map(h => (
+                        <th key={h} style={{ padding: '11px 12px', whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedPRs.map((p) => (
                   <tr key={p._id}>
                     <td style={{ fontWeight: 600, color: 'var(--primary)', whiteSpace: 'nowrap', padding: '12px' }}>{p.prId}</td>
                     <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>{p.department}</td>
@@ -204,7 +218,18 @@ export default function PRList({ onEdit, refresh, viewOnly }) {
               </tbody>
             </table>
           </div>
-        )}
+          )}
+          {prs.length > 0 && (
+            <Pagination
+              total={prs.length}
+              page={page}
+              pageSize={pageSize}
+              onPage={setPage}
+              onPageSize={setPageSize}
+            />
+          )}
+        </>
+      )}
       </div>
 
       {/* ── View PR Modal ── */}

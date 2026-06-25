@@ -107,13 +107,54 @@ function WIPCard({ wo, onSaveConsumption }) {
 function WastageRow({ wo, m, onSave }) {
   const [qty, setQty] = useState(String(m.wastedQty || ''));
   const [reason, setReason] = useState(m.wastageReason || '');
+  const [saving, setSaving] = useState(false);
+
+  // sync if parent updates
+  useEffect(() => { setQty(String(m.wastedQty || '')); setReason(m.wastageReason || ''); }, [m.wastedQty, m.wastageReason]);
+
+  const vendorName = m.vendorId?.companyName || m.vendorId?.contactName || null;
+  const scrapValue = (parseFloat(qty) || 0) * (m.unitCost || 0);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(wo, m._id, qty, reason);
+    setSaving(false);
+  };
+
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6, flexWrap:'wrap' }}>
-      <span style={{ fontSize:11, color:'#64748b', minWidth:110 }}>{m.itemName}</span>
-      <input type="number" min={0} step="0.01" value={qty} placeholder="Wasted qty" onChange={e => setQty(e.target.value)} style={{ width:70, padding:'2px 6px', border:'1px solid #e2e8f0', borderRadius:4, fontSize:11, fontFamily:'inherit' }} />
-      <input type="text" value={reason} placeholder="Reason" onChange={e => setReason(e.target.value)} style={{ width:100, padding:'2px 6px', border:'1px solid #e2e8f0', borderRadius:4, fontSize:11, fontFamily:'inherit' }} />
-      <button onClick={() => onSave(wo, m._id, qty, reason)} style={{ padding:'2px 8px', borderRadius:5, fontSize:10, fontWeight:600, border:'1px solid #ef4444', color:'#ef4444', background:'transparent', cursor:'pointer', fontFamily:'inherit' }}>Save</button>
-      {(m.wastedQty||0) > 0 && <span style={{ fontSize:10, color:'#ef4444', fontWeight:700 }}>Wasted: {m.wastedQty} {m.unit}</span>}
+    <div style={{ marginBottom: 8, padding: '8px 10px', background: (m.wastedQty||0) > 0 ? '#fff5f5' : '#fff', borderRadius: 8, border: `1px solid ${(m.wastedQty||0) > 0 ? '#fecaca' : '#f1f5f9'}` }}>
+      {/* Row 1: item name + vendor + date */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5, flexWrap: 'wrap', gap: 4 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#1e293b' }}>{m.itemName}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {vendorName && (
+            <span style={{ fontSize: 10, fontWeight: 600, color: '#2563eb', background: '#eff6ff', borderRadius: 5, padding: '1px 7px' }}>
+              {vendorName}
+            </span>
+          )}
+          {m.wastedAt && (
+            <span style={{ fontSize: 10, color: '#94a3b8' }}>
+              {new Date(m.wastedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </span>
+          )}
+        </div>
+      </div>
+      {/* Row 2: inputs + save + wasted badge */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <input type="number" min={0} step="0.01" value={qty} placeholder="Wasted qty" onChange={e => setQty(e.target.value)} style={{ width: 75, padding: '3px 6px', border: '1px solid #e2e8f0', borderRadius: 4, fontSize: 11, fontFamily: 'inherit', outline: 'none' }} />
+        <input type="text" value={reason} placeholder="Reason" onChange={e => setReason(e.target.value)} style={{ width: 110, padding: '3px 6px', border: '1px solid #e2e8f0', borderRadius: 4, fontSize: 11, fontFamily: 'inherit', outline: 'none' }} />
+        <button onClick={handleSave} disabled={saving} style={{ padding: '3px 9px', borderRadius: 5, fontSize: 10, fontWeight: 600, border: '1px solid #ef4444', color: saving ? '#94a3b8' : '#ef4444', background: 'transparent', cursor: saving ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+          {saving ? '…' : 'Save'}
+        </button>
+        {(m.wastedQty || 0) > 0 && (
+          <span style={{ fontSize: 10, color: '#ef4444', fontWeight: 700 }}>Wasted: {m.wastedQty} {m.unit}</span>
+        )}
+        {scrapValue > 0 && (
+          <span style={{ fontSize: 10, color: '#b45309', fontWeight: 700, background: '#fffbeb', borderRadius: 4, padding: '1px 6px' }}>
+            ₹{scrapValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -155,6 +196,7 @@ export default function ProductionPage({ initialTab = 0 }) {
   const [showConsumptionModal, setShowConsumptionModal] = useState(null);
 
   const [bomForm, setBomForm]         = useState(EMPTY_BOM);
+  const [bomProductMode, setBomProductMode] = useState('itemMaster'); // 'itemMaster' | 'manual'
   const [compForm, setCompForm]       = useState(EMPTY_COMP);
   const [altForm, setAltForm]         = useState(EMPTY_ALT);
   const [woForm, setWoForm]           = useState(EMPTY_WO);
@@ -309,20 +351,23 @@ export default function ProductionPage({ initialTab = 0 }) {
 
     setSendingEmail(component._id);
     try {
-      const res = await vendorApi.sendEmail({
-        vendorId:   typeof component.preferredVendorId === 'object'
-                      ? component.preferredVendorId._id
-                      : component.preferredVendorId,
-        itemName:   component.itemName,
-        itemCode:   component.itemCode,
-        qty:        component.qty,
-        unit:       component.unit,
-        bomProduct: selectedBOM.product,
-        bomId:      selectedBOM.bomId,
+      await vendorApi.sendEmail({
+        vendorId:    typeof component.preferredVendorId === 'object'
+                       ? component.preferredVendorId._id
+                       : component.preferredVendorId,
+        itemName:    component.itemName,
+        itemCode:    component.itemCode,
+        qty:         component.qty,
+        unit:        component.unit,
+        bomProduct:  selectedBOM.product,
+        bomId:       selectedBOM._id,
+        componentId: component._id,
       });
 
-      // Update rfqStatus to Sent in local state
-      const markSent = (c) => c._id === component._id ? { ...c, rfqStatus: 'Sent' } : c;
+      // Update rfqStatus + rfqSentAt locally
+      const now = new Date().toISOString();
+      const markSent = (c) =>
+        c._id === component._id ? { ...c, rfqStatus: 'Sent', rfqSentAt: now } : c;
       setSelectedBOM(prev => ({ ...prev, components: prev.components.map(markSent) }));
       setBomList(prev => prev.map(b =>
         b._id === selectedBOM._id
@@ -330,15 +375,19 @@ export default function ProductionPage({ initialTab = 0 }) {
           : b
       ));
 
-      toast(`✅ Email sent successfully to vendor!`, 'success');
+      toast(`✅ RFQ email sent to ${component.preferredVendorName || 'vendor'}!`, 'success');
     } catch (e) {
       const msg = e.message || '';
-      if (msg.includes('not configured') || msg.includes('SMTP')) {
-        toast('❌ Gmail SMTP not configured. Open backend/.env → set SMTP_USER and SMTP_PASS → restart server.', 'error');
+      if (msg.includes('App Password') || msg.includes('invalid or expired') || msg.includes('authentication failed') || msg.includes('535') || msg.includes('BadCredentials')) {
+        toast(`❌ Gmail authentication failed. Contact admin to update EMAIL_PASSWORD in backend .env and restart server.`, 'error');
+      } else if (msg.includes('EMAIL_USERNAME') || msg.includes('EMAIL_PASSWORD') || msg.includes('not set') || msg.includes('SMTP_USER') || msg.includes('SMTP_PASS')) {
+        toast('❌ Email not configured. Set EMAIL_USERNAME and EMAIL_PASSWORD in backend .env and restart.', 'error');
       } else if (msg.includes('no email address')) {
-        toast('❌ Vendor has no email address saved. Update vendor details first.', 'error');
+        toast('❌ Vendor has no email address. Update vendor details first.', 'error');
+      } else if (msg.includes('quota') || msg.includes('rate')) {
+        toast('❌ Gmail daily quota exceeded. Try again later.', 'error');
       } else {
-        toast(`❌ Failed to send email: ${msg || 'Please try again.'}`, 'error');
+        toast(`❌ Email failed: ${msg || 'Unknown error. Check server console.'}`, 'error');
       }
     } finally {
       setSendingEmail(null);
@@ -547,7 +596,7 @@ export default function ProductionPage({ initialTab = 0 }) {
             ) : (
               <div style={{ overflowX:'auto' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse' }}>
-                  <thead><tr>{['#','Item','Code','Qty','Scrap %','Total Req Qty','Unit','Type','Per Price (₹)','Total Cost','Vendor','Status','Action'].map(h=><Th key={h}>{h}</Th>)}</tr></thead>
+                  <thead><tr>{['#','Item','Code','Qty','Scrap %','Total Req Qty','Unit','Type','Per Price (₹)','Total Cost','Vendor','Email Status','Action'].map(h=><Th key={h}>{h}</Th>)}</tr></thead>
                   <tbody>
                     {selectedBOM.components.map((c,i) => {
                       const scrapQty = c.qty * ((c.scrapFactor || 0) / 100);
@@ -568,7 +617,10 @@ export default function ProductionPage({ initialTab = 0 }) {
                           <Td style={{ fontSize:11, color:'#475569' }}>{c.preferredVendorName || '—'}</Td>
                           <Td>
                             {c.rfqStatus === 'Sent'
-                              ? <Badge label="Email Sent" color="#16a34a" />
+                              ? <div>
+                                  <Badge label="Email Sent" color="#16a34a" />
+                                  {c.rfqSentAt && <div style={{ fontSize:10, color:'#94a3b8', marginTop:2 }}>{new Date(c.rfqSentAt).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}</div>}
+                                </div>
                               : c.rfqStatus === 'Quotation Received'
                               ? <Badge label="Quotation Rcvd" color="#2563eb" />
                               : c.preferredVendorId
@@ -578,12 +630,21 @@ export default function ProductionPage({ initialTab = 0 }) {
                           </Td>
                           <Td>
                             <div style={{ display:'flex', gap:4 }}>
-                              {c.preferredVendorId && c.rfqStatus !== 'Sent' && (
+                              {c.preferredVendorId && (
                                 <button
                                   onClick={() => handleSendVendorEmail(c)}
                                   disabled={sendingEmail === c._id}
-                                  style={{ padding:'2px 7px', borderRadius:5, fontSize:10, fontWeight:600, border:'1px solid #2563eb', color:'#2563eb', background:'transparent', cursor:'pointer', fontFamily:'inherit', opacity: sendingEmail === c._id ? 0.6 : 1 }}
-                                >{sendingEmail === c._id ? '...' : '✉ Email'}</button>
+                                  title={c.rfqStatus === 'Sent' ? 'Resend RFQ email' : 'Send RFQ email to vendor'}
+                                  style={{
+                                    padding:'2px 7px', borderRadius:5, fontSize:10, fontWeight:600,
+                                    border:`1px solid ${c.rfqStatus === 'Sent' ? '#16a34a' : '#2563eb'}`,
+                                    color: c.rfqStatus === 'Sent' ? '#16a34a' : '#2563eb',
+                                    background:'transparent', cursor:'pointer', fontFamily:'inherit',
+                                    opacity: sendingEmail === c._id ? 0.6 : 1,
+                                  }}
+                                >
+                                  {sendingEmail === c._id ? 'Sending...' : c.rfqStatus === 'Sent' ? '↺ Resend' : '✉ Email'}
+                                </button>
                               )}
                               <button onClick={()=>handleDeleteComponent(selectedBOM._id,c._id,c.itemName)} style={{ padding:'2px 7px', borderRadius:5, fontSize:10, fontWeight:600, border:'1px solid #fecaca', color:'#ef4444', background:'#fef2f2', cursor:'pointer', fontFamily:'inherit' }}>✕</button>
                             </div>
@@ -772,26 +833,68 @@ export default function ProductionPage({ initialTab = 0 }) {
       {/* ── TAB 4: Wastage ── */}
       {activeTab === 4 && (
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-          <div className="text-sm font-bold text-gray-800 mb-1">Wastage Tracking</div>
-          <div className="text-xs text-gray-400 mb-4">Record material wastage per work order</div>
-          {woLoading ? <Spinner /> : woList.filter(w=>w.materialConsumption?.length>0).length === 0 ? (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 2, flexWrap: 'wrap', gap: 8 }}>
+            <div>
+              <div className="text-sm font-bold text-gray-800">Wastage Tracking</div>
+              <div className="text-xs text-gray-400 mt-0.5">Record material wastage per work order</div>
+            </div>
+            {/* Global summary */}
+            {(() => {
+              const allLines = woList.flatMap(w => w.materialConsumption || []).filter(m => (m.wastedQty || 0) > 0);
+              const totalQty = allLines.reduce((s, m) => s + (m.wastedQty || 0), 0);
+              const totalVal = allLines.reduce((s, m) => s + (m.wastedQty || 0) * (m.unitCost || 0), 0);
+              if (!allLines.length) return null;
+              return (
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <div style={{ background: '#fff5f5', border: '1px solid #fecaca', borderRadius: 8, padding: '5px 12px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: '#dc2626' }}>{totalQty.toFixed(2)} units</div>
+                    <div style={{ fontSize: 10, color: '#94a3b8' }}>Total Scrap</div>
+                  </div>
+                  <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '5px 12px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: '#b45309' }}>₹{totalVal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
+                    <div style={{ fontSize: 10, color: '#94a3b8' }}>Scrap Value</div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+          <div className="text-xs text-gray-400 mb-4" />
+          {woLoading ? <Spinner /> : woList.filter(w => w.materialConsumption?.length > 0).length === 0 ? (
             <Empty msg="No released work orders with material consumption data yet." />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {woList.filter(w=>w.materialConsumption?.length>0).map(wo => (
-                <div key={wo._id} style={{ background:'#f8fafc', borderRadius:12, border:'1px solid #e2e8f0', padding:16 }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-                    <div>
-                      <div style={{ fontWeight:700, fontSize:13 }}>{wo.product}</div>
-                      <div style={{ fontSize:11, color:'#94a3b8' }}>{wo.woId}</div>
+              {woList.filter(w => w.materialConsumption?.length > 0).map(wo => {
+                const woScrapQty = (wo.materialConsumption || []).reduce((s, m) => s + (m.wastedQty || 0), 0);
+                const woScrapVal = (wo.materialConsumption || []).reduce((s, m) => s + (m.wastedQty || 0) * (m.unitCost || 0), 0);
+                return (
+                  <div key={wo._id} style={{ background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0', padding: 16 }}>
+                    {/* Card header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 13 }}>{wo.product}</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8' }}>{wo.woId}</div>
+                        {woScrapQty > 0 && (
+                          <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: '#dc2626', background: '#fff5f5', borderRadius: 4, padding: '1px 6px', border: '1px solid #fecaca' }}>
+                              Scrap: {woScrapQty.toFixed(2)} units
+                            </span>
+                            {woScrapVal > 0 && (
+                              <span style={{ fontSize: 10, fontWeight: 700, color: '#b45309', background: '#fffbeb', borderRadius: 4, padding: '1px 6px', border: '1px solid #fde68a' }}>
+                                ₹{woScrapVal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <Badge label={wo.status} color={STATUS_COLOR[wo.status] || '#64748b'} />
                     </div>
-                    <Badge label={wo.status} color={STATUS_COLOR[wo.status]||'#64748b'} />
+                    {/* Material rows */}
+                    {wo.materialConsumption.map((m, idx) => (
+                      <WastageRow key={m._id || idx} wo={wo} m={m} onSave={handleSaveWastage} />
+                    ))}
                   </div>
-                  {wo.materialConsumption.map((m,idx) => (
-                    <WastageRow key={m._id||idx} wo={wo} m={m} onSave={handleSaveWastage} />
-                  ))}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -799,38 +902,86 @@ export default function ProductionPage({ initialTab = 0 }) {
 
       {/* ── Modal: New BOM ── */}
       {showBOMModal && (
-        <Modal open={showBOMModal} title="New BOM" onClose={()=>{setShowBOMModal(false);setBomForm(EMPTY_BOM);}}>
+        <Modal open={showBOMModal} title="New BOM" onClose={()=>{setShowBOMModal(false);setBomForm(EMPTY_BOM);setBomProductMode('itemMaster');}}>
           <div className="grid grid-cols-2 gap-3">
+
+            {/* ── Toggle: Item Master vs Manual ── */}
             <div className="col-span-2">
               <label className="text-xs font-semibold text-gray-500 block mb-1">Select Product (from Item Master) *</label>
-              <select 
-                className={inp}
-                value={bomForm.productItemMasterId}
-                onChange={(e) => {
-                  const selectedItem = itemMasterItems.find(i => i._id === e.target.value);
-                  if (selectedItem) {
-                    setBomForm({
-                      ...bomForm,
-                      productItemMasterId: selectedItem._id,
-                      product: selectedItem.name,
-                      productCode: selectedItem.sku,
-                      uom: selectedItem.unit || UOM_OPTIONS[0]
-                    });
-                  } else {
-                    setBomForm({...bomForm, productItemMasterId: '', product: '', productCode: '', uom: UOM_OPTIONS[0]});
+              <div className="flex gap-2 mb-2">
+                <button
+                  type="button"
+                  onClick={() => { setBomProductMode('itemMaster'); setBomForm(p => ({ ...p, product: '', productCode: '', productItemMasterId: '', uom: UOM_OPTIONS[0] })); }}
+                  style={{
+                    padding: '5px 14px', fontSize: 12, borderRadius: 6, border: '1px solid',
+                    borderColor: bomProductMode === 'itemMaster' ? '#dc2626' : '#d1d5db',
+                    background: bomProductMode === 'itemMaster' ? '#dc2626' : '#fff',
+                    color: bomProductMode === 'itemMaster' ? '#fff' : '#374151',
+                    cursor: 'pointer', fontWeight: 600
+                  }}
+                >From Item Master</button>
+                <button
+                  type="button"
+                  onClick={() => { setBomProductMode('manual'); setBomForm(p => ({ ...p, product: '', productCode: '', productItemMasterId: '' })); }}
+                  style={{
+                    padding: '5px 14px', fontSize: 12, borderRadius: 6, border: '1px solid',
+                    borderColor: bomProductMode === 'manual' ? '#dc2626' : '#d1d5db',
+                    background: bomProductMode === 'manual' ? '#dc2626' : '#fff',
+                    color: bomProductMode === 'manual' ? '#fff' : '#374151',
+                    cursor: 'pointer', fontWeight: 600
+                  }}
+                >Enter Manually</button>
+              </div>
+
+              {/* Item Master dropdown */}
+              {bomProductMode === 'itemMaster' && (
+                <select
+                  className={inp}
+                  value={bomForm.productItemMasterId}
+                  onChange={(e) => {
+                    const selectedItem = itemMasterItems.find(i => i._id === e.target.value);
+                    if (selectedItem) {
+                      setBomForm({
+                        ...bomForm,
+                        productItemMasterId: selectedItem._id,
+                        product: selectedItem.name,
+                        productCode: selectedItem.sku,
+                        uom: selectedItem.unit || UOM_OPTIONS[0]
+                      });
+                    } else {
+                      setBomForm({ ...bomForm, productItemMasterId: '', product: '', productCode: '', uom: UOM_OPTIONS[0] });
+                    }
+                  }}
+                >
+                  <option value="">-- Select Product --</option>
+                  {itemMasterItems.length === 0
+                    ? <option disabled value="">Loading items...</option>
+                    : itemMasterItems.map(item => (
+                      <option key={item._id} value={item._id}>{item.name} ({item.sku})</option>
+                    ))
                   }
-                }}
-              >
-                <option value="">-- Select Product --</option>
-                {itemMasterItems.length === 0
-                  ? <option disabled value="">Loading items...</option>
-                  : itemMasterItems.map(item => (
-                    <option key={item._id} value={item._id}>{item.name} ({item.sku})</option>
-                  ))
-                }
-              </select>
+                </select>
+              )}
+
+              {/* Manual product name input */}
+              {bomProductMode === 'manual' && (
+                <input
+                  className={inp}
+                  value={bomForm.product}
+                  onChange={e => setBomForm(p => ({ ...p, product: e.target.value, productItemMasterId: '' }))}
+                  placeholder="Enter product name"
+                />
+              )}
             </div>
-            <div className="col-span-2"><label className="text-xs font-semibold text-gray-500 block mb-1">Product Name (auto-filled)</label><input className={inp} value={bomForm.product} readOnly placeholder="Auto-filled" /></div>
+
+            {/* Product Name (auto-filled for item master, hidden for manual since name field above) */}
+            {bomProductMode === 'itemMaster' && (
+              <div className="col-span-2">
+                <label className="text-xs font-semibold text-gray-500 block mb-1">Product Name (auto-filled)</label>
+                <input className={inp} value={bomForm.product} readOnly placeholder="Auto-filled" />
+              </div>
+            )}
+
             <div><label className="text-xs font-semibold text-gray-500 block mb-1">Product Code</label><input className={inp} value={bomForm.productCode} onChange={e=>setBomForm(p=>({...p,productCode:e.target.value}))} placeholder="SKU-001" /></div>
             <div><label className="text-xs font-semibold text-gray-500 block mb-1">Version</label><input className={inp} value={bomForm.version} onChange={e=>setBomForm(p=>({...p,version:e.target.value}))} /></div>
             <div><label className="text-xs font-semibold text-gray-500 block mb-1">Type</label>
@@ -848,7 +999,7 @@ export default function ProductionPage({ initialTab = 0 }) {
             <div className="col-span-2"><label className="text-xs font-semibold text-gray-500 block mb-1">Description</label><textarea className={inp} rows={2} value={bomForm.description} onChange={e=>setBomForm(p=>({...p,description:e.target.value}))} /></div>
           </div>
           <div className="flex justify-end gap-2 mt-4">
-            <button onClick={()=>{setShowBOMModal(false);setBomForm(EMPTY_BOM);}} style={{ ...outlineBtn, padding:'7px 14px', fontSize:12 }}>Cancel</button>
+            <button onClick={()=>{setShowBOMModal(false);setBomForm(EMPTY_BOM);setBomProductMode('itemMaster');}} style={{ ...outlineBtn, padding:'7px 14px', fontSize:12 }}>Cancel</button>
             <button onClick={handleCreateBOM} style={{ ...primaryBtn, padding:'7px 14px', fontSize:12 }}>Create BOM</button>
           </div>
         </Modal>

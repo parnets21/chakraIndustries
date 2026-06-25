@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
+import Pagination from '../../../../components/common/Pagination';
 import { qcApi } from '../../../../api/qualityCheckApi';
 
 export default function QCList({ onView, refresh }) {
   const [qcs, setQCs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   useEffect(() => {
     loadQCs();
@@ -42,6 +45,15 @@ export default function QCList({ onView, refresh }) {
     return bgs[status] || '#f1f5f9';
   };
 
+  // Calculate paginated QCs
+  const startIndex = (page - 1) * pageSize;
+  const paginatedQCs = qcs.slice(startIndex, startIndex + pageSize);
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [filter]);
+
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -62,22 +74,23 @@ export default function QCList({ onView, refresh }) {
       ) : qcs.length === 0 ? (
         <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>No QC records found</div>
       ) : (
-        <div className="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>QC ID</th>
-                <th>GRN ID</th>
-                <th>Received</th>
-                <th>Accepted</th>
-                <th>Rejected</th>
-                <th>Status</th>
-                <th>Inspection Date</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {qcs.map(qc => (
+        <>
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>QC ID</th>
+                  <th>GRN ID</th>
+                  <th>Received</th>
+                  <th>Accepted</th>
+                  <th>Rejected</th>
+                  <th>Status</th>
+                  <th>Inspection Date</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedQCs.map(qc => (
                 <tr key={qc._id}>
                   <td style={{ fontWeight: 600 }}>{qc.qcId}</td>
                   <td>{qc.grnId?.grnId || '—'}</td>
@@ -113,6 +126,16 @@ export default function QCList({ onView, refresh }) {
             </tbody>
           </table>
         </div>
+        {qcs.length > 0 && (
+          <Pagination
+            total={qcs.length}
+            page={page}
+            pageSize={pageSize}
+            onPage={setPage}
+            onPageSize={setPageSize}
+          />
+        )}
+        </>
       )}
     </div>
   );

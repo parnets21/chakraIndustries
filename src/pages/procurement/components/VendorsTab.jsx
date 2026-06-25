@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import StatusBadge from '../../../components/common/StatusBadge';
 import Modal from '../../../components/common/Modal';
+import Pagination from '../../../components/common/Pagination';
 import { vendorApi } from '../../../api/vendorApi';
 import { rfqApi } from '../../../api/rfqApi';
 import { poApi } from '../../../api/poApi';
@@ -46,6 +47,8 @@ export default function VendorsTab({
   const [showPriceMapping, setShowPriceMapping] = useState(false);
   const [vendorRFQs, setVendorRFQs] = useState([]);
   const [vendorPOs, setVendorPOs]   = useState([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const fetchVendors = useCallback(async () => {
     setLoading(true); setError('');
@@ -166,6 +169,15 @@ export default function VendorsTab({
       alert(`❌ Error: ${e.message}`);
     }
   };
+
+  // Calculate paginated vendors
+  const startIndex = (page - 1) * pageSize;
+  const paginatedVendors = vendors.slice(startIndex, startIndex + pageSize);
+
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [search, filterStatus, filterCategory]);
 
   const handlePrint = (vendor) => {
     const printWindow = window.open('', '', 'height=600,width=800');
@@ -440,7 +452,7 @@ export default function VendorsTab({
 
       {/* ── Desktop Table View ── */}
       {!loading && vendors.length > 0 && (
-        <div className="vt-table-wrap">
+        <div className="vt-table-wrap" style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}>
           <table className="vt-table">
             <thead>
               <tr>
@@ -449,18 +461,20 @@ export default function VendorsTab({
                 <th>Contact</th>
                 <th>Phone</th>
                 <th>City</th>
+                <th>State</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {vendors.map(v => (
+              {paginatedVendors.map(v => (
                 <tr key={v._id}>
                   <td style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 600, color: '#64748b' }}>{v.vendorId}</td>
                   <td style={{ fontWeight: 500 }}>{v.companyName}</td>
                   <td>{v.contactPerson}</td>
                   <td>{v.phone}</td>
                   <td>{v.city}</td>
+                  <td>{v.state}</td>
                   <td><span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: v.status === 'Active' ? '#ecfdf5' : v.status === 'Inactive' ? '#f3f4f6' : '#fef2f2', color: v.status === 'Active' ? '#047857' : v.status === 'Inactive' ? '#6b7280' : '#dc2626' }}>{v.status}</span></td>
                   <td style={{ display: 'flex', gap: 6 }}>
                     <button onClick={() => openView(v)} style={{ padding: '4px 10px', borderRadius: 6, background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569', cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'inherit' }}>View</button>
@@ -474,10 +488,20 @@ export default function VendorsTab({
         </div>
       )}
 
+      {!loading && vendors.length > 0 && (
+        <Pagination
+          total={vendors.length}
+          page={page}
+          pageSize={pageSize}
+          onPage={setPage}
+          onPageSize={setPageSize}
+        />
+      )}
+
       {/* ── Mobile Card View ── */}
       {!loading && vendors.length > 0 && (
         <div className="vt-cards">
-          {vendors.map(v => (
+          {paginatedVendors.map(v => (
             <div key={v._id} className="vt-card">
               <div className="vt-card-top">
                 <div>

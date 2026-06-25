@@ -96,7 +96,7 @@ export default function ReportsPage({ initialTab = 0 }) {
         <button onClick={() => {
           if (activeTab === 0 && salesData) exportExcel(salesData.byMonth, 'SalesAnalytics', 'Monthly Sales');
           else if (activeTab === 2) exportExcel(turnoverData, 'InventoryTurnover', 'Turnover');
-          else if (activeTab === 3) exportExcel(stockData.map(s => ({ SKU:s.sku, Name:s.name, Qty:s.totalQuantity, Status:s.status })), 'StockSummary', 'Stock');
+          else if (activeTab === 3) exportExcel(stockData.map(s => ({ SKU: s.sku, Name: s.name, Category: s.category?.name || '—', Warehouse: s.warehouse || '—', 'Total Qty': s.totalQuantity, Available: s.availableQuantity, Reserved: s.reservedQuantity, 'Min Qty': s.minQuantity, Unit: s.unit, 'Unit Price (₹)': s.unitPrice, 'Stock Value (₹)': s.totalValue, Status: s.status })), 'StockSummary', 'Stock');
           else if (activeTab === 4) exportExcel(purchaseData, 'PurchaseRegister', 'Purchases');
           else if (activeTab === 5 && productionData) exportExcel(productionData.workOrders.map(w => ({ WO:w.woId, Product:w.product, Target:w.qty, Produced:w.produced, Rejected:w.rejected, Status:w.status })), 'ProductionReport', 'Production');
           else if (activeTab === 6 && returnData) exportExcel(returnData.returns, 'ReturnReconciliation', 'Returns');
@@ -207,29 +207,60 @@ export default function ReportsPage({ initialTab = 0 }) {
             </select>
           </div>
           {loading ? <Spinner /> : (
-            <div className="overflow-x-auto rounded-xl border border-gray-200">
-              <table className="w-full">
-                <thead><tr>{['SKU','Item Name','Category','Total Qty','Available','Reserved','Min Qty','Unit Price','Total Value','Status'].map(h => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
-                <tbody>
-                  {stockData.length === 0 ? (
-                    <tr><td colSpan={10} className="px-4 py-8 text-center text-gray-400 text-sm">No stock data available</td></tr>
-                  ) : stockData.map((row, i) => (
-                    <tr key={i} className={trCls}>
-                      <td className={`${tdCls} font-semibold text-red-700 font-mono`}>{row.sku}</td>
-                      <td className={`${tdCls} font-semibold`}>{row.name}</td>
-                      <td className={tdCls}>{row.category?.name || '—'}</td>
-                      <td className={`${tdCls} font-bold text-center`}>{row.totalQuantity}</td>
-                      <td className={`${tdCls} text-center font-bold ${row.availableQuantity < row.minQuantity ? 'text-red-500' : 'text-green-600'}`}>{row.availableQuantity}</td>
-                      <td className={`${tdCls} text-center text-gray-400`}>{row.reservedQuantity}</td>
-                      <td className={`${tdCls} text-center text-gray-400`}>{row.minQuantity}</td>
-                      <td className={tdCls}>₹{fmt(row.unitPrice)}</td>
-                      <td className={`${tdCls} font-bold`}>₹{fmt(row.totalValue)}</td>
-                      <td className={tdCls}><StatusBadge status={row.status} type={row.status==='Critical'?'danger':row.status==='Dead'?'gray':'success'} /></td>
-                    </tr>
+            <>
+              {/* Summary KPI strip */}
+              {stockData.length > 0 && (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                  {[
+                    { label:'Total SKUs',      value: stockData.length,                                                              color:'#3b82f6' },
+                    { label:'Total Stock Qty', value: fmt(stockData.reduce((s, r) => s + (r.totalQuantity || 0), 0)),                color:'#8b5cf6' },
+                    { label:'Stock Value',     value: fmtCr(stockData.reduce((s, r) => s + (r.totalValue || 0), 0)),                 color:'#c0392b' },
+                    { label:'Critical Items',  value: stockData.filter(r => r.status === 'Critical' || r.status === 'Dead').length,  color:'#f59e0b' },
+                  ].map((k, i) => (
+                    <div key={i} className="bg-gray-50 rounded-xl border border-gray-200 p-3">
+                      <div className="text-lg font-black tracking-tight" style={{ color:k.color }}>{k.value}</div>
+                      <div className="text-[11px] text-gray-500 font-medium mt-0.5">{k.label}</div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              )}
+              <div className="overflow-x-auto rounded-xl border border-gray-200">
+                <table className="w-full">
+                  <thead><tr>{['SKU','Item Name','Category','Warehouse','Total Qty','Available','Reserved','Min Qty','Unit','Unit Price','Stock Value','Status'].map(h => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {stockData.length === 0 ? (
+                      <tr><td colSpan={12} className="px-4 py-8 text-center text-gray-400 text-sm">No stock data available</td></tr>
+                    ) : stockData.map((row, i) => (
+                      <tr key={i} className={trCls}>
+                        <td className={`${tdCls} font-semibold text-red-700 font-mono text-xs`}>{row.sku}</td>
+                        <td className={`${tdCls} font-semibold`}>{row.name}</td>
+                        <td className={tdCls}>{row.category?.name || '—'}</td>
+                        <td className={`${tdCls} text-gray-500 text-xs`}>{row.warehouse || '—'}</td>
+                        <td className={`${tdCls} font-bold text-center`}>{fmt(row.totalQuantity)}</td>
+                        <td className={`${tdCls} text-center font-bold ${(row.availableQuantity || 0) <= (row.minQuantity || 0) ? 'text-red-500' : 'text-green-600'}`}>{fmt(row.availableQuantity)}</td>
+                        <td className={`${tdCls} text-center text-gray-400`}>{fmt(row.reservedQuantity)}</td>
+                        <td className={`${tdCls} text-center text-gray-400`}>{fmt(row.minQuantity)}</td>
+                        <td className={`${tdCls} text-center text-gray-400 text-xs`}>{row.unit || '—'}</td>
+                        <td className={`${tdCls} text-right`}>₹{fmt(row.unitPrice)}</td>
+                        <td className={`${tdCls} font-bold text-right text-red-700`}>₹{fmt(row.totalValue)}</td>
+                        <td className={tdCls}><StatusBadge status={row.status} type={row.status==='Critical'?'danger':row.status==='Dead'?'gray':'success'} /></td>
+                      </tr>
+                    ))}
+                    {stockData.length > 0 && (
+                      <tr className="bg-red-50 font-bold border-t-2 border-red-200">
+                        <td colSpan={4} className="px-4 py-3 text-right text-gray-500 text-xs font-bold uppercase tracking-wide">Total</td>
+                        <td className={`${tdCls} font-extrabold text-center`}>{fmt(stockData.reduce((s, r) => s + (r.totalQuantity || 0), 0))}</td>
+                        <td className={`${tdCls} font-extrabold text-center text-green-700`}>{fmt(stockData.reduce((s, r) => s + (r.availableQuantity || 0), 0))}</td>
+                        <td className={`${tdCls} text-center text-gray-400`}>{fmt(stockData.reduce((s, r) => s + (r.reservedQuantity || 0), 0))}</td>
+                        <td colSpan={3} className="px-4 py-3"></td>
+                        <td className={`${tdCls} font-extrabold text-right text-red-700`}>₹{fmt(stockData.reduce((s, r) => s + (r.totalValue || 0), 0))}</td>
+                        <td className={tdCls}></td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       )}

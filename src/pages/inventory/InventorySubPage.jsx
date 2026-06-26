@@ -5,6 +5,7 @@ import ProductionManagementPage from './ProductionManagementPage';
 import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShell';
 import { inventoryApi } from '../../api/inventoryApi';
 import { itemMasterApi } from '../../api/itemMasterApi';
+import { productionApi } from '../../api/productionApi';
 import {
   MdInventory2, MdWarehouse, MdSwapHoriz, MdCheckBox,
   MdInventory, MdBatchPrediction, MdHourglassEmpty,
@@ -276,6 +277,21 @@ export default function InventorySubPage({ tab }) {
             { ...meta.kpis[1], value: String(s.active || 0) },
             { ...meta.kpis[2], value: String((s.total || 0) - (s.active || 0)) },
             { ...meta.kpis[3], value: String(s.lowStock || s.critical || 0) },
+          ]);
+        } else if (tab === 'production-manage') {
+          const dashRes = await productionApi.getDashboard();
+          if (cancelled) return;
+          const d = dashRes.data || {};
+          const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+          const todayMonth = todayStr.slice(0, 7); // YYYY-MM
+          const monthRes = await productionApi.getMonthlyReport(todayMonth).catch(() => ({ data: {} }));
+          if (cancelled) return;
+          const todayCount = monthRes.data?.totalEntries || 0;
+          setLiveKpis([
+            { ...meta.kpis[0], value: String(d.totalProductions || 0) },
+            { ...meta.kpis[1], value: String(todayCount) },
+            { ...meta.kpis[2], value: `${(d.avgEfficiency || 0).toFixed(1)}%` },
+            { ...meta.kpis[3], value: `${(d.avgDamageRate || 0).toFixed(1)}%` },
           ]);
         }
       } catch {

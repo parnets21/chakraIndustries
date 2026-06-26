@@ -156,7 +156,7 @@ export default function PincodeStockPage() {
                 >
                   <div className="font-black text-sm text-red-700">{p.pincode}</div>
                   <div className="text-[11px] text-gray-500 font-medium">
-                    {p.city} · {p.godowns?.length || 0} godown{p.godowns?.length !== 1 ? 's' : ''}
+                    {p.city} ┬╖ {p.godowns?.length || 0} godown{p.godowns?.length !== 1 ? 's' : ''}
                   </div>
                 </div>
               ))
@@ -169,7 +169,7 @@ export default function PincodeStockPage() {
         {/* Godown list */}
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
           <div className="text-sm font-bold text-gray-800 mb-3">
-            Godowns — {selectedPincode?.city || 'N/A'}
+            Godowns ΓÇö {selectedPincode?.city || 'N/A'}
           </div>
           <div className="max-h-96 overflow-y-auto">
             {selectedPincode?.godowns && selectedPincode.godowns.length > 0 ? (
@@ -185,7 +185,7 @@ export default function PincodeStockPage() {
                 >
                   <div className="font-semibold text-sm">{g.name || 'Godown'}</div>
                   <div className="text-xs text-gray-400 mt-0.5">
-                    {g.id} · {g.locations?.length || 0} SKUs
+                    {g.id} ┬╖ {g.locations?.length || 0} SKUs
                   </div>
                 </div>
               ))
@@ -198,7 +198,7 @@ export default function PincodeStockPage() {
         {/* Stock detail */}
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
           <div className="text-sm font-bold text-gray-800 mb-3">
-            Stock — {selectedGodown?.name || 'N/A'}
+            Stock ΓÇö {selectedGodown?.name || 'N/A'}
           </div>
           <div className="max-h-96 overflow-y-auto">
             {selectedGodown?.locations && selectedGodown.locations.length > 0 ? (

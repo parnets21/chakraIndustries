@@ -189,6 +189,7 @@ export const NAV_ITEMS = [
       { path: '/inventory/dashboard',     label: 'Stock Dashboard',    page: 'inventory' },
       { path: '/inventory/stock-items',   label: 'Stock Items',        page: 'inventory' },
       { path: '/inventory/stock-invoices',label: 'Stock Invoices',     page: 'inventory' },
+      { path: '/inventory/production-manage', label: 'Production Management', page: 'inventory' },
       { path: '/inventory/stock',         label: 'Stock Table',        page: 'inventory' },
       { path: '/inventory/warehouses', label: 'Warehouses',         page: 'inventory' },
       { path: '/inventory/movement',   label: 'Stock Movement',     page: 'inventory' },

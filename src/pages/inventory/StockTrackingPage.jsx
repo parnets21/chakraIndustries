@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import inventoryApi from '../../api/inventoryApi';
+import { inventoryApi } from '../../api/inventoryApi';
 import PageHeader from '../../components/common/PageHeader';
 import PageShell from '../../components/common/PageShell';
 

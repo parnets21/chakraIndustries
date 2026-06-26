@@ -1,10 +1,10 @@
-import axiosInstance from './axiosConfig';
+import { api } from './axiosConfig';
 
 export const getAgeingStock = async () => {
   try {
-    const response = await axiosInstance.get('/inventory-data/ageing');
-    // response.data is the axios response body: { success, data: [...] }
-    return response.data;
+    // api.get() directly returns the parsed JSON body: { success, data: [...] }
+    const response = await api.get('/inventory-data/ageing');
+    return response;
   } catch (error) {
     console.error('Error fetching ageing stock:', error);
     return { success: false, data: [] };

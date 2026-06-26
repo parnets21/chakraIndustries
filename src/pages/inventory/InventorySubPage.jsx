@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import InventoryPage from './InventoryPage';
 import StockItemsPage from './StockItemsPage';
+import ProductionManagementPage from './ProductionManagementPage';
 import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShell';
 import { inventoryApi } from '../../api/inventoryApi';
 import { itemMasterApi } from '../../api/itemMasterApi';
@@ -8,6 +9,7 @@ import {
   MdInventory2, MdWarehouse, MdSwapHoriz, MdCheckBox,
   MdInventory, MdBatchPrediction, MdHourglassEmpty,
   MdBrokenImage, MdLocationOn, MdPinDrop, MdAdd,
+  MdPrecisionManufacturing,
 } from 'react-icons/md';
 
 const TAB_MAP = {
@@ -24,6 +26,7 @@ const TAB_MAP = {
   pincode:      10,
   returns:      11,
   'stock-items': 12,
+  'production-manage': 13,
 };
 
 const PAGE_META = {
@@ -166,6 +169,17 @@ const PAGE_META = {
       { label: 'Active Items',   value: '—', icon: <MdCheckBox size={18} />,       color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)' },
       { label: 'Inactive Items', value: '—', icon: <MdHourglassEmpty size={18} />, color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.25)' },
       { label: 'Low Stock',      value: '—', icon: <MdBrokenImage size={18} />,    color: '#64748b', color2: '#94a3b8', glow: 'rgba(100,116,139,0.2)' },
+    ],
+  },
+  'production-manage': {
+    title: 'Production Management',
+    breadcrumb: 'Inventory › Production Management',
+    actionLabel: '+ Add Production',
+    kpis: [
+      { label: 'Total Productions', value: '—', icon: <MdPrecisionManufacturing size={18} />, color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.25)' },
+      { label: 'Today Productions', value: '—', icon: <MdCheckBox size={18} />,       color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.25)' },
+      { label: 'Avg Efficiency',    value: '—', icon: <MdInventory2 size={18} />,    color: '#2563eb', color2: '#3b82f6', glow: 'rgba(37,99,235,0.2)' },
+      { label: 'Damage Rate',       value: '—', icon: <MdBrokenImage size={18} />,   color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.25)' },
     ],
   },
 };
@@ -320,6 +334,10 @@ export default function InventorySubPage({ tab }) {
       {tab === 'stock-items' ? (
         <PageCard>
           <StockItemsPage externalShowModal={showModal} onExternalModalClose={() => setShowModal(false)} hideAddButton={true} />
+        </PageCard>
+      ) : tab === 'production-manage' ? (
+        <PageCard>
+          <ProductionManagementPage externalShowModal={showModal} onExternalModalClose={() => setShowModal(false)} />
         </PageCard>
       ) : (
         <InventoryPage key={tabIndex} initialTab={tabIndex} externalShowModal={showModal} onExternalModalClose={() => setShowModal(false)} />

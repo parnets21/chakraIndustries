@@ -7,7 +7,7 @@ import { MdTrendingUp, MdCancel, MdCheckCircle, MdSettings, MdStar, MdBarChart }
 // Default static data as fallback
 const defaultZones = [
   {
-    id: 'Z-A', name: 'Zone A — Raw Materials', color: '#3b82f6',
+    id: 'Z-A', name: 'Zone A ΓÇö Raw Materials', color: '#3b82f6',
     racks: [
       { id: 'R-A1', name: 'Rack A1', shelves: [
         { id: 'S-A1-1', bins: ['BIN-A1-1-01', 'BIN-A1-1-02', 'BIN-A1-1-03'], sku: 'SKU-1042', qty: 12 },
@@ -19,7 +19,7 @@ const defaultZones = [
     ],
   },
   {
-    id: 'Z-B', name: 'Zone B — Finished Goods', color: '#10b981',
+    id: 'Z-B', name: 'Zone B ΓÇö Finished Goods', color: '#10b981',
     racks: [
       { id: 'R-B1', name: 'Rack B1', shelves: [
         { id: 'S-B1-1', bins: ['BIN-B1-1-01', 'BIN-B1-1-02'], sku: 'SKU-3301', qty: 340 },
@@ -28,7 +28,7 @@ const defaultZones = [
     ],
   },
   {
-    id: 'Z-C', name: 'Zone C — Defective / QC Hold', color: '#ef4444',
+    id: 'Z-C', name: 'Zone C ΓÇö Defective / QC Hold', color: '#ef4444',
     racks: [
       { id: 'R-C1', name: 'Rack C1', shelves: [
         { id: 'S-C1-1', bins: ['BIN-C1-1-01'], sku: 'SKU-6634', qty: 0 },
@@ -177,7 +177,7 @@ export default function StorageLocationPage({ initialTab = 0, externalShowModal 
       setShowOptimizeModal(false);
       
       const efficiency = Math.round((1 - (optimized.length / pickingSeq.length)) * 100) || 0;
-      toast(`✓ Route optimized! Efficiency: ${efficiency}% better path`);
+      toast(`Γ£ô Route optimized! Efficiency: ${efficiency}% better path`);
     }, 1500);
   };
 
@@ -197,7 +197,7 @@ export default function StorageLocationPage({ initialTab = 0, externalShowModal 
 
     setZones(prevZones => {
       const updatedZones = prevZones.map(z => {
-        // Match by zone name (e.g., "Zone A" matches "Zone A — Raw Materials")
+        // Match by zone name (e.g., "Zone A" matches "Zone A ΓÇö Raw Materials")
         if (z.name.startsWith(zone)) {
           return {
             ...z,
@@ -269,7 +269,7 @@ export default function StorageLocationPage({ initialTab = 0, externalShowModal 
 
           {/* Rack selector */}
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <div className="text-sm font-bold text-gray-800 mb-3">Racks — {selectedZone?.name}</div>
+            <div className="text-sm font-bold text-gray-800 mb-3">Racks ΓÇö {selectedZone?.name}</div>
             {selectedZone?.racks.map((r, i) => (
               <div key={i} onClick={() => setSelectedRack(r)}
                 className={`p-3 rounded-lg mb-2 cursor-pointer border-2 transition-all ${selectedRack?.id === r.id ? 'border-red-600 bg-red-50/60' : 'border-gray-200 hover:border-red-300'}`}>
@@ -281,7 +281,7 @@ export default function StorageLocationPage({ initialTab = 0, externalShowModal 
 
           {/* Shelf & Bin detail */}
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <div className="text-sm font-bold text-gray-800 mb-3">Shelves & Bins — {selectedRack?.name}</div>
+            <div className="text-sm font-bold text-gray-800 mb-3">Shelves & Bins ΓÇö {selectedRack?.name}</div>
             {selectedRack?.shelves.map((s, i) => (
               <div key={i} className="mb-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
                 <div className="font-semibold text-sm mb-2">{s.id}</div>
@@ -488,19 +488,19 @@ export default function StorageLocationPage({ initialTab = 0, externalShowModal 
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between items-center py-2 border-b border-blue-200">
                   <span className="text-gray-600 font-medium">Zone:</span>
-                  <span className="font-semibold text-gray-900 bg-white px-3 py-1 rounded-md">{tabForm.zone || '—'}</span>
+                  <span className="font-semibold text-gray-900 bg-white px-3 py-1 rounded-md">{tabForm.zone || 'ΓÇö'}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-blue-200">
                   <span className="text-gray-600 font-medium">Rack:</span>
-                  <span className="font-semibold text-gray-900 bg-white px-3 py-1 rounded-md">{tabForm.rack || '—'}</span>
+                  <span className="font-semibold text-gray-900 bg-white px-3 py-1 rounded-md">{tabForm.rack || 'ΓÇö'}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-blue-200">
                   <span className="text-gray-600 font-medium">Shelf ID:</span>
-                  <span className="font-mono font-semibold text-gray-900 bg-white px-3 py-1 rounded-md">{tabForm.shelf || '—'}</span>
+                  <span className="font-mono font-semibold text-gray-900 bg-white px-3 py-1 rounded-md">{tabForm.shelf || 'ΓÇö'}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-blue-200">
                   <span className="text-gray-600 font-medium">Number of Bins:</span>
-                  <span className="font-semibold text-gray-900 bg-white px-3 py-1 rounded-md">{tabForm.bins || '—'}</span>
+                  <span className="font-semibold text-gray-900 bg-white px-3 py-1 rounded-md">{tabForm.bins || 'ΓÇö'}</span>
                 </div>
                 {tabForm.sku && (
                   <div className="flex justify-between items-center py-2">

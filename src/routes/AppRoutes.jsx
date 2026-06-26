@@ -6,6 +6,7 @@ import LoginPage     from '../pages/login/LoginPage';
 import DashboardPage from '../pages/dashboard/DashboardPage';
 import OEMPage       from '../pages/oem/OEMPage';
 import OrdersPage    from '../pages/orders/OrdersPage';
+import DealerOrdersPage from '../pages/orders/DealerOrdersPage';
 import SettingsPage  from '../pages/settings/SettingsPage';
 import RolePermissionsPage from '../pages/settings/RolePermissionsPage';
 
@@ -15,6 +16,7 @@ import ItemMasterPage from '../pages/master/ItemMasterPage';
 // Procurement
 import VendorsPage             from '../pages/procurement/VendorsPage';
 import ClientsPage             from '../pages/procurement/ClientsPage';
+import DealersPage             from '../pages/procurement/DealersPage';
 import RFQPage                 from '../pages/procurement/RFQPage';
 import PurchaseRequisitionPage from '../pages/procurement/PurchaseRequisitionPage';
 import ApprovalsPage           from '../pages/procurement/ApprovalsPage';
@@ -22,12 +24,14 @@ import PurchaseOrdersPage      from '../pages/procurement/PurchaseOrdersPage';
 import GRNPage                 from '../pages/procurement/GRNPage';
 import QualityCheckPage        from '../pages/procurement/QualityCheckPage';
 import ExcessPOMonitorPage     from '../pages/procurement/ExcessPOMonitorPage';
+import GRNReceiptsInvoicePage  from '../pages/procurement/GRNReceiptsInvoicePage';
 
 // Vendor Portal (Public - No Auth Required)
 import VendorQuotationPage from '../pages/vendor/VendorQuotationPage';
 
 // Inventory
 import InventorySubPage from '../pages/inventory/InventorySubPage';
+import StockEntryInvoicesPage from '../pages/inventory/StockEntryInvoicesPage';
 
 // Production
 import ProductionSubPage from '../pages/production/ProductionSubPage';
@@ -47,6 +51,8 @@ import RealTimeTrackingPage from '../pages/logistics/RealTimeTrackingPage';
 // Returns
 import ReturnsSubPage from '../pages/returns/ReturnsSubPage';
 import ReturnRequestDetailPage from '../pages/returns/ReturnRequestDetailPage';
+import CreditNotePage from '../pages/returns/CreditNotePage';
+import DebitNotePage from '../pages/returns/DebitNotePage';
 
 // Finance
 import FinanceSubPage from '../pages/finance/FinanceSubPage';
@@ -105,12 +111,14 @@ export default function AppRoutes() {
       <Route path="/procurement"              element={<Navigate to="/procurement/vendors" replace />} />
       <Route path="/procurement/vendors"      element={<P element={<VendorsPage />} />} />
       <Route path="/procurement/clients"      element={<P element={<ClientsPage />} />} />
+      <Route path="/procurement/dealers"      element={<P element={<DealersPage />} />} />
       <Route path="/procurement/rfq"          element={<P element={<RFQPage />} />} />
       <Route path="/procurement/pr"           element={<P element={<PurchaseRequisitionPage />} />} />
       <Route path="/procurement/approvals"    element={<P element={<ApprovalsPage />} />} />
       <Route path="/procurement/po"           element={<P element={<PurchaseOrdersPage />} />} />
       <Route path="/procurement/grn"          element={<P element={<GRNPage />} />} />
       <Route path="/procurement/qc"           element={<P element={<QualityCheckPage />} />} />
+      <Route path="/procurement/grn-invoices" element={<P element={<GRNReceiptsInvoicePage />} />} />
       <Route path="/procurement/excess"       element={<P element={<ExcessPOMonitorPage />} />} />
 
       {/* Inventory */}
@@ -128,6 +136,8 @@ export default function AppRoutes() {
       <Route path="/inventory/pincode"     element={<P element={<ErrorBoundary><InventorySubPage tab="pincode" /></ErrorBoundary>} />} />
       <Route path="/inventory/stock-items" element={<P element={<ErrorBoundary><InventorySubPage tab="stock-items" /></ErrorBoundary>} />} />
       <Route path="/inventory/returns"     element={<P element={<ErrorBoundary><InventorySubPage tab="returns" /></ErrorBoundary>} />} />
+      <Route path="/inventory/production-manage" element={<P element={<ErrorBoundary><InventorySubPage tab="production-manage" /></ErrorBoundary>} />} />
+      <Route path="/inventory/stock-invoices" element={<P element={<StockEntryInvoicesPage />} />} />
 
       {/* Production */}
       <Route path="/production"             element={<Navigate to="/production/bom" replace />} />
@@ -143,8 +153,9 @@ export default function AppRoutes() {
       <Route path="/production/efficiency"  element={<P element={<ProductionSubPage tab="efficiency" />} />} />
 
       {/* OEM & Orders — single pages */}
-      <Route path="/oem"    element={<P element={<OEMPage />} />} />
-      <Route path="/orders" element={<P element={<OrdersPage />} />} />
+      <Route path="/oem"                element={<P element={<OEMPage />} />} />
+      <Route path="/orders"             element={<P element={<OrdersPage />} />} />
+      <Route path="/orders/dealer"      element={<P element={<DealerOrdersPage />} />} />
 
       {/* Bulk Orders */}
       <Route path="/bulk"                    element={<Navigate to="/bulk/clients" replace />} />
@@ -181,6 +192,8 @@ export default function AppRoutes() {
       <Route path="/returns/reconciliation" element={<P element={<ReturnsSubPage tab="reconciliation" />} />} />
       <Route path="/returns/loss"           element={<P element={<ReturnsSubPage tab="loss" />} />} />
       <Route path="/returns/detail/:id"     element={<P element={<ReturnRequestDetailPage />} />} />
+      <Route path="/returns/credit-note"    element={<P element={<CreditNotePage />} />} />
+      <Route path="/returns/debit-note"     element={<P element={<DebitNotePage />} />} />
 
       {/* Finance */}
       <Route path="/finance"                    element={<Navigate to="/finance/dashboard" replace />} />

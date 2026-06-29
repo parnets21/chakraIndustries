@@ -12,6 +12,9 @@ import { useState, useCallback, useEffect } from 'react';
 import { tallyApi } from '../../api/tallyApi.js';
 import { toast } from '../../components/common/Toast.jsx';
 import Pagination from '../../components/common/Pagination.jsx';
+import { SIGNATURE_B64 } from '../../assets/signatureB64.js';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 // ── Style tokens ─────────────────────────────────────────────────────────────
 const th  = 'bg-gray-50 px-4 py-2.5 text-left text-[10.5px] font-bold text-gray-400 uppercase tracking-wide border-b border-gray-200 whitespace-nowrap';
@@ -64,6 +67,22 @@ function Badge({ text, color = '#6b7280', bg = '#f1f5f9' }) {
   );
 }
 
+// ── Helper function to format tax rates with proper precision ──
+const formatTaxRate = (rate) => {
+  if (rate == null) return null;
+  // Handle floating-point precision issues, check if it's very close to an integer
+  const epsilon = 1e-10;
+  const roundedRate = Math.round(rate * 100) / 100; // Round to 2 decimal places first
+  if (Math.abs(roundedRate - Math.round(roundedRate)) < epsilon) {
+    return Math.round(roundedRate).toString();
+  }
+  // For non-integers, find the shortest representation
+  const fixed2 = roundedRate.toFixed(2);
+  const fixed1 = roundedRate.toFixed(1);
+  if (Math.abs(parseFloat(fixed1) - roundedRate) < epsilon) return fixed1;
+  return fixed2;
+};
+
 // ── Modal for viewing invoice details ──
 function InvoiceDetailModal({ invoice, isOpen, onClose }) {
   if (!isOpen || !invoice) return null;
@@ -74,64 +93,202 @@ function InvoiceDetailModal({ invoice, isOpen, onClose }) {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Invoice ${invoice.invoiceNo || invoice.voucherNumber}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; }
-          .invoice-header { text-align: center; margin-bottom: 30px; }
-          .invoice-header h2 { margin: 0; color: #1f2937; }
-          .invoice-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0; }
-          .meta-block { }
-          .meta-label { font-weight: bold; color: #6b7280; font-size: 12px; }
-          .meta-value { color: #111827; margin-top: 4px; }
-          .items-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-          .items-table th, .items-table td { border: 1px solid #d1d5db; padding: 8px; text-align: left; }
-          .items-table th { background-color: #f3f4f6; font-weight: bold; }
-          .total-section { text-align: right; margin-top: 20px; }
-          .total-section div { margin: 8px 0; font-weight: bold; }
-        </style>
+      <title>Invoice ${invoice.invoiceNo || invoice.voucherNumber}</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; font-size: 12px; }
+        .invoice-header { text-align: center; margin-bottom: 24px; }
+        .invoice-header h2 { margin: 0; color: #1f2937; font-size: 22px; }
+        .invoice-header p { margin: 4px 0 0; color: #64748b; }
+        .invoice-title-row { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        .invoice-title { font-size: 18px; font-weight: bold; }
+        .invoice-basic { text-align: right; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .info-card { padding: 12px; background: #f8fafc; border-radius: 6px; }
+        .meta-label { font-weight: bold; color: #64748b; font-size: 10px; text-transform: uppercase; margin-bottom: 4px; }
+        .meta-value { color: #111827; }
+        .items-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .items-table th, .items-table td { border: 1px solid #d1d5db; padding: 8px; text-align: left; }
+        .items-table th { background-color: #f3f4f6; font-weight: bold; }
+        .text-right { text-align: right; }
+        .total-section { text-align: right; margin-top: 20px; }
+        .total-section div { margin: 6px 0; }
+        .sign-section { margin-top: 40px; display: flex; justify-content: flex-end; }
+      </style>
       </head>
       <body>
         <div class="invoice-header">
           <h2>SRI CHAKRA INDUSTRIES</h2>
-          <p>Invoice #${invoice.invoiceNo || invoice.voucherNumber}</p>
+          <p>#13/14, Azeez Sait Industrial Estate, Mysore Road, Nayandahalli, Bangalore - 560039</p>
+          <p>GSTIN: 29ABWFS0002M1ZR</p>
         </div>
         
-        <div class="invoice-meta">
-          <div class="meta-block">
-            <div class="meta-label">DATE</div>
-            <div class="meta-value">${fmtDate(invoice.invoiceDate || invoice.voucherDate)}</div>
+        ${(invoice.irn || invoice.ackNo) ? `
+          <div class="info-card grid-2">
+            ${invoice.irn ? `<div><div class="meta-label">IRN</div><div class="meta-value">${invoice.irn}</div></div>` : ''}
+            ${invoice.ackNo ? `<div><div class="meta-label">Ack No</div><div class="meta-value">${invoice.ackNo}</div></div>` : ''}
+            ${invoice.ackDate ? `<div><div class="meta-label">Ack Date</div><div class="meta-value">${fmtDate(invoice.ackDate)}</div></div>` : ''}
           </div>
-          <div class="meta-block">
-            <div class="meta-label">BILL TO</div>
-            <div class="meta-value">${invoice.partyName || '—'}</div>
+        ` : ''}
+        
+        <div class="invoice-title-row">
+          <div class="invoice-title">TAX INVOICE</div>
+          <div class="invoice-basic">
+            <div>Invoice No.: ${invoice.invoiceNo || invoice.voucherNumber}</div>
+            <div>Date: ${fmtDate(invoice.invoiceDate || invoice.voucherDate)}</div>
           </div>
         </div>
+        
+        <!-- Party Details -->
+        <div style="margin-bottom: 20px;">
+          <div style="text-align: center; margin-bottom: 8px;">
+            <span style="font-size: 14px; font-weight: 700; color: #111827; text-decoration: underline;">Party Details</span>
+          </div>
+          <div class="grid-2">
+            <!-- Bill To -->
+            <div>
+              <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                <div style="font-size: 12px; color: #374151;">Buyer (Bill to)</div>
+                <div style="font-size: 12px; color: #111827; font-weight: 600;">:</div>
+              </div>
+              <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                <div style="font-size: 12px; color: #374151;">Mailing Name</div>
+                <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToMailingName || invoice.billToName || invoice.partyName || '—'}</div>
+              </div>
+              <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                <div style="font-size: 12px; color: #374151;">Address</div>
+                <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToAddress ? invoice.billToAddress.replace(/\n/g, '<br/>') : '—'}</div>
+              </div>
+              ${(invoice.billToCity || invoice.billToState || invoice.billToCountry) ? `
+                ${invoice.billToCity ? `
+                  <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px; padding-left: 148px;">
+                    <div style="font-size: 12px; color: #111827; font-weight: 600;">${invoice.billToCity}</div>
+                  </div>
+                ` : ''}
+                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                  <div style="font-size: 12px; color: #374151;">State</div>
+                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToState || '—'}</div>
+                </div>
+                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                  <div style="font-size: 12px; color: #374151;">Country</div>
+                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToCountry || '—'}</div>
+                </div>
+              ` : ''}
+              ${invoice.billToGstRegType ? `
+                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                  <div style="font-size: 12px; color: #374151;">GST Registration type</div>
+                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToGstRegType}</div>
+                </div>
+              ` : ''}
+              <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px;">
+                <div style="font-size: 12px; color: #374151;">GSTIN/UIN</div>
+                <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToGST || invoice.partyGstin || '—'}</div>
+              </div>
+            </div>
+            <!-- Ship To -->
+            <div>
+              <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                <div style="font-size: 12px; color: #374151;">Consignee (Ship to)</div>
+                <div style="font-size: 12px; color: #111827; font-weight: 600;">:</div>
+              </div>
+              <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                <div style="font-size: 12px; color: #374151;">Mailing Name</div>
+                <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToMailingName || invoice.shipToName || invoice.partyName || '—'}</div>
+              </div>
+              <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                <div style="font-size: 12px; color: #374151;">Address</div>
+                <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToAddress ? invoice.shipToAddress.replace(/\n/g, '<br/>') : '—'}</div>
+              </div>
+              ${(invoice.shipToCity || invoice.shipToState || invoice.shipToCountry) ? `
+                ${invoice.shipToCity ? `
+                  <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px; padding-left: 148px;">
+                    <div style="font-size: 12px; color: #111827; font-weight: 600;">${invoice.shipToCity}</div>
+                  </div>
+                ` : ''}
+                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                  <div style="font-size: 12px; color: #374151;">State</div>
+                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToState || '—'}</div>
+                </div>
+                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                  <div style="font-size: 12px; color: #374151;">Country</div>
+                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToCountry || '—'}</div>
+                </div>
+              ` : ''}
+              <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px;">
+                <div style="font-size: 12px; color: #374151;">GSTIN/UIN</div>
+                <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToGST || '—'}</div>
+              </div>
+            </div>
+          </div>
+          ${invoice.placeOfSupply ? `
+            <div style="border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px;">
+              <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px;">
+                <div style="font-size: 12px; color: #374151;">Place of Supply</div>
+                <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.placeOfSupply}</div>
+              </div>
+            </div>
+          ` : ''}
+        </div>
+        
+        <div class="info-card grid-2">
+          ${invoice.deliveryNote ? `<div><div class="meta-label">Delivery Note</div><div class="meta-value">${invoice.deliveryNote}</div></div>` : ''}
+          ${invoice.referenceNo ? `<div><div class="meta-label">Reference No. & Date</div><div class="meta-value">${invoice.referenceNo}${invoice.referenceDate ? ` · ${fmtDate(invoice.referenceDate)}` : ''}</div></div>` : ''}
+          ${invoice.buyersOrderNo ? `<div><div class="meta-label">Buyer's Order No.</div><div class="meta-value">${invoice.buyersOrderNo}${invoice.buyersOrderDate ? ` · ${fmtDate(invoice.buyersOrderDate)}` : ''}</div></div>` : ''}
+          ${invoice.dispatchDocNo ? `<div><div class="meta-label">Dispatch Doc No.</div><div class="meta-value">${invoice.dispatchDocNo}</div></div>` : ''}
+          ${invoice.dispatchedThrough ? `<div><div class="meta-label">Dispatched Through</div><div class="meta-value">${invoice.dispatchedThrough}</div></div>` : ''}
+          ${invoice.destination ? `<div><div class="meta-label">Destination</div><div class="meta-value">${invoice.destination}</div></div>` : ''}
+          ${invoice.billOfLadingNo ? `<div><div class="meta-label">Bill of Lading/LR-RR No.</div><div class="meta-value">${invoice.billOfLadingNo}</div></div>` : ''}
+          ${invoice.motorVehicleNo ? `<div><div class="meta-label">Motor Vehicle No.</div><div class="meta-value">${invoice.motorVehicleNo}</div></div>` : ''}
+          ${invoice.termsOfDelivery ? `<div style="grid-column: 1 / -1;"><div class="meta-label">Terms of Delivery</div><div class="meta-value">${invoice.termsOfDelivery}</div></div>` : ''}
+        </div>
+        
+        ${invoice.narration ? `<div style="margin-bottom: 20px;"><div class="meta-label">Narration</div><div class="meta-value">${invoice.narration}</div></div>` : ''}
 
         <table class="items-table">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Quantity</th>
-              <th>Rate</th>
-              <th>Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${(invoice.inventoryEntries || []).map(item => `
-              <tr>
-                <td>${item.stockItemName || '—'}</td>
-                <td>${item.qty || 0}</td>
-                <td>${item.rate || 0}</td>
-                <td>${item.amount || 0}</td>
-              </tr>
-            `).join('')}
-            ${(!invoice.inventoryEntries || invoice.inventoryEntries.length === 0) ? '<tr><td colspan="4" style="text-align: center;">No items</td></tr>' : ''}
-          </tbody>
+        <thead>
+          <tr>
+          <th>Item</th>
+          <th>Quantity</th>
+          <th>Rate</th>
+          <th>Tax %</th>
+          <th>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${(invoice.inventoryEntries || invoice.items || []).map(item => {
+            const formattedRate = item.taxRate != null ? formatTaxRate(item.taxRate) : null;
+            return `
+          <tr>
+            <td>${item.stockItemName || item.description || '—'}</td>
+            <td>${item.qty || 0}</td>
+            <td>${item.rate || 0}</td>
+            <td>${formattedRate != null ? formattedRate + '%' : '—'}</td>
+            <td>${item.amount || 0}</td>
+          </tr>
+          `}).join('')}
+          ${(!invoice.inventoryEntries || invoice.inventoryEntries.length === 0) && (!invoice.items || invoice.items.length === 0) ? '<tr><td colspan="5" style="text-align: center;">No items</td></tr>' : ''}
+        </tbody>
         </table>
 
         <div class="total-section">
-          <div>TOTAL: ${fmt(invoice.grandTotal || invoice.amount)}</div>
-          <div style="font-weight: normal; font-size: 12px; margin-top: 20px;">Narration: ${invoice.narration || '—'}</div>
+        ${invoice.subtotal ? `<div>Subtotal: ${fmt(invoice.subtotal)}</div>` : ''}
+        ${(invoice.ledgerEntries || []).filter(le => 
+          !le.ledgerName.toLowerCase().includes('cgst') && 
+          !le.ledgerName.toLowerCase().includes('sgst') && 
+          !le.ledgerName.toLowerCase().includes('igst') && 
+          !le.ledgerName.toLowerCase().includes('cess') && 
+          le.ledgerName.toLowerCase() !== (invoice.partyName || '').toLowerCase()
+        ).map(le => `<div>${le.ledgerName}: ${fmt(Math.abs(le.amount))}</div>`).join('')}
+        ${(invoice.taxLines || []).map(tl => `<div>${tl.ledgerName}: ${fmt(Math.abs(tl.amount))}</div>`).join('')}
+        <div style="font-weight: bold; font-size: 18px;">GRAND TOTAL: ${fmt(invoice.grandTotal || invoice.amount)}</div>
+        <div style="font-weight: normal; font-size: 12px; margin-top: 20px;">Narration: ${invoice.narration || '—'}</div>
+        </div>
+        
+        <div style="margin-top: 40px; display: flex; justify-content: flex-end;">
+          <div style="text-align: right;">
+            <div style="font-weight: bold; margin-bottom: 5px;">For Sri Chakra Industries</div>
+            <img src="${SIGNATURE_B64}" alt="Signature" style="height: 60px; margin-bottom: 5px;"/>
+            <div style="border-top: 1px solid #333; padding-top: 5px; font-size: 12px;">Authorised Signatory</div>
+          </div>
         </div>
       </body>
       </html>
@@ -140,9 +297,257 @@ function InvoiceDetailModal({ invoice, isOpen, onClose }) {
     printWindow.print();
   };
 
-  const handleDownloadPDF = () => {
-    toast('PDF download feature coming soon', 'info');
+  const handleDownloadPDF = async () => {
+    try {
+      toast('Generating PDF...', 'info');
+      // Create a temporary div to render the invoice HTML
+      const tempDiv = document.createElement('div');
+      // Build the invoice HTML (same as what we use for printing)
+      tempDiv.innerHTML = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <title>Invoice ${invoice.invoiceNo || invoice.voucherNumber}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 0; padding: 20px; font-size: 12px; }
+          .invoice-header { text-align: center; margin-bottom: 24px; }
+          .invoice-header h2 { margin: 0; color: #1f2937; font-size: 22px; }
+          .invoice-header p { margin: 4px 0 0; color: #64748b; }
+          .invoice-title-row { display: flex; justify-content: space-between; margin-bottom: 20px; }
+          .invoice-title { font-size: 18px; font-weight: bold; }
+          .invoice-basic { text-align: right; }
+          .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+          .info-card { padding: 12px; background: #f8fafc; border-radius: 6px; }
+          .meta-label { font-weight: bold; color: #64748b; font-size: 10px; text-transform: uppercase; margin-bottom: 4px; }
+          .meta-value { color: #111827; }
+          .items-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          .items-table th, .items-table td { border: 1px solid #e5e7eb; padding: 8px 12px; text-align: left; }
+          .items-table th { background: #f9fafb; font-weight: 600; }
+          .items-table .text-right { text-align: right; }
+          .total-row { font-weight: bold; font-size: 16px; }
+          .sign-section { margin-top: 40px; display: flex; justify-content: flex-end; }
+          .sign-block { text-align: right; }
+        </style>
+        </head>
+        <body>
+          <div class="invoice-header">
+            <h2>Sri Chakra Industries</h2>
+            <p>#13/14, Azeez Sait Industrial Estate, Mysore Road, Nayandahalli, Bangalore - 560039</p>
+            <p>GSTIN: 29ABWFS0002M1ZR</p>
+          </div>
+          
+          ${(invoice.irn || invoice.ackNo) ? `
+            <div class="info-card grid-2">
+              ${invoice.irn ? `<div><div class="meta-label">IRN</div><div class="meta-value">${invoice.irn}</div></div>` : ''}
+              ${invoice.ackNo ? `<div><div class="meta-label">Ack No</div><div class="meta-value">${invoice.ackNo}</div></div>` : ''}
+              ${invoice.ackDate ? `<div><div class="meta-label">Ack Date</div><div class="meta-value">${fmtDate(invoice.ackDate)}</div></div>` : ''}
+            </div>
+          ` : ''}
+          
+          <div class="invoice-title-row">
+            <div class="invoice-title">TAX INVOICE</div>
+            <div class="invoice-basic">
+              <div>Invoice No.: ${invoice.invoiceNo || invoice.voucherNumber || '—'}</div>
+              <div>Date: ${fmtDate(invoice.invoiceDate || invoice.voucherDate)}</div>
+            </div>
+          </div>
+          
+          <!-- Party Details -->
+          <div style="margin-bottom: 20px;">
+            <div style="text-align: center; margin-bottom: 8px;">
+              <span style="font-size: 14px; font-weight: 700; color: #111827; text-decoration: underline;">Party Details</span>
+            </div>
+            <div class="grid-2">
+              <!-- Bill To -->
+              <div>
+                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                  <div style="font-size: 12px; color: #374151;">Buyer (Bill to)</div>
+                  <div style="font-size: 12px; color: #111827; font-weight: 600;">:</div>
+                </div>
+                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                  <div style="font-size: 12px; color: #374151;">Mailing Name</div>
+                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToMailingName || invoice.billToName || invoice.partyName || '—'}</div>
+                </div>
+                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                  <div style="font-size: 12px; color: #374151;">Address</div>
+                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToAddress ? invoice.billToAddress.replace(/\n/g, '<br/>') : '—'}</div>
+                </div>
+                ${(invoice.billToCity || invoice.billToState || invoice.billToCountry) ? `
+                  ${invoice.billToCity ? `
+                    <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px; padding-left: 148px;">
+                      <div style="font-size: 12px; color: #111827; font-weight: 600;">${invoice.billToCity}</div>
+                    </div>
+                  ` : ''}
+                  <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                    <div style="font-size: 12px; color: #374151;">State</div>
+                    <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToState || '—'}</div>
+                  </div>
+                  <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                    <div style="font-size: 12px; color: #374151;">Country</div>
+                    <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToCountry || '—'}</div>
+                  </div>
+                ` : ''}
+                ${invoice.billToGstRegType ? `
+                  <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                    <div style="font-size: 12px; color: #374151;">GST Registration type</div>
+                    <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToGstRegType}</div>
+                  </div>
+                ` : ''}
+                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px;">
+                  <div style="font-size: 12px; color: #374151;">GSTIN/UIN</div>
+                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToGST || invoice.partyGstin || '—'}</div>
+                </div>
+              </div>
+              <!-- Ship To -->
+              <div>
+                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                  <div style="font-size: 12px; color: #374151;">Consignee (Ship to)</div>
+                  <div style="font-size: 12px; color: #111827; font-weight: 600;">:</div>
+                </div>
+                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                  <div style="font-size: 12px; color: #374151;">Mailing Name</div>
+                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToMailingName || invoice.shipToName || invoice.partyName || '—'}</div>
+                </div>
+                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                  <div style="font-size: 12px; color: #374151;">Address</div>
+                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToAddress ? invoice.shipToAddress.replace(/\n/g, '<br/>') : '—'}</div>
+                </div>
+                ${(invoice.shipToCity || invoice.shipToState || invoice.shipToCountry) ? `
+                  ${invoice.shipToCity ? `
+                    <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px; padding-left: 148px;">
+                      <div style="font-size: 12px; color: #111827; font-weight: 600;">${invoice.shipToCity}</div>
+                    </div>
+                  ` : ''}
+                  <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                    <div style="font-size: 12px; color: #374151;">State</div>
+                    <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToState || '—'}</div>
+                  </div>
+                  <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
+                    <div style="font-size: 12px; color: #374151;">Country</div>
+                    <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToCountry || '—'}</div>
+                  </div>
+                ` : ''}
+                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px;">
+                  <div style="font-size: 12px; color: #374151;">GSTIN/UIN</div>
+                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToGST || '—'}</div>
+                </div>
+              </div>
+            </div>
+            ${invoice.placeOfSupply ? `
+              <div style="border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px;">
+                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px;">
+                  <div style="font-size: 12px; color: #374151;">Place of Supply</div>
+                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.placeOfSupply}</div>
+                </div>
+              </div>
+            ` : ''}
+          </div>
+          
+          <div class="info-card grid-2">
+            ${invoice.deliveryNote ? `<div><div class="meta-label">Delivery Note</div><div class="meta-value">${invoice.deliveryNote}</div></div>` : ''}
+            ${invoice.referenceNo ? `<div><div class="meta-label">Reference No. & Date</div><div class="meta-value">${invoice.referenceNo}${invoice.referenceDate ? ` · ${fmtDate(invoice.referenceDate)}` : ''}</div></div>` : ''}
+            ${invoice.buyersOrderNo ? `<div><div class="meta-label">Buyer's Order No.</div><div class="meta-value">${invoice.buyersOrderNo}${invoice.buyersOrderDate ? ` · ${fmtDate(invoice.buyersOrderDate)}` : ''}</div></div>` : ''}
+            ${invoice.dispatchDocNo ? `<div><div class="meta-label">Dispatch Doc No.</div><div class="meta-value">${invoice.dispatchDocNo}</div></div>` : ''}
+            ${invoice.dispatchedThrough ? `<div><div class="meta-label">Dispatched Through</div><div class="meta-value">${invoice.dispatchedThrough}</div></div>` : ''}
+            ${invoice.destination ? `<div><div class="meta-label">Destination</div><div class="meta-value">${invoice.destination}</div></div>` : ''}
+            ${invoice.billOfLadingNo ? `<div><div class="meta-label">Bill of Lading/LR-RR No.</div><div class="meta-value">${invoice.billOfLadingNo}</div></div>` : ''}
+            ${invoice.motorVehicleNo ? `<div><div class="meta-label">Motor Vehicle No.</div><div class="meta-value">${invoice.motorVehicleNo}</div></div>` : ''}
+            ${invoice.termsOfDelivery ? `<div style="grid-column: 1 / -1;"><div class="meta-label">Terms of Delivery</div><div class="meta-value">${invoice.termsOfDelivery}</div></div>` : ''}
+          </div>
+          
+          ${invoice.narration ? `<div style="margin-bottom: 20px;"><div class="meta-label">Narration</div><div class="meta-value">${invoice.narration}</div></div>` : ''}
+
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="width: 50px;">S.No.</th>
+                <th>Item</th>
+                <th style="width: 100px;">HSN</th>
+                <th class="text-right" style="width: 80px;">Qty</th>
+                <th class="text-right" style="width: 120px;">Rate</th>
+                <th class="text-right" style="width: 120px;">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${(invoice.inventoryEntries || []).map((item, index) => `
+                <tr>
+                  <td>${index + 1}</td>
+                  <td>${item.stockItemName || '—'}</td>
+                  <td>${item.hsnCode || '—'}</td>
+                  <td class="text-right">${Number(item.qty || 0).toLocaleString('en-IN')} Nos</td>
+                  <td class="text-right">₹ ${Number(item.rate || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td class="text-right">₹ ${Number(item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                </tr>
+              `).join('')}
+              <tr class="total-row">
+                <td colspan="5" style="text-align: right;">Subtotal:</td>
+                <td class="text-right">₹ ${Number(invoice.subtotal || invoice.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              </tr>
+              ${(invoice.taxLines || (invoice.ledgerEntries || []).filter(le => ['cgst', 'sgst', 'igst', 'cess'].some(tax => (le.ledgerName || '').toLowerCase().includes(tax)))).map(tax => `
+                <tr>
+                  <td colspan="5" style="text-align: right;">${tax.ledgerName}:</td>
+                  <td class="text-right">₹ ${Number(Math.abs(tax.amount || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                </tr>
+              `).join('')}
+              <tr class="total-row">
+                <td colspan="5" style="text-align: right;">Grand Total:</td>
+                <td class="text-right" style="color: #16a34a;">₹ ${Number(invoice.grandTotal || invoice.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              </tr>
+            </tbody>
+          </table>
+        
+          <div class="sign-section">
+            <div class="sign-block">
+              <div style="font-weight: bold; margin-bottom: 5px;">For Sri Chakra Industries</div>
+              <img src="${SIGNATURE_B64}" alt="Signature" style="height: 60px; margin-bottom: 5px;"/>
+              <div style="border-top: 1px solid #333; padding-top: 5px; font-size: 12px;">Authorised Signatory</div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+      tempDiv.style.position = 'absolute';
+      tempDiv.style.left = '-9999px';
+      tempDiv.style.top = '0';
+      document.body.appendChild(tempDiv);
+
+      // Capture with html2canvas
+      const canvas = await html2canvas(tempDiv, { scale: 2, useCORS: true, logging: false });
+      
+      // Create PDF
+      const imgWidth = 210;
+      const pageHeight = 297;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+      
+      // Download
+      const fileName = `Invoice_${invoice.invoiceNo || invoice.voucherNumber || 'document'}_${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(fileName);
+      toast('PDF downloaded successfully!', 'success');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast('Failed to generate PDF', 'error');
+    } finally {
+      // Cleanup
+      const tempDivs = document.querySelectorAll('div[style*="left: -9999px"]');
+      tempDivs.forEach(div => div.remove());
+    }
   };
+
+  // Helper to categorize ledger entries
+  const isTaxEntry = (le) => {
+    const name = le.ledgerName.toLowerCase();
+    return name.includes('cgst') || name.includes('sgst') || name.includes('igst') || name.includes('cess');
+  };
+
+  const isPartyEntry = (le) => {
+    return le.ledgerName.toLowerCase() === (invoice.partyName || '').toLowerCase();
+  };
+
+  const additionalCharges = (invoice.ledgerEntries || []).filter(le => !isTaxEntry(le) && !isPartyEntry(le));
+  const taxEntries = (invoice.taxLines || []).length > 0 ? invoice.taxLines : (invoice.ledgerEntries || []).filter(isTaxEntry);
 
   return (
     <div style={{
@@ -151,8 +556,8 @@ function InvoiceDetailModal({ invoice, isOpen, onClose }) {
       zIndex: 1000, padding: 20
     }}>
       <div style={{
-        background: '#fff', borderRadius: 16, padding: 32, maxWidth: 700, maxHeight: '90vh',
-        overflow: 'auto', boxShadow: '0 20px 25px rgba(0,0,0,0.15)'
+        background: '#fff', borderRadius: 16, padding: 32, maxWidth: 1000, maxHeight: '90vh',
+        overflow: 'auto', boxShadow: '0 20px 25px rgba(0,0,0,0.15)', position: 'relative'
       }}>
         {/* Close button */}
         <button onClick={onClose} style={{
@@ -160,40 +565,214 @@ function InvoiceDetailModal({ invoice, isOpen, onClose }) {
           fontSize: 24, cursor: 'pointer', color: '#6b7280', padding: 0
         }}>✕</button>
 
-        {/* Header */}
+        {/* Header with Company Info */}
         <div style={{ marginBottom: 24 }}>
-          <h2 style={{ margin: 0, color: '#0f172a', fontSize: 20, fontWeight: 800 }}>
-            Invoice Details
-          </h2>
-          <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 12 }}>
-            {invoice.invoiceNo || invoice.voucherNumber}
-          </p>
+          <div style={{ textAlign: 'center' }}>
+            <h2 style={{ margin: 0, color: '#0f172a', fontSize: 22, fontWeight: 800 }}>SRI CHAKRA INDUSTRIES</h2>
+            <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 12 }}>#13/14, Azeez Sait Industrial Estate, Mysore Road, Nayandahalli, Bangalore - 560039</p>
+            <p style={{ margin: '2px 0 0', color: '#64748b', fontSize: 12 }}>GSTIN: 29ABWFS0002M1ZR</p>
+          </div>
         </div>
 
-        {/* Details Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
-          <div>
-            <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Invoice Number</label>
-            <p style={{ margin: '6px 0 0', color: '#0f172a', fontWeight: 700, fontSize: 14 }}>{invoice.invoiceNo || invoice.voucherNumber}</p>
+        {/* E-Invoice Details */}
+        {(invoice.irn || invoice.ackNo) && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24, padding: 16, background: '#f8fafc', borderRadius: 8 }}>
+            {invoice.irn && (
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>IRN</label>
+                <p style={{ margin: '6px 0 0', color: '#0f172a', fontSize: 12, wordBreak: 'break-all' }}>{invoice.irn}</p>
+              </div>
+            )}
+            {invoice.ackNo && (
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Ack No</label>
+                <p style={{ margin: '6px 0 0', color: '#0f172a', fontSize: 12 }}>{invoice.ackNo}</p>
+              </div>
+            )}
+            {invoice.ackDate && (
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Ack Date</label>
+                <p style={{ margin: '6px 0 0', color: '#0f172a', fontSize: 12 }}>{fmtDate(invoice.ackDate)}</p>
+              </div>
+            )}
           </div>
-          <div>
-            <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Date</label>
-            <p style={{ margin: '6px 0 0', color: '#0f172a', fontWeight: 700, fontSize: 14 }}>{fmtDate(invoice.invoiceDate || invoice.voucherDate)}</p>
-          </div>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Party Name</label>
-            <p style={{ margin: '6px 0 0', color: '#0f172a', fontWeight: 700, fontSize: 14 }}>{invoice.partyName || '—'}</p>
-          </div>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Narration</label>
-            <p style={{ margin: '6px 0 0', color: '#0f172a', fontSize: 13 }}>{invoice.narration || '—'}</p>
+        )}
+
+        {/* Invoice Title and Basic Details */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+          <div style={{ fontWeight: 800, fontSize: 18, color: '#0f172a' }}>TAX INVOICE</div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontWeight: 700, color: '#0f172a', fontSize: 14 }}>Invoice No.: {invoice.invoiceNo || invoice.voucherNumber}</div>
+            <div style={{ color: '#64748b', fontSize: 12 }}>Date: {fmtDate(invoice.invoiceDate || invoice.voucherDate)}</div>
           </div>
         </div>
+
+        {/* Party Details - Bill To & Ship To */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ textAlign: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#111827', textDecoration: 'underline' }}>Party Details</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+            {/* Bill To */}
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
+                <div style={{ fontSize: 12, color: '#374151' }}>Buyer (Bill to)</div>
+                <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>:</div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
+                <div style={{ fontSize: 12, color: '#374151' }}>Mailing Name</div>
+                <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {invoice.billToMailingName || invoice.billToName || invoice.partyName || '—'}</div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
+                <div style={{ fontSize: 12, color: '#374151' }}>Address</div>
+                <div style={{ fontSize: 12, color: '#111827', fontWeight: 600, whiteSpace: 'pre-line' }}>: {invoice.billToAddress || '—'}</div>
+              </div>
+              {(invoice.billToCity || invoice.billToState || invoice.billToCountry) && (
+                <>
+                  {invoice.billToCity && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4, paddingLeft: '148px' }}>
+                      <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>{invoice.billToCity}</div>
+                    </div>
+                  )}
+                  <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
+                    <div style={{ fontSize: 12, color: '#374151' }}>State</div>
+                    <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {invoice.billToState || '—'}</div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
+                    <div style={{ fontSize: 12, color: '#374151' }}>Country</div>
+                    <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {invoice.billToCountry || '—'}</div>
+                  </div>
+                </>
+              )}
+              {invoice.billToGstRegType && (
+                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
+                  <div style={{ fontSize: 12, color: '#374151' }}>GST Registration type</div>
+                  <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {invoice.billToGstRegType}</div>
+                </div>
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8 }}>
+                <div style={{ fontSize: 12, color: '#374151' }}>GSTIN/UIN</div>
+                <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {invoice.billToGST || invoice.partyGstin || '—'}</div>
+              </div>
+            </div>
+
+            {/* Ship To */}
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
+                <div style={{ fontSize: 12, color: '#374151' }}>Consignee (Ship to)</div>
+                <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>:</div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
+                <div style={{ fontSize: 12, color: '#374151' }}>Mailing Name</div>
+                <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {invoice.shipToMailingName || invoice.shipToName || invoice.partyName || '—'}</div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
+                <div style={{ fontSize: 12, color: '#374151' }}>Address</div>
+                <div style={{ fontSize: 12, color: '#111827', fontWeight: 600, whiteSpace: 'pre-line' }}>: {invoice.shipToAddress || '—'}</div>
+              </div>
+              {(invoice.shipToCity || invoice.shipToState || invoice.shipToCountry) && (
+                <>
+                  {invoice.shipToCity && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4, paddingLeft: '148px' }}>
+                      <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>{invoice.shipToCity}</div>
+                    </div>
+                  )}
+                  <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
+                    <div style={{ fontSize: 12, color: '#374151' }}>State</div>
+                    <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {invoice.shipToState || '—'}</div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
+                    <div style={{ fontSize: 12, color: '#374151' }}>Country</div>
+                    <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {invoice.shipToCountry || '—'}</div>
+                  </div>
+                </>
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8 }}>
+                <div style={{ fontSize: 12, color: '#374151' }}>GSTIN/UIN</div>
+                <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {invoice.shipToGST || '—'}</div>
+              </div>
+            </div>
+          </div>
+          {invoice.placeOfSupply && (
+            <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 8, marginTop: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8 }}>
+                <div style={{ fontSize: 12, color: '#374151' }}>Place of Supply</div>
+                <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {invoice.placeOfSupply}</div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Delivery & Reference Details */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24, padding: 16, background: '#f8fafc', borderRadius: 8 }}>
+          {invoice.deliveryNote && (
+            <div>
+              <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Delivery Note</label>
+              <p style={{ margin: '6px 0 0', color: '#0f172a', fontSize: 12 }}>{invoice.deliveryNote}</p>
+            </div>
+          )}
+          {invoice.referenceNo && (
+            <div>
+              <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Reference No. & Date</label>
+              <p style={{ margin: '6px 0 0', color: '#0f172a', fontSize: 12 }}>{invoice.referenceNo}{invoice.referenceDate ? ` · ${fmtDate(invoice.referenceDate)}` : ''}</p>
+            </div>
+          )}
+          {invoice.buyersOrderNo && (
+            <div>
+              <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Buyer's Order No.</label>
+              <p style={{ margin: '6px 0 0', color: '#0f172a', fontSize: 12 }}>{invoice.buyersOrderNo}{invoice.buyersOrderDate ? ` · ${fmtDate(invoice.buyersOrderDate)}` : ''}</p>
+            </div>
+          )}
+          {invoice.dispatchDocNo && (
+            <div>
+              <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Dispatch Doc No.</label>
+              <p style={{ margin: '6px 0 0', color: '#0f172a', fontSize: 12 }}>{invoice.dispatchDocNo}</p>
+            </div>
+          )}
+          {invoice.dispatchedThrough && (
+            <div>
+              <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Dispatched Through</label>
+              <p style={{ margin: '6px 0 0', color: '#0f172a', fontSize: 12 }}>{invoice.dispatchedThrough}</p>
+            </div>
+          )}
+          {invoice.destination && (
+            <div>
+              <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Destination</label>
+              <p style={{ margin: '6px 0 0', color: '#0f172a', fontSize: 12 }}>{invoice.destination}</p>
+            </div>
+          )}
+          {invoice.billOfLadingNo && (
+            <div>
+              <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Bill of Lading/LR-RR No.</label>
+              <p style={{ margin: '6px 0 0', color: '#0f172a', fontSize: 12 }}>{invoice.billOfLadingNo}</p>
+            </div>
+          )}
+          {invoice.motorVehicleNo && (
+            <div>
+              <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Motor Vehicle No.</label>
+              <p style={{ margin: '6px 0 0', color: '#0f172a', fontSize: 12 }}>{invoice.motorVehicleNo}</p>
+            </div>
+          )}
+          {invoice.termsOfDelivery && (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Terms of Delivery</label>
+              <p style={{ margin: '6px 0 0', color: '#0f172a', fontSize: 12 }}>{invoice.termsOfDelivery}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Narration */}
+        {invoice.narration && (
+          <div style={{ marginBottom: 24 }}>
+            <label style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Narration</label>
+            <p style={{ margin: '6px 0 0', color: '#0f172a', fontSize: 13 }}>{invoice.narration}</p>
+          </div>
+        )}
 
         {/* Items */}
         <div style={{ marginBottom: 24 }}>
           <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: 10 }}>Items</label>
-          {invoice.inventoryEntries && invoice.inventoryEntries.length > 0 ? (
+          {((invoice.inventoryEntries && invoice.inventoryEntries.length > 0) || (invoice.items && invoice.items.length > 0)) ? (
             <div style={{ background: '#f8fafc', borderRadius: 8, overflow: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
@@ -201,15 +780,19 @@ function InvoiceDetailModal({ invoice, isOpen, onClose }) {
                     <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700, color: '#64748b' }}>Item Name</th>
                     <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#64748b' }}>Qty</th>
                     <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#64748b' }}>Rate</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#64748b' }}>Tax %</th>
                     <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#64748b' }}>Amount</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {invoice.inventoryEntries.map((item, i) => (
+                  {(invoice.inventoryEntries || invoice.items || []).map((item, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '8px 12px', color: '#0f172a' }}>{item.stockItemName || '—'}</td>
+                      <td style={{ padding: '8px 12px', color: '#0f172a' }}>{item.stockItemName || item.description || '—'}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'right', color: '#0f172a' }}>{item.qty || 0}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'right', color: '#0f172a' }}>₹{(item.rate || 0).toFixed(2)}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#0f172a' }}>
+                        {item.taxRate != null ? formatTaxRate(item.taxRate) + '%' : '—'}
+                      </td>
                       <td style={{ padding: '8px 12px', textAlign: 'right', color: '#0f172a', fontWeight: 700 }}>₹{(item.amount || 0).toFixed(2)}</td>
                     </tr>
                   ))}
@@ -221,14 +804,30 @@ function InvoiceDetailModal({ invoice, isOpen, onClose }) {
           )}
         </div>
 
-        {/* Total */}
-        <div style={{
-          background: '#f0fdf4', border: '2px solid #86efac', borderRadius: 8,
-          padding: 12, marginBottom: 24, textAlign: 'right'
-        }}>
-          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Total Amount</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: '#16a34a' }}>
-            {fmt(invoice.grandTotal || invoice.amount)}
+        {/* Charges & Taxes */}
+        <div style={{ marginBottom: 24 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: 10 }}>Charges & Taxes</label>
+          <div style={{ background: '#f8fafc', borderRadius: 8, padding: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid #e2e8f0' }}>
+              <span style={{ color: '#64748b', fontSize: 13 }}>Subtotal</span>
+              <span style={{ color: '#0f172a', fontWeight: 600 }}>{fmt(invoice.subtotal || (invoice.inventoryEntries || invoice.items || []).reduce((sum, item) => sum + (item.amount || 0), 0))}</span>
+            </div>
+            {additionalCharges.map((charge, idx) => (
+              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, paddingBottom: 8, borderBottom: '1px solid #e2e8f0' }}>
+                <span style={{ color: '#64748b', fontSize: 13 }}>{charge.ledgerName}</span>
+                <span style={{ color: '#0f172a', fontWeight: 600 }}>{fmt(Math.abs(charge.amount))}</span>
+              </div>
+            ))}
+            {taxEntries.map((tax, idx) => (
+              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, paddingBottom: 8, borderBottom: '1px solid #e2e8f0' }}>
+                <span style={{ color: '#64748b', fontSize: 13 }}>{tax.ledgerName}</span>
+                <span style={{ color: '#0f172a', fontWeight: 600 }}>{fmt(Math.abs(tax.amount))}</span>
+              </div>
+            ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12 }}>
+              <span style={{ color: '#0f172a', fontWeight: 700, fontSize: 14 }}>Grand Total</span>
+              <span style={{ color: '#16a34a', fontWeight: 800, fontSize: 18 }}>{fmt(invoice.grandTotal || invoice.amount)}</span>
+            </div>
           </div>
         </div>
 
@@ -303,10 +902,10 @@ export default function SalesRegisterPage() {
         limit: activeView === 'vouchers' ? vPageSize : iPageSize,
       });
       if (res.success) {
-        setVouchers(res.data?.vouchers || []);
-        setVTotal(res.data?.voucherTotal || 0);
-        setInvoices(res.data?.invoices || []);
-        setITotal(res.data?.invoiceTotal || 0);
+        setVouchers(res.data || []);
+        setVTotal(res.total || 0);
+        setInvoices(res.invoices || []);
+        setITotal(res.invoiceTotal || 0);
       }
     } catch (e) {
       setError(e.message || 'Failed to load Sales Register data');
@@ -540,20 +1139,17 @@ export default function SalesRegisterPage() {
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr>
-                        {['#', 'Voucher No', 'Type', 'Date', 'Party', 'Item Names', 'Amount', 'Narration', 'Actions'].map(h => (
+                        {['#', 'Voucher No', 'Date', 'Party', 'Item Names', 'Amount', 'Actions'].map(h => (
                           <th key={h} className={th}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {vouchers.map((v, i) => (
-                        <tr key={v._id || i} className={tr}>
+                        <tr key={v.id || i} className={tr}>
                           <td className={td} style={{ color: '#94a3b8', fontSize: 11 }}>{(vPage - 1) * vPageSize + i + 1}</td>
                           <td className={td} style={{ fontFamily: 'monospace', fontWeight: 700, color: '#15803d', fontSize: 11 }}>{v.voucherNumber || '—'}</td>
-                          <td className={td} style={{ fontSize: 12 }}>
-                            <Badge text={v.voucherType || 'Sales'} color="#0369a1" bg="#e0f2fe" />
-                          </td>
-                          <td className={td} style={{ whiteSpace: 'nowrap' }}>{fmtDate(v.voucherDate)}</td>
+                          <td className={td} style={{ whiteSpace: 'nowrap' }}>{fmtDate(v.date || v.voucherDate)}</td>
                           <td className={td} style={{ fontWeight: 600 }}>{v.partyName || '—'}</td>
                           <td className={td} style={{ fontSize: 12, color: '#64748b' }}>
                             {v.inventoryEntries?.length > 0 ? (
@@ -573,10 +1169,7 @@ export default function SalesRegisterPage() {
                               <span style={{ color: '#94a3b8' }}>—</span>
                             )}
                           </td>
-                          <td className={td} style={{ fontWeight: 700, color: '#16a34a', whiteSpace: 'nowrap' }}>{fmt(v.amount)}</td>
-                          <td className={td} style={{ fontSize: 12, color: '#64748b', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {v.narration || '—'}
-                          </td>
+                          <td className={td} style={{ fontWeight: 700, color: '#16a34a', whiteSpace: 'nowrap' }}>{fmt(v.grandTotal || v.amount)}</td>
                           <td className={td}>
                             <button onClick={() => handleViewInvoice(v)} style={{
                               padding: '6px 12px', borderRadius: 6, background: '#0369a1', color: '#fff',
@@ -618,16 +1211,16 @@ export default function SalesRegisterPage() {
                           <td className={td} style={{ whiteSpace: 'nowrap' }}>{fmtDate(inv.invoiceDate || inv.voucherDate)}</td>
                           <td className={td} style={{ fontWeight: 600 }}>{inv.partyName || '—'}</td>
                           <td className={td} style={{ fontSize: 12, color: '#64748b' }}>
-                            {inv.inventoryEntries?.length > 0 ? (
+                            {(inv.inventoryEntries || inv.items || [])?.length > 0 ? (
                               <div style={{ maxWidth: 200 }}>
-                                {inv.inventoryEntries.slice(0, 2).map((item, idx) => (
+                                {(inv.inventoryEntries || inv.items || []).slice(0, 2).map((item, idx) => (
                                   <div key={idx} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {item.stockItemName || '—'}
+                                    {item.stockItemName || item.description || '—'}
                                   </div>
                                 ))}
-                                {inv.inventoryEntries.length > 2 && (
+                                {(inv.inventoryEntries || inv.items || []).length > 2 && (
                                   <div style={{ color: '#94a3b8', fontSize: 11, fontStyle: 'italic' }}>
-                                    +{inv.inventoryEntries.length - 2} more
+                                    +{(inv.inventoryEntries || inv.items || []).length - 2} more
                                   </div>
                                 )}
                               </div>

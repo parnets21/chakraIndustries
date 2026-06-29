@@ -5,7 +5,8 @@ import { invoiceApi } from '../../api/invoiceApi';
 import { toast } from '../../components/common/Toast';
 import { MdUpload, MdDownload, MdPrint, MdDelete, MdDeleteSweep, MdVisibility, MdWarning, MdCheckCircle, MdError, MdShare, MdContentCopy } from 'react-icons/md';
 import { FaWhatsapp, FaEnvelope } from 'react-icons/fa';
-import { CHAKRA_LOGO_B64 } from '../../assets/chakraLogoB64';
+import { CHAKRA_LOGO_B64 } from '../../assets/chakraLogoB64.js';
+import { SIGNATURE_B64 } from '../../assets/signatureB64.js';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import SingleProductInvoices from './components/SingleProductInvoices';
@@ -946,6 +947,9 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
     <div class="footer-cell sig-cell">
       <div>
         <div class="footer-label">For Sri Chakra Industries</div>
+      </div>
+      <div style="text-align:right;">
+        <img src="${SIGNATURE_B64}" alt="Signature" style="height:60px;margin-bottom:5px;"/>
       </div>
       <div class="sig-line">Authorised Signatory</div>
     </div>

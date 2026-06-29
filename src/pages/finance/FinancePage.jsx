@@ -9,6 +9,9 @@ import { tallyApi } from '../../api/tallyApi';
 import { useDataEvent } from '../../utils/dataEvents';
 import Pagination from '../../components/common/Pagination';
 import { CHAKRA_LOGO_B64 } from '../../assets/chakraLogoB64';
+import { SIGNATURE_B64 } from '../../assets/signatureB64.js';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 const tabs = [
   'Dashboard',
@@ -790,9 +793,48 @@ function buildVoucherHtml(v, forDownload = false) {
   const cgstAmt = taxLines.filter(l=>(l.ledgerName||'').toLowerCase().includes('cgst')).reduce((s,l)=>s+Math.abs(l.amount||0),0);
   const sgstAmt = taxLines.filter(l=>(l.ledgerName||'').toLowerCase().includes('sgst')).reduce((s,l)=>s+Math.abs(l.amount||0),0);
   const igstAmt = taxLines.filter(l=>(l.ledgerName||'').toLowerCase().includes('igst')).reduce((s,l)=>s+Math.abs(l.amount||0),0);
-  const cgstRate = subtotal>0 ? ((cgstAmt/subtotal)*100).toFixed(0) : 0;
-  const sgstRate = subtotal>0 ? ((sgstAmt/subtotal)*100).toFixed(0) : 0;
-  const igstRate = subtotal>0 ? ((igstAmt/subtotal)*100).toFixed(0) : 0;
+  const formatTaxRate = (rate) => {
+    // Handle floating-point precision issues, check if it's very close to an integer
+    const epsilon = 1e-10;
+    const roundedRate = Math.round(rate * 100) / 100; // Round to 2 decimal places first
+    if (Math.abs(roundedRate - Math.round(roundedRate)) < epsilon) {
+      return Math.round(roundedRate).toString();
+    }
+    // For non-integers, find the shortest representation
+    // Try to remove trailing zeros after decimal
+    const fixed2 = roundedRate.toFixed(2);
+    const fixed1 = roundedRate.toFixed(1);
+    if (Math.abs(parseFloat(fixed1) - roundedRate) < epsilon) return fixed1;
+    return fixed2;
+  };
+  const cgstRateNum = subtotal>0 ? ((cgstAmt/subtotal)*100) : 0;
+  const sgstRateNum = subtotal>0 ? ((sgstAmt/subtotal)*100) : 0;
+  const igstRateNum = subtotal>0 ? ((igstAmt/subtotal)*100) : 0;
+  const cgstRate = formatTaxRate(cgstRateNum);
+  const sgstRate = formatTaxRate(sgstRateNum);
+  const igstRate = formatTaxRate(igstRateNum);
+  
+  // Bill To / Ship To details from voucher
+  const billTo = {
+    name: v.billToName || v.partyName,
+    mailingName: v.billToMailingName,
+    address: v.billToAddress,
+    city: v.billToCity,
+    state: v.billToState,
+    country: v.billToCountry,
+    gst: v.billToGST || v.partyGstin,
+    gstRegType: v.billToGstRegType
+  };
+  
+  const shipTo = {
+    name: v.shipToName || billTo.name,
+    mailingName: v.shipToMailingName,
+    address: v.shipToAddress,
+    city: v.shipToCity,
+    state: v.shipToState,
+    country: v.shipToCountry,
+    gst: v.shipToGST
+  };
 
   // Amount in words
   const ones=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
@@ -867,10 +909,37 @@ body{font-family:Arial,sans-serif;background:#fff;color:#111;font-size:12px}
     <tr><td>Date</td><td>${fmtDate(v.voucherDate)}</td></tr>
   </table></div>
 </div>
-<div class="party-grid">
-  <div class="party-cell"><div class="party-label">Party A/c Name</div><div class="party-name">${v.partyName||'—'}</div>${v.partyGstin?`<div class="party-line">GSTIN: ${v.partyGstin}</div>`:''}</div>
-  <div class="party-cell"><div class="party-label">Sales / Purchase Ledger</div><div class="party-name">${salesLedger?.ledgerName||'—'}</div></div>
+<div style="padding:10px 12px;border:1px solid #ccc;border-top:none">
+  <div style="text-align:center;font-size:12px;font-weight:700;margin-bottom:8px">Party Details</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div>
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#555;margin-bottom:4px">Buyer (Bill to)</div>
+      <div style="font-size:12px;line-height:1.5">
+        ${billTo.name ? `<div>${billTo.name}</div>` : ''}
+        ${billTo.mailingName ? `<div>${billTo.mailingName}</div>` : ''}
+        ${billTo.address ? `<div>${billTo.address}</div>` : ''}
+        ${billTo.city ? `<div>${billTo.city}</div>` : ''}
+        ${billTo.state ? `<div>${billTo.state}</div>` : ''}
+        ${billTo.country ? `<div>${billTo.country}</div>` : ''}
+        ${billTo.gst ? `<div>GSTIN: ${billTo.gst}</div>` : ''}
+        ${billTo.gstRegType ? `<div>GST Registration Type: ${billTo.gstRegType}</div>` : ''}
+      </div>
+    </div>
+    <div>
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#555;margin-bottom:4px">Consignee (Ship to)</div>
+      <div style="font-size:12px;line-height:1.5">
+        ${shipTo.name ? `<div>${shipTo.name}</div>` : ''}
+        ${shipTo.mailingName ? `<div>${shipTo.mailingName}</div>` : ''}
+        ${shipTo.address ? `<div>${shipTo.address}</div>` : ''}
+        ${shipTo.city ? `<div>${shipTo.city}</div>` : ''}
+        ${shipTo.state ? `<div>${shipTo.state}</div>` : ''}
+        ${shipTo.country ? `<div>${shipTo.country}</div>` : ''}
+        ${shipTo.gst ? `<div>GSTIN: ${shipTo.gst}</div>` : ''}
+      </div>
+    </div>
+  </div>
 </div>
+
 <div class="items-wrap">
 ${items.length>0?`<table class="it"><thead><tr><th style="width:36px">S.NO.</th><th>ITEMS</th><th>HSN</th><th class="r">QTY.</th><th class="r">RATE</th><th class="r">AMOUNT</th></tr></thead><tbody>
 ${itemRowsHtml}
@@ -897,7 +966,7 @@ ${items.map(ie=>{const a=Math.abs(ie.amount||0);const cg=subtotal>0?(cgstAmt/sub
 <div class="aw"><strong>Total Amount in Words:</strong> ${amtWords}</div>
 <div class="fg">
   <div class="fc" style="grid-column:span 2"><div class="fl">Terms &amp; Conditions</div><div class="fv">1. Goods once sold will not be taken back or exchanged<br/>2. All disputes are subject to Bangalore jurisdiction only<br/>3. This is a computer generated invoice &amp; doesn't require any signature</div></div>
-  <div class="fc sig"><div class="fl">For Sri Chakra Industries</div>${v.narration?`<div class="fv" style="font-size:10px;color:#555;margin-bottom:4px"><em>Narr: ${v.narration}</em></div>`:''}<div class="sline">Authorised Signatory</div></div>
+  <div class="fc sig"><div class="fl">For Sri Chakra Industries</div>${v.narration?`<div class="fv" style="font-size:10px;color:#555;margin-bottom:4px"><em>Narr: ${v.narration}</em></div>`:''}<div style="text-align:right;"><img src="${SIGNATURE_B64}" alt="Signature" style="height:60px;margin-bottom:5px;"/></div><div class="sline">Authorised Signatory</div></div>
 </div>
 </div>
 ${forDownload?'<script>window.onload=()=>{window.print();}<\/script>':''}
@@ -920,6 +989,28 @@ function VoucherDetailView({ voucher: v, onClose, onPrint, onDownload }) {
   };
 
   const items = v.inventoryEntries || [];
+
+  // Bill To / Ship To details from voucher
+  const billTo = {
+    name: v.billToName || v.partyName,
+    mailingName: v.billToMailingName,
+    address: v.billToAddress,
+    city: v.billToCity,
+    state: v.billToState,
+    country: v.billToCountry,
+    gst: v.billToGST || v.partyGstin,
+    gstRegType: v.billToGstRegType
+  };
+  
+  const shipTo = {
+    name: v.shipToName || billTo.name,
+    mailingName: v.shipToMailingName,
+    address: v.shipToAddress,
+    city: v.shipToCity,
+    state: v.shipToState,
+    country: v.shipToCountry,
+    gst: v.shipToGST
+  };
 
   // Split ledger entries: party ledger (isDeemed=true) vs tax/charge lines
   const allLedgers = v.ledgerEntries || [];
@@ -980,28 +1071,68 @@ function VoucherDetailView({ voucher: v, onClose, onPrint, onDownload }) {
         </div>
       </div>
 
-      {/* ── Party + Ledger info (mirrors Tally header) ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-        <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', borderLeft: `3px solid ${vTypeColor}` }}>
-          <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>
-            Party A/c Name
-          </div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{v.partyName || '—'}</div>
-          {partyLedger && (
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
-              Amt: {fmtCurr(Math.abs(partyLedger.amount))}
-            </div>
-          )}
+      {/* ── Party Details (like Tally) ── */}
+      <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0', marginBottom: 14 }}>
+        <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 8 }}>
+          Party Details
         </div>
-        <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', borderLeft: '3px solid #e2e8f0' }}>
-          <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>
-            Sales / Purchase Ledger
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div>
+            <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+              Buyer (Bill to)
+            </div>
+            <div style={{ fontSize: 12, lineHeight: 1.5, color: '#333' }}>
+              {billTo.name && <div style={{ fontWeight: 600 }}>{billTo.name}</div>}
+              {billTo.mailingName && <div>{billTo.mailingName}</div>}
+              {billTo.address && <div>{billTo.address}</div>}
+              {billTo.city && <div>{billTo.city}</div>}
+              {billTo.state && <div>{billTo.state}</div>}
+              {billTo.country && <div>{billTo.country}</div>}
+              {billTo.gst && <div style={{ fontFamily: 'monospace', fontSize: 11 }}>GSTIN: {billTo.gst}</div>}
+              {billTo.gstRegType && <div>GST Registration Type: {billTo.gstRegType}</div>}
+            </div>
           </div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
-            {salesLedger?.ledgerName || allLedgers.find(le => !le.isDeemed && !/cgst|sgst|igst|cess|freight|round/i.test(le.ledgerName || ''))?.ledgerName || '—'}
+          <div>
+            <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+              Consignee (Ship to)
+            </div>
+            <div style={{ fontSize: 12, lineHeight: 1.5, color: '#333' }}>
+              {shipTo.name && <div style={{ fontWeight: 600 }}>{shipTo.name}</div>}
+              {shipTo.mailingName && <div>{shipTo.mailingName}</div>}
+              {shipTo.address && <div>{shipTo.address}</div>}
+              {shipTo.city && <div>{shipTo.city}</div>}
+              {shipTo.state && <div>{shipTo.state}</div>}
+              {shipTo.country && <div>{shipTo.country}</div>}
+              {shipTo.gst && <div style={{ fontFamily: 'monospace', fontSize: 11 }}>GSTIN: {shipTo.gst}</div>}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* ── Additional Invoice Fields ── */}
+      { (v.irn || v.ackNo || v.deliveryNote || v.referenceNo || v.buyersOrderNo || v.dispatchDocNo || v.dispatchedThrough || v.destination || v.billOfLadingNo || v.motorVehicleNo || v.termsOfDelivery) && (
+        <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0', marginBottom: 14 }}>
+          <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 8 }}>
+            Invoice Details
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {v.irn && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>IRN</div><div style={{ fontSize: 12, color: '#333', wordBreak: 'break-all' }}>{v.irn}</div></div>}
+            {v.ackNo && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Ack No</div><div style={{ fontSize: 12, color: '#333' }}>{v.ackNo}</div></div>}
+            {v.ackDate && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Ack Date</div><div style={{ fontSize: 12, color: '#333' }}>{fmtDate(v.ackDate)}</div></div>}
+            {v.deliveryNote && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Delivery Note</div><div style={{ fontSize: 12, color: '#333' }}>{v.deliveryNote}</div></div>}
+            {v.referenceNo && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Reference No</div><div style={{ fontSize: 12, color: '#333' }}>{v.referenceNo}{v.referenceDate ? ` · ${fmtDate(v.referenceDate)}` : ''}</div></div>}
+            {v.buyersOrderNo && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Buyer's Order No</div><div style={{ fontSize: 12, color: '#333' }}>{v.buyersOrderNo}{v.buyersOrderDate ? ` · ${fmtDate(v.buyersOrderDate)}` : ''}</div></div>}
+            {v.dispatchDocNo && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Dispatch Doc No</div><div style={{ fontSize: 12, color: '#333' }}>{v.dispatchDocNo}</div></div>}
+            {v.dispatchedThrough && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Dispatched Through</div><div style={{ fontSize: 12, color: '#333' }}>{v.dispatchedThrough}</div></div>}
+            {v.destination && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Destination</div><div style={{ fontSize: 12, color: '#333' }}>{v.destination}</div></div>}
+            {v.billOfLadingNo && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Bill of Lading/LR No</div><div style={{ fontSize: 12, color: '#333' }}>{v.billOfLadingNo}</div></div>}
+            {v.motorVehicleNo && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Motor Vehicle No</div><div style={{ fontSize: 12, color: '#333' }}>{v.motorVehicleNo}</div></div>}
+            {v.termsOfDelivery && <div style={{ gridColumn: '1 / -1' }}><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Terms of Delivery</div><div style={{ fontSize: 12, color: '#333' }}>{v.termsOfDelivery}</div></div>}
+          </div>
+        </div>
+      )}
+
+
 
       {/* ── Items table (exact Tally column layout) ── */}
       {items.length > 0 && (
@@ -1042,7 +1173,22 @@ function VoucherDetailView({ voucher: v, onClose, onPrint, onDownload }) {
               {/* ── Tax / charge lines ── */}
               {taxLines.map((le, idx) => {
                 const isPercent = Math.abs(le.amount) < subtotal * 0.5 && subtotal > 0;
-                const pct = isPercent ? ((Math.abs(le.amount) / subtotal) * 100).toFixed(0) : null;
+                const formatTaxRate = (rate) => {
+                  // Handle floating-point precision issues, check if it's very close to an integer
+                  const epsilon = 1e-10;
+                  const roundedRate = Math.round(rate * 100) / 100; // Round to 2 decimal places first
+                  if (Math.abs(roundedRate - Math.round(roundedRate)) < epsilon) {
+                    return Math.round(roundedRate).toString();
+                  }
+                  // For non-integers, find the shortest representation
+                  // Try to remove trailing zeros after decimal
+                  const fixed2 = roundedRate.toFixed(2);
+                  const fixed1 = roundedRate.toFixed(1);
+                  if (Math.abs(parseFloat(fixed1) - roundedRate) < epsilon) return fixed1;
+                  return fixed2;
+                };
+                const pctNum = isPercent ? ((Math.abs(le.amount) / subtotal) * 100) : null;
+                const pct = pctNum !== null ? formatTaxRate(pctNum) : null;
                 return (
                   <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td colSpan={3} style={{ padding: '7px 12px', textAlign: 'right', fontSize: 12, color: '#64748b' }}>
@@ -1222,12 +1368,72 @@ function TallyLedgerTab() {
     win.document.write(buildVoucherHtml(v));
     win.document.close(); win.focus(); win.print();
   };
-  const handleDownloadVoucher = (v) => {
-    const win = window.open('', '_blank', 'width=800,height=600');
-    if (!win) return;
-    win.document.write(buildVoucherHtml(v, true));
-    win.document.close(); win.focus();
-    setTimeout(() => win.print(), 500);
+  const handleDownloadVoucher = async (v) => {
+    try {
+      toast('Generating PDF...', 'info');
+      // Create a temporary div to render the HTML
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = buildVoucherHtml(v);
+      tempDiv.style.position = 'absolute';
+      tempDiv.style.left = '-9999px';
+      tempDiv.style.top = '0';
+      document.body.appendChild(tempDiv);
+
+      // Find the .page element inside tempDiv
+      const pageElement = tempDiv.querySelector('.page');
+      if (!pageElement) {
+        throw new Error('Could not find page element');
+      }
+
+      // Capture the canvas with html2canvas
+      const canvas = await html2canvas(pageElement, {
+        scale: 2, // Higher scale for better quality
+        useCORS: true,
+        logging: false,
+      });
+
+      // Create PDF with jsPDF
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 297; // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+      // Add first page
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      // Add additional pages if needed
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      // Download the PDF
+      const fileName = `${v.voucherType || 'Voucher'}_${v.voucherNumber || 'document'}_${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(fileName);
+      toast('PDF downloaded successfully!', 'success');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast('Failed to generate PDF. Please try printing instead.', 'error');
+      // Fallback to original print method
+      const win = window.open('', '_blank', 'width=800,height=600');
+      if (win) {
+        win.document.write(buildVoucherHtml(v, true));
+        win.document.close();
+        win.focus();
+        setTimeout(() => win.print(), 500);
+      }
+    } finally {
+      // Clean up the temporary div
+      const tempDivs = document.querySelectorAll('div[style*="left: -9999px"]');
+      tempDivs.forEach(div => div.remove());
+    }
   };
 
   const handleDownload = async () => {

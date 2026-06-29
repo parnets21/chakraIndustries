@@ -7,6 +7,7 @@ import {
 } from 'react-icons/md';
 import Modal from '../../components/common/Modal';
 import { CHAKRA_LOGO_B64 } from '../../assets/chakraLogoB64';
+import { SIGNATURE_B64 } from '../../assets/signatureB64.js';
 
 const STATUS_COLORS = {
   Draft:     { bg: '#f1f5f9', color: '#64748b' },
@@ -336,6 +337,13 @@ table.hsn td{padding:4px 6px;font-size:9.5px;border-bottom:1px solid #f1f5f9;whi
   </div>
 </div>
 ${inv.notes?`<div style="border:1px solid #ccc;border-top:none;padding:10px 16px;font-size:11px;color:#475569"><strong>Notes:</strong> ${inv.notes}</div>`:''}
+<div style="margin-top: 40px; display: flex; justify-content: flex-end; padding: 0 20px;">
+  <div style="text-align: right;">
+    <div style="font-weight: bold; margin-bottom: 5px;">For Sri Chakra Industries</div>
+    <img src="${SIGNATURE_B64}" alt="Signature" style="height: 60px; margin-bottom: 5px;"/>
+    <div style="border-top: 1px solid #333; padding-top: 5px; font-size: 12px;">Authorised Signatory</div>
+  </div>
+</div>
 <div class="footer">This is a computer-generated invoice. All disputes subject to Bangalore jurisdiction only.</div>
 </div></body></html>`;
 }

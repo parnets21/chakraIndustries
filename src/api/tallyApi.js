@@ -130,6 +130,12 @@ export const tallyApi = {
   getSalesInvoices: (p = {}) =>
     fetch(`${BASE}/tally/sales-invoices${q(p)}`,  { headers: authHeaders() }).then(handle),
 
+  // ── Connector credentials ──────────────────────────────────────────────────
+  generateConnectorCredentials: () =>
+    fetch(`${BASE}/tally/connectors/generate-credentials`, { method: 'POST', headers: authHeaders(), body: '{}' }).then(handle),
+  getConnectorStatus: () =>
+    fetch(`${BASE}/tally/connectors/status`, { headers: authHeaders() }).then(handle),
+
   // ── Full diagnostics (config + connectivity + DB counts + recent logs) ─────
   getDiagnostics:   ()       => fetch(`${BASE}/tally/diagnostics`,               { headers: authHeaders() }).then(handle),
 };

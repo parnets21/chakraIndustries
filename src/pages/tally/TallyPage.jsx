@@ -202,6 +202,7 @@ export default function TallyPage({ initialTab = 0 }) {
     autoSync: true, syncInterval: 'Every 15 minutes',
     syncPrefs: { masterData: true, purchaseVouchers: true, salesVouchers: true, paymentVouchers: true, receiptVouchers: true, journalVouchers: false },
   });
+  const [connectorStatus, setConnectorStatus] = useState(null);
 
   const reload = useCallback(async () => {
     try { const r = await tallyApi.getSyncStats();    setStats(r.data || {}); } catch (_) {}
@@ -217,6 +218,13 @@ export default function TallyPage({ initialTab = 0 }) {
     } catch (_) {}
   }, []);
 
+  const loadConnectorStatus = useCallback(async () => {
+    try {
+      const r = await tallyApi.getConnectorStatus();
+      setConnectorStatus(r.connectors || null);
+    } catch (_) {}
+  }, []);
+
   const loadLogs = useCallback(async () => {
     setLoading(true);
     try {
@@ -228,7 +236,7 @@ export default function TallyPage({ initialTab = 0 }) {
     } catch (_) {} finally { setLoading(false); }
   }, [logTypeFilter, logStatusFilter]);
 
-  useEffect(() => { reload(); loadConfig(); }, [reload, loadConfig]);
+  useEffect(() => { reload(); loadConfig(); loadConnectorStatus(); }, [reload, loadConfig, loadConnectorStatus]);
   useEffect(() => { if (activeTab === 3) loadLogs(); }, [activeTab, loadLogs]);
 
   // ── request with confirm ──────────────────────────────────────────────────
@@ -312,6 +320,15 @@ export default function TallyPage({ initialTab = 0 }) {
   const handleSaveConfig = async () => {
     try { await tallyApi.saveConfig(config); toast('Configuration saved'); }
     catch (e) { toast(e.message || 'Save failed', 'error'); }
+  };
+
+  const handleGenerateCredentials = async () => {
+    try {
+      await tallyApi.generateConnectorCredentials();
+      await loadConfig();
+      await loadConnectorStatus();
+      toast('Connector credentials generated', 'success');
+    } catch (e) { toast(e.message || 'Failed to generate credentials', 'error'); }
   };
 
   const TABS = [
@@ -943,6 +960,37 @@ export default function TallyPage({ initialTab = 0 }) {
                 </table>
               </div>
             )}
+
+            {/* ── Connector credentials ── */}
+            <div style={{ marginTop: 20, paddingTop: 18, borderTop: '1.5px solid #e2e8f0' }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#1e293b', marginBottom: 10 }}>Connector Mode</div>
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#1e3a8a', lineHeight: 1.6 }}>
+                Generate credentials to allow the <strong>Srichakra Connector</strong> (Electron desktop app) to connect. Once generated, <code>useConnector</code> is enabled and imports are routed through the connector instead of direct HTTP.
+              </div>
+              <button
+                onClick={handleGenerateCredentials}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 18px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 14 }}>
+                🔑 Generate Connector Credentials
+              </button>
+
+              <div style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '12px 14px', fontSize: 12 }}>
+                <div style={{ fontWeight: 700, color: '#475569', marginBottom: 8 }}>Connector Status</div>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  {[
+                    ['useConnector', config.useConnector ? '✅ Enabled' : '— Disabled'],
+                    ['Connector ID',  config.connectorId  || '—'],
+                    ['Last Seen',     connectorStatus && Array.isArray(connectorStatus) && connectorStatus.length > 0
+                      ? (connectorStatus[0].lastSeen ? new Date(connectorStatus[0].lastSeen).toLocaleString('en-IN') : '—')
+                      : '—'],
+                  ].map(([k, v]) => (
+                    <tr key={k} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '4px 8px 4px 0', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap', width: 120, verticalAlign: 'top' }}>{k}</td>
+                      <td style={{ padding: '4px 0', fontFamily: 'monospace', color: '#1e293b', wordBreak: 'break-all' }}>{v}</td>
+                    </tr>
+                  ))}
+                </table>
+              </div>
+            </div>
           </div>
 
           {/* Auto-import */}

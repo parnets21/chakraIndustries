@@ -122,9 +122,20 @@ function InvoiceDetailModal({ invoice, isOpen, onClose }) {
                     || '';
 
     const pRawShipName = (inv.shipToName || '').trim();
-    const pRawShipAddr = (inv.shipToAddress || '').trim();
+    // Tally sometimes puts the party/ledger name in the address field instead of a real address.
+    // Treat shipToAddress as blank if it matches the ship-to name or bill-to name.
+    const pRawShipAddrRaw = (inv.shipToAddress || '').trim();
+    const pRawShipAddr = (
+      norm(pRawShipAddrRaw) === norm(pRawShipName || pBillToName) ||
+      norm(pRawShipAddrRaw) === norm(pBillToName)
+    ) ? '' : pRawShipAddrRaw;
     const pRawShipGST  = cleanGstin(inv.shipToGST || '');
-    const pRawShipMailingName = (inv.shipToMailingName || '').trim();
+    const pRawShipMailingNameRaw = (inv.shipToMailingName || '').trim();
+    // Discard mailing name if it's the party name repeated (Tally artefact)
+    const pRawShipMailingName = (
+      norm(pRawShipMailingNameRaw) === norm(pRawShipName || pBillToName) ||
+      norm(pRawShipMailingNameRaw) === norm(pBillToName)
+    ) ? '' : pRawShipMailingNameRaw;
 
     // Detect truly-same ship-to
     const pShipNameSame = !pRawShipName || norm(pRawShipName) === norm(pBillToName);
@@ -347,11 +358,22 @@ ${inv.narration ? `<div style="font-size:11px;color:#6b7280;margin-bottom:10px">
 
           // ── Resolve Ship-To fields ─────────────────────────────────────
           const rawShipName = (invoice.shipToName || '').trim();
-          const rawShipAddr = (invoice.shipToAddress || '').trim();
+          // Tally sometimes puts the party/ledger name in the address field instead of a real address.
+          // Treat shipToAddress as blank if it equals the ship-to name or the bill-to name.
+          const rawShipAddrRaw = (invoice.shipToAddress || '').trim();
+          const rawShipAddr = (
+            norm(rawShipAddrRaw) === norm(rawShipName || billToName) ||
+            norm(rawShipAddrRaw) === norm(billToName)
+          ) ? '' : rawShipAddrRaw;
           const rawShipGST  = cleanGstin(invoice.shipToGST || '');
 
           // Mailing name: only use if different from both the ship name AND bill name
-          const rawShipMailingName = (invoice.shipToMailingName || '').trim();
+          const rawShipMailingNameRaw = (invoice.shipToMailingName || '').trim();
+          // Also discard mailing name if it's identical to ship name or bill name (Tally artefact)
+          const rawShipMailingName = (
+            norm(rawShipMailingNameRaw) === norm(rawShipName || billToName) ||
+            norm(rawShipMailingNameRaw) === norm(billToName)
+          ) ? '' : rawShipMailingNameRaw;
 
           // Determine if ship-to is truly identical to bill-to:
           // name matches (or ship name is blank), address matches (or ship addr is blank),

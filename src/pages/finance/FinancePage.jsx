@@ -829,15 +829,26 @@ function buildVoucherHtml(v, forDownload = false) {
   // If Tally has no real Ship To data, fall back to Bill To details fully.
   // NOTE: The sync service stores billToName as shipToName when there's no real
   // ship-to, so we must check address/city/state/GST (not name) for "real" ship-to.
-  const hasRealShipTo = v.shipToAddress || v.shipToCity || v.shipToState || v.shipToGST;
+  // Also: Tally sometimes puts the party name in shipToAddress — treat that as blank.
+  const _shipAddrRaw1 = (v.shipToAddress || '').trim();
+  const _cleanShipAddr1 = (
+    _shipAddrRaw1.toLowerCase() === (v.shipToName || '').trim().toLowerCase() ||
+    _shipAddrRaw1.toLowerCase() === (v.billToName || v.partyName || '').trim().toLowerCase()
+  ) ? '' : _shipAddrRaw1;
+  const _shipMailRaw1 = (v.shipToMailingName || '').trim();
+  const _cleanShipMail1 = (
+    _shipMailRaw1.toLowerCase() === (v.shipToName || '').trim().toLowerCase() ||
+    _shipMailRaw1.toLowerCase() === (v.billToName || v.partyName || '').trim().toLowerCase()
+  ) ? '' : _shipMailRaw1;
+  const hasRealShipTo = _cleanShipAddr1 || v.shipToCity || v.shipToState || v.shipToGST;
   const shipTo = {
     name:        v.shipToName || billTo.name,
-    mailingName: hasRealShipTo ? v.shipToMailingName : billTo.mailingName,
-    address:     hasRealShipTo ? v.shipToAddress     : billTo.address,
-    city:        hasRealShipTo ? v.shipToCity        : billTo.city,
-    state:       hasRealShipTo ? v.shipToState       : billTo.state,
-    country:     hasRealShipTo ? v.shipToCountry     : billTo.country,
-    gst:         hasRealShipTo ? v.shipToGST         : billTo.gst,
+    mailingName: hasRealShipTo ? _cleanShipMail1  : billTo.mailingName,
+    address:     hasRealShipTo ? _cleanShipAddr1  : billTo.address,
+    city:        hasRealShipTo ? v.shipToCity     : billTo.city,
+    state:       hasRealShipTo ? v.shipToState    : billTo.state,
+    country:     hasRealShipTo ? v.shipToCountry  : billTo.country,
+    gst:         hasRealShipTo ? v.shipToGST      : billTo.gst,
   };
 
   // Amount in words
@@ -1009,15 +1020,26 @@ function VoucherDetailView({ voucher: v, onClose, onPrint, onDownload }) {
   // If Tally has no real Ship To data, fall back to Bill To details fully.
   // NOTE: The sync service stores billToName as shipToName when there's no real
   // ship-to, so we must check address/city/state/GST (not name) for "real" ship-to.
-  const hasRealShipTo = v.shipToAddress || v.shipToCity || v.shipToState || v.shipToGST;
+  // Also: Tally sometimes puts the party name in shipToAddress — treat that as blank.
+  const _shipAddrRaw2 = (v.shipToAddress || '').trim();
+  const _cleanShipAddr2 = (
+    _shipAddrRaw2.toLowerCase() === (v.shipToName || '').trim().toLowerCase() ||
+    _shipAddrRaw2.toLowerCase() === (v.billToName || v.partyName || '').trim().toLowerCase()
+  ) ? '' : _shipAddrRaw2;
+  const _shipMailRaw2 = (v.shipToMailingName || '').trim();
+  const _cleanShipMail2 = (
+    _shipMailRaw2.toLowerCase() === (v.shipToName || '').trim().toLowerCase() ||
+    _shipMailRaw2.toLowerCase() === (v.billToName || v.partyName || '').trim().toLowerCase()
+  ) ? '' : _shipMailRaw2;
+  const hasRealShipTo = _cleanShipAddr2 || v.shipToCity || v.shipToState || v.shipToGST;
   const shipTo = {
     name:        v.shipToName || billTo.name,
-    mailingName: hasRealShipTo ? v.shipToMailingName : billTo.mailingName,
-    address:     hasRealShipTo ? v.shipToAddress     : billTo.address,
-    city:        hasRealShipTo ? v.shipToCity        : billTo.city,
-    state:       hasRealShipTo ? v.shipToState       : billTo.state,
-    country:     hasRealShipTo ? v.shipToCountry     : billTo.country,
-    gst:         hasRealShipTo ? v.shipToGST         : billTo.gst,
+    mailingName: hasRealShipTo ? _cleanShipMail2  : billTo.mailingName,
+    address:     hasRealShipTo ? _cleanShipAddr2  : billTo.address,
+    city:        hasRealShipTo ? v.shipToCity     : billTo.city,
+    state:       hasRealShipTo ? v.shipToState    : billTo.state,
+    country:     hasRealShipTo ? v.shipToCountry  : billTo.country,
+    gst:         hasRealShipTo ? v.shipToGST      : billTo.gst,
   };
 
   // Split ledger entries: party ledger (isDeemed=true) vs tax/charge lines

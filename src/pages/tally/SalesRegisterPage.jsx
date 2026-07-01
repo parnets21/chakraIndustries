@@ -148,7 +148,7 @@ function InvoiceDetailModal({ invoice, isOpen, onClose }) {
             <div>
               <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
                 <div style="font-size: 12px; color: #374151;">Buyer (Bill to)</div>
-                <div style="font-size: 12px; color: #111827; font-weight: 600;">:</div>
+                <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToName || invoice.partyName || '—'}</div>
               </div>
               <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
                 <div style="font-size: 12px; color: #374151;">Mailing Name</div>
@@ -188,11 +188,11 @@ function InvoiceDetailModal({ invoice, isOpen, onClose }) {
             <div>
               <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
                 <div style="font-size: 12px; color: #374151;">Consignee (Ship to)</div>
-                <div style="font-size: 12px; color: #111827; font-weight: 600;">:</div>
+                <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToName || invoice.shipToMailingName || '—'}</div>
               </div>
               <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
                 <div style="font-size: 12px; color: #374151;">Mailing Name</div>
-                <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToMailingName || invoice.shipToName || invoice.partyName || '—'}</div>
+                <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToMailingName || invoice.shipToName || '—'}</div>
               </div>
               <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
                 <div style="font-size: 12px; color: #374151;">Address</div>
@@ -362,7 +362,7 @@ function InvoiceDetailModal({ invoice, isOpen, onClose }) {
               <div>
                 <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
                   <div style="font-size: 12px; color: #374151;">Buyer (Bill to)</div>
-                  <div style="font-size: 12px; color: #111827; font-weight: 600;">:</div>
+                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToName || invoice.partyName || '—'}</div>
                 </div>
                 <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
                   <div style="font-size: 12px; color: #374151;">Mailing Name</div>
@@ -402,11 +402,11 @@ function InvoiceDetailModal({ invoice, isOpen, onClose }) {
               <div>
                 <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
                   <div style="font-size: 12px; color: #374151;">Consignee (Ship to)</div>
-                  <div style="font-size: 12px; color: #111827; font-weight: 600;">:</div>
+                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToName || invoice.shipToMailingName || '—'}</div>
                 </div>
                 <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
                   <div style="font-size: 12px; color: #374151;">Mailing Name</div>
-                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToMailingName || invoice.shipToName || invoice.partyName || '—'}</div>
+                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToMailingName || invoice.shipToName || '—'}</div>
                 </div>
                 <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
                   <div style="font-size: 12px; color: #374151;">Address</div>
@@ -617,7 +617,7 @@ function InvoiceDetailModal({ invoice, isOpen, onClose }) {
             <div>
               <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
                 <div style={{ fontSize: 12, color: '#374151' }}>Buyer (Bill to)</div>
-                <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>:</div>
+                <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {invoice.billToName || invoice.partyName || '—'}</div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
                 <div style={{ fontSize: 12, color: '#374151' }}>Mailing Name</div>
@@ -660,11 +660,11 @@ function InvoiceDetailModal({ invoice, isOpen, onClose }) {
             <div>
               <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
                 <div style={{ fontSize: 12, color: '#374151' }}>Consignee (Ship to)</div>
-                <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>:</div>
+                <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {invoice.shipToName || invoice.shipToMailingName || '—'}</div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
                 <div style={{ fontSize: 12, color: '#374151' }}>Mailing Name</div>
-                <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {invoice.shipToMailingName || invoice.shipToName || invoice.partyName || '—'}</div>
+                <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {invoice.shipToMailingName || invoice.shipToName || '—'}</div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
                 <div style={{ fontSize: 12, color: '#374151' }}>Address</div>

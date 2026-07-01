@@ -1,4 +1,4 @@
-/**
+﻿/**
  * SalesRegisterPage.jsx
  *
  * Dedicated Sales Register import + viewer for Sri Chakra Industries.
@@ -13,6 +13,7 @@ import { tallyApi } from '../../api/tallyApi.js';
 import { toast } from '../../components/common/Toast.jsx';
 import Pagination from '../../components/common/Pagination.jsx';
 import { SIGNATURE_B64 } from '../../assets/signatureB64.js';
+import { CHAKRA_LOGO_B64 } from '../../assets/chakraLogoB64.js';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
@@ -88,43 +89,68 @@ function InvoiceDetailModal({ invoice, isOpen, onClose }) {
   if (!isOpen || !invoice) return null;
 
   const handlePrint = () => {
-    const printWindow = window.open('', '', 'width=800,height=600');
-    printWindow.document.write(`
-      <!DOCTYPE html>
+    const printWindow = window.open('', '', 'width=900,height=700');
+    printWindow.document.write(buildInvoiceHtml(invoice));
+    printWindow.document.close();
+    printWindow.onload = () => printWindow.print();
+    setTimeout(() => printWindow.print(), 800);
+  };
+  // ── Build shared invoice HTML (used by both Print and PDF) ─────────────────
       <html>
       <head>
       <title>Invoice ${invoice.invoiceNo || invoice.voucherNumber}</title>
       <style>
-        body { font-family: Arial, sans-serif; margin: 20px; font-size: 12px; }
-        .invoice-header { text-align: center; margin-bottom: 24px; }
-        .invoice-header h2 { margin: 0; color: #1f2937; font-size: 22px; }
-        .invoice-header p { margin: 4px 0 0; color: #64748b; }
-        .invoice-title-row { display: flex; justify-content: space-between; margin-bottom: 20px; }
-        .invoice-title { font-size: 18px; font-weight: bold; }
-        .invoice-basic { text-align: right; }
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-        .info-card { padding: 12px; background: #f8fafc; border-radius: 6px; }
-        .meta-label { font-weight: bold; color: #64748b; font-size: 10px; text-transform: uppercase; margin-bottom: 4px; }
+        * { -webkit-print-color-adjust: exact !important; color-adjust: exact !important; print-color-adjust: exact !important; }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; font-size: 12px; }
+        .invoice-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 2px solid #16a34a; padding-bottom: 12px; }
+        .invoice-header .logo-wrap { flex: 0 0 auto; }
+        .invoice-header .logo-wrap img { height: 70px; width: auto; display: block; }
+        .invoice-header .company-info { flex: 1; text-align: center; }
+        .invoice-header .company-info h2 { margin: 0 0 4px; color: #1f2937; font-size: 20px; }
+        .invoice-header .company-info p { margin: 2px 0; color: #4b5563; font-size: 11px; }
+        .invoice-title-row { display: flex; justify-content: space-between; margin-bottom: 16px; align-items: flex-start; }
+        .invoice-title { font-size: 16px; font-weight: bold; color: #111827; border: 1px solid #d1d5db; padding: 4px 12px; border-radius: 4px; }
+        .invoice-basic { text-align: right; font-size: 12px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+        .section-title { text-align: center; font-size: 13px; font-weight: 700; color: #111827; text-decoration: underline; margin-bottom: 8px; }
+        .info-card { padding: 10px 12px; background: #f8fafc; border-radius: 6px; border: 1px solid #e5e7eb; }
+        .meta-label { font-weight: bold; color: #64748b; font-size: 10px; text-transform: uppercase; margin-bottom: 2px; }
         .meta-value { color: #111827; }
-        .items-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-        .items-table th, .items-table td { border: 1px solid #d1d5db; padding: 8px; text-align: left; }
-        .items-table th { background-color: #f3f4f6; font-weight: bold; }
+        .items-table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+        .items-table th, .items-table td { border: 1px solid #d1d5db; padding: 7px 10px; text-align: left; }
+        .items-table th { background-color: #f3f4f6; font-weight: bold; font-size: 11px; text-transform: uppercase; }
         .text-right { text-align: right; }
-        .total-section { text-align: right; margin-top: 20px; }
-        .total-section div { margin: 6px 0; }
-        .sign-section { margin-top: 40px; display: flex; justify-content: flex-end; }
+        .total-section { text-align: right; margin-top: 16px; }
+        .total-section div { margin: 4px 0; }
+        .grand-total { font-weight: bold; font-size: 16px; color: #16a34a; border-top: 2px solid #16a34a; padding-top: 6px; margin-top: 6px; }
+        .sign-section { margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-end; }
+        .sign-block { text-align: center; }
+        .sign-block img { display: block; margin: 0 auto 4px; }
+        .sign-label { border-top: 1px solid #374151; padding-top: 4px; font-size: 11px; color: #374151; margin-top: 4px; }
+        @media print {
+          * { -webkit-print-color-adjust: exact !important; color-adjust: exact !important; print-color-adjust: exact !important; }
+          body { margin: 0; padding: 15px; }
+          img { display: block !important; visibility: visible !important; }
+        }
       </style>
       </head>
       <body>
+        <!-- Header with Logo -->
         <div class="invoice-header">
-          <h2>SRI CHAKRA INDUSTRIES</h2>
-          <p>#13/14, Azeez Sait Industrial Estate, Mysore Road, Nayandahalli, Bangalore - 560039</p>
-          <p>GSTIN: 29ABWFS0002M1ZR</p>
+          <div class="logo-wrap">
+            <img src="${CHAKRA_LOGO_B64}" alt="Sri Chakra Industries" style="height:70px;width:auto;" />
+          </div>
+          <div class="company-info">
+            <h2>SRI CHAKRA INDUSTRIES</h2>
+            <p>#13/14, Azeez Sait Industrial Estate, Mysore Road, Nayandahalli, Bangalore - 560039</p>
+            <p>GSTIN: 29ABWFS0002M1ZR &nbsp;|&nbsp; Ph: +91-XXXXXXXXXX</p>
+          </div>
+          <div style="flex:0 0 80px"></div>
         </div>
         
         ${(invoice.irn || invoice.ackNo) ? `
-          <div class="info-card grid-2">
-            ${invoice.irn ? `<div><div class="meta-label">IRN</div><div class="meta-value">${invoice.irn}</div></div>` : ''}
+          <div class="info-card grid-2" style="margin-bottom:12px;">
+            ${invoice.irn ? `<div><div class="meta-label">IRN</div><div class="meta-value" style="font-size:10px;word-break:break-all;">${invoice.irn}</div></div>` : ''}
             ${invoice.ackNo ? `<div><div class="meta-label">Ack No</div><div class="meta-value">${invoice.ackNo}</div></div>` : ''}
             ${invoice.ackDate ? `<div><div class="meta-label">Ack Date</div><div class="meta-value">${fmtDate(invoice.ackDate)}</div></div>` : ''}
           </div>
@@ -133,406 +159,252 @@ function InvoiceDetailModal({ invoice, isOpen, onClose }) {
         <div class="invoice-title-row">
           <div class="invoice-title">TAX INVOICE</div>
           <div class="invoice-basic">
-            <div>Invoice No.: ${invoice.invoiceNo || invoice.voucherNumber}</div>
-            <div>Date: ${fmtDate(invoice.invoiceDate || invoice.voucherDate)}</div>
+            <div><strong>Invoice No.:</strong> ${invoice.invoiceNo || invoice.voucherNumber || '—'}</div>
+            <div><strong>Date:</strong> ${fmtDate(invoice.invoiceDate || invoice.voucherDate)}</div>
           </div>
         </div>
         
         <!-- Party Details -->
-        <div style="margin-bottom: 20px;">
-          <div style="text-align: center; margin-bottom: 8px;">
-            <span style="font-size: 14px; font-weight: 700; color: #111827; text-decoration: underline;">Party Details</span>
-          </div>
+        <div style="margin-bottom:16px;">
+          <div class="section-title">Party Details</div>
           <div class="grid-2">
             <!-- Bill To -->
             <div>
-              <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                <div style="font-size: 12px; color: #374151;">Buyer (Bill to)</div>
-                <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToName || invoice.partyName || '—'}</div>
+              <div style="display:grid;grid-template-columns:140px 1fr;gap:6px;margin-bottom:4px;">
+                <div style="font-size:12px;color:#374151;font-weight:600;">Buyer (Bill to)</div>
+                <div style="font-size:12px;color:#111827;font-weight:700;">: ${invoice.billToName || invoice.partyName || '—'}</div>
               </div>
-              <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                <div style="font-size: 12px; color: #374151;">Mailing Name</div>
-                <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToMailingName || invoice.billToName || invoice.partyName || '—'}</div>
+              <div style="display:grid;grid-template-columns:140px 1fr;gap:6px;margin-bottom:4px;">
+                <div style="font-size:11px;color:#6b7280;">Mailing Name</div>
+                <div style="font-size:11px;color:#111827;">: ${invoice.billToMailingName || invoice.billToName || invoice.partyName || '—'}</div>
               </div>
-              <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                <div style="font-size: 12px; color: #374151;">Address</div>
-                <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToAddress ? invoice.billToAddress.replace(/\n/g, '<br/>') : '—'}</div>
+              <div style="display:grid;grid-template-columns:140px 1fr;gap:6px;margin-bottom:4px;">
+                <div style="font-size:11px;color:#6b7280;">Address</div>
+                <div style="font-size:11px;color:#111827;">: ${invoice.billToAddress ? invoice.billToAddress.replace(/\n/g,'<br/>') : '—'}</div>
               </div>
-              ${(invoice.billToCity || invoice.billToState || invoice.billToCountry) ? `
-                ${invoice.billToCity ? `
-                  <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px; padding-left: 148px;">
-                    <div style="font-size: 12px; color: #111827; font-weight: 600;">${invoice.billToCity}</div>
-                  </div>
-                ` : ''}
-                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                  <div style="font-size: 12px; color: #374151;">State</div>
-                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToState || '—'}</div>
-                </div>
-                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                  <div style="font-size: 12px; color: #374151;">Country</div>
-                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToCountry || '—'}</div>
-                </div>
-              ` : ''}
-              ${invoice.billToGstRegType ? `
-                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                  <div style="font-size: 12px; color: #374151;">GST Registration type</div>
-                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToGstRegType}</div>
-                </div>
-              ` : ''}
-              <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px;">
-                <div style="font-size: 12px; color: #374151;">GSTIN/UIN</div>
-                <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToGST || invoice.partyGstin || '—'}</div>
+              ${invoice.billToState ? `<div style="display:grid;grid-template-columns:140px 1fr;gap:6px;margin-bottom:4px;"><div style="font-size:11px;color:#6b7280;">State</div><div style="font-size:11px;color:#111827;">: ${invoice.billToState}</div></div>` : ''}
+              ${invoice.billToGstRegType ? `<div style="display:grid;grid-template-columns:140px 1fr;gap:6px;margin-bottom:4px;"><div style="font-size:11px;color:#6b7280;">GST Reg. Type</div><div style="font-size:11px;color:#111827;">: ${invoice.billToGstRegType}</div></div>` : ''}
+              <div style="display:grid;grid-template-columns:140px 1fr;gap:6px;">
+                <div style="font-size:11px;color:#6b7280;">GSTIN/UIN</div>
+                <div style="font-size:11px;color:#111827;">: ${invoice.billToGST || invoice.partyGstin || '—'}</div>
               </div>
             </div>
             <!-- Ship To -->
             <div>
-              <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                <div style="font-size: 12px; color: #374151;">Consignee (Ship to)</div>
-                <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToName || invoice.shipToMailingName || '—'}</div>
+              <div style="display:grid;grid-template-columns:140px 1fr;gap:6px;margin-bottom:4px;">
+                <div style="font-size:12px;color:#374151;font-weight:600;">Consignee (Ship to)</div>
+                <div style="font-size:12px;color:#111827;font-weight:700;">: ${invoice.shipToName || invoice.shipToMailingName || '—'}</div>
               </div>
-              <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                <div style="font-size: 12px; color: #374151;">Mailing Name</div>
-                <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToMailingName || invoice.shipToName || '—'}</div>
+              <div style="display:grid;grid-template-columns:140px 1fr;gap:6px;margin-bottom:4px;">
+                <div style="font-size:11px;color:#6b7280;">Mailing Name</div>
+                <div style="font-size:11px;color:#111827;">: ${invoice.shipToMailingName || invoice.shipToName || '—'}</div>
               </div>
-              <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                <div style="font-size: 12px; color: #374151;">Address</div>
-                <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToAddress ? invoice.shipToAddress.replace(/\n/g, '<br/>') : '—'}</div>
+              <div style="display:grid;grid-template-columns:140px 1fr;gap:6px;margin-bottom:4px;">
+                <div style="font-size:11px;color:#6b7280;">Address</div>
+                <div style="font-size:11px;color:#111827;">: ${invoice.shipToAddress ? invoice.shipToAddress.replace(/\n/g,'<br/>') : '—'}</div>
               </div>
-              ${(invoice.shipToCity || invoice.shipToState || invoice.shipToCountry) ? `
-                ${invoice.shipToCity ? `
-                  <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px; padding-left: 148px;">
-                    <div style="font-size: 12px; color: #111827; font-weight: 600;">${invoice.shipToCity}</div>
-                  </div>
-                ` : ''}
-                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                  <div style="font-size: 12px; color: #374151;">State</div>
-                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToState || '—'}</div>
-                </div>
-                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                  <div style="font-size: 12px; color: #374151;">Country</div>
-                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToCountry || '—'}</div>
-                </div>
-              ` : ''}
-              <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px;">
-                <div style="font-size: 12px; color: #374151;">GSTIN/UIN</div>
-                <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToGST || '—'}</div>
+              ${invoice.shipToState ? `<div style="display:grid;grid-template-columns:140px 1fr;gap:6px;margin-bottom:4px;"><div style="font-size:11px;color:#6b7280;">State</div><div style="font-size:11px;color:#111827;">: ${invoice.shipToState}</div></div>` : ''}
+              <div style="display:grid;grid-template-columns:140px 1fr;gap:6px;">
+                <div style="font-size:11px;color:#6b7280;">GSTIN/UIN</div>
+                <div style="font-size:11px;color:#111827;">: ${invoice.shipToGST || '—'}</div>
               </div>
             </div>
           </div>
-          ${invoice.placeOfSupply ? `
-            <div style="border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px;">
-              <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px;">
-                <div style="font-size: 12px; color: #374151;">Place of Supply</div>
-                <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.placeOfSupply}</div>
-              </div>
-            </div>
-          ` : ''}
+          ${invoice.placeOfSupply ? `<div style="border-top:1px solid #e5e7eb;padding-top:6px;margin-top:6px;display:grid;grid-template-columns:140px 1fr;gap:6px;"><div style="font-size:11px;color:#6b7280;">Place of Supply</div><div style="font-size:11px;color:#111827;font-weight:600;">: ${invoice.placeOfSupply}</div></div>` : ''}
         </div>
         
-        <div class="info-card grid-2">
+        ${(invoice.deliveryNote || invoice.referenceNo || invoice.buyersOrderNo || invoice.dispatchDocNo) ? `
+        <div class="info-card grid-2" style="margin-bottom:12px;">
           ${invoice.deliveryNote ? `<div><div class="meta-label">Delivery Note</div><div class="meta-value">${invoice.deliveryNote}</div></div>` : ''}
-          ${invoice.referenceNo ? `<div><div class="meta-label">Reference No. & Date</div><div class="meta-value">${invoice.referenceNo}${invoice.referenceDate ? ` · ${fmtDate(invoice.referenceDate)}` : ''}</div></div>` : ''}
-          ${invoice.buyersOrderNo ? `<div><div class="meta-label">Buyer's Order No.</div><div class="meta-value">${invoice.buyersOrderNo}${invoice.buyersOrderDate ? ` · ${fmtDate(invoice.buyersOrderDate)}` : ''}</div></div>` : ''}
+          ${invoice.referenceNo ? `<div><div class="meta-label">Reference No.</div><div class="meta-value">${invoice.referenceNo}${invoice.referenceDate ? ` · ${fmtDate(invoice.referenceDate)}` : ''}</div></div>` : ''}
+          ${invoice.buyersOrderNo ? `<div><div class="meta-label">Buyer's Order No.</div><div class="meta-value">${invoice.buyersOrderNo}</div></div>` : ''}
           ${invoice.dispatchDocNo ? `<div><div class="meta-label">Dispatch Doc No.</div><div class="meta-value">${invoice.dispatchDocNo}</div></div>` : ''}
           ${invoice.dispatchedThrough ? `<div><div class="meta-label">Dispatched Through</div><div class="meta-value">${invoice.dispatchedThrough}</div></div>` : ''}
           ${invoice.destination ? `<div><div class="meta-label">Destination</div><div class="meta-value">${invoice.destination}</div></div>` : ''}
-          ${invoice.billOfLadingNo ? `<div><div class="meta-label">Bill of Lading/LR-RR No.</div><div class="meta-value">${invoice.billOfLadingNo}</div></div>` : ''}
-          ${invoice.motorVehicleNo ? `<div><div class="meta-label">Motor Vehicle No.</div><div class="meta-value">${invoice.motorVehicleNo}</div></div>` : ''}
-          ${invoice.termsOfDelivery ? `<div style="grid-column: 1 / -1;"><div class="meta-label">Terms of Delivery</div><div class="meta-value">${invoice.termsOfDelivery}</div></div>` : ''}
         </div>
-        
-        ${invoice.narration ? `<div style="margin-bottom: 20px;"><div class="meta-label">Narration</div><div class="meta-value">${invoice.narration}</div></div>` : ''}
+        ` : ''}
 
         <table class="items-table">
         <thead>
           <tr>
-          <th>Item</th>
-          <th>Quantity</th>
-          <th>Rate</th>
-          <th>Tax %</th>
-          <th>Amount</th>
+            <th style="width:40px;">#</th>
+            <th>Name of Item</th>
+            <th class="text-right" style="width:100px;">Quantity</th>
+            <th class="text-right" style="width:120px;">Rate</th>
+            <th style="width:60px;">Per</th>
+            <th class="text-right" style="width:120px;">Amount</th>
           </tr>
         </thead>
         <tbody>
-          ${(invoice.inventoryEntries || invoice.items || []).map(item => {
-            const formattedRate = item.taxRate != null ? formatTaxRate(item.taxRate) : null;
-            return `
+          ${(invoice.inventoryEntries || invoice.items || []).map((item, i) => `
           <tr>
-            <td>${item.stockItemName || item.description || '—'}</td>
-            <td>${item.qty || 0}</td>
-            <td>${item.rate || 0}</td>
-            <td>${formattedRate != null ? formattedRate + '%' : '—'}</td>
-            <td>${item.amount || 0}</td>
+            <td>${i + 1}</td>
+            <td>${item.stockItemName || item.description || item.name || '—'}</td>
+            <td class="text-right">${Number(item.qty || item.quantity || 0).toLocaleString('en-IN')} Nos</td>
+            <td class="text-right">₹${Number(item.rate || item.unitPrice || 0).toLocaleString('en-IN', {minimumFractionDigits:2,maximumFractionDigits:2})}/Nos</td>
+            <td>Nos</td>
+            <td class="text-right">₹${Number(item.amount || item.total || 0).toLocaleString('en-IN', {minimumFractionDigits:2,maximumFractionDigits:2})}</td>
           </tr>
-          `}).join('')}
-          ${(!invoice.inventoryEntries || invoice.inventoryEntries.length === 0) && (!invoice.items || invoice.items.length === 0) ? '<tr><td colspan="5" style="text-align: center;">No items</td></tr>' : ''}
+          `).join('')}
+          ${(!invoice.inventoryEntries?.length && !invoice.items?.length) ? '<tr><td colspan="6" style="text-align:center;color:#9ca3af;">No items</td></tr>' : ''}
+          <tr style="background:#f9fafb;">
+            <td colspan="5" class="text-right" style="font-weight:600;">Sub-total</td>
+            <td class="text-right" style="font-weight:600;">₹${Number(invoice.subtotal || 0).toLocaleString('en-IN', {minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+          </tr>
+          ${(invoice.taxLines || []).map(tl => `
+          <tr>
+            <td colspan="5" class="text-right">${tl.ledgerName}</td>
+            <td class="text-right">₹${Number(Math.abs(tl.amount||0)).toLocaleString('en-IN', {minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+          </tr>`).join('')}
         </tbody>
         </table>
 
         <div class="total-section">
-        ${invoice.subtotal ? `<div>Subtotal: ${fmt(invoice.subtotal)}</div>` : ''}
-        ${(invoice.ledgerEntries || []).filter(le => 
-          !le.ledgerName.toLowerCase().includes('cgst') && 
-          !le.ledgerName.toLowerCase().includes('sgst') && 
-          !le.ledgerName.toLowerCase().includes('igst') && 
-          !le.ledgerName.toLowerCase().includes('cess') && 
-          le.ledgerName.toLowerCase() !== (invoice.partyName || '').toLowerCase()
-        ).map(le => `<div>${le.ledgerName}: ${fmt(Math.abs(le.amount))}</div>`).join('')}
-        ${(invoice.taxLines || []).map(tl => `<div>${tl.ledgerName}: ${fmt(Math.abs(tl.amount))}</div>`).join('')}
-        <div style="font-weight: bold; font-size: 18px;">GRAND TOTAL: ${fmt(invoice.grandTotal || invoice.amount)}</div>
-        <div style="font-weight: normal; font-size: 12px; margin-top: 20px;">Narration: ${invoice.narration || '—'}</div>
+          <div class="grand-total">Grand Total: ₹${Number(invoice.grandTotal || invoice.amount || 0).toLocaleString('en-IN', {minimumFractionDigits:2,maximumFractionDigits:2})}</div>
         </div>
         
-        <div style="margin-top: 40px; display: flex; justify-content: flex-end;">
-          <div style="text-align: right;">
-            <div style="font-weight: bold; margin-bottom: 5px;">For Sri Chakra Industries</div>
-            <img src="${SIGNATURE_B64}" alt="Signature" style="height: 60px; margin-bottom: 5px;"/>
-            <div style="border-top: 1px solid #333; padding-top: 5px; font-size: 12px;">Authorised Signatory</div>
+        ${invoice.narration ? `<div style="margin-top:12px;font-size:11px;color:#6b7280;"><strong>Narration:</strong> ${invoice.narration}</div>` : ''}
+
+        <div class="sign-section">
+          <div style="font-size:11px;color:#6b7280;align-self:flex-end;">
+            <div>Declaration:</div>
+            <div style="max-width:300px;">We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.</div>
+          </div>
+          <div class="sign-block">
+            <div style="font-weight:bold;font-size:13px;margin-bottom:6px;color:#111827;">For Sri Chakra Industries</div>
+            <img src="${SIGNATURE_B64}" alt="Authorised Signature" style="height:70px;width:auto;display:block;margin:0 auto 4px;" />
+            <div class="sign-label">Authorised Signatory</div>
           </div>
         </div>
       </body>
       </html>
     `);
     printWindow.document.close();
-    printWindow.print();
+    printWindow.onload = () => printWindow.print();
+    setTimeout(() => printWindow.print(), 800);
+  };
+  // ── Build shared invoice HTML (used by both Print and PDF) ─────────────────
+  const buildInvoiceHtml = (inv) => {
+    const taxLines = inv.taxLines || (inv.ledgerEntries || []).filter(le =>
+      ['cgst','sgst','igst','cess'].some(t => (le.ledgerName||'').toLowerCase().includes(t)));
+    const itemRows = (inv.inventoryEntries || inv.items || []).map((it, i) =>
+      `<tr><td>${i+1}</td><td>${it.stockItemName||it.description||it.name||'—'}</td>`+
+      `<td style="text-align:right">${Number(it.qty||it.quantity||0).toLocaleString('en-IN')} Nos</td>`+
+      `<td style="text-align:right">&#8377;${Number(it.rate||it.unitPrice||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}/Nos</td>`+
+      `<td>Nos</td><td style="text-align:right">&#8377;${Number(it.amount||it.total||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</td></tr>`
+    ).join('');
+    const taxRows = taxLines.map(t =>
+      `<tr><td colspan="5" style="text-align:right">${t.ledgerName}</td>`+
+      `<td style="text-align:right">&#8377;${Number(Math.abs(t.amount||0)).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</td></tr>`
+    ).join('');
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>
+*{-webkit-print-color-adjust:exact!important;color-adjust:exact!important;print-color-adjust:exact!important;box-sizing:border-box}
+body{font-family:Arial,sans-serif;margin:0;padding:20px;font-size:12px;color:#111827}
+.hdr{display:flex;align-items:center;border-bottom:2px solid #16a34a;padding-bottom:12px;margin-bottom:16px;gap:12px}
+.hdr img{height:65px;width:auto;flex-shrink:0}
+.hdr .ci{flex:1;text-align:center}
+.hdr .ci h2{margin:0 0 3px;font-size:18px;color:#111827}
+.hdr .ci p{margin:2px 0;font-size:10px;color:#6b7280}
+.trow{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+.ititle{font-size:15px;font-weight:700;border:1px solid #d1d5db;padding:3px 10px;border-radius:4px}
+.imeta{text-align:right;font-size:11px}
+.slbl{text-align:center;font-size:12px;font-weight:700;text-decoration:underline;margin-bottom:8px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px}
+.pr{display:grid;grid-template-columns:130px 1fr;gap:4px;margin-bottom:3px;font-size:11px}
+.pl{color:#6b7280}
+.pv{color:#111827;font-weight:700}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:11px}
+th,td{border:1px solid #d1d5db;padding:6px 8px}
+th{background:#f3f4f6;font-weight:700;text-transform:uppercase;font-size:10px}
+.tw{font-weight:700}
+.ssec{margin-top:36px;display:flex;justify-content:space-between;align-items:flex-end}
+.sblk{text-align:center}
+.sline{border-top:1px solid #374151;padding-top:3px;font-size:10px;color:#374151;margin-top:2px}
+@media print{*{-webkit-print-color-adjust:exact!important}body{padding:12px}img{display:block!important;visibility:visible!important}}
+</style></head><body>
+<div class="hdr">
+  <img src="${CHAKRA_LOGO_B64}" alt="Sri Chakra Industries"/>
+  <div class="ci"><h2>SRI CHAKRA INDUSTRIES</h2>
+  <p>#13/14, Azeez Sait Industrial Estate, Mysore Road, Nayandahalli, Bangalore - 560039</p>
+  <p>GSTIN: 29ABWFS0002M1ZR</p></div>
+  <div style="width:80px;flex-shrink:0"></div>
+</div>
+<div class="trow">
+  <div class="ititle">TAX INVOICE</div>
+  <div class="imeta"><div><b>Invoice No.:</b> ${inv.invoiceNo||inv.voucherNumber||'—'}</div><div><b>Date:</b> ${fmtDate(inv.invoiceDate||inv.voucherDate)}</div></div>
+</div>
+<div class="slbl">Party Details</div>
+<div class="g2">
+  <div>
+    <div class="pr"><span class="pl">Buyer (Bill to)</span><span class="pv">: ${inv.billToName||inv.partyName||'—'}</span></div>
+    <div class="pr"><span class="pl">Mailing Name</span><span>: ${inv.billToMailingName||inv.billToName||inv.partyName||'—'}</span></div>
+    <div class="pr"><span class="pl">Address</span><span>: ${inv.billToAddress ? inv.billToAddress.replace(/\n/g,'<br/>') : '—'}</span></div>
+    ${inv.billToState ? `<div class="pr"><span class="pl">State</span><span>: ${inv.billToState}</span></div>` : ''}
+    ${inv.billToGstRegType ? `<div class="pr"><span class="pl">GST Reg Type</span><span>: ${inv.billToGstRegType}</span></div>` : ''}
+    <div class="pr"><span class="pl">GSTIN/UIN</span><span>: ${inv.billToGST||inv.partyGstin||'—'}</span></div>
+  </div>
+  <div>
+    <div class="pr"><span class="pl">Consignee (Ship to)</span><span class="pv">: ${inv.shipToName||inv.shipToMailingName||'—'}</span></div>
+    <div class="pr"><span class="pl">Mailing Name</span><span>: ${inv.shipToMailingName||inv.shipToName||'—'}</span></div>
+    <div class="pr"><span class="pl">Address</span><span>: ${inv.shipToAddress ? inv.shipToAddress.replace(/\n/g,'<br/>') : '—'}</span></div>
+    ${inv.shipToState ? `<div class="pr"><span class="pl">State</span><span>: ${inv.shipToState}</span></div>` : ''}
+    <div class="pr"><span class="pl">GSTIN/UIN</span><span>: ${inv.shipToGST||'—'}</span></div>
+  </div>
+</div>
+${inv.placeOfSupply ? `<div style="border-top:1px solid #e5e7eb;padding:5px 0 8px;margin-bottom:10px"><div class="pr"><span class="pl">Place of Supply</span><span class="pv">: ${inv.placeOfSupply}</span></div></div>` : ''}
+<table>
+  <thead><tr>
+    <th style="width:30px">#</th><th>Name of Item</th>
+    <th style="width:90px;text-align:right">Qty</th>
+    <th style="width:110px;text-align:right">Rate</th>
+    <th style="width:35px">Per</th>
+    <th style="width:110px;text-align:right">Amount</th>
+  </tr></thead>
+  <tbody>
+    ${itemRows || '<tr><td colspan="6" style="text-align:center;color:#9ca3af">No items</td></tr>'}
+    <tr class="tw"><td colspan="5" style="text-align:right">Sub-total</td>
+      <td style="text-align:right">&#8377;${Number(inv.subtotal||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</td></tr>
+    ${taxRows}
+    <tr class="tw" style="color:#16a34a;font-size:13px">
+      <td colspan="5" style="text-align:right">Grand Total</td>
+      <td style="text-align:right">&#8377;${Number(inv.grandTotal||inv.amount||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</td></tr>
+  </tbody>
+</table>
+${inv.narration ? `<div style="font-size:11px;color:#6b7280;margin-bottom:10px"><b>Narration:</b> ${inv.narration}</div>` : ''}
+<div class="ssec">
+  <div style="font-size:10px;color:#6b7280;max-width:280px"><b>Declaration:</b> We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.</div>
+  <div class="sblk">
+    <div style="font-weight:700;font-size:12px;margin-bottom:6px">For Sri Chakra Industries</div>
+    <img src="${SIGNATURE_B64}" alt="Authorised Signature" style="height:65px;width:auto;display:block;margin:0 auto 4px"/>
+    <div class="sline">Authorised Signatory</div>
+  </div>
+</div>
+</body></html>`;
   };
 
   const handleDownloadPDF = async () => {
     try {
       toast('Generating PDF...', 'info');
-      // Create a temporary div to render the invoice HTML
       const tempDiv = document.createElement('div');
-      // Build the invoice HTML (same as what we use for printing)
-      tempDiv.innerHTML = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-        <title>Invoice ${invoice.invoiceNo || invoice.voucherNumber}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 0; padding: 20px; font-size: 12px; }
-          .invoice-header { text-align: center; margin-bottom: 24px; }
-          .invoice-header h2 { margin: 0; color: #1f2937; font-size: 22px; }
-          .invoice-header p { margin: 4px 0 0; color: #64748b; }
-          .invoice-title-row { display: flex; justify-content: space-between; margin-bottom: 20px; }
-          .invoice-title { font-size: 18px; font-weight: bold; }
-          .invoice-basic { text-align: right; }
-          .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-          .info-card { padding: 12px; background: #f8fafc; border-radius: 6px; }
-          .meta-label { font-weight: bold; color: #64748b; font-size: 10px; text-transform: uppercase; margin-bottom: 4px; }
-          .meta-value { color: #111827; }
-          .items-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-          .items-table th, .items-table td { border: 1px solid #e5e7eb; padding: 8px 12px; text-align: left; }
-          .items-table th { background: #f9fafb; font-weight: 600; }
-          .items-table .text-right { text-align: right; }
-          .total-row { font-weight: bold; font-size: 16px; }
-          .sign-section { margin-top: 40px; display: flex; justify-content: flex-end; }
-          .sign-block { text-align: right; }
-        </style>
-        </head>
-        <body>
-          <div class="invoice-header">
-            <h2>Sri Chakra Industries</h2>
-            <p>#13/14, Azeez Sait Industrial Estate, Mysore Road, Nayandahalli, Bangalore - 560039</p>
-            <p>GSTIN: 29ABWFS0002M1ZR</p>
-          </div>
-          
-          ${(invoice.irn || invoice.ackNo) ? `
-            <div class="info-card grid-2">
-              ${invoice.irn ? `<div><div class="meta-label">IRN</div><div class="meta-value">${invoice.irn}</div></div>` : ''}
-              ${invoice.ackNo ? `<div><div class="meta-label">Ack No</div><div class="meta-value">${invoice.ackNo}</div></div>` : ''}
-              ${invoice.ackDate ? `<div><div class="meta-label">Ack Date</div><div class="meta-value">${fmtDate(invoice.ackDate)}</div></div>` : ''}
-            </div>
-          ` : ''}
-          
-          <div class="invoice-title-row">
-            <div class="invoice-title">TAX INVOICE</div>
-            <div class="invoice-basic">
-              <div>Invoice No.: ${invoice.invoiceNo || invoice.voucherNumber || '—'}</div>
-              <div>Date: ${fmtDate(invoice.invoiceDate || invoice.voucherDate)}</div>
-            </div>
-          </div>
-          
-          <!-- Party Details -->
-          <div style="margin-bottom: 20px;">
-            <div style="text-align: center; margin-bottom: 8px;">
-              <span style="font-size: 14px; font-weight: 700; color: #111827; text-decoration: underline;">Party Details</span>
-            </div>
-            <div class="grid-2">
-              <!-- Bill To -->
-              <div>
-                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                  <div style="font-size: 12px; color: #374151;">Buyer (Bill to)</div>
-                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToName || invoice.partyName || '—'}</div>
-                </div>
-                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                  <div style="font-size: 12px; color: #374151;">Mailing Name</div>
-                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToMailingName || invoice.billToName || invoice.partyName || '—'}</div>
-                </div>
-                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                  <div style="font-size: 12px; color: #374151;">Address</div>
-                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToAddress ? invoice.billToAddress.replace(/\n/g, '<br/>') : '—'}</div>
-                </div>
-                ${(invoice.billToCity || invoice.billToState || invoice.billToCountry) ? `
-                  ${invoice.billToCity ? `
-                    <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px; padding-left: 148px;">
-                      <div style="font-size: 12px; color: #111827; font-weight: 600;">${invoice.billToCity}</div>
-                    </div>
-                  ` : ''}
-                  <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                    <div style="font-size: 12px; color: #374151;">State</div>
-                    <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToState || '—'}</div>
-                  </div>
-                  <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                    <div style="font-size: 12px; color: #374151;">Country</div>
-                    <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToCountry || '—'}</div>
-                  </div>
-                ` : ''}
-                ${invoice.billToGstRegType ? `
-                  <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                    <div style="font-size: 12px; color: #374151;">GST Registration type</div>
-                    <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToGstRegType}</div>
-                  </div>
-                ` : ''}
-                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px;">
-                  <div style="font-size: 12px; color: #374151;">GSTIN/UIN</div>
-                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.billToGST || invoice.partyGstin || '—'}</div>
-                </div>
-              </div>
-              <!-- Ship To -->
-              <div>
-                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                  <div style="font-size: 12px; color: #374151;">Consignee (Ship to)</div>
-                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToName || invoice.shipToMailingName || '—'}</div>
-                </div>
-                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                  <div style="font-size: 12px; color: #374151;">Mailing Name</div>
-                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToMailingName || invoice.shipToName || '—'}</div>
-                </div>
-                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                  <div style="font-size: 12px; color: #374151;">Address</div>
-                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToAddress ? invoice.shipToAddress.replace(/\n/g, '<br/>') : '—'}</div>
-                </div>
-                ${(invoice.shipToCity || invoice.shipToState || invoice.shipToCountry) ? `
-                  ${invoice.shipToCity ? `
-                    <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px; padding-left: 148px;">
-                      <div style="font-size: 12px; color: #111827; font-weight: 600;">${invoice.shipToCity}</div>
-                    </div>
-                  ` : ''}
-                  <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                    <div style="font-size: 12px; color: #374151;">State</div>
-                    <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToState || '—'}</div>
-                  </div>
-                  <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 4px;">
-                    <div style="font-size: 12px; color: #374151;">Country</div>
-                    <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToCountry || '—'}</div>
-                  </div>
-                ` : ''}
-                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px;">
-                  <div style="font-size: 12px; color: #374151;">GSTIN/UIN</div>
-                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.shipToGST || '—'}</div>
-                </div>
-              </div>
-            </div>
-            ${invoice.placeOfSupply ? `
-              <div style="border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px;">
-                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px;">
-                  <div style="font-size: 12px; color: #374151;">Place of Supply</div>
-                  <div style="font-size: 12px; color: #111827; font-weight: 600;">: ${invoice.placeOfSupply}</div>
-                </div>
-              </div>
-            ` : ''}
-          </div>
-          
-          <div class="info-card grid-2">
-            ${invoice.deliveryNote ? `<div><div class="meta-label">Delivery Note</div><div class="meta-value">${invoice.deliveryNote}</div></div>` : ''}
-            ${invoice.referenceNo ? `<div><div class="meta-label">Reference No. & Date</div><div class="meta-value">${invoice.referenceNo}${invoice.referenceDate ? ` · ${fmtDate(invoice.referenceDate)}` : ''}</div></div>` : ''}
-            ${invoice.buyersOrderNo ? `<div><div class="meta-label">Buyer's Order No.</div><div class="meta-value">${invoice.buyersOrderNo}${invoice.buyersOrderDate ? ` · ${fmtDate(invoice.buyersOrderDate)}` : ''}</div></div>` : ''}
-            ${invoice.dispatchDocNo ? `<div><div class="meta-label">Dispatch Doc No.</div><div class="meta-value">${invoice.dispatchDocNo}</div></div>` : ''}
-            ${invoice.dispatchedThrough ? `<div><div class="meta-label">Dispatched Through</div><div class="meta-value">${invoice.dispatchedThrough}</div></div>` : ''}
-            ${invoice.destination ? `<div><div class="meta-label">Destination</div><div class="meta-value">${invoice.destination}</div></div>` : ''}
-            ${invoice.billOfLadingNo ? `<div><div class="meta-label">Bill of Lading/LR-RR No.</div><div class="meta-value">${invoice.billOfLadingNo}</div></div>` : ''}
-            ${invoice.motorVehicleNo ? `<div><div class="meta-label">Motor Vehicle No.</div><div class="meta-value">${invoice.motorVehicleNo}</div></div>` : ''}
-            ${invoice.termsOfDelivery ? `<div style="grid-column: 1 / -1;"><div class="meta-label">Terms of Delivery</div><div class="meta-value">${invoice.termsOfDelivery}</div></div>` : ''}
-          </div>
-          
-          ${invoice.narration ? `<div style="margin-bottom: 20px;"><div class="meta-label">Narration</div><div class="meta-value">${invoice.narration}</div></div>` : ''}
-
-          <table class="items-table">
-            <thead>
-              <tr>
-                <th style="width: 50px;">S.No.</th>
-                <th>Item</th>
-                <th style="width: 100px;">HSN</th>
-                <th class="text-right" style="width: 80px;">Qty</th>
-                <th class="text-right" style="width: 120px;">Rate</th>
-                <th class="text-right" style="width: 120px;">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${(invoice.inventoryEntries || []).map((item, index) => `
-                <tr>
-                  <td>${index + 1}</td>
-                  <td>${item.stockItemName || '—'}</td>
-                  <td>${item.hsnCode || '—'}</td>
-                  <td class="text-right">${Number(item.qty || 0).toLocaleString('en-IN')} Nos</td>
-                  <td class="text-right">₹ ${Number(item.rate || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  <td class="text-right">₹ ${Number(item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                </tr>
-              `).join('')}
-              <tr class="total-row">
-                <td colspan="5" style="text-align: right;">Subtotal:</td>
-                <td class="text-right">₹ ${Number(invoice.subtotal || invoice.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-              </tr>
-              ${(invoice.taxLines || (invoice.ledgerEntries || []).filter(le => ['cgst', 'sgst', 'igst', 'cess'].some(tax => (le.ledgerName || '').toLowerCase().includes(tax)))).map(tax => `
-                <tr>
-                  <td colspan="5" style="text-align: right;">${tax.ledgerName}:</td>
-                  <td class="text-right">₹ ${Number(Math.abs(tax.amount || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                </tr>
-              `).join('')}
-              <tr class="total-row">
-                <td colspan="5" style="text-align: right;">Grand Total:</td>
-                <td class="text-right" style="color: #16a34a;">₹ ${Number(invoice.grandTotal || invoice.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-              </tr>
-            </tbody>
-          </table>
-        
-          <div class="sign-section">
-            <div class="sign-block">
-              <div style="font-weight: bold; margin-bottom: 5px;">For Sri Chakra Industries</div>
-              <img src="${SIGNATURE_B64}" alt="Signature" style="height: 60px; margin-bottom: 5px;"/>
-              <div style="border-top: 1px solid #333; padding-top: 5px; font-size: 12px;">Authorised Signatory</div>
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
+      tempDiv.innerHTML = buildInvoiceHtml(invoice);
       tempDiv.style.position = 'absolute';
       tempDiv.style.left = '-9999px';
       tempDiv.style.top = '0';
+      tempDiv.style.width = '794px';
       document.body.appendChild(tempDiv);
-
-      // Capture with html2canvas
-      const canvas = await html2canvas(tempDiv, { scale: 2, useCORS: true, logging: false });
-      
-      // Create PDF
+      await new Promise(r => setTimeout(r, 300));
+      const canvas = await html2canvas(tempDiv, { scale: 2, useCORS: true, allowTaint: true, logging: false, backgroundColor: '#ffffff' });
       const imgWidth = 210;
-      const pageHeight = 297;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
-      
-      // Download
-      const fileName = `Invoice_${invoice.invoiceNo || invoice.voucherNumber || 'document'}_${new Date().toISOString().split('T')[0]}.pdf`;
-      pdf.save(fileName);
-      toast('PDF downloaded successfully!', 'success');
-    } catch (error) {
-      console.error('Error generating PDF:', error);
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, imgWidth, imgHeight);
+      pdf.save(`Invoice_${invoice.invoiceNo || invoice.voucherNumber || 'document'}_${new Date().toISOString().split('T')[0]}.pdf`);
+      toast('PDF downloaded!', 'success');
+    } catch (err) {
+      console.error('PDF error:', err);
       toast('Failed to generate PDF', 'error');
     } finally {
-      // Cleanup
-      const tempDivs = document.querySelectorAll('div[style*="left: -9999px"]');
-      tempDivs.forEach(div => div.remove());
+      document.querySelectorAll('div[style*="left: -9999px"]').forEach(d => d.remove());
     }
   };
 

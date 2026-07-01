@@ -825,15 +825,19 @@ function buildVoucherHtml(v, forDownload = false) {
     gst: v.billToGST || v.partyGstin,
     gstRegType: v.billToGstRegType
   };
-  
+
+  // If Tally has no real Ship To data, fall back to Bill To details fully.
+  // NOTE: The sync service stores billToName as shipToName when there's no real
+  // ship-to, so we must check address/city/state/GST (not name) for "real" ship-to.
+  const hasRealShipTo = v.shipToAddress || v.shipToCity || v.shipToState || v.shipToGST;
   const shipTo = {
-    name: v.shipToName || billTo.name,
-    mailingName: v.shipToMailingName,
-    address: v.shipToAddress,
-    city: v.shipToCity,
-    state: v.shipToState,
-    country: v.shipToCountry,
-    gst: v.shipToGST
+    name:        v.shipToName || billTo.name,
+    mailingName: hasRealShipTo ? v.shipToMailingName : billTo.mailingName,
+    address:     hasRealShipTo ? v.shipToAddress     : billTo.address,
+    city:        hasRealShipTo ? v.shipToCity        : billTo.city,
+    state:       hasRealShipTo ? v.shipToState       : billTo.state,
+    country:     hasRealShipTo ? v.shipToCountry     : billTo.country,
+    gst:         hasRealShipTo ? v.shipToGST         : billTo.gst,
   };
 
   // Amount in words
@@ -893,7 +897,7 @@ body{font-family:Arial,sans-serif;background:#fff;color:#111;font-size:12px}
 .fv{font-size:11px;color:#333;line-height:1.6}
 .sig{text-align:right;display:flex;flex-direction:column;justify-content:space-between}
 .sline{border-top:1px solid #999;margin-top:36px;padding-top:5px;font-size:11px;color:#555;text-align:center}
-@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.page{border:none;padding:10px}@page{margin:.8cm}}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.page{border:none;padding:10px}img{display:block!important;visibility:visible!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}@page{margin:.8cm}}
 </style></head><body>
 <div class="page">
 <div class="top-label">TAX INVOICE <span>ORIGINAL</span></div>
@@ -1001,15 +1005,19 @@ function VoucherDetailView({ voucher: v, onClose, onPrint, onDownload }) {
     gst: v.billToGST || v.partyGstin,
     gstRegType: v.billToGstRegType
   };
-  
+
+  // If Tally has no real Ship To data, fall back to Bill To details fully.
+  // NOTE: The sync service stores billToName as shipToName when there's no real
+  // ship-to, so we must check address/city/state/GST (not name) for "real" ship-to.
+  const hasRealShipTo = v.shipToAddress || v.shipToCity || v.shipToState || v.shipToGST;
   const shipTo = {
-    name: v.shipToName || billTo.name,
-    mailingName: v.shipToMailingName,
-    address: v.shipToAddress,
-    city: v.shipToCity,
-    state: v.shipToState,
-    country: v.shipToCountry,
-    gst: v.shipToGST
+    name:        v.shipToName || billTo.name,
+    mailingName: hasRealShipTo ? v.shipToMailingName : billTo.mailingName,
+    address:     hasRealShipTo ? v.shipToAddress     : billTo.address,
+    city:        hasRealShipTo ? v.shipToCity        : billTo.city,
+    state:       hasRealShipTo ? v.shipToState       : billTo.state,
+    country:     hasRealShipTo ? v.shipToCountry     : billTo.country,
+    gst:         hasRealShipTo ? v.shipToGST         : billTo.gst,
   };
 
   // Split ledger entries: party ledger (isDeemed=true) vs tax/charge lines
@@ -1363,10 +1371,15 @@ function TallyLedgerTab() {
 
   // ── Voucher print / download ──────────────────────────────────────────────
   const handlePrintVoucher = (v) => {
-    const win = window.open('', '_blank', 'width=800,height=600');
+    const win = window.open('', '_blank', 'width=900,height=700');
     if (!win) return;
     win.document.write(buildVoucherHtml(v));
-    win.document.close(); win.focus(); win.print();
+    win.document.close();
+    win.focus();
+    // Wait for images (logo + stamp) to fully load before printing
+    win.onload = () => { setTimeout(() => win.print(), 300); };
+    // Fallback in case onload already fired
+    setTimeout(() => { try { win.print(); } catch (_) {} }, 1200);
   };
   const handleDownloadVoucher = async (v) => {
     try {
@@ -1379,6 +1392,9 @@ function TallyLedgerTab() {
       tempDiv.style.top = '0';
       document.body.appendChild(tempDiv);
 
+      // Wait for base64 images (logo + stamp) to fully render before capture
+      await new Promise(r => setTimeout(r, 600));
+
       // Find the .page element inside tempDiv
       const pageElement = tempDiv.querySelector('.page');
       if (!pageElement) {
@@ -1389,6 +1405,8 @@ function TallyLedgerTab() {
       const canvas = await html2canvas(pageElement, {
         scale: 2, // Higher scale for better quality
         useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
         logging: false,
       });
 

@@ -113,19 +113,24 @@ function InvoiceDetailModal({ invoice, isOpen, onClose }) {
     // ── Clean up bill-to / ship-to for PDF/Print (same logic as modal display) ──
     const cleanGstin = (g) => (!g || g.trim() === '.' || g.trim().length < 3) ? '' : g.trim();
     const pBillToName = inv.billToName || inv.partyName || '';
-    const pBillToMailingName = inv.billToMailingName || pBillToName;
+    const pBillToMailingName = inv.billToMailingName || '';
     const pBillToAddress = inv.billToAddress || '';
-    const pBillToGST = cleanGstin(inv.billToGST || inv.partyGstin || '');
+    const pBillToGST = cleanGstin(inv.billToGST)
+                    || cleanGstin(inv.partyGstin)
+                    || cleanGstin(inv.shipToGST)
+                    || '';
 
-    const pRawShipName = inv.shipToName || inv.shipToMailingName || '';
-    const pRawShipAddr = inv.shipToAddress || '';
+    const pRawShipName = (inv.shipToName || inv.shipToMailingName || '').trim();
+    const pRawShipAddr = (inv.shipToAddress || '').trim();
     const pRawShipGST  = cleanGstin(inv.shipToGST || '');
     const pShipSameAsBill = !pRawShipAddr && (!pRawShipName || pRawShipName === pBillToName);
     const pShipToName    = pRawShipName || pBillToName;
-    const pShipToMailingName = inv.shipToMailingName || pShipToName;
-    const pShipToAddress = pRawShipAddr || pBillToAddress;
+    const pShipToMailingName = (inv.shipToMailingName && inv.shipToMailingName !== pShipToName)
+                                  ? inv.shipToMailingName : '';
+    const pShipToAddress = pRawShipAddr || (pShipSameAsBill ? pBillToAddress : '');
     const pShipToState   = inv.shipToState   || (pShipSameAsBill ? inv.billToState   : '');
     const pShipToGST     = pRawShipGST || pBillToGST;
+    const pShowBillMailingName = pBillToMailingName && pBillToMailingName !== pBillToName;
     return `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>
 *{-webkit-print-color-adjust:exact!important;color-adjust:exact!important;print-color-adjust:exact!important;box-sizing:border-box}
 body{font-family:Arial,sans-serif;margin:0;padding:20px;font-size:12px;color:#111827}
@@ -166,7 +171,7 @@ th{background:#f3f4f6;font-weight:700;text-transform:uppercase;font-size:10px}
 <div class="g2">
   <div>
     <div class="pr"><span class="pl">Buyer (Bill to)</span><span class="pv">: ${pBillToName||'—'}</span></div>
-    <div class="pr"><span class="pl">Mailing Name</span><span>: ${pBillToMailingName||'—'}</span></div>
+    ${pShowBillMailingName ? `<div class="pr"><span class="pl">Mailing Name</span><span>: ${pBillToMailingName}</span></div>` : ''}
     <div class="pr"><span class="pl">Address</span><span>: ${pBillToAddress ? pBillToAddress.replace(/\n/g,'<br/>') : '—'}</span></div>
     ${inv.billToState ? `<div class="pr"><span class="pl">State</span><span>: ${inv.billToState}</span></div>` : ''}
     ${inv.billToGstRegType ? `<div class="pr"><span class="pl">GST Reg Type</span><span>: ${inv.billToGstRegType}</span></div>` : ''}
@@ -174,8 +179,8 @@ th{background:#f3f4f6;font-weight:700;text-transform:uppercase;font-size:10px}
   </div>
   <div>
     <div class="pr"><span class="pl">Consignee (Ship to)</span><span class="pv">: ${pShipToName||'—'}</span></div>
-    <div class="pr"><span class="pl">Mailing Name</span><span>: ${pShipToMailingName||pShipToName||'—'}</span></div>
-    <div class="pr"><span class="pl">Address</span><span>: ${pShipToAddress ? pShipToAddress.replace(/\n/g,'<br/>') : '—'}</span></div>
+    ${pShipToMailingName ? `<div class="pr"><span class="pl">Mailing Name</span><span>: ${pShipToMailingName}</span></div>` : ''}
+    <div class="pr"><span class="pl">Address</span><span>: ${pShipToAddress ? pShipToAddress.replace(/\n/g,'<br/>') : (pShipSameAsBill ? '(Same as billing address)' : '—')}</span></div>
     ${pShipToState ? `<div class="pr"><span class="pl">State</span><span>: ${pShipToState}</span></div>` : ''}
     <div class="pr"><span class="pl">GSTIN/UIN</span><span>: ${pShipToGST||'—'}</span></div>
   </div>
@@ -311,31 +316,47 @@ ${inv.narration ? `<div style="font-size:11px;color:#6b7280;margin-bottom:10px">
         {/* Party Details - Bill To & Ship To */}
         {(() => {
           // ── Helpers ───────────────────────────────────────────────────────
-          // Clean up "." or single-char junk GSTIN that Tally sometimes emits
+          // Clean up "." or junk GSTIN that Tally sometimes emits
           const cleanGstin = (g) => (!g || g.trim() === '.' || g.trim().length < 3) ? '' : g.trim();
 
-          const billToName = invoice.billToName || invoice.partyName || '';
-          const billToMailingName = invoice.billToMailingName || billToName;
-          const billToAddress = invoice.billToAddress || '';
-          const billToGST = cleanGstin(invoice.billToGST || invoice.partyGstin || '');
+          // ── Resolve Bill-To fields ─────────────────────────────────────
+          // Tally sometimes puts the party GSTIN only in shipToGST, so fall back to it
+          const billToName        = invoice.billToName || invoice.partyName || '';
+          const billToMailingName = invoice.billToMailingName || '';
+          const billToAddress     = invoice.billToAddress || '';
+          const billToCity        = invoice.billToCity || '';
+          const billToState       = invoice.billToState || '';
+          const billToCountry     = invoice.billToCountry || '';
+          // GSTIN: check billToGST first, then partyGstin, then shipToGST as last resort
+          // (Tally sometimes only populates shipToGST even for bill-to party)
+          const billToGST = cleanGstin(invoice.billToGST)
+                         || cleanGstin(invoice.partyGstin)
+                         || cleanGstin(invoice.shipToGST)
+                         || '';
 
-          // Determine effective ship-to fields:
-          // When Tally has no separate delivery address it echoes the party name as
-          // ship-to name and leaves address/GSTIN empty (or sends a literal ".").
-          // In that case fall back to bill-to values so the invoice looks correct.
-          const rawShipName = invoice.shipToName || invoice.shipToMailingName || '';
-          const rawShipAddr = invoice.shipToAddress || '';
+          // ── Resolve Ship-To fields ─────────────────────────────────────
+          // shipToName is blank but shipToMailingName has the party name — use whichever is set
+          const rawShipName = (invoice.shipToName || invoice.shipToMailingName || '').trim();
+          const rawShipAddr = (invoice.shipToAddress || '').trim();
           const rawShipGST  = cleanGstin(invoice.shipToGST || '');
 
-          // No meaningful separate ship-to → mirror bill-to
-          const shipSameAsBill = !rawShipAddr && (!rawShipName || rawShipName === billToName);
-          const shipToName    = rawShipName || billToName;
-          const shipToMailingName = invoice.shipToMailingName || shipToName;
-          const shipToAddress = rawShipAddr || billToAddress;
-          const shipToCity    = invoice.shipToCity    || (shipSameAsBill ? invoice.billToCity    : '');
-          const shipToState   = invoice.shipToState   || (shipSameAsBill ? invoice.billToState   : '');
-          const shipToCountry = invoice.shipToCountry || (shipSameAsBill ? invoice.billToCountry : '');
-          const shipToGST     = rawShipGST || billToGST;
+          // Decide if ship-to is the same party as bill-to (no separate delivery address)
+          const shipSameAsBill =
+            !rawShipAddr &&
+            (!rawShipName || rawShipName === billToName);
+
+          const shipToName        = rawShipName || billToName;
+          // Only show mailing name if it's different from the name
+          const shipToMailingName = (invoice.shipToMailingName && invoice.shipToMailingName !== shipToName)
+                                      ? invoice.shipToMailingName : '';
+          const shipToAddress     = rawShipAddr || (shipSameAsBill ? billToAddress : '');
+          const shipToCity        = invoice.shipToCity    || (shipSameAsBill ? billToCity    : '');
+          const shipToState       = invoice.shipToState   || (shipSameAsBill ? billToState   : '');
+          const shipToCountry     = invoice.shipToCountry || (shipSameAsBill ? billToCountry : '');
+          const shipToGST         = rawShipGST || billToGST;
+
+          // Only show mailing name for bill-to if it differs from name
+          const showBillToMailingName = billToMailingName && billToMailingName !== billToName;
 
           return (
         <div style={{ marginBottom: 24 }}>
@@ -349,29 +370,35 @@ ${inv.narration ? `<div style="font-size:11px;color:#6b7280;margin-bottom:10px">
                 <div style={{ fontSize: 12, color: '#374151' }}>Buyer (Bill to)</div>
                 <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {billToName || '—'}</div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
-                <div style={{ fontSize: 12, color: '#374151' }}>Mailing Name</div>
-                <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {billToMailingName || '—'}</div>
-              </div>
+              {showBillToMailingName && (
+                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
+                  <div style={{ fontSize: 12, color: '#374151' }}>Mailing Name</div>
+                  <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {billToMailingName}</div>
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
                 <div style={{ fontSize: 12, color: '#374151' }}>Address</div>
                 <div style={{ fontSize: 12, color: '#111827', fontWeight: 600, whiteSpace: 'pre-line' }}>: {billToAddress || '—'}</div>
               </div>
-              {(invoice.billToCity || invoice.billToState || invoice.billToCountry) && (
+              {(billToCity || billToState || billToCountry) && (
                 <>
-                  {invoice.billToCity && (
+                  {billToCity && (
                     <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4, paddingLeft: '148px' }}>
-                      <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>{invoice.billToCity}</div>
+                      <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>{billToCity}</div>
                     </div>
                   )}
-                  <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
-                    <div style={{ fontSize: 12, color: '#374151' }}>State</div>
-                    <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {invoice.billToState || '—'}</div>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
-                    <div style={{ fontSize: 12, color: '#374151' }}>Country</div>
-                    <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {invoice.billToCountry || '—'}</div>
-                  </div>
+                  {billToState && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
+                      <div style={{ fontSize: 12, color: '#374151' }}>State</div>
+                      <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {billToState}</div>
+                    </div>
+                  )}
+                  {billToCountry && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
+                      <div style={{ fontSize: 12, color: '#374151' }}>Country</div>
+                      <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {billToCountry}</div>
+                    </div>
+                  )}
                 </>
               )}
               {invoice.billToGstRegType && (
@@ -392,13 +419,17 @@ ${inv.narration ? `<div style="font-size:11px;color:#6b7280;margin-bottom:10px">
                 <div style={{ fontSize: 12, color: '#374151' }}>Consignee (Ship to)</div>
                 <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {shipToName || '—'}</div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
-                <div style={{ fontSize: 12, color: '#374151' }}>Mailing Name</div>
-                <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {shipToMailingName || '—'}</div>
-              </div>
+              {shipToMailingName && (
+                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
+                  <div style={{ fontSize: 12, color: '#374151' }}>Mailing Name</div>
+                  <div style={{ fontSize: 12, color: '#111827', fontWeight: 600 }}>: {shipToMailingName}</div>
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8, marginBottom: 4 }}>
                 <div style={{ fontSize: 12, color: '#374151' }}>Address</div>
-                <div style={{ fontSize: 12, color: '#111827', fontWeight: 600, whiteSpace: 'pre-line' }}>: {shipToAddress || '—'}</div>
+                <div style={{ fontSize: 12, color: '#111827', fontWeight: 600, whiteSpace: 'pre-line' }}>
+                  : {shipToAddress || (shipSameAsBill ? '(Same as billing address)' : '—')}
+                </div>
               </div>
               {(shipToCity || shipToState || shipToCountry) && (
                 <>

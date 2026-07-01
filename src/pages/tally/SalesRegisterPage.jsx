@@ -111,26 +111,37 @@ function InvoiceDetailModal({ invoice, isOpen, onClose }) {
     ).join('');
 
     // ── Clean up bill-to / ship-to for PDF/Print (same logic as modal display) ──
-    const cleanGstin = (g) => (!g || g.trim() === '.' || g.trim().length < 3) ? '' : g.trim();
+    // Tally emits "." or "..." or any dot-only string as unexpanded TDL formula placeholders
+    const cleanGstin = (g) => {
+      if (!g) return '';
+      const t = g.trim();
+      if (!t || /^\.+$/.test(t) || t.length < 3) return '';
+      return t;
+    };
+    const cleanField = (s) => {
+      if (!s) return '';
+      const t = s.trim();
+      return /^\.+$/.test(t) ? '' : t;
+    };
     const norm = (s) => (s || '').trim().toLowerCase();
-    const pBillToName = inv.billToName || inv.partyName || '';
-    const pBillToMailingName = inv.billToMailingName || '';
-    const pBillToAddress = inv.billToAddress || '';
+    const pBillToName = cleanField(inv.billToName) || cleanField(inv.partyName) || '';
+    const pBillToMailingName = cleanField(inv.billToMailingName) || '';
+    const pBillToAddress = cleanField(inv.billToAddress) || '';
     const pBillToGST = cleanGstin(inv.billToGST)
                     || cleanGstin(inv.partyGstin)
                     || cleanGstin(inv.shipToGST)
                     || '';
 
-    const pRawShipName = (inv.shipToName || '').trim();
+    const pRawShipName = cleanField(inv.shipToName || '');
     // Tally sometimes puts the party/ledger name in the address field instead of a real address.
     // Treat shipToAddress as blank if it matches the ship-to name or bill-to name.
-    const pRawShipAddrRaw = (inv.shipToAddress || '').trim();
+    const pRawShipAddrRaw = cleanField(inv.shipToAddress || '');
     const pRawShipAddr = (
       norm(pRawShipAddrRaw) === norm(pRawShipName || pBillToName) ||
       norm(pRawShipAddrRaw) === norm(pBillToName)
     ) ? '' : pRawShipAddrRaw;
     const pRawShipGST  = cleanGstin(inv.shipToGST || '');
-    const pRawShipMailingNameRaw = (inv.shipToMailingName || '').trim();
+    const pRawShipMailingNameRaw = cleanField(inv.shipToMailingName || '');
     // Discard mailing name if it's the party name repeated (Tally artefact)
     const pRawShipMailingName = (
       norm(pRawShipMailingNameRaw) === norm(pRawShipName || pBillToName) ||
@@ -149,7 +160,7 @@ function InvoiceDetailModal({ invoice, isOpen, onClose }) {
       && norm(pRawShipMailingName) !== norm(pBillToName))
       ? pRawShipMailingName : '';
     const pShipToAddress = pRawShipAddr || (pShipSameAsBill ? pBillToAddress : '');
-    const pShipToState   = inv.shipToState   || (pShipSameAsBill ? inv.billToState   : '');
+    const pShipToState   = cleanField(inv.shipToState)   || (pShipSameAsBill ? cleanField(inv.billToState)   : '');
     const pShipToGST     = pRawShipGST || pBillToGST;
     const pShowBillMailingName = pBillToMailingName && pBillToMailingName !== pBillToName;
     return `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>
@@ -340,27 +351,37 @@ ${inv.narration ? `<div style="font-size:11px;color:#6b7280;margin-bottom:10px">
         {/* Party Details - Bill To & Ship To */}
         {(() => {
           // ── Helpers ───────────────────────────────────────────────────────
-          // Clean up "." or junk GSTIN that Tally sometimes emits
-          const cleanGstin = (g) => (!g || g.trim() === '.' || g.trim().length < 3) ? '' : g.trim();
+          // Clean up "." or "..." or any dot-only junk that Tally emits as unexpanded TDL placeholders
+          const cleanGstin = (g) => {
+            if (!g) return '';
+            const t = g.trim();
+            if (!t || /^\.+$/.test(t) || t.length < 3) return '';
+            return t;
+          };
+          const cleanField = (s) => {
+            if (!s) return '';
+            const t = s.trim();
+            return /^\.+$/.test(t) ? '' : t;
+          };
           const norm = (s) => (s || '').trim().toLowerCase();
 
           // ── Resolve Bill-To fields ─────────────────────────────────────
-          const billToName        = invoice.billToName || invoice.partyName || '';
-          const billToMailingName = invoice.billToMailingName || '';
-          const billToAddress     = invoice.billToAddress || '';
-          const billToCity        = invoice.billToCity || '';
-          const billToState       = invoice.billToState || '';
-          const billToCountry     = invoice.billToCountry || '';
+          const billToName        = cleanField(invoice.billToName) || cleanField(invoice.partyName) || '';
+          const billToMailingName = cleanField(invoice.billToMailingName) || '';
+          const billToAddress     = cleanField(invoice.billToAddress) || '';
+          const billToCity        = cleanField(invoice.billToCity) || '';
+          const billToState       = cleanField(invoice.billToState) || '';
+          const billToCountry     = cleanField(invoice.billToCountry) || '';
           const billToGST = cleanGstin(invoice.billToGST)
                          || cleanGstin(invoice.partyGstin)
                          || cleanGstin(invoice.shipToGST)
                          || '';
 
           // ── Resolve Ship-To fields ─────────────────────────────────────
-          const rawShipName = (invoice.shipToName || '').trim();
+          const rawShipName = cleanField(invoice.shipToName || '');
           // Tally sometimes puts the party/ledger name in the address field instead of a real address.
           // Treat shipToAddress as blank if it equals the ship-to name or the bill-to name.
-          const rawShipAddrRaw = (invoice.shipToAddress || '').trim();
+          const rawShipAddrRaw = cleanField(invoice.shipToAddress || '');
           const rawShipAddr = (
             norm(rawShipAddrRaw) === norm(rawShipName || billToName) ||
             norm(rawShipAddrRaw) === norm(billToName)
@@ -368,7 +389,7 @@ ${inv.narration ? `<div style="font-size:11px;color:#6b7280;margin-bottom:10px">
           const rawShipGST  = cleanGstin(invoice.shipToGST || '');
 
           // Mailing name: only use if different from both the ship name AND bill name
-          const rawShipMailingNameRaw = (invoice.shipToMailingName || '').trim();
+          const rawShipMailingNameRaw = cleanField(invoice.shipToMailingName || '');
           // Also discard mailing name if it's identical to ship name or bill name (Tally artefact)
           const rawShipMailingName = (
             norm(rawShipMailingNameRaw) === norm(rawShipName || billToName) ||
@@ -390,9 +411,9 @@ ${inv.narration ? `<div style="font-size:11px;color:#6b7280;margin-bottom:10px">
             && norm(rawShipMailingName) !== norm(billToName))
             ? rawShipMailingName : '';
           const shipToAddress = rawShipAddr || (shipSameAsBill ? billToAddress : '');
-          const shipToCity    = invoice.shipToCity    || (shipSameAsBill ? billToCity    : '');
-          const shipToState   = invoice.shipToState   || (shipSameAsBill ? billToState   : '');
-          const shipToCountry = invoice.shipToCountry || (shipSameAsBill ? billToCountry : '');
+          const shipToCity    = cleanField(invoice.shipToCity)    || (shipSameAsBill ? billToCity    : '');
+          const shipToState   = cleanField(invoice.shipToState)   || (shipSameAsBill ? billToState   : '');
+          const shipToCountry = cleanField(invoice.shipToCountry) || (shipSameAsBill ? billToCountry : '');
           const shipToGST     = rawShipGST || billToGST;
 
           // Only show mailing name for bill-to if it differs from name

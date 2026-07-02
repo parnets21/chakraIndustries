@@ -82,8 +82,14 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
       ]);
 
       const all = allRes.data || [];
-      const single = all.filter(inv => (inv.items?.length || 0) <= 1);
-      const multi  = all.filter(inv => (inv.items?.length || 0) > 1);
+      // Only show ERP-created and Excel-uploaded invoices on this page.
+      // Invoices imported from Tally (source === 'Tally' or 'tally') belong
+      // in the Tally-imported data section and must never appear here.
+      const erpInvoices = all.filter(inv =>
+        inv.source !== 'Tally' && inv.source !== 'tally'
+      );
+      const single = erpInvoices.filter(inv => (inv.items?.length || 0) <= 1);
+      const multi  = erpInvoices.filter(inv => (inv.items?.length || 0) > 1);
 
       setSingleInvoices(single);
       setSingleTotal(single.length);

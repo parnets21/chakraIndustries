@@ -41,6 +41,15 @@ const EXPORT_ENTITIES = [
   { key: 'receipt',  label: 'Receipt Vouchers',  icon: '🧾', desc: 'ERP receipt vouchers not yet in Tally' },
 ];
 
+// Maps UI export key → tallyExportService task key (for selective export stream)
+const EXPORT_KEY_MAP = {
+  masters:  'stockItems',      // runs stockItems + all ledgers via selective
+  purchase: 'purchaseInvoices',
+  sales:    'salesInvoices',
+  payment:  'paymentVouchers',
+  receipt:  'receiptVouchers',
+};
+
 // ── Spinner ───────────────────────────────────────────────────────────────────
 function Spinner() {
   return (
@@ -307,7 +316,9 @@ export default function TallyPage({ initialTab = 0 }) {
     };
 
     const es = dir === 'export'
-      ? tallyApi.openExportStream(type, onEv)
+      ? (type === 'Full' || !type
+          ? tallyApi.openFullExportStream(onEv)
+          : tallyApi.openSelectiveExportStream(EXPORT_KEY_MAP[type] || type, onEv))
       : tallyApi.openImportStream(type, onEv);
     esRef.current = es;
   };

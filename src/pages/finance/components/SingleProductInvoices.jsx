@@ -1,5 +1,8 @@
 import { MdVisibility, MdPrint, MdDownload, MdShare, MdDelete, MdContentCopy } from 'react-icons/md';
 import { FaWhatsapp, FaEnvelope } from 'react-icons/fa';
+import { useState } from 'react';
+import { invoiceApi } from '../../../api/invoiceApi';
+import { toast } from '../../../components/common/Toast';
 
 const RED = '#c0392b'; const RED_LIGHT = '#ef4444'; const GREEN = '#22c55e';
 const BLUE = '#3b82f6'; const TEXT_DARK = '#0f172a'; const TEXT_MID = '#475569'; const TEXT_LIGHT = '#94a3b8';
@@ -9,7 +12,7 @@ export default function SingleProductInvoices({
   invoices, total, page, PAGE_SIZE, search, setSearch, searchRef, setPage,
   handleStatusChange, handlePrint, handleDownload, handleShare,
   shareMenuInv, shareViaWhatsApp, shareViaGmail, shareViaCopy,
-  handleDelete, setSelectedInvoice, setShowView,
+  handleDelete, setSelectedInvoice, setShowView, onTallySent,
 }) {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -89,7 +92,8 @@ export default function SingleProductInvoices({
                       <ActionButtons inv={inv} handlePrint={handlePrint} handleDownload={handleDownload}
                         handleShare={handleShare} shareMenuInv={shareMenuInv}
                         shareViaWhatsApp={shareViaWhatsApp} shareViaGmail={shareViaGmail} shareViaCopy={shareViaCopy}
-                        handleDelete={handleDelete} setSelectedInvoice={setSelectedInvoice} setShowView={setShowView} />
+                        handleDelete={handleDelete} setSelectedInvoice={setSelectedInvoice} setShowView={setShowView}
+                        onTallySent={onTallySent} />
                     </td>
                   </tr>
                 );
@@ -105,9 +109,31 @@ export default function SingleProductInvoices({
   );
 }
 
-function ActionButtons({ inv, handlePrint, handleDownload, handleShare, shareMenuInv, shareViaWhatsApp, shareViaGmail, shareViaCopy, handleDelete, setSelectedInvoice, setShowView }) {
+function ActionButtons({ inv, handlePrint, handleDownload, handleShare, shareMenuInv, shareViaWhatsApp, shareViaGmail, shareViaCopy, handleDelete, setSelectedInvoice, setShowView, onTallySent }) {
+  const [sending, setSending] = useState(false);
+
+  const handleSendToTally = async () => {
+    if (sending) return;
+    setSending(true);
+    try {
+      const result = await invoiceApi.sendToTally(inv._id);
+      if (result.success) {
+        toast(`✅ ${inv.invoiceNo} sent to Tally`, 'success');
+        if (onTallySent) onTallySent(result.data);
+      } else {
+        toast(result.message || 'Failed to send to Tally', 'error');
+      }
+    } catch (e) {
+      toast(e.message || 'Failed to send to Tally', 'error');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const isSynced = inv.tallySync === true;
+
   return (
-    <div style={{ display: 'flex', gap: 4 }}>
+    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
       <button onClick={() => { setSelectedInvoice(inv); setShowView(true); }} style={{ padding: '3px 7px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="View"><MdVisibility size={13} color={BLUE} /></button>
       <button onClick={() => handlePrint(inv)} style={{ padding: '3px 7px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="Print"><MdPrint size={13} color={TEXT_MID} /></button>
       <button onClick={() => handleDownload(inv)} style={{ padding: '3px 7px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="Download"><MdDownload size={13} color={GREEN} /></button>
@@ -121,6 +147,22 @@ function ActionButtons({ inv, handlePrint, handleDownload, handleShare, shareMen
           </div>
         )}
       </div>
+      {/* ── Send to Tally ── */}
+      <button
+        onClick={handleSendToTally}
+        disabled={sending}
+        title={isSynced ? 'Already synced to Tally — click to re-send' : 'Send to Tally'}
+        style={{
+          padding: '3px 8px', borderRadius: 6, border: 'none', cursor: sending ? 'wait' : 'pointer',
+          display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700,
+          background: isSynced ? '#f0fdf4' : '#eff6ff',
+          color: isSynced ? '#16a34a' : '#2563eb',
+          opacity: sending ? 0.6 : 1,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {sending ? '⏳' : isSynced ? '✅' : '📤'} {sending ? 'Sending…' : 'Tally'}
+      </button>
       <button onClick={() => handleDelete(inv._id, inv.invoiceNo)} style={{ padding: '3px 7px', borderRadius: 6, border: '1px solid #fecaca', background: '#fef2f2', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="Delete"><MdDelete size={13} color={RED_LIGHT} /></button>
     </div>
   );

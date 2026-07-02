@@ -1293,6 +1293,10 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
           handleDelete={handleDelete}
           setSelectedInvoice={setSelectedInvoice}
           setShowView={setShowView}
+          onTallySent={(updated) => {
+            // Update the invoice in local state so the ✅ badge shows immediately
+            setSingleInvoices(prev => prev.map(inv => inv._id === updated._id ? { ...inv, tallySync: updated.tallySync, tallySyncAt: updated.tallySyncAt } : inv));
+          }}
         />
       )}
 
@@ -1317,6 +1321,9 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
           handleDelete={handleDelete}
           setSelectedInvoice={setSelectedInvoice}
           setShowView={setShowView}
+          onTallySent={(updated) => {
+            setMultiInvoices(prev => prev.map(inv => inv._id === updated._id ? { ...inv, tallySync: updated.tallySync, tallySyncAt: updated.tallySyncAt } : inv));
+          }}
         />
       )}
 

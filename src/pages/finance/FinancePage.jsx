@@ -989,7 +989,7 @@ ${forDownload?'<script>window.onload=()=>{window.print();}<\/script>':''}
 }
 
 // ── Voucher detail view component ────────────────────────────────────────────
-function VoucherDetailView({ voucher: v, onClose, onPrint, onDownload }) {
+function VoucherDetailView({ voucher: v, onClose, onPrint, onDownload, onSave }) {
   const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : '—';
   const fmtCurr = n => '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtQty  = q => {
@@ -1003,43 +1003,104 @@ function VoucherDetailView({ voucher: v, onClose, onPrint, onDownload }) {
     return isNaN(n) ? String(r) : `${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/Nos`;
   };
 
-  const items = v.inventoryEntries || [];
+  // ── Edit state ──
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editForm, setEditForm] = useState({
+    billToName:        v.billToName        || v.partyName || '',
+    billToMailingName: v.billToMailingName || '',
+    billToAddress:     v.billToAddress     || '',
+    billToCity:        v.billToCity        || '',
+    billToState:       v.billToState       || '',
+    billToCountry:     v.billToCountry     || '',
+    billToGST:         v.billToGST         || v.partyGstin || '',
+    billToGstRegType:  v.billToGstRegType  || '',
+    shipToName:        v.shipToName        || '',
+    shipToMailingName: v.shipToMailingName || '',
+    shipToAddress:     v.shipToAddress     || '',
+    shipToCity:        v.shipToCity        || '',
+    shipToState:       v.shipToState       || '',
+    shipToCountry:     v.shipToCountry     || '',
+    shipToGST:         v.shipToGST         || '',
+  });
+
+  const handleEditField = (field, value) => setEditForm(f => ({ ...f, [field]: value }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await tallyApi.updateVoucher(v._id, editForm);
+      toast('Invoice details saved', 'success');
+      setIsEditing(false);
+      if (onSave) onSave({ ...v, ...editForm });
+    } catch (e) {
+      toast(e.message || 'Failed to save', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setEditForm({
+      billToName:        v.billToName        || v.partyName || '',
+      billToMailingName: v.billToMailingName || '',
+      billToAddress:     v.billToAddress     || '',
+      billToCity:        v.billToCity        || '',
+      billToState:       v.billToState       || '',
+      billToCountry:     v.billToCountry     || '',
+      billToGST:         v.billToGST         || v.partyGstin || '',
+      billToGstRegType:  v.billToGstRegType  || '',
+      shipToName:        v.shipToName        || '',
+      shipToMailingName: v.shipToMailingName || '',
+      shipToAddress:     v.shipToAddress     || '',
+      shipToCity:        v.shipToCity        || '',
+      shipToState:       v.shipToState       || '',
+      shipToCountry:     v.shipToCountry     || '',
+      shipToGST:         v.shipToGST         || '',
+    });
+    setIsEditing(false);
+  };
+
+  // Use editForm values when editing, otherwise use voucher values
+  const effectiveV = isEditing ? { ...v, ...editForm } : v;
+
+  const items = effectiveV.inventoryEntries || [];
 
   // Bill To / Ship To details from voucher
   const billTo = {
-    name: v.billToName || v.partyName,
-    mailingName: v.billToMailingName,
-    address: v.billToAddress,
-    city: v.billToCity,
-    state: v.billToState,
-    country: v.billToCountry,
-    gst: v.billToGST || v.partyGstin,
-    gstRegType: v.billToGstRegType
+    name: effectiveV.billToName || effectiveV.partyName,
+    mailingName: effectiveV.billToMailingName,
+    address: effectiveV.billToAddress,
+    city: effectiveV.billToCity,
+    state: effectiveV.billToState,
+    country: effectiveV.billToCountry,
+    gst: effectiveV.billToGST || effectiveV.partyGstin,
+    gstRegType: effectiveV.billToGstRegType
   };
 
   // If Tally has no real Ship To data, fall back to Bill To details fully.
   // NOTE: The sync service stores billToName as shipToName when there's no real
   // ship-to, so we must check address/city/state/GST (not name) for "real" ship-to.
   // Also: Tally sometimes puts the party name in shipToAddress — treat that as blank.
-  const _shipAddrRaw2 = (v.shipToAddress || '').trim();
+  const _shipAddrRaw2 = (effectiveV.shipToAddress || '').trim();
   const _cleanShipAddr2 = (
-    _shipAddrRaw2.toLowerCase() === (v.shipToName || '').trim().toLowerCase() ||
-    _shipAddrRaw2.toLowerCase() === (v.billToName || v.partyName || '').trim().toLowerCase()
+    _shipAddrRaw2.toLowerCase() === (effectiveV.shipToName || '').trim().toLowerCase() ||
+    _shipAddrRaw2.toLowerCase() === (effectiveV.billToName || effectiveV.partyName || '').trim().toLowerCase()
   ) ? '' : _shipAddrRaw2;
-  const _shipMailRaw2 = (v.shipToMailingName || '').trim();
+  const _shipMailRaw2 = (effectiveV.shipToMailingName || '').trim();
   const _cleanShipMail2 = (
-    _shipMailRaw2.toLowerCase() === (v.shipToName || '').trim().toLowerCase() ||
-    _shipMailRaw2.toLowerCase() === (v.billToName || v.partyName || '').trim().toLowerCase()
+    _shipMailRaw2.toLowerCase() === (effectiveV.shipToName || '').trim().toLowerCase() ||
+    _shipMailRaw2.toLowerCase() === (effectiveV.billToName || effectiveV.partyName || '').trim().toLowerCase()
   ) ? '' : _shipMailRaw2;
-  const hasRealShipTo = _cleanShipAddr2 || v.shipToCity || v.shipToState || v.shipToGST;
+  const hasRealShipTo = _cleanShipAddr2 || effectiveV.shipToCity || effectiveV.shipToState || effectiveV.shipToGST;
   const shipTo = {
-    name:        v.shipToName || billTo.name,
-    mailingName: hasRealShipTo ? _cleanShipMail2  : billTo.mailingName,
-    address:     hasRealShipTo ? _cleanShipAddr2  : billTo.address,
-    city:        hasRealShipTo ? v.shipToCity     : billTo.city,
-    state:       hasRealShipTo ? v.shipToState    : billTo.state,
-    country:     hasRealShipTo ? v.shipToCountry  : billTo.country,
-    gst:         hasRealShipTo ? v.shipToGST      : billTo.gst,
+    name:        effectiveV.shipToName || billTo.name,
+    mailingName: hasRealShipTo ? _cleanShipMail2         : billTo.mailingName,
+    address:     hasRealShipTo ? _cleanShipAddr2         : billTo.address,
+    city:        hasRealShipTo ? effectiveV.shipToCity   : billTo.city,
+    state:       hasRealShipTo ? effectiveV.shipToState  : billTo.state,
+    country:     hasRealShipTo ? effectiveV.shipToCountry: billTo.country,
+    gst:         hasRealShipTo ? effectiveV.shipToGST    : billTo.gst,
   };
 
   // Split ledger entries: party ledger (isDeemed=true) vs tax/charge lines
@@ -1069,9 +1130,37 @@ function VoucherDetailView({ voucher: v, onClose, onPrint, onDownload }) {
     <div style={{ fontFamily: 'Arial, sans-serif', fontSize: 13, color: '#111' }}>
 
       {/* ── Action buttons ── */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
         <button onClick={onDownload} style={{ ...primaryBtn, fontSize: 12, padding: '6px 14px' }}>📥 Download PDF</button>
         <button onClick={onPrint}    style={{ ...outlineBtn, fontSize: 12, padding: '6px 14px' }}>🖨️ Print</button>
+        {!isEditing && (
+          <button
+            onClick={() => setIsEditing(true)}
+            style={{ ...outlineBtn, fontSize: 12, padding: '6px 14px', color: '#2563eb', borderColor: '#2563eb' }}>
+            ✏️ Edit
+          </button>
+        )}
+        {isEditing && (
+          <>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              style={{ ...primaryBtn, fontSize: 12, padding: '6px 14px', background: 'linear-gradient(135deg,#16a34a,#15803d)', opacity: saving ? 0.7 : 1 }}>
+              {saving ? '⏳ Saving…' : '💾 Save'}
+            </button>
+            <button
+              onClick={handleCancel}
+              disabled={saving}
+              style={{ ...outlineBtn, fontSize: 12, padding: '6px 14px' }}>
+              ✕ Cancel
+            </button>
+          </>
+        )}
+        {isEditing && (
+          <span style={{ fontSize: 11, color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '3px 10px', fontWeight: 600 }}>
+            ✏️ Editing — Bill To &amp; Ship To fields are now editable
+          </span>
+        )}
       </div>
 
       {/* ── Tally-style header band ── */}
@@ -1102,65 +1191,103 @@ function VoucherDetailView({ voucher: v, onClose, onPrint, onDownload }) {
       </div>
 
       {/* ── Party Details (like Tally) ── */}
-      <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0', marginBottom: 14 }}>
+      <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: `1px solid ${isEditing ? '#bfdbfe' : '#e2e8f0'}`, marginBottom: 14, transition: 'border-color 0.2s' }}>
         <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 8 }}>
           Party Details
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div>
-            <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
-              Buyer (Bill to)
+        {isEditing ? (
+          /* ── Edit mode ── */
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            {/* Bill To edit */}
+            <div>
+              <div style={{ fontSize: 10, color: '#2563eb', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                Buyer (Bill To)
+              </div>
+              {[
+                { label: 'Name',           field: 'billToName' },
+                { label: 'Mailing Name',   field: 'billToMailingName' },
+                { label: 'Address',        field: 'billToAddress' },
+                { label: 'City',           field: 'billToCity' },
+                { label: 'State',          field: 'billToState' },
+                { label: 'Country',        field: 'billToCountry' },
+                { label: 'GSTIN',          field: 'billToGST' },
+                { label: 'GST Reg. Type',  field: 'billToGstRegType' },
+              ].map(({ label, field }) => (
+                <div key={field} style={{ marginBottom: 6 }}>
+                  <label style={{ fontSize: 10, color: '#64748b', fontWeight: 700, display: 'block', marginBottom: 2 }}>{label}</label>
+                  <input
+                    value={editForm[field]}
+                    onChange={e => handleEditField(field, e.target.value)}
+                    style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid #93c5fd', fontSize: 12, fontFamily: 'inherit', outline: 'none', background: '#fff', boxSizing: 'border-box' }}
+                    placeholder={label}
+                  />
+                </div>
+              ))}
             </div>
-            <div style={{ fontSize: 12, lineHeight: 1.5, color: '#333' }}>
-              {billTo.name && <div style={{ fontWeight: 600 }}>{billTo.name}</div>}
-              {billTo.mailingName && <div>{billTo.mailingName}</div>}
-              {billTo.address && <div>{billTo.address}</div>}
-              {billTo.city && <div>{billTo.city}</div>}
-              {billTo.state && <div>{billTo.state}</div>}
-              {billTo.country && <div>{billTo.country}</div>}
-              {billTo.gst && <div style={{ fontFamily: 'monospace', fontSize: 11 }}>GSTIN: {billTo.gst}</div>}
-              {billTo.gstRegType && <div>GST Registration Type: {billTo.gstRegType}</div>}
+            {/* Ship To edit */}
+            <div>
+              <div style={{ fontSize: 10, color: '#2563eb', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                Consignee (Ship To)
+              </div>
+              {[
+                { label: 'Name',         field: 'shipToName' },
+                { label: 'Mailing Name', field: 'shipToMailingName' },
+                { label: 'Address',      field: 'shipToAddress' },
+                { label: 'City',         field: 'shipToCity' },
+                { label: 'State',        field: 'shipToState' },
+                { label: 'Country',      field: 'shipToCountry' },
+                { label: 'GSTIN',        field: 'shipToGST' },
+              ].map(({ label, field }) => (
+                <div key={field} style={{ marginBottom: 6 }}>
+                  <label style={{ fontSize: 10, color: '#64748b', fontWeight: 700, display: 'block', marginBottom: 2 }}>{label}</label>
+                  <input
+                    value={editForm[field]}
+                    onChange={e => handleEditField(field, e.target.value)}
+                    style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid #93c5fd', fontSize: 12, fontFamily: 'inherit', outline: 'none', background: '#fff', boxSizing: 'border-box' }}
+                    placeholder={label}
+                  />
+                </div>
+              ))}
             </div>
           </div>
-          <div>
-            <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
-              Consignee (Ship to)
+        ) : (
+          /* ── View mode ── */
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div>
+              <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+                Buyer (Bill to)
+              </div>
+              <div style={{ fontSize: 12, lineHeight: 1.5, color: '#333' }}>
+                {billTo.name && <div style={{ fontWeight: 600 }}>{billTo.name}</div>}
+                {billTo.mailingName && <div>{billTo.mailingName}</div>}
+                {billTo.address && <div>{billTo.address}</div>}
+                {billTo.city && <div>{billTo.city}</div>}
+                {billTo.state && <div>{billTo.state}</div>}
+                {billTo.country && <div>{billTo.country}</div>}
+                {billTo.gst && <div style={{ fontFamily: 'monospace', fontSize: 11 }}>GSTIN: {billTo.gst}</div>}
+                {billTo.gstRegType && <div>GST Registration Type: {billTo.gstRegType}</div>}
+              </div>
             </div>
-            <div style={{ fontSize: 12, lineHeight: 1.5, color: '#333' }}>
-              {shipTo.name && <div style={{ fontWeight: 600 }}>{shipTo.name}</div>}
-              {shipTo.mailingName && <div>{shipTo.mailingName}</div>}
-              {shipTo.address && <div>{shipTo.address}</div>}
-              {shipTo.city && <div>{shipTo.city}</div>}
-              {shipTo.state && <div>{shipTo.state}</div>}
-              {shipTo.country && <div>{shipTo.country}</div>}
-              {shipTo.gst && <div style={{ fontFamily: 'monospace', fontSize: 11 }}>GSTIN: {shipTo.gst}</div>}
+            <div>
+              <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+                Consignee (Ship to)
+              </div>
+              <div style={{ fontSize: 12, lineHeight: 1.5, color: '#333' }}>
+                {shipTo.name && <div style={{ fontWeight: 600 }}>{shipTo.name}</div>}
+                {shipTo.mailingName && <div>{shipTo.mailingName}</div>}
+                {shipTo.address && <div>{shipTo.address}</div>}
+                {shipTo.city && <div>{shipTo.city}</div>}
+                {shipTo.state && <div>{shipTo.state}</div>}
+                {shipTo.country && <div>{shipTo.country}</div>}
+                {shipTo.gst && <div style={{ fontFamily: 'monospace', fontSize: 11 }}>GSTIN: {shipTo.gst}</div>}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* ── Additional Invoice Fields ── */}
-      { (v.irn || v.ackNo || v.deliveryNote || v.referenceNo || v.buyersOrderNo || v.dispatchDocNo || v.dispatchedThrough || v.destination || v.billOfLadingNo || v.motorVehicleNo || v.termsOfDelivery) && (
-        <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', border: '1px solid #e2e8f0', marginBottom: 14 }}>
-          <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 8 }}>
-            Invoice Details
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            {v.irn && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>IRN</div><div style={{ fontSize: 12, color: '#333', wordBreak: 'break-all' }}>{v.irn}</div></div>}
-            {v.ackNo && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Ack No</div><div style={{ fontSize: 12, color: '#333' }}>{v.ackNo}</div></div>}
-            {v.ackDate && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Ack Date</div><div style={{ fontSize: 12, color: '#333' }}>{fmtDate(v.ackDate)}</div></div>}
-            {v.deliveryNote && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Delivery Note</div><div style={{ fontSize: 12, color: '#333' }}>{v.deliveryNote}</div></div>}
-            {v.referenceNo && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Reference No</div><div style={{ fontSize: 12, color: '#333' }}>{v.referenceNo}{v.referenceDate ? ` · ${fmtDate(v.referenceDate)}` : ''}</div></div>}
-            {v.buyersOrderNo && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Buyer's Order No</div><div style={{ fontSize: 12, color: '#333' }}>{v.buyersOrderNo}{v.buyersOrderDate ? ` · ${fmtDate(v.buyersOrderDate)}` : ''}</div></div>}
-            {v.dispatchDocNo && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Dispatch Doc No</div><div style={{ fontSize: 12, color: '#333' }}>{v.dispatchDocNo}</div></div>}
-            {v.dispatchedThrough && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Dispatched Through</div><div style={{ fontSize: 12, color: '#333' }}>{v.dispatchedThrough}</div></div>}
-            {v.destination && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Destination</div><div style={{ fontSize: 12, color: '#333' }}>{v.destination}</div></div>}
-            {v.billOfLadingNo && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Bill of Lading/LR No</div><div style={{ fontSize: 12, color: '#333' }}>{v.billOfLadingNo}</div></div>}
-            {v.motorVehicleNo && <div><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Motor Vehicle No</div><div style={{ fontSize: 12, color: '#333' }}>{v.motorVehicleNo}</div></div>}
-            {v.termsOfDelivery && <div style={{ gridColumn: '1 / -1' }}><div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Terms of Delivery</div><div style={{ fontSize: 12, color: '#333' }}>{v.termsOfDelivery}</div></div>}
-          </div>
-        </div>
-      )}
+
 
 
 
@@ -1221,11 +1348,8 @@ function VoucherDetailView({ voucher: v, onClose, onPrint, onDownload }) {
                 const pct = pctNum !== null ? formatTaxRate(pctNum) : null;
                 return (
                   <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td colSpan={3} style={{ padding: '7px 12px', textAlign: 'right', fontSize: 12, color: '#64748b' }}>
+                    <td colSpan={4} style={{ padding: '7px 12px', textAlign: 'right', fontSize: 12, color: '#64748b' }}>
                       {le.ledgerName}
-                    </td>
-                    <td style={{ padding: '7px 12px', textAlign: 'center', fontSize: 11, color: '#94a3b8' }}>
-                      {pct ? `${pct}%` : ''}
                     </td>
                     <td style={{ padding: '7px 12px', textAlign: 'right', fontSize: 12, color: '#64748b', fontFamily: 'monospace' }}>
                       {fmtCurr(Math.abs(le.amount))}
@@ -1740,6 +1864,10 @@ function TallyLedgerTab() {
             onClose={() => setViewVoucher(null)}
             onPrint={() => handlePrintVoucher(viewVoucher)}
             onDownload={() => handleDownloadVoucher(viewVoucher)}
+            onSave={(updated) => {
+              setViewVoucher(updated);
+              fetchData();
+            }}
           />
         )}
       </Modal>

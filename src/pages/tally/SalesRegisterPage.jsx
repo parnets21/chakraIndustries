@@ -197,7 +197,7 @@ th{background:#f3f4f6;font-weight:700;text-transform:uppercase;font-size:10px}
 </div>
 <div class="trow">
   <div class="ititle">TAX INVOICE</div>
-  <div class="imeta"><div><b>Invoice No.:</b> ${inv.invoiceNo||inv.voucherNumber||'—'}</div><div><b>Date:</b> ${fmtDate(inv.invoiceDate||inv.voucherDate)}</div></div>
+  <div class="imeta"><div><b>Invoice No.:</b> ${inv.invoiceNo||inv.voucherNumber||'—'}</div><div><b>Date:</b> ${fmtDate(inv.invoiceDate||inv.voucherDate)}</div>${inv.buyersOrderNo ? `<div style="margin-top:5px;display:inline-flex;align-items:center;gap:5px;background:#fffbeb;border:1.5px solid #fcd34d;border-radius:6px;padding:3px 8px"><span style="font-size:9px;font-weight:700;color:#92400e;text-transform:uppercase">PO No.</span><span style="font-size:11px;font-weight:800;color:#78350f">${inv.buyersOrderNo}</span></div>` : ''}</div>
 </div>
 <div class="slbl">Party Details</div>
 <div class="g2">
@@ -345,6 +345,17 @@ ${inv.narration ? `<div style="font-size:11px;color:#6b7280;margin-bottom:10px">
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontWeight: 700, color: '#0f172a', fontSize: 14 }}>Invoice No.: {invoice.invoiceNo || invoice.voucherNumber}</div>
             <div style={{ color: '#64748b', fontSize: 12 }}>Date: {fmtDate(invoice.invoiceDate || invoice.voucherDate)}</div>
+            {invoice.buyersOrderNo && (
+              <div style={{
+                marginTop: 6,
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                background: '#fffbeb', border: '1.5px solid #fcd34d',
+                borderRadius: 8, padding: '4px 10px',
+              }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#92400e', textTransform: 'uppercase' }}>PO No.</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#78350f' }}>{invoice.buyersOrderNo}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -977,7 +988,7 @@ export default function SalesRegisterPage() {
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr>
-                        {['#', 'Voucher No', 'Date', 'Party', 'Item Names', 'Amount', 'Actions'].map(h => (
+                        {['#', 'Voucher No', 'Date', 'Party', 'PO No.', 'Item Names', 'Amount', 'Actions'].map(h => (
                           <th key={h} className={th}>{h}</th>
                         ))}
                       </tr>
@@ -989,6 +1000,12 @@ export default function SalesRegisterPage() {
                           <td className={td} style={{ fontFamily: 'monospace', fontWeight: 700, color: '#15803d', fontSize: 11 }}>{v.voucherNumber || '—'}</td>
                           <td className={td} style={{ whiteSpace: 'nowrap' }}>{fmtDate(v.date || v.voucherDate)}</td>
                           <td className={td} style={{ fontWeight: 600 }}>{v.partyName || '—'}</td>
+                          <td className={td} style={{ whiteSpace: 'nowrap' }}>
+                            {v.buyersOrderNo
+                              ? <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#fffbeb', color: '#92400e', border: '1px solid #fcd34d' }}>{v.buyersOrderNo}</span>
+                              : <span style={{ color: '#94a3b8', fontSize: 11 }}>—</span>
+                            }
+                          </td>
                           <td className={td} style={{ fontSize: 12, color: '#64748b' }}>
                             {v.inventoryEntries?.length > 0 ? (
                               <div style={{ maxWidth: 200 }}>
@@ -1036,7 +1053,7 @@ export default function SalesRegisterPage() {
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr>
-                        {['#', 'Invoice No', 'Date', 'Party Name', 'Item Names', 'Grand Total', 'Status', 'Actions'].map(h => (
+                        {['#', 'Invoice No', 'Date', 'Party Name', 'PO No.', 'Item Names', 'Grand Total', 'Status', 'Actions'].map(h => (
                           <th key={h} className={th}>{h}</th>
                         ))}
                       </tr>
@@ -1048,6 +1065,12 @@ export default function SalesRegisterPage() {
                           <td className={td} style={{ fontFamily: 'monospace', fontWeight: 700, color: '#15803d', fontSize: 11 }}>{inv.invoiceNo || inv.voucherNumber || '—'}</td>
                           <td className={td} style={{ whiteSpace: 'nowrap' }}>{fmtDate(inv.invoiceDate || inv.voucherDate)}</td>
                           <td className={td} style={{ fontWeight: 600 }}>{inv.partyName || '—'}</td>
+                          <td className={td} style={{ whiteSpace: 'nowrap' }}>
+                            {inv.buyersOrderNo
+                              ? <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#fffbeb', color: '#92400e', border: '1px solid #fcd34d' }}>{inv.buyersOrderNo}</span>
+                              : <span style={{ color: '#94a3b8', fontSize: 11 }}>—</span>
+                            }
+                          </td>
                           <td className={td} style={{ fontSize: 12, color: '#64748b' }}>
                             {(inv.inventoryEntries || inv.items || [])?.length > 0 ? (
                               <div style={{ maxWidth: 200 }}>

@@ -53,7 +53,7 @@ export default function MultipleProductInvoices({
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ background: '#f8fafc' }}>
-                {['#', 'Invoice No', 'Unique ID', 'PO Number', 'PO Date', 'Ship To', 'City', 'State', 'Products', 'Brand', 'Total Qty', 'Dispatch Date', 'AWB', 'Courier', 'Order Status', 'Actions'].map(h => (
+                {['#', 'Invoice No', 'Unique ID', 'PO Number', 'PO Date', 'Ship To', 'City', 'State', 'Products', 'Brand', 'Total Qty', 'Dispatch Date', 'AWB', 'Courier', 'Actions'].map(h => (
                   <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: TEXT_LIGHT, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e8edf2', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -84,12 +84,6 @@ export default function MultipleProductInvoices({
                     <td style={{ padding: '9px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.dispatchDate || '—'}</td>
                     <td style={{ padding: '9px 12px', fontFamily: 'monospace', fontSize: 11, color: TEXT_MID, whiteSpace: 'nowrap' }}>{inv.awb || '—'}</td>
                     <td style={{ padding: '9px 12px', color: TEXT_MID, whiteSpace: 'nowrap', fontSize: 11 }}>{inv.courierName || '—'}</td>
-                    <td style={{ padding: '9px 12px' }}>
-                      <select value={inv.status} onChange={e => handleStatusChange(inv._id, e.target.value)}
-                        style={{ padding: '3px 6px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-                        {['Draft','Sent','Paid','Overdue','Cancelled'].map(s => <option key={s}>{s}</option>)}
-                      </select>
-                    </td>
                     <td style={{ padding: '9px 12px' }}>
                       <ActionButtons inv={inv} handlePrint={handlePrint} handleDownload={handleDownload}
                         handleShare={handleShare} shareMenuInv={shareMenuInv}

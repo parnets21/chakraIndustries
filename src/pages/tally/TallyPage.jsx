@@ -203,6 +203,8 @@ export default function TallyPage({ initialTab = 0 }) {
     syncPrefs: { masterData: true, purchaseVouchers: true, salesVouchers: true, paymentVouchers: true, receiptVouchers: true, journalVouchers: false },
   });
   const [connectorStatus, setConnectorStatus] = useState(null);
+  const [registeredConnectors, setRegisteredConnectors] = useState([]);
+  const [connectorsLoading, setConnectorsLoading] = useState(false);
 
   const reload = useCallback(async () => {
     try { const r = await tallyApi.getSyncStats();    setStats(r.data || {}); } catch (_) {}
@@ -225,6 +227,18 @@ export default function TallyPage({ initialTab = 0 }) {
     } catch (_) {}
   }, []);
 
+  const loadRegisteredConnectors = useCallback(async () => {
+    setConnectorsLoading(true);
+    try {
+      const r = await tallyApi.listConnectors();
+      setRegisteredConnectors(r.data || []);
+    } catch (_) {
+      setRegisteredConnectors([]);
+    } finally {
+      setConnectorsLoading(false);
+    }
+  }, []);
+
   const loadLogs = useCallback(async () => {
     setLoading(true);
     try {
@@ -236,8 +250,9 @@ export default function TallyPage({ initialTab = 0 }) {
     } catch (_) {} finally { setLoading(false); }
   }, [logTypeFilter, logStatusFilter]);
 
-  useEffect(() => { reload(); loadConfig(); loadConnectorStatus(); }, [reload, loadConfig, loadConnectorStatus]);
+  useEffect(() => { reload(); loadConfig(); loadConnectorStatus(); loadRegisteredConnectors(); }, [reload, loadConfig, loadConnectorStatus, loadRegisteredConnectors]);
   useEffect(() => { if (activeTab === 3) loadLogs(); }, [activeTab, loadLogs]);
+  useEffect(() => { if (activeTab === 4) loadRegisteredConnectors(); }, [activeTab, loadRegisteredConnectors]);
 
   // ── request with confirm ──────────────────────────────────────────────────
   const ask = (dir, type) => {
@@ -329,6 +344,25 @@ export default function TallyPage({ initialTab = 0 }) {
       await loadConnectorStatus();
       toast('Connector credentials generated', 'success');
     } catch (e) { toast(e.message || 'Failed to generate credentials', 'error'); }
+  };
+
+  const handleSetDefault = async (connectorId, computerName) => {
+    if (!window.confirm(`Set "${computerName || connectorId}" as the active connector?\n\nAll Tally data requests will be routed to this device.`)) return;
+    try {
+      await tallyApi.setDefaultConnector(connectorId);
+      await loadConfig();
+      await loadRegisteredConnectors();
+      toast(`Active connector set to ${computerName || connectorId}`, 'success');
+    } catch (e) { toast(e.message || 'Failed to set active connector', 'error'); }
+  };
+
+  const handleRemoveConnector = async (connectorId, computerName) => {
+    if (!window.confirm(`Remove connector "${computerName || connectorId}"?\n\nThis device will need to re-register to connect again.`)) return;
+    try {
+      await tallyApi.removeConnector(connectorId);
+      await loadRegisteredConnectors();
+      toast('Connector removed', 'success');
+    } catch (e) { toast(e.message || 'Failed to remove connector', 'error'); }
   };
 
   const TABS = [
@@ -961,34 +995,105 @@ export default function TallyPage({ initialTab = 0 }) {
               </div>
             )}
 
-            {/* ── Connector credentials ── */}
+            {/* ── Multi-Connector Management ── */}
             <div style={{ marginTop: 20, paddingTop: 18, borderTop: '1.5px solid #e2e8f0' }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: '#1e293b', marginBottom: 10 }}>Connector Mode</div>
-              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#1e3a8a', lineHeight: 1.6 }}>
-                Generate credentials to allow the <strong>Srichakra Connector</strong> (Electron desktop app) to connect. Once generated, <code>useConnector</code> is enabled and imports are routed through the connector instead of direct HTTP.
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#1e293b' }}>Connected Devices</div>
+                <button
+                  onClick={loadRegisteredConnectors}
+                  style={{ fontSize: 11, padding: '4px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
+                  ↻ Refresh
+                </button>
               </div>
-              <button
-                onClick={handleGenerateCredentials}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 18px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 14 }}>
-                🔑 Generate Connector Credentials
-              </button>
 
-              <div style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '12px 14px', fontSize: 12 }}>
-                <div style={{ fontWeight: 700, color: '#475569', marginBottom: 8 }}>Connector Status</div>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  {[
-                    ['useConnector', config.useConnector ? '✅ Enabled' : '— Disabled'],
-                    ['Connector ID',  config.connectorId  || '—'],
-                    ['Last Seen',     connectorStatus && Array.isArray(connectorStatus) && connectorStatus.length > 0
-                      ? (connectorStatus[0].lastSeen ? new Date(connectorStatus[0].lastSeen).toLocaleString('en-IN') : '—')
-                      : '—'],
-                  ].map(([k, v]) => (
-                    <tr key={k} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '4px 8px 4px 0', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap', width: 120, verticalAlign: 'top' }}>{k}</td>
-                      <td style={{ padding: '4px 0', fontFamily: 'monospace', color: '#1e293b', wordBreak: 'break-all' }}>{v}</td>
-                    </tr>
-                  ))}
-                </table>
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#1e3a8a', lineHeight: 1.6 }}>
+                Each PC with <strong>SriChakra Connector</strong> installed registers independently. Only the <strong>Active</strong> device routes Tally data. Install the connector on any PC — it will appear here automatically.
+              </div>
+
+              {connectorsLoading ? (
+                <div style={{ padding: '20px 0', textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>Loading connectors…</div>
+              ) : registeredConnectors.length === 0 ? (
+                <div style={{ padding: '20px 14px', background: '#f8fafc', borderRadius: 10, border: '1.5px dashed #e2e8f0', textAlign: 'center' }}>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>🔌</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4 }}>No connectors registered yet</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8' }}>Install and run the SriChakra Connector app on the PC where Tally is installed.</div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {registeredConnectors.map(c => {
+                    const isOnline  = c.online;
+                    const isDefault = c.isDefault;
+                    return (
+                      <div key={c.connectorId} style={{
+                        background: isDefault ? '#f0fdf4' : '#fafafa',
+                        border: `1.5px solid ${isDefault ? '#86efac' : '#e2e8f0'}`,
+                        borderRadius: 12, padding: '14px 16px',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            {/* Name row */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 14, fontWeight: 800, color: '#1e293b' }}>
+                                💻 {c.computerName || 'Unknown PC'}
+                              </span>
+                              {/* Online / Offline pill */}
+                              <span style={{
+                                fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 99,
+                                background: isOnline ? '#dcfce7' : '#fee2e2',
+                                color: isOnline ? '#15803d' : '#dc2626',
+                              }}>
+                                {isOnline ? '● Online' : '○ Offline'}
+                              </span>
+                              {/* Active badge */}
+                              {isDefault && (
+                                <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 99, background: '#16a34a', color: '#fff' }}>
+                                  ★ Active
+                                </span>
+                              )}
+                            </div>
+                            {/* Details grid */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '3px 12px', fontSize: 11, color: '#64748b' }}>
+                              <span style={{ fontWeight: 600 }}>User:</span>
+                              <span>{c.windowsUsername || '—'}</span>
+                              <span style={{ fontWeight: 600 }}>OS:</span>
+                              <span>{c.operatingSystem || '—'}</span>
+                              <span style={{ fontWeight: 600 }}>Version:</span>
+                              <span>Connector v{c.connectorVersion || '?'}{c.tallyVersion ? ` · Tally ${c.tallyVersion}` : ''}</span>
+                              <span style={{ fontWeight: 600 }}>Last seen:</span>
+                              <span>{c.lastSeenAt ? new Date(c.lastSeenAt).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—'}</span>
+                              <span style={{ fontWeight: 600 }}>ID:</span>
+                              <span style={{ fontFamily: 'monospace', fontSize: 10, wordBreak: 'break-all' }}>{c.connectorId}</span>
+                            </div>
+                          </div>
+                          {/* Action buttons */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+                            {!isDefault && (
+                              <button
+                                onClick={() => handleSetDefault(c.connectorId, c.computerName)}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1.5px solid #16a34a', background: '#f0fdf4', color: '#15803d', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                                ★ Set Active
+                              </button>
+                            )}
+                            {isDefault && (
+                              <div style={{ fontSize: 11, color: '#15803d', fontWeight: 700, padding: '6px 12px', background: '#dcfce7', borderRadius: 8, textAlign: 'center' }}>
+                                ✓ Routing here
+                              </div>
+                            )}
+                            <button
+                              onClick={() => handleRemoveConnector(c.connectorId, c.computerName)}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1.5px solid #fecaca', background: '#fff', color: '#dc2626', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                              🗑 Remove
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div style={{ marginTop: 14, padding: '10px 14px', background: '#fafafa', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 11, color: '#64748b', lineHeight: 1.7 }}>
+                <strong>How to add a device:</strong> Install the SriChakra Connector app on the new PC. It will auto-register and appear here. Then click <strong>Set Active</strong> to route Tally requests through it.
               </div>
             </div>
           </div>

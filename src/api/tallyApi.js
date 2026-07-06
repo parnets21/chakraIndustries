@@ -144,4 +144,7 @@ export const tallyApi = {
 
   // ── Full diagnostics (config + connectivity + DB counts + recent logs) ─────
   getDiagnostics:   ()       => fetch(`${BASE}/tally/diagnostics`,               { headers: authHeaders() }).then(handle),
+
+  // ── Unified dashboard stats (ERP + Tally counts in one call) ─────────────
+  getDashboardStats: ()      => fetch(`${BASE}/tally/dashboard-stats`,           { headers: authHeaders() }).then(handle),
 };

@@ -108,6 +108,11 @@ export const tallyApi = {
   resetVoucherSyncStates: () =>
     fetch(`${BASE}/tally/reset-voucher-sync-states`, { method: 'POST', headers: authHeaders(), body: '{}' }).then(handle),
 
+  // Reset invoice tallySync flags so already-exported invoices are re-exported on next run.
+  // Pass { invoiceNos: ['INV-001'] } to reset specific invoices, or no body to reset all.
+  resetInvoiceSyncFlags: (body = {}) =>
+    fetch(`${BASE}/tally/reset-invoice-sync`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
+
   // ── GUID sync status ───────────────────────────────────────────────────────
   getGuidStatus:    ()       => fetch(`${BASE}/tally/guid-status`,               { headers: authHeaders() }).then(handle),
 

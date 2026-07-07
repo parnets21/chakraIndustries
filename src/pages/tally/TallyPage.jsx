@@ -213,6 +213,10 @@ export default function TallyPage({ initialTab = 0 }) {
   });
   const [connectorStatus, setConnectorStatus] = useState(null);
   const [registeredConnectors, setRegisteredConnectors] = useState([]);
+
+  // re-export invoice sync reset
+  const [resetInvBusy,    setResetInvBusy]    = useState(false);
+  const [resetInvResult,  setResetInvResult]  = useState(null); // { count, error }
   const [connectorsLoading, setConnectorsLoading] = useState(false);
 
   const reload = useCallback(async () => {
@@ -374,6 +378,28 @@ export default function TallyPage({ initialTab = 0 }) {
       await loadRegisteredConnectors();
       toast('Connector removed', 'success');
     } catch (e) { toast(e.message || 'Failed to remove connector', 'error'); }
+  };
+
+  // ── Reset invoice tallySync flags so already-exported invoices get re-exported ──
+  const handleResetInvoiceSync = async () => {
+    if (!window.confirm(
+      'This will mark ALL previously exported invoices as "not synced".\n\n' +
+      'The next Sales Invoice export will update them in Tally using ACTION="Alter" — ' +
+      'adding the missing item names and correct Ship To details.\n\n' +
+      'No duplicates will be created. Proceed?'
+    )) return;
+    setResetInvBusy(true);
+    setResetInvResult(null);
+    try {
+      const r = await tallyApi.resetInvoiceSyncFlags();
+      setResetInvResult({ count: r.data?.reset ?? 0, error: null });
+      toast(`Reset ${r.data?.reset ?? 0} invoice(s). Run "Export to Tally → Sales Invoices" to update them.`, 'success');
+    } catch (e) {
+      setResetInvResult({ count: 0, error: e.message });
+      toast(e.message || 'Reset failed', 'error');
+    } finally {
+      setResetInvBusy(false);
+    }
   };
 
   const TABS = [
@@ -1155,6 +1181,62 @@ export default function TallyPage({ initialTab = 0 }) {
               Save Settings
             </button>
           </div>
+
+          {/* ── Re-export Invoices card ── */}
+          <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid #fde68a', padding: '20px 22px', alignSelf: 'start' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <span style={{ fontSize: 22 }}>🔄</span>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#1e293b' }}>Re-export Sales Invoices</div>
+                <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 2 }}>Fix item names &amp; Ship To in already-exported invoices</div>
+              </div>
+            </div>
+
+            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#92400e', lineHeight: 1.7, marginBottom: 16 }}>
+              <strong>When to use:</strong> After fixing the <em>Item Name</em> or <em>Ship To</em> export issues, previously exported invoices still show incorrect data in Tally. This action resets their sync flag so the next export run will update them.<br /><br />
+              <strong>Safe:</strong> Uses <code>ACTION="Alter"</code> — updates existing Tally vouchers in-place. No duplicates created.
+            </div>
+
+            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 14 }}>
+              <strong>Steps:</strong>
+              <ol style={{ margin: '6px 0 0 16px', padding: 0, lineHeight: 2 }}>
+                <li>Click <strong>"Reset Sync Flags"</strong> below</li>
+                <li>Go to <strong>Export to Tally → Sales Invoices</strong></li>
+                <li>Tally will update each invoice with the correct item lines and Ship To</li>
+              </ol>
+            </div>
+
+            {resetInvResult && (
+              <div style={{
+                marginBottom: 14, padding: '10px 14px', borderRadius: 10,
+                background: resetInvResult.error ? '#fef2f2' : '#f0fdf4',
+                border: `1px solid ${resetInvResult.error ? '#fecaca' : '#86efac'}`,
+                fontSize: 12, fontWeight: 600,
+                color: resetInvResult.error ? '#dc2626' : '#15803d',
+              }}>
+                {resetInvResult.error
+                  ? `❌ Error: ${resetInvResult.error}`
+                  : `✅ ${resetInvResult.count} invoice(s) reset. Now run Export → Sales Invoices.`
+                }
+              </div>
+            )}
+
+            <button
+              onClick={handleResetInvoiceSync}
+              disabled={resetInvBusy}
+              style={{
+                width: '100%', padding: '11px', border: 'none', borderRadius: 10,
+                background: resetInvBusy ? '#fde68a' : 'linear-gradient(135deg,#f59e0b,#d97706)',
+                color: '#fff', fontSize: 13, fontWeight: 700,
+                cursor: resetInvBusy ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit', opacity: resetInvBusy ? 0.7 : 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}
+            >
+              {resetInvBusy ? '⏳ Resetting…' : '🔄 Reset Sync Flags'}
+            </button>
+          </div>
+
         </div>
       )}
     </div>

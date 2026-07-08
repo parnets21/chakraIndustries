@@ -580,13 +580,13 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
               <table style={{ width: '100%', minWidth: '1100px' }}>
                 <thead>
                   <tr>
-                    <th style={{ padding: '11px 12px' }}>PO ID</th>
+                    <th style={{ padding: '11px 12px' }}>PO Number</th>
                     <th style={{ padding: '11px 12px' }}>Vendor</th>
-                    <th style={{ padding: '11px 12px' }}>Items</th>
+                    <th style={{ padding: '11px 12px' }}>Item Name</th>
                     <th style={{ padding: '11px 12px' }}>Subtotal</th>
                     <th style={{ padding: '11px 12px' }}>GST</th>
                     <th style={{ padding: '11px 12px' }}>Grand Total</th>
-                    <th style={{ padding: '11px 12px' }}>Date</th>
+                    <th style={{ padding: '11px 12px' }}>PO Date</th>
                     <th style={{ padding: '11px 12px' }}>Status</th>
                     <th style={{ padding: '11px 12px' }}>Actions</th>
                   </tr>
@@ -598,7 +598,20 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
                   <tr key={p._id}>
                     <td style={{ fontWeight: 600, color: 'var(--primary)', whiteSpace: 'nowrap', padding: '12px' }}>{p.poId}</td>
                     <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>{p.vendor?.companyName || '—'}</td>
-                    <td style={{ padding: '12px' }}>{p.items?.length || 0}</td>
+                    <td style={{ padding: '12px', maxWidth: 220 }}>
+                      {p.items?.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          {p.items.slice(0, 2).map((it, idx) => (
+                            <span key={idx} style={{ fontSize: 12, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 200, display: 'block' }}>
+                              {it.name || '—'}
+                            </span>
+                          ))}
+                          {p.items.length > 2 && (
+                            <span style={{ fontSize: 11, color: '#94a3b8' }}>+{p.items.length - 2} more</span>
+                          )}
+                        </div>
+                      ) : '—'}
+                    </td>
                     <td style={{ fontWeight: 600, whiteSpace: 'nowrap', padding: '12px' }}>₹{Math.round(p.subtotal).toLocaleString()}</td>
                     <td style={{ whiteSpace: 'nowrap', padding: '12px' }}>₹{Math.round(p.gstTotal).toLocaleString()}</td>
                     <td style={{ fontWeight: 700, color: 'var(--primary-dark)', whiteSpace: 'nowrap', padding: '12px' }}>₹{Math.round(p.grandTotal).toLocaleString()}</td>

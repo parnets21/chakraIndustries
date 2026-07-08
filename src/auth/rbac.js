@@ -76,6 +76,7 @@ export const ROLE_KEYS = new Proxy([], {
 
 // Default access matrix — super_admin is always locked to 'full'
 export const DEFAULT_PAGE_ACCESS = {
+  masters:      { super_admin: 'full', management: 'full',  purchase_manager: 'full',  production_manager: 'full',  dealer: false,  corporate_client: false  },
   dashboard:    { super_admin: 'full', management: 'full',  purchase_manager: 'full',  production_manager: 'full',  dealer: 'view', corporate_client: 'view' },
   procurement:  { super_admin: 'full', management: 'view',  purchase_manager: 'full',  production_manager: false,   dealer: false,  corporate_client: false  },
   inventory:    { super_admin: 'full', management: 'full',  purchase_manager: 'full',  production_manager: 'full',  dealer: 'view', corporate_client: false  },
@@ -200,6 +201,7 @@ export const NAV_ITEMS = [
       { path: '/inventory/defective',  label: 'Defective Stock',    page: 'inventory' },
       { path: '/inventory/storage',    label: 'Storage Locations',  page: 'inventory' },
       { path: '/inventory/pincode',    label: 'Pincode Stock View', page: 'inventory' },
+      { path: '/masters/items',        label: '🏷️ Item Master',     page: 'masters'   },
     ],
   },
   {

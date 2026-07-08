@@ -41,7 +41,8 @@ export default function ItemMasterPage() {
     reorderPoint: '',
     hsn: '',
     gst: '',
-    barcode: ''
+    barcode: '',
+    tallySalesLedger: ''
   });
 
   // Load items
@@ -92,7 +93,8 @@ export default function ItemMasterPage() {
       setForm({
         sku: '', name: '', description: '', category: '', unit: 'units',
         unitPrice: '', costPrice: '', sellingPrice: '', minQuantity: '',
-        maxQuantity: '', reorderPoint: '', hsn: '', gst: '', barcode: ''
+        maxQuantity: '', reorderPoint: '', hsn: '', gst: '', barcode: '',
+        tallySalesLedger: ''
       });
       setEditingItem(null);
       loadItems();
@@ -118,7 +120,8 @@ export default function ItemMasterPage() {
       reorderPoint: item.reorderPoint,
       hsn: item.hsn || '',
       gst: item.gst || '',
-      barcode: item.barcode || ''
+      barcode: item.barcode || '',
+      tallySalesLedger: item.tallySalesLedger || ''
     });
     setShowModal(true);
   };
@@ -181,7 +184,7 @@ export default function ItemMasterPage() {
           <button onClick={handleExport} style={{ ...{ padding: '8px 16px', borderRadius: 10, border: `1px solid ${COLORS.border}`, background: '#fff', color: COLORS.textMid, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 } }}>
             <MdDownload size={16} /> Export
           </button>
-          <button onClick={() => { setEditingItem(null); setForm({ sku: '', name: '', description: '', category: '', unit: 'units', unitPrice: '', costPrice: '', sellingPrice: '', minQuantity: '', maxQuantity: '', reorderPoint: '', hsn: '', gst: '', barcode: '' }); setShowModal(true); }} style={{ ...{ padding: '8px 16px', borderRadius: 10, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 } }}>
+          <button onClick={() => { setEditingItem(null); setForm({ sku: '', name: '', description: '', category: '', unit: 'units', unitPrice: '', costPrice: '', sellingPrice: '', minQuantity: '', maxQuantity: '', reorderPoint: '', hsn: '', gst: '', barcode: '', tallySalesLedger: '' }); setShowModal(true); }} style={{ ...{ padding: '8px 16px', borderRadius: 10, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 } }}>
             <MdAdd size={16} /> Add Item
           </button>
         </div>
@@ -327,6 +330,21 @@ export default function ItemMasterPage() {
           <div>
             <label style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, display: 'block', marginBottom: 6 }}>GST %</label>
             <input name="gst" type="number" value={form.gst} onChange={handleChange} placeholder="0" className="input" />
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, display: 'block', marginBottom: 6 }}>
+              Tally Sales Ledger
+              <span style={{ fontSize: 11, fontWeight: 400, color: COLORS.textLight, marginLeft: 6 }}>
+                (exact ledger name from Tally — needed for item name to show in Tally invoices)
+              </span>
+            </label>
+            <input
+              name="tallySalesLedger"
+              value={form.tallySalesLedger}
+              onChange={handleChange}
+              placeholder="e.g. Neck Pillow Sales Local  or  Hydra Bottle Sales @18%"
+              className="input"
+            />
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>

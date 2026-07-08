@@ -107,6 +107,10 @@ export default function AppRoutes() {
       <Route path="/"          element={<P element={<DashboardPage />} />} />
       <Route path="/dashboard" element={<P element={<DashboardPage />} />} />
 
+      {/* Masters */}
+      <Route path="/masters"       element={<Navigate to="/masters/items" replace />} />
+      <Route path="/masters/items" element={<P element={<ItemMasterPage />} />} />
+
       {/* Procurement */}
       <Route path="/procurement"              element={<Navigate to="/procurement/vendors" replace />} />
       <Route path="/procurement/vendors"      element={<P element={<VendorsPage />} />} />

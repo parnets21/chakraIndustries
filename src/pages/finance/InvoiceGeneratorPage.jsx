@@ -398,13 +398,21 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
           partyState:   getField(row, 'State'),
           partyPostal:  getField(row, 'Postal'),
           partyCountry: getField(row, 'Country'),
+          // Ship To fields — added to ensure they are exported to Tally
+          shipToName:       shipToName,
+          shipToAddress:    addrParts.join(', '),
+          // Bill To fields
           billToName,
           billToAddress,
           billToGST,
           invoiceDate:      parseDateField(getField(row, 'PODate', 'PO Date', 'InvoiceDate', 'Invoice Date')),
           dueDate:          '',
           purchaseOrderRef: po,
-          poDate:           getField(row, 'PODate', 'PO Date'),
+          // FIX: Parse PO Date properly so it's stored in correct format
+          poDate:           (() => {
+            const raw = getField(row, 'PODate', 'PO Date');
+            return raw ? parseDateField(raw) : '';
+          })(),
           uniqueId,
           vendorCode:       getField(row, 'VendorCode', 'Vendor Code'),
           accountNumber:    getField(row, 'AccountNumber', 'Account Number'),

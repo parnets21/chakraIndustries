@@ -338,7 +338,7 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
       const po          = getField(row, 'PurchaseOrder', 'Purchase Order', 'PO');
       const uniqueId    = getField(row, 'UniqueId', 'UniqueID', 'Unique Id');
       const shipToName  = getField(row, 'ShipToName', 'Ship To Name');
-      const productDesc = getField(row, 'ProductDescription', 'Product Description');
+      const productDesc = getField(row, 'ProductDescription', 'Product Description', 'ProductName', 'Product Name', 'Description', 'ItemDescription', 'Item Description', 'ItemName', 'Item Name');
       const productCode = getField(row, 'ProductCode', 'Product Code', 'BIPartNumber', 'BI Part Number');
 
       if (!po && !uniqueId) { errors.push({ row: rowNum, field: 'PurchaseOrder', message: 'Missing PO and UniqueId' }); return; }
@@ -480,7 +480,7 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
       }
 
       // Find the header row — it's the first row that contains known column names
-      const knownColsOrders = ['uniqueid','purchaseorder','shiptoname','productdescription','vendorcode','bipartnumber'];
+      const knownColsOrders = ['uniqueid','purchaseorder','shiptoname','productdescription','productname','vendorcode','bipartnumber'];
       const knownColsGRT    = ['invoice no','bill to','item name','hsn','unit rate','total value'];
       let headerRowIdx = 0;
       for (let i = 0; i < Math.min(5, rawArrays.length); i++) {
@@ -521,7 +521,7 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
       // Detect format
       const firstRow = rows[0];
       const allKeys = Object.keys(firstRow).map(k => k.toLowerCase().trim());
-      const isOrdersFormat = allKeys.some(k => ['purchaseorder','uniqueid','shiptoname','bipartnumber','productdescription'].includes(k));
+      const isOrdersFormat = allKeys.some(k => ['purchaseorder','uniqueid','shiptoname','bipartnumber','productdescription','productname'].includes(k));
       const isGRTFormat    = allKeys.some(k => ['invoice no','bill to','item name'].includes(k));
 
       let parsed;

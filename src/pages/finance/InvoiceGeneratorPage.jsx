@@ -191,6 +191,7 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
     };
 
     let currentInvoice = null;
+    let _salesLedgerLogged = false; // log once to confirm field detection
 
     rows.forEach((row, idx) => {
       const rowNum = idx + 2;
@@ -260,19 +261,32 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
             ? String(row['UOM']).trim()
             : 'Nos';
 
+        // Read per-item Sales Ledger from the Excel column (GRT format).
+        // This is the Tally sales ledger name that must be sent in GSTLEDGERSOURCE
+        // so the voucher routes to ALLINVENTORYENTRIES.LIST (inventory path).
+        const itemSalesLedger = getField(row, 'Sales Ledger', 'SalesLedger', 'Tally Sales Ledger', 'TallySalesLedger', 'Ledger', 'Sales Ledger Name');
+
+        // Log once so we can confirm the column is being read correctly
+        if (!_salesLedgerLogged) {
+          console.log('[parseGRTExcel] Row keys:', Object.keys(row));
+          console.log('[parseGRTExcel] First item Sales Ledger resolved to:', JSON.stringify(itemSalesLedger));
+          _salesLedgerLogged = true;
+        }
+
         currentInvoice.items.push({
-          description: itemName,
-          hsn:         hsn,
-          qty:         qty || 1,
-          unit:        unitVal,
-          rate:        rate || (qty > 0 ? basic / qty : basic),
-          basic:       basic,
-          discount:    0,
-          taxRate:     taxRate,
+          description:      itemName,
+          hsn:              hsn,
+          qty:              qty || 1,
+          unit:             unitVal,
+          rate:             rate || (qty > 0 ? basic / qty : basic),
+          basic:            basic,
+          discount:         0,
+          taxRate:          taxRate,
           cgst,
           sgst,
           igst,
           total,
+          tallySalesLedger: itemSalesLedger,
         });
       } else if (!currentInvoice && itemName) {
         errors.push({ row: rowNum, field: 'Invoice No', message: `Row ${rowNum}: Item found without invoice header` });

@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5001/api');
+const BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin + '/api' : 'http://localhost:5000/api');
 const getToken = () => localStorage.getItem('chakra_token') || sessionStorage.getItem('chakra_token');
 const authHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` });
 
@@ -17,28 +17,80 @@ const q = (p = {}) => { const s = new URLSearchParams(p).toString(); return s ? 
  * @param {'import'|'export'|'full-export'|'selective-export'} direction
  * @param {string}   type    - entity type or task key
  * @param {Function} onEvent - callback({ event, entity, message, stats, ... })
- * @returns {EventSource}   call .close() to cancel
+ * @returns {{ close: () => void }}   call .close() to cancel
  */
 function openDirectionalStream(direction, type = 'Full', onEvent) {
   const token = getToken();
-  let url;
-  if (direction === 'full-export') {
-    url = `${BASE}/tally/full-export-stream?token=${encodeURIComponent(token)}`;
-  } else if (direction === 'selective-export') {
-    url = `${BASE}/tally/selective-export?key=${encodeURIComponent(type)}&token=${encodeURIComponent(token)}`;
-  } else {
-    const endpoint = direction === 'export' ? 'export-stream' : 'import-stream';
-    url = `${BASE}/tally/${endpoint}?type=${encodeURIComponent(type)}&token=${encodeURIComponent(token)}`;
-  }
-  const es = new EventSource(url);
-  es.onmessage = (e) => {
-    try { onEvent(JSON.parse(e.data)); } catch (_) {}
+  let es;
+  let closed = false;
+  let reconnectAttempts = 0;
+  const MAX_RECONNECT_ATTEMPTS = 5;
+  const RECONNECT_DELAY_MS = 2000; // Initial delay, will backoff
+
+  const buildUrl = () => {
+    if (direction === 'full-export') {
+      return `${BASE}/tally/full-export-stream?token=${encodeURIComponent(token)}`;
+    } else if (direction === 'selective-export') {
+      return `${BASE}/tally/selective-export?key=${encodeURIComponent(type)}&token=${encodeURIComponent(token)}`;
+    } else {
+      const endpoint = direction === 'export' ? 'export-stream' : 'import-stream';
+      return `${BASE}/tally/${endpoint}?type=${encodeURIComponent(type)}&token=${encodeURIComponent(token)}`;
+    }
   };
-  es.onerror = () => {
-    onEvent({ event: 'error', message: 'Stream connection lost. Check your network and try again.' });
-    es.close();
+
+  const connect = () => {
+    if (closed) return;
+
+    es = new EventSource(buildUrl());
+
+    es.onmessage = (e) => {
+      try { 
+        if (e.data.trim().startsWith(':')) {
+          // Heartbeat comment, ignore
+          return;
+        }
+        onEvent(JSON.parse(e.data)); 
+      } catch (_) {}
+    };
+
+    es.onerror = (err) => {
+      if (closed) {
+        es.close();
+        return;
+      }
+      
+      console.warn('SSE connection error:', err);
+      
+      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttempts++;
+        const delay = RECONNECT_DELAY_MS * Math.pow(2, reconnectAttempts - 1); // Exponential backoff
+        onEvent({ 
+          event: 'info', 
+          message: `Stream connection lost. Reconnecting in ${delay / 1000}s (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...` 
+        });
+        
+        setTimeout(() => {
+          if (!closed) connect();
+        }, delay);
+      } else {
+        onEvent({ event: 'error', message: 'Stream connection lost. Check your network and try again.' });
+        close();
+      }
+      
+      if (es) es.close();
+    };
   };
-  return es;
+
+  const close = () => {
+    closed = true;
+    if (es) {
+      es.close();
+      es = null;
+    }
+  };
+
+  connect();
+  return { close };
 }
 
 export const tallyApi = {

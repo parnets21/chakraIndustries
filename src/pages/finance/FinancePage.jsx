@@ -838,15 +838,37 @@ function buildVoucherHtml(v, forDownload = false) {
   const igstRate = formatTaxRate(igstRateNum);
   
   // Bill To / Ship To details from voucher
+  // Derive state from GSTIN state code when billToState is blank
+  const gstinStateMap = {
+    '01':'Jammu & Kashmir','02':'Himachal Pradesh','03':'Punjab','04':'Chandigarh',
+    '05':'Uttarakhand','06':'Haryana','07':'Delhi','08':'Rajasthan','09':'Uttar Pradesh',
+    '10':'Bihar','11':'Sikkim','12':'Arunachal Pradesh','13':'Nagaland','14':'Manipur',
+    '15':'Mizoram','16':'Tripura','17':'Meghalaya','18':'Assam','19':'West Bengal',
+    '20':'Jharkhand','21':'Odisha','22':'Chhattisgarh','23':'Madhya Pradesh',
+    '24':'Gujarat','25':'Daman & Diu','26':'Dadra & Nagar Haveli','27':'Maharashtra',
+    '28':'Andhra Pradesh','29':'Karnataka','30':'Goa','31':'Lakshadweep',
+    '32':'Kerala','33':'Tamil Nadu','34':'Puducherry','35':'Andaman & Nicobar',
+    '36':'Telangana','37':'Andhra Pradesh (New)','38':'Ladakh','97':'Other Territory',
+    '99':'Centre Jurisdiction'
+  };
+  const deriveStateFromGstin = (gstin) => {
+    if (!gstin || gstin.length < 2) return '';
+    const code = gstin.substring(0, 2);
+    return gstinStateMap[code] || '';
+  };
+
+  const billToGstin = v.billToGST || v.partyGstin || '';
+  const derivedState = deriveStateFromGstin(billToGstin);
+
   const billTo = {
     name: v.billToName || v.partyName,
     mailingName: v.billToMailingName,
     address: v.billToAddress || v.partyAddress,
     city: v.billToCity || v.partyCity,
-    state: v.billToState || v.partyState,
+    state: v.billToState || v.partyState || derivedState || v.placeOfSupply,
     pincode: v.billToPincode || v.partyPostal,
-    country: v.billToCountry,
-    gst: v.billToGST || v.partyGstin,
+    country: v.billToCountry || 'India',
+    gst: billToGstin,
     gstRegType: v.billToGstRegType
   };
 

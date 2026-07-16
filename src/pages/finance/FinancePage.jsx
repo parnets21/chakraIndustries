@@ -841,9 +841,10 @@ function buildVoucherHtml(v, forDownload = false) {
   const billTo = {
     name: v.billToName || v.partyName,
     mailingName: v.billToMailingName,
-    address: v.billToAddress,
-    city: v.billToCity,
-    state: v.billToState,
+    address: v.billToAddress || v.partyAddress,
+    city: v.billToCity || v.partyCity,
+    state: v.billToState || v.partyState,
+    pincode: v.billToPincode || v.partyPostal,
     country: v.billToCountry,
     gst: v.billToGST || v.partyGstin,
     gstRegType: v.billToGstRegType
@@ -958,6 +959,7 @@ body{font-family:Arial,sans-serif;background:#fff;color:#111;font-size:12px}
         ${billTo.address ? `<div>${billTo.address}</div>` : ''}
         ${billTo.city ? `<div>${billTo.city}</div>` : ''}
         ${billTo.state ? `<div>${billTo.state}</div>` : ''}
+        ${billTo.pincode ? `<div>${billTo.pincode}</div>` : ''}
         ${billTo.country ? `<div>${billTo.country}</div>` : ''}
         ${billTo.gst ? `<div>GSTIN: ${billTo.gst}</div>` : ''}
         ${billTo.gstRegType ? `<div>GST Registration Type: ${billTo.gstRegType}</div>` : ''}

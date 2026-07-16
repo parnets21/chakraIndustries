@@ -204,4 +204,8 @@ export const tallyApi = {
 
   // ── Unified dashboard stats (ERP + Tally counts in one call) ─────────────
   getDashboardStats: ()      => fetch(`${BASE}/tally/dashboard-stats`,           { headers: authHeaders() }).then(handle),
+
+  // -- Fix bill-to address + pincode on all existing invoices & vouchers
+  fixBillToData: () =>
+    fetch(`\/tally/fix-bill-to-data`, { method: 'POST', headers: authHeaders(), body: '{}' }).then(handle),
 };

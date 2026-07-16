@@ -976,16 +976,19 @@ body{font-family:Arial,sans-serif;background:#fff;color:#111;font-size:12px}
     <div>
       <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#555;margin-bottom:4px">Buyer (Bill to)</div>
       <div style="font-size:12px;line-height:1.5">
-        ${billTo.name ? `<div>${billTo.name}</div>` : ''}
-        ${billTo.mailingName ? `<div>${billTo.mailingName}</div>` : ''}
+        ${billTo.name ? `<div style="font-weight:700">${billTo.name}</div>` : ''}
+        ${billTo.mailingName && billTo.mailingName !== billTo.name ? `<div>${billTo.mailingName}</div>` : ''}
         ${billTo.address ? `<div>${billTo.address}</div>` : ''}
         ${billTo.city ? `<div>${billTo.city}</div>` : ''}
-        ${billTo.state ? `<div>${billTo.state}</div>` : ''}
-        ${billTo.pincode ? `<div>${billTo.pincode}</div>` : ''}
-        ${billTo.country ? `<div>${billTo.country}</div>` : ''}
-        ${billTo.gst ? `<div>GSTIN: ${billTo.gst}</div>` : ''}
-        ${billTo.gstRegType ? `<div>GST Registration Type: ${billTo.gstRegType}</div>` : ''}
       </div>
+      <table style="font-size:11px;margin-top:4px;border-collapse:collapse;width:100%">
+        ${billTo.state   ? `<tr><td style="color:#555;padding:1px 6px 1px 0;white-space:nowrap">State</td><td style="padding:1px 0">${billTo.state}</td></tr>` : ''}
+        ${billTo.country ? `<tr><td style="color:#555;padding:1px 6px 1px 0;white-space:nowrap">Country</td><td style="padding:1px 0">${billTo.country}</td></tr>` : ''}
+        ${billTo.pincode ? `<tr><td style="color:#555;padding:1px 6px 1px 0;white-space:nowrap">Pincode</td><td style="padding:1px 0">${billTo.pincode}</td></tr>` : ''}
+        ${billTo.gstRegType ? `<tr><td style="color:#555;padding:1px 6px 1px 0;white-space:nowrap">GST Registration type</td><td style="padding:1px 0">${billTo.gstRegType}</td></tr>` : ''}
+        ${billTo.gst ? `<tr><td style="color:#555;padding:1px 6px 1px 0;white-space:nowrap">GSTIN/UIN</td><td style="padding:1px 0;font-weight:600">${billTo.gst}</td></tr>` : ''}
+        ${v.placeOfSupply ? `<tr><td style="color:#555;padding:1px 6px 1px 0;white-space:nowrap">Place of Supply</td><td style="padding:1px 0">${v.placeOfSupply}</td></tr>` : ''}
+      </table>
     </div>
     <div>
       <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#555;margin-bottom:4px">Consignee (Ship to)</div>

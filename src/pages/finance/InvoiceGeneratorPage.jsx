@@ -1168,6 +1168,7 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
   // ── Manual Invoice Creation ───────────────────────────────────────────────
   const [showCreate, setShowCreate]   = useState(false);
   const [saving, setSaving]           = useState(false);
+  const [fixingTaxRates, setFixingTaxRates] = useState(false);
   const emptyItem = { description: '', hsn: '', qty: 1, unit: 'Nos', rate: 0, discount: 0, taxRate: 18 };
   const [createForm, setCreateForm]   = useState({
     partyName: '', partyAddress: '', partyGST: '', partyEmail: '', partyPhone: '',
@@ -1231,6 +1232,29 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
     }
   };
 
+  // ── Fix Tax Rates: re-normalizes all stored invoices ─────────────────────
+  // Run this once after the itemSalesBase bug-fix deployment so all existing
+  // invoices get correct CGST/SGST rate percentages in their tallyVoucher.
+  const handleFixTaxRates = async () => {
+    if (!window.confirm(
+      'This will re-compute the Tally voucher tax rates for ALL stored invoices and mark them for re-export.\n\nThis fixes the "Tax amount does not match" e-invoice error in Tally.\n\nProceed?'
+    )) return;
+    setFixingTaxRates(true);
+    try {
+      const res = await invoiceApi.renormalizeAll();
+      if (res.failed > 0) {
+        toast(`Fixed ${res.updated} invoices. ${res.failed} failed — check console.`, 'warning');
+        console.warn('[Fix Tax Rates] Failed invoices:', res.failedInvoices);
+      } else {
+        toast(`Tax rates fixed for ${res.updated} invoice${res.updated !== 1 ? 's' : ''}. Re-export to Tally to apply.`, 'success');
+      }
+    } catch (e) {
+      toast(e.message || 'Failed to fix tax rates', 'error');
+    } finally {
+      setFixingTaxRates(false);
+    }
+  };
+
   return (
     <div style={{ padding: '20px 24px' }}>
       {/* Header */}
@@ -1261,6 +1285,16 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
             <MdUpload size={16} />
             {uploading ? 'Uploading...' : 'Upload Excel'}
           </button>
+          {totalCount > 0 && (
+            <button
+              onClick={handleFixTaxRates}
+              disabled={fixingTaxRates}
+              title="Re-computes Tally voucher tax rates for all invoices — fixes the 'Tax amount does not match' e-invoice error"
+              style={{ ...btnOutline, color: '#d97706', borderColor: '#fcd34d', background: '#fffbeb', opacity: fixingTaxRates ? 0.6 : 1 }}
+            >
+              {fixingTaxRates ? 'Fixing...' : '⚡ Fix Tax Rates'}
+            </button>
+          )}
           {totalCount > 0 && (
             <button
               onClick={handleDeleteAll}

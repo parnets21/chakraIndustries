@@ -217,8 +217,7 @@ export default function TallyPage({ initialTab = 0 }) {
   // re-export invoice sync reset
   const [resetInvBusy,    setResetInvBusy]    = useState(false);
   const [resetInvResult,  setResetInvResult]  = useState(null); // { count, error }
-  const [fixBillToBusy,   setFixBillToBusy]   = useState(false);
-  const [fixBillToResult, setFixBillToResult] = useState(null); // { invoiceFixed, voucherFixed, error }
+
   const [connectorsLoading, setConnectorsLoading] = useState(false);
 
   const reload = useCallback(async () => {
@@ -401,29 +400,6 @@ export default function TallyPage({ initialTab = 0 }) {
       toast(e.message || 'Reset failed', 'error');
     } finally {
       setResetInvBusy(false);
-    }
-  };
-
-  // ── Fix Bill To address + pincode on all existing invoices & vouchers ─────────
-  const handleFixBillToData = async () => {
-    if (!window.confirm(
-      'This will backfill missing Bill To address and Pincode on ALL existing invoices and Tally vouchers.\n\n' +
-      'Data is sourced from your Client master and Accounts Ledger records.\n\n' +
-      'No data will be deleted. Existing non-empty values are preserved. Proceed?'
-    )) return;
-    setFixBillToBusy(true);
-    setFixBillToResult(null);
-    try {
-      const r = await tallyApi.fixBillToData();
-      const inv = r.data?.invoiceFixed ?? 0;
-      const vou = r.data?.voucherFixed ?? 0;
-      setFixBillToResult({ invoiceFixed: inv, voucherFixed: vou, error: null });
-      toast(`Fixed ${inv} invoice(s) and ${vou} voucher(s) with Bill To address/pincode.`, 'success');
-    } catch (e) {
-      setFixBillToResult({ invoiceFixed: 0, voucherFixed: 0, error: e.message });
-      toast(e.message || 'Fix failed', 'error');
-    } finally {
-      setFixBillToBusy(false);
     }
   };
 
@@ -1259,47 +1235,6 @@ export default function TallyPage({ initialTab = 0 }) {
               }}
             >
               {resetInvBusy ? '⏳ Resetting…' : '🔄 Reset Sync Flags'}
-            </button>
-          </div>
-
-          {/* ── Fix Bill To Address + Pincode ───────────────────────────── */}
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '18px 20px', marginTop: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: '#1e293b', marginBottom: 6 }}>
-              🏠 Fix Bill To Address &amp; Pincode
-            </div>
-            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#1e40af', lineHeight: 1.7, marginBottom: 14 }}>
-              <strong>When to use:</strong> Bill To address or pincode is blank on printed invoices. This backfills missing address and pincode on all invoices and Tally vouchers from your Client master and Accounts Ledger records.<br /><br />
-              <strong>Safe:</strong> Only fills empty fields. Existing non-empty values are never overwritten.
-            </div>
-
-            {fixBillToResult && (
-              <div style={{
-                marginBottom: 14, padding: '10px 14px', borderRadius: 10,
-                background: fixBillToResult.error ? '#fef2f2' : '#f0fdf4',
-                border: `1px solid ${fixBillToResult.error ? '#fecaca' : '#86efac'}`,
-                fontSize: 12, fontWeight: 600,
-                color: fixBillToResult.error ? '#dc2626' : '#15803d',
-              }}>
-                {fixBillToResult.error
-                  ? `❌ Error: ${fixBillToResult.error}`
-                  : `✅ Fixed ${fixBillToResult.invoiceFixed} invoice(s) and ${fixBillToResult.voucherFixed} voucher(s).`
-                }
-              </div>
-            )}
-
-            <button
-              onClick={handleFixBillToData}
-              disabled={fixBillToBusy}
-              style={{
-                width: '100%', padding: '11px', border: 'none', borderRadius: 10,
-                background: fixBillToBusy ? '#bfdbfe' : 'linear-gradient(135deg,#3b82f6,#1d4ed8)',
-                color: '#fff', fontSize: 13, fontWeight: 700,
-                cursor: fixBillToBusy ? 'not-allowed' : 'pointer',
-                fontFamily: 'inherit', opacity: fixBillToBusy ? 0.7 : 1,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              }}
-            >
-              {fixBillToBusy ? '⏳ Fixing…' : '🏠 Fix Bill To Address & Pincode'}
             </button>
           </div>
 

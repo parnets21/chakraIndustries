@@ -16,7 +16,7 @@ const LOCAL_BACKEND_URL = 'http://192.168.1.14:5001/api/dealer';
 // ────────────────────────────────────────────────────────────────
 // OPTION 2: PRODUCTION BACKEND (Always works)
 // ────────────────────────────────────────────────────────────────
-const PRODUCTION_BACKEND_URL = 'http://localhost:5000/api/api/api/dealer';
+const PRODUCTION_BACKEND_URL = 'https://chakraindustries-backend.onrender.com/api/dealer';
 
 // ────────────────────────────────────────────────────────────────
 // SELECT WHICH BACKEND TO USE

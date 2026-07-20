@@ -1,4 +1,4 @@
-﻿/**
+/**
  * SalesRegisterPage.jsx
  *
  * Dedicated Sales Register import + viewer for Sri Chakra Industries.
@@ -221,6 +221,16 @@ th{background:#f3f4f6;font-weight:700;text-transform:uppercase;font-size:10px}
   </div>
 </div>
 ${inv.placeOfSupply ? `<div style="border-top:1px solid #e5e7eb;padding:5px 0 8px;margin-bottom:10px"><div class="pr"><span class="pl">Place of Supply</span><span class="pv">: ${inv.placeOfSupply}</span></div></div>` : ''}
+${(inv.irn || inv.ackNo) && (
+  `<div style="margin-bottom:16px;padding:12px;background:#f8fafc;border-radius:8px">
+    <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:8px">E-Invoice Details</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      ${inv.irn ? `<div><span style="font-size:11px;color:#64748b">IRN:</span> <span style="font-size:11px;font-weight:700;color:#0f172a;word-break:break-all">${inv.irn}</span></div>` : ''}
+      ${inv.ackNo ? `<div><span style="font-size:11px;color:#64748b">Ack No:</span> <span style="font-size:11px;font-weight:700;color:#0f172a">${inv.ackNo}</span></div>` : ''}
+      ${inv.ackDate ? `<div><span style="font-size:11px;color:#64748b">Ack Date:</span> <span style="font-size:11px;font-weight:700;color:#0f172a">${fmtDate(inv.ackDate)}</span></div>` : ''}
+    </div>
+  </div>`
+)}
 <table>
   <thead><tr>
     <th style="width:30px">#</th><th>Name of Item</th>

@@ -842,6 +842,17 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
     </div>
   </div>
 
+  <!-- E-Invoice Details -->
+  ${(inv.irn || inv.ackNo) ? `
+  <div style="border: 1px solid #ccc; border-top: none; padding: 12px 12px; background: #f8fafc;">
+    <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 8px;">E-Invoice Details</div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+      ${inv.irn ? `<div style="font-size: 11px;"><span style="color: #64748b;">IRN:</span> <span style="font-weight: 700; color: #0f172a; word-break: break-all;">${inv.irn}</span></div>` : ''}
+      ${inv.ackNo ? `<div style="font-size: 11px;"><span style="color: #64748b;">Ack No:</span> <span style="font-weight: 700; color: #0f172a;">${inv.ackNo}</span></div>` : ''}
+      ${inv.ackDate ? `<div style="font-size: 11px;"><span style="color: #64748b;">Ack Date:</span> <span style="font-weight: 700; color: #0f172a;">${fmtDate(inv.ackDate)}</span></div>` : ''}
+    </div>
+  </div>` : ''}
+
   <!-- Bill To / Ship To -->
   <div class="party-grid">
     <div class="party-cell">

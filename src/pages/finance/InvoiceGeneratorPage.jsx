@@ -244,11 +244,11 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
       if (currentInvoice && itemName) {
         const qty      = parseNum(getField(row, 'Qty', 'Quantity', 'QTY'));
         const rate     = parseNum(getField(row, 'Unit Rate', 'UnitRate', 'Rate', 'Unit Price'));
-        const basic    = parseNum(getField(row, 'Basic', 'Taxable', 'Basic Amount'));
-        const cgst     = parseNum(getField(row, 'cgst', 'CGST', 'CGST Amount'));
-        const sgst     = parseNum(getField(row, 'sgst', 'SGST', 'SGST Amount'));
-        const igst     = parseNum(getField(row, 'igst', 'IGST', 'IGST Amount'));
-        const total    = parseNum(getField(row, 'Total Value', 'TotalValue', 'Total', 'Amount'));
+        const basic    = parseFloat(parseNum(getField(row, 'Basic', 'Taxable', 'Basic Amount')).toFixed(2));
+        const cgst     = parseFloat(parseNum(getField(row, 'cgst', 'CGST', 'CGST Amount')).toFixed(2));
+        const sgst     = parseFloat(parseNum(getField(row, 'sgst', 'SGST', 'SGST Amount')).toFixed(2));
+        const igst     = parseFloat(parseNum(getField(row, 'igst', 'IGST', 'IGST Amount')).toFixed(2));
+        const total    = parseFloat((basic + cgst + sgst + igst).toFixed(2));
 
         // Compute tax rate from amounts — use parseFloat to preserve decimals like 2.5
         const taxAmt   = cgst + sgst + igst;

@@ -210,7 +210,14 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
 
         const add1 = getField(row, 'Bill to Add1', 'Bill To Add1', 'BillToAdd1', 'Add1', 'Address1', 'Address 1');
         const add2 = getField(row, 'Bill to Add 2', 'Bill To Add 2', 'BillToAdd2', 'Add 2', 'Add2', 'Address2', 'Address 2');
-        const address = [add1, add2].filter(Boolean).join(', ');
+        const rawAddress = [add1, add2].filter(Boolean).join(', ');
+
+        // Extract pincode from address — 6-digit Indian postal code
+        // e.g. "Ulsoor, Bangalore-560042" → pincode="560042", address="Ulsoor, Bangalore"
+        const pincodeMatch = rawAddress.match(/\b(\d{6})\b/);
+        const billToPincode = pincodeMatch ? pincodeMatch[1] : '';
+        // Remove the pincode (and any trailing dash/space before it) from the address lines
+        const address = rawAddress.replace(/[-\s]*\b\d{6}\b/g, '').replace(/,\s*,/g, ',').replace(/,\s*$/, '').trim();
 
         // Ship To — read dedicated ship-to columns
         const shipAdd1 = getField(row, 'Ship to Add1', 'Ship To Add1', 'ShipToAdd1', 'Ship To Address1', 'ShipToAddress1');
@@ -225,6 +232,10 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
           partyGST:         getField(row, 'GSTIN', 'GST', 'GST No', 'GSTIN No'),
           partyEmail:       '',
           partyPhone:       '',
+          billToName:       billTo,
+          billToAddress:    address,
+          billToGST:        getField(row, 'GSTIN', 'GST', 'GST No', 'GSTIN No'),
+          billToPincode:    billToPincode,
           shipToName:       shipName,
           shipToAddress:    shipAddress,
           invoiceDate:      parseDateField(getField(row, 'Invoice Date', 'InvoiceDate', 'Date')),

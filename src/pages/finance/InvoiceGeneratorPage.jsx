@@ -468,6 +468,8 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
           // Ship To fields — added to ensure they are exported to Tally
           shipToName:       shipToName,
           shipToAddress:    addrParts.join(', '),
+          shipToState:      getField(row, 'State'),
+          shipToCity:       getField(row, 'City'),
           // Bill To fields
           billToName,
           billToAddress,

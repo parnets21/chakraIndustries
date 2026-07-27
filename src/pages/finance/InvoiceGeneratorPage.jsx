@@ -909,13 +909,21 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
   </div>` : ''}
 
   <!-- Bill To / Ship To -->
-  <div class="party-grid">
+  ${(() => {
+    // Place of Supply = Ship To state (GST law) → fallback to bill-to state → never hardcode
+    const placeOfSupply = inv.shipToState || inv.partyState || inv.billToState || '';
+    const billGstin = inv.billToGST || inv.partyGST || '';
+    const shipState = inv.shipToState || '';
+    const shipAddr  = inv.shipToAddress || inv.partyAddress || '';
+    return `<div class="party-grid">
     <div class="party-cell">
       <div class="party-label">Bill To</div>
       <div class="party-name">${inv.billToName || inv.partyName}</div>
       <div class="party-line">
         ${inv.billToAddress ? `Address: ${inv.billToAddress}<br/>` : (inv.partyAddress ? `Address: ${inv.partyAddress}<br/>` : '')}
-        ${inv.billToGST || inv.partyGST ? `GSTIN: ${inv.billToGST || inv.partyGST}&nbsp;&nbsp;&nbsp;Place of Supply: ${inv.partyState || 'Karnataka'}<br/>` : ''}
+        ${inv.billToState || inv.partyState ? `State: ${inv.billToState || inv.partyState}<br/>` : ''}
+        ${billGstin ? `GSTIN: ${billGstin}<br/>` : ''}
+        ${placeOfSupply ? `Place of Supply: ${placeOfSupply}<br/>` : ''}
         ${inv.partyPhone ? `Mobile: ${inv.partyPhone}` : ''}
       </div>
     </div>
@@ -923,10 +931,12 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
       <div class="party-label">Ship To</div>
       <div class="party-name">${inv.shipToName || inv.partyName}</div>
       <div class="party-line">
-        ${(inv.shipToAddress || inv.partyAddress) ? `Address: ${inv.shipToAddress || inv.partyAddress}` : ''}
+        ${shipAddr ? `Address: ${shipAddr}<br/>` : ''}
+        ${shipState ? `State: ${shipState}` : ''}
       </div>
     </div>
-  </div>
+  </div>`;
+  })()}
 
   <!-- Items Table -->
   <div class="items-wrap">

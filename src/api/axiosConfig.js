@@ -15,11 +15,19 @@ const handle = async (res) => {
     localStorage.removeItem('chakra_user');
     sessionStorage.removeItem('chakra_token');
     sessionStorage.removeItem('chakra_user');
-    window.location.href = '/login';
-    throw new Error('Unauthorized');
+    // Use React Router-safe redirect — don't do hard window.location crash
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('chakra:unauthorized'));
+    }
+    throw new Error('Unauthorized – please log in again');
   }
-  const d = await res.json();
-  if (!res.ok) throw new Error(d.message || 'Request failed');
+  let d;
+  try {
+    d = await res.json();
+  } catch {
+    throw new Error(`Server returned non-JSON response (status ${res.status})`);
+  }
+  if (!res.ok) throw new Error(d?.message || `Request failed (${res.status})`);
   return d;
 };
 

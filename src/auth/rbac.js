@@ -98,6 +98,7 @@ export const DEFAULT_PAGE_ACCESS = {
   vinculum:     { super_admin: 'full', management: 'view',  purchase_manager: 'full',  production_manager: false,   dealer: false,  corporate_client: false  },
   creditnotes:  { super_admin: 'full', management: 'full',  purchase_manager: 'view',  production_manager: false,   dealer: false,  corporate_client: false  },
   livetracking: { super_admin: 'full', management: 'view',  purchase_manager: 'view',  production_manager: false,   dealer: 'view', corporate_client: 'view' },
+  employeemanage: { super_admin: 'full', management: 'full', purchase_manager: 'view', production_manager: 'view', dealer: false, corporate_client: false },
   settings:     { super_admin: 'full', management: false,   purchase_manager: false,   production_manager: false,   dealer: false,  corporate_client: false  },
 };
 
@@ -255,6 +256,14 @@ export const NAV_ITEMS = [
       { path: '/returns/debitcredit',    label: 'Debit/Credit Note',  page: 'returns' },
       { path: '/returns/reconciliation', label: 'Reconciliation',     page: 'returns' },
       { path: '/returns/loss',           label: 'Loss & Resolution',  page: 'returns' },
+    ],
+  },
+  { section: 'EMPLOYEE MANAGEMENT' },
+  {
+    label: 'Employee Management', page: 'employeemanage', icon: 'MdAdminPanelSettings',
+    children: [
+      { path: '/employee-management/registered', label: 'Registered Employees', page: 'employeemanage' },
+      { path: '/employee-management/products',   label: 'Product Master',        page: 'employeemanage' },
     ],
   },
   { section: 'FINANCE & ANALYTICS' },

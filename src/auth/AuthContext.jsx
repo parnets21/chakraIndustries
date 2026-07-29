@@ -59,6 +59,18 @@ export function AuthProvider({ children }) {
     };
   }, [user, resetTimer]);
 
+  // Listen for 401 events from axiosConfig (avoids hard page-reload crash)
+  useEffect(() => {
+    const handle401 = () => {
+      logout();
+      // Use history API so React Router handles navigation without page crash
+      window.history.replaceState(null, '', '/login');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    };
+    window.addEventListener('chakra:unauthorized', handle401);
+    return () => window.removeEventListener('chakra:unauthorized', handle401);
+  }, [logout]);
+
   const login = async (email, password, remember = true) => {
     const res = await fetch(`${BASE}/auth/login`, {
       method: 'POST',

@@ -1,6 +1,6 @@
 import axiosInstance from './axiosConfig';
 
-const ERP_DEALER_ORDERS_BASE = '/api/erp/dealer-orders';
+const ERP_DEALER_ORDERS_BASE = '/erp/dealer-orders';
 
 export const erpDealerOrderApi = {
   getAll: (params) => axiosInstance.get(ERP_DEALER_ORDERS_BASE, { params }),

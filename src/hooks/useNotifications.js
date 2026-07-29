@@ -26,33 +26,23 @@ export function useNotifications() {
     }
   }, []);
 
-  const fetch = useCallback(async (retries = 2) => {
-    // Don't fetch if user is not logged in
-    if (!user) {
-      console.log('User not logged in, skipping notification fetch');
-      return;
-    }
-    
+  const fetch = useCallback(async () => {
+    if (!user) return;
     try {
       setLoading(true);
       const res = await notificationApi.getAll();
       const allNotifications = res.data || [];
-      // Filter out dismissed notifications
       const filtered = allNotifications.filter(n => !dismissed.has(n.id));
       setNotifications(filtered);
       const count = res.unreadCount || 0;
-      // Flash "new" indicator if count increased since last poll
       if (count > prevCountRef.current) setHasNew(true);
       prevCountRef.current = count;
       setUnreadCount(count);
     } catch (err) {
-      console.error('Notification fetch error:', err);
-      // Retry once on connection failure (e.g. Render cold start)
-      if (retries > 0) {
-        setTimeout(() => fetch(retries - 1), 5000);
-        return;
-      }
-      // silently fail after retries — don't break the UI
+      // Silently ignore network errors (server restart / offline)
+      // Only log non-network errors to avoid console spam
+      const isNetworkError = err.name === 'TypeError' || err.message === 'Failed to fetch';
+      if (!isNetworkError) console.error('Notification fetch error:', err);
     } finally {
       setLoading(false);
     }

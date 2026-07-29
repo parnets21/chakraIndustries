@@ -16,6 +16,7 @@ const ICON_MAP = {
   MdStar, MdAssignment, MdLocalShipping, MdAssignmentReturn,
   MdAccountBalance, MdSync, MdTrendingUp, MdBarChart, MdBuild,
   MdQrCode2, MdTask, MdSettings, MdBusinessCenter, MdReceipt,
+  MdAdminPanelSettings,
 };
 
 const ROLE_COLORS = {

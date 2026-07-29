@@ -10,6 +10,7 @@ function pathToPage(pathname) {
     'po-generator': 'pogenerator',
     'live-tracking': 'livetracking',
     'credit-notes': 'creditnotes',
+    'employee-management': 'employeemanage',
   };
   return PATH_MAP[segment] ?? segment;
 }

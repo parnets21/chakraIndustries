@@ -92,6 +92,10 @@ import VinculumSubPage from '../pages/vinculum/VinculumSubPage';
 // Tasks
 import TasksSubPage from '../pages/tasks/TasksSubPage';
 
+// Employee Management
+import ProductMasterPage       from '../pages/employee/ProductMasterPage';
+import RegisteredEmployeesPage from '../pages/employee/RegisteredEmployeesPage';
+
 function P({ element }) {
   return <ProtectedRoute>{element}</ProtectedRoute>;
 }
@@ -270,6 +274,11 @@ export default function AppRoutes() {
       <Route path="/tasks/todo"      element={<P element={<TasksSubPage tab="todo" />} />} />
       <Route path="/tasks/recurring" element={<P element={<TasksSubPage tab="recurring" />} />} />
       <Route path="/tasks/notifs"    element={<P element={<TasksSubPage tab="notifs" />} />} />
+
+      {/* Employee Management */}
+      <Route path="/employee-management"             element={<Navigate to="/employee-management/registered" replace />} />
+      <Route path="/employee-management/registered"  element={<P element={<RegisteredEmployeesPage />} />} />
+      <Route path="/employee-management/products"    element={<P element={<ProductMasterPage />} />} />
 
       {/* Tally Integration */}
       <Route path="/tally"              element={<Navigate to="/tally/overview" replace />} />

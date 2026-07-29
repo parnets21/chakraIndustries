@@ -15,9 +15,11 @@ import { tallyApi } from '../api/tallyApi';
 const PAGE_LABELS = {
   dashboard: 'Dashboard', procurement: 'Procurement', inventory: 'Inventory',
   production: 'Production', oem: 'OEM', orders: 'Orders', bulk: 'Bulk Orders',
-  logistics: 'Logistics', returns: 'Returns', finance: 'Finance',
+  logistics: 'Logistics', returns: 'Returns',
+   finance: 'Finance',
   forecasting: 'Forecasting', reports: 'BI Reports', assets: 'Assets',
   barcode: 'Barcode', tasks: 'Tasks', settings: 'Settings',
+  employeemanage: 'Employee Management',
 };
 
 const NOTIF_META = {

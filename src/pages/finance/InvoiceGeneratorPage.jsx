@@ -210,7 +210,14 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
 
         const add1 = getField(row, 'Bill to Add1', 'Bill To Add1', 'BillToAdd1', 'Add1', 'Address1', 'Address 1');
         const add2 = getField(row, 'Bill to Add 2', 'Bill To Add 2', 'BillToAdd2', 'Add 2', 'Add2', 'Address2', 'Address 2');
-        const address = [add1, add2].filter(Boolean).join(', ');
+        const rawAddress = [add1, add2].filter(Boolean).join(', ');
+
+        // Extract pincode from address — 6-digit Indian postal code
+        // e.g. "Ulsoor, Bangalore-560042" → pincode="560042", address="Ulsoor, Bangalore"
+        const pincodeMatch = rawAddress.match(/\b(\d{6})\b/);
+        const billToPincode = pincodeMatch ? pincodeMatch[1] : '';
+        // Remove the pincode (and any trailing dash/space before it) from the address lines
+        const address = rawAddress.replace(/[-\s]*\b\d{6}\b/g, '').replace(/,\s*,/g, ',').replace(/,\s*$/, '').trim();
 
         // Ship To — read dedicated ship-to columns
         const shipAdd1 = getField(row, 'Ship to Add1', 'Ship To Add1', 'ShipToAdd1', 'Ship To Address1', 'ShipToAddress1');
@@ -218,15 +225,61 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
         const shipAddress = [shipAdd1, shipAdd2].filter(Boolean).join(', ') || address;
         const shipName = getField(row, 'Ship To Name', 'ShipToName', 'Ship To') || billTo;
 
+        // Extract ship-to state from address text
+        const extractStateFromText = (text) => {
+          if (!text) return '';
+          const t = text.toLowerCase();
+          const states = [
+            ['andhra pradesh','Andhra Pradesh'],['arunachal','Arunachal Pradesh'],
+            ['assam','Assam'],['bihar','Bihar'],['chhattisgarh','Chhattisgarh'],
+            ['goa','Goa'],['gujarat','Gujarat'],['haryana','Haryana'],
+            ['himachal','Himachal Pradesh'],['jharkhand','Jharkhand'],
+            ['karnataka','Karnataka'],['kerala','Kerala'],
+            ['madhya pradesh','Madhya Pradesh'],['maharashtra','Maharashtra'],
+            ['manipur','Manipur'],['meghalaya','Meghalaya'],['mizoram','Mizoram'],
+            ['nagaland','Nagaland'],['odisha','Odisha'],['punjab','Punjab'],
+            ['rajasthan','Rajasthan'],['sikkim','Sikkim'],
+            ['tamil nadu','Tamil Nadu'],['telangana','Telangana'],
+            ['tripura','Tripura'],['uttar pradesh','Uttar Pradesh'],
+            ['uttarakhand','Uttarakhand'],['west bengal','West Bengal'],
+            ['delhi','Delhi'],['jammu','Jammu and Kashmir'],
+            ['chandigarh','Chandigarh'],
+            ['mumbai','Maharashtra'],['pune','Maharashtra'],
+            ['bangalore','Karnataka'],['bengaluru','Karnataka'],
+            ['hyderabad','Telangana'],['chennai','Tamil Nadu'],
+            ['kolkata','West Bengal'],['ahmedabad','Gujarat'],
+            ['jaipur','Rajasthan'],['lucknow','Uttar Pradesh'],
+            ['gorakhpur','Uttar Pradesh'],['noida','Uttar Pradesh'],
+            ['patna','Bihar'],['bhopal','Madhya Pradesh'],
+            ['ranchi','Jharkhand'],['raipur','Chhattisgarh'],
+            ['bhubaneswar','Odisha'],['guwahati','Assam'],
+            ['visakhapatnam','Andhra Pradesh'],['vijayawada','Andhra Pradesh'],
+          ];
+          for (const [kw, state] of states) {
+            if (t.includes(kw)) return state;
+          }
+          return '';
+        };
+
+        const shipToState = getField(row, 'Ship To State', 'ShipToState') || extractStateFromText(shipAddress) || extractStateFromText(shipName);
+        const billToState = getField(row, 'Bill To State', 'BillToState') || extractStateFromText(rawAddress);
+
         currentInvoice = {
           invoiceNo:        invoiceNo,
           partyName:        billTo,
           partyAddress:     address,
           partyGST:         getField(row, 'GSTIN', 'GST', 'GST No', 'GSTIN No'),
+          partyState:       billToState,
           partyEmail:       '',
           partyPhone:       '',
+          billToName:       billTo,
+          billToAddress:    address,
+          billToGST:        getField(row, 'GSTIN', 'GST', 'GST No', 'GSTIN No'),
+          billToState:      billToState,
+          billToPincode:    billToPincode,
           shipToName:       shipName,
           shipToAddress:    shipAddress,
+          shipToState:      shipToState,
           invoiceDate:      parseDateField(getField(row, 'Invoice Date', 'InvoiceDate', 'Date')),
           dueDate:          '',
           purchaseOrderRef: getField(row, 'PO NO', 'PO No', 'PO Number', 'PO NO.'),
@@ -415,6 +468,8 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
           // Ship To fields — added to ensure they are exported to Tally
           shipToName:       shipToName,
           shipToAddress:    addrParts.join(', '),
+          shipToState:      getField(row, 'State'),
+          shipToCity:       getField(row, 'City'),
           // Bill To fields
           billToName,
           billToAddress,
@@ -854,13 +909,21 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
   </div>` : ''}
 
   <!-- Bill To / Ship To -->
-  <div class="party-grid">
+  ${(() => {
+    // Place of Supply = Ship To state (GST law) → fallback to bill-to state → never hardcode
+    const placeOfSupply = inv.shipToState || inv.partyState || inv.billToState || '';
+    const billGstin = inv.billToGST || inv.partyGST || '';
+    const shipState = inv.shipToState || '';
+    const shipAddr  = inv.shipToAddress || inv.partyAddress || '';
+    return `<div class="party-grid">
     <div class="party-cell">
       <div class="party-label">Bill To</div>
       <div class="party-name">${inv.billToName || inv.partyName}</div>
       <div class="party-line">
         ${inv.billToAddress ? `Address: ${inv.billToAddress}<br/>` : (inv.partyAddress ? `Address: ${inv.partyAddress}<br/>` : '')}
-        ${inv.billToGST || inv.partyGST ? `GSTIN: ${inv.billToGST || inv.partyGST}&nbsp;&nbsp;&nbsp;Place of Supply: ${inv.partyState || 'Karnataka'}<br/>` : ''}
+        ${inv.billToState || inv.partyState ? `State: ${inv.billToState || inv.partyState}<br/>` : ''}
+        ${billGstin ? `GSTIN: ${billGstin}<br/>` : ''}
+        ${placeOfSupply ? `Place of Supply: ${placeOfSupply}<br/>` : ''}
         ${inv.partyPhone ? `Mobile: ${inv.partyPhone}` : ''}
       </div>
     </div>
@@ -868,10 +931,12 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
       <div class="party-label">Ship To</div>
       <div class="party-name">${inv.shipToName || inv.partyName}</div>
       <div class="party-line">
-        ${(inv.shipToAddress || inv.partyAddress) ? `Address: ${inv.shipToAddress || inv.partyAddress}` : ''}
+        ${shipAddr ? `Address: ${shipAddr}<br/>` : ''}
+        ${shipState ? `State: ${shipState}` : ''}
       </div>
     </div>
-  </div>
+  </div>`;
+  })()}
 
   <!-- Items Table -->
   <div class="items-wrap">

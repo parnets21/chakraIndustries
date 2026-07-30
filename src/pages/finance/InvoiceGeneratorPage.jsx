@@ -263,6 +263,10 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
 
         const shipToState = getField(row, 'Ship To State', 'ShipToState') || extractStateFromText(shipAddress) || extractStateFromText(shipName);
         const billToState = getField(row, 'Bill To State', 'BillToState') || extractStateFromText(rawAddress);
+        
+        // Extract city from dedicated columns (e-Invoice validation requirement)
+        const billToCity = getField(row, 'Bill To City', 'BillToCity', 'Bill to City', 'Buyer City') || '';
+        const shipToCity = getField(row, 'Ship To City', 'ShipToCity', 'Ship to City', 'Consignee City') || '';
 
         currentInvoice = {
           invoiceNo:        invoiceNo,
@@ -270,15 +274,18 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
           partyAddress:     address,
           partyGST:         getField(row, 'GSTIN', 'GST', 'GST No', 'GSTIN No'),
           partyState:       billToState,
+          partyCity:        billToCity,
           partyEmail:       '',
           partyPhone:       '',
           billToName:       billTo,
           billToAddress:    address,
+          billToCity:       billToCity,
           billToGST:        getField(row, 'GSTIN', 'GST', 'GST No', 'GSTIN No'),
           billToState:      billToState,
           billToPincode:    billToPincode,
           shipToName:       shipName,
           shipToAddress:    shipAddress,
+          shipToCity:       shipToCity,
           shipToState:      shipToState,
           invoiceDate:      parseDateField(getField(row, 'Invoice Date', 'InvoiceDate', 'Date')),
           dueDate:          '',

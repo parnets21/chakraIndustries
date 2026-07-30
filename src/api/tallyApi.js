@@ -165,6 +165,12 @@ export const tallyApi = {
   resetInvoiceSyncFlags: (body = {}) =>
     fetch(`${BASE}/tally/reset-invoice-sync`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
 
+  // Re-normalize all tallyVoucher sub-documents with latest normalizer logic.
+  // Run this after any code change to normalizeToTallyVoucher to update stored data.
+  // After this, reset sync flags and re-export to Tally.
+  remigrateGstFields: () =>
+    fetch(`${BASE}/tally/remigrate-gst-fields`, { method: 'POST', headers: authHeaders(), body: '{}' }).then(handle),
+
   // ── GUID sync status ───────────────────────────────────────────────────────
   getGuidStatus:    ()       => fetch(`${BASE}/tally/guid-status`,               { headers: authHeaders() }).then(handle),
 

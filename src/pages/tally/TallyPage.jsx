@@ -218,6 +218,10 @@ export default function TallyPage({ initialTab = 0 }) {
   const [resetInvBusy,    setResetInvBusy]    = useState(false);
   const [resetInvResult,  setResetInvResult]  = useState(null); // { count, error }
 
+  // re-normalize tallyVoucher data (fixes rateOfInvoiceTax / RATEDETAILS in stored data)
+  const [remigrBusy,   setRemigrBusy]   = useState(false);
+  const [remigrResult, setRemigrResult] = useState(null);
+
   const [connectorsLoading, setConnectorsLoading] = useState(false);
 
   const reload = useCallback(async () => {
@@ -400,6 +404,27 @@ export default function TallyPage({ initialTab = 0 }) {
       toast(e.message || 'Reset failed', 'error');
     } finally {
       setResetInvBusy(false);
+    }
+  };
+
+  // ── Re-normalize tallyVoucher data — fixes rateOfInvoiceTax / RATEDETAILS ──
+  const handleRemigrateGst = async () => {
+    if (!window.confirm(
+      'This will re-normalize all invoice tallyVoucher data using the latest code.\n\n' +
+      'It fixes the "Tax amount does not match" issue by removing rateOfInvoiceTax and RATEDETAILS.\n\n' +
+      'After this, click "Reset Sync Flags" and then re-export to Tally. Proceed?'
+    )) return;
+    setRemigrBusy(true);
+    setRemigrResult(null);
+    try {
+      const r = await tallyApi.remigrateGstFields();
+      setRemigrResult({ count: r.data?.succeeded ?? 0, error: null });
+      toast(`Re-normalized ${r.data?.succeeded ?? 0} invoice(s). Now reset sync flags and re-export.`, 'success');
+    } catch (e) {
+      setRemigrResult({ count: 0, error: e.message });
+      toast(e.message || 'Re-normalize failed', 'error');
+    } finally {
+      setRemigrBusy(false);
     }
   };
 
@@ -1199,13 +1224,41 @@ export default function TallyPage({ initialTab = 0 }) {
             </div>
 
             <div style={{ fontSize: 12, color: '#64748b', marginBottom: 14 }}>
-              <strong>Steps:</strong>
+              <strong>Steps to fix "Tax amount does not match" warning:</strong>
               <ol style={{ margin: '6px 0 0 16px', padding: 0, lineHeight: 2 }}>
-                <li>Click <strong>"Reset Sync Flags"</strong> below</li>
+                <li>Click <strong>"Step 1: Re-normalize Invoice Data"</strong> below</li>
+                <li>Click <strong>"Step 2: Reset Sync Flags"</strong></li>
                 <li>Go to <strong>Export to Tally → Sales Invoices</strong></li>
-                <li>Tally will update each invoice with the correct item lines and Ship To</li>
               </ol>
             </div>
+
+            {/* ── Step 1: Re-normalize ── */}
+            {remigrResult && (
+              <div style={{
+                marginBottom: 10, padding: '10px 14px', borderRadius: 10,
+                background: remigrResult.error ? '#fef2f2' : '#eff6ff',
+                border: `1px solid ${remigrResult.error ? '#fecaca' : '#93c5fd'}`,
+                fontSize: 12, fontWeight: 600,
+                color: remigrResult.error ? '#dc2626' : '#1d4ed8',
+              }}>
+                {remigrResult.error ? `❌ Error: ${remigrResult.error}` : `✅ ${remigrResult.count} invoice(s) re-normalized. Now reset sync flags.`}
+              </div>
+            )}
+            <button
+              onClick={handleRemigrateGst}
+              disabled={remigrBusy}
+              style={{
+                width: '100%', padding: '11px', border: 'none', borderRadius: 10,
+                background: remigrBusy ? '#bfdbfe' : 'linear-gradient(135deg,#3b82f6,#1d4ed8)',
+                color: '#fff', fontSize: 13, fontWeight: 700,
+                cursor: remigrBusy ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit', opacity: remigrBusy ? 0.7 : 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                marginBottom: 10,
+              }}
+            >
+              {remigrBusy ? '⏳ Re-normalizing…' : '🔧 Step 1: Re-normalize Invoice Data'}
+            </button>
 
             {resetInvResult && (
               <div style={{

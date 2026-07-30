@@ -261,19 +261,26 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
           return '';
         };
 
-        const shipToState = getField(row, 'Ship To State', 'ShipToState') || extractStateFromText(shipAddress) || extractStateFromText(shipName);
-        const billToState = getField(row, 'Bill To State', 'BillToState') || extractStateFromText(rawAddress);
+        const shipToState = getField(row, 'Ship To State', 'ShipToState', 'Ship to State', 'shipToState') || extractStateFromText(shipAddress) || extractStateFromText(shipName);
+        const billToState = getField(row, 'Bill To State', 'BillToState', 'Bill to State', 'billToState') || extractStateFromText(rawAddress);
         
+        // Normalize state to official Title Case (Tally rejects lowercase state names)
+        // e.g. "karnataka" → "Karnataka", "uttar pradesh" → "Uttar Pradesh"
+        const toTitleCase = (s) => s ? s.trim().replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()) : '';
+        const normalizedBillToState = toTitleCase(billToState);
+        const normalizedShipToState = toTitleCase(shipToState);
+
         // Extract city from dedicated columns (e-Invoice validation requirement)
-        const billToCity = getField(row, 'Bill To City', 'BillToCity', 'Bill to City', 'Buyer City') || '';
-        const shipToCity = getField(row, 'Ship To City', 'ShipToCity', 'Ship to City', 'Consignee City') || '';
+        // Trim leading/trailing spaces (e.g. " BALLIA" → "Ballia")
+        const billToCity = toTitleCase(getField(row, 'Bill To City', 'BillToCity', 'Bill to City', 'Buyer City') || '');
+        const shipToCity = toTitleCase(getField(row, 'Ship To City', 'ShipToCity', 'Ship to City', 'Consignee City') || '');
 
         currentInvoice = {
           invoiceNo:        invoiceNo,
           partyName:        billTo,
           partyAddress:     address,
           partyGST:         getField(row, 'GSTIN', 'GST', 'GST No', 'GSTIN No'),
-          partyState:       billToState,
+          partyState:       normalizedBillToState,
           partyCity:        billToCity,
           partyEmail:       '',
           partyPhone:       '',
@@ -281,12 +288,12 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
           billToAddress:    address,
           billToCity:       billToCity,
           billToGST:        getField(row, 'GSTIN', 'GST', 'GST No', 'GSTIN No'),
-          billToState:      billToState,
+          billToState:      normalizedBillToState,
           billToPincode:    billToPincode,
           shipToName:       shipName,
           shipToAddress:    shipAddress,
           shipToCity:       shipToCity,
-          shipToState:      shipToState,
+          shipToState:      normalizedShipToState,
           invoiceDate:      parseDateField(getField(row, 'Invoice Date', 'InvoiceDate', 'Date')),
           dueDate:          '',
           purchaseOrderRef: getField(row, 'PO NO', 'PO No', 'PO Number', 'PO NO.'),

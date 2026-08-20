@@ -214,7 +214,7 @@ function ProductMasterPage() {
                   </tr>
                 ) : products.map(p => {
                   const sc = statusBg(p.status);
-                  const thumbSrc = p.productImageUrl || (p.productImage ? imgUrl(p.productImage) : '');
+                  const thumbSrc = p.productImage ? imgUrl(p.productImage) : (p.productImageUrl || '');
                   return (
                     <tr key={p._id} style={{ borderBottom: '1px solid #f8fafc' }}
                       onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
@@ -347,7 +347,7 @@ function ProductMasterPage() {
       <Modal open={!!viewProd} onClose={() => setViewProd(null)} title="Product Details" size="xl">
         {viewProd && (() => {
           const p = viewProd;
-          const imgSrc = p.productImageUrl || (p.productImage ? imgUrl(p.productImage) : '');
+          const imgSrc = p.productImage ? imgUrl(p.productImage) : (p.productImageUrl || '');
           const sc = statusBg(p.status);
           return (
             <div>

@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { MdLocalShipping, MdLocationOn, MdAccessTime, MdCheckCircle, MdRadioButtonChecked } from 'react-icons/md';
 import docketTrackingApi from '../../api/docketTrackingApi';
+import Pagination from '../../components/common/Pagination';
 
 export default function DeliveryTrackingPage() {
   const [deliveries, setDeliveries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedDelivery, setSelectedDelivery] = useState(null);
+  const [page, setPage]         = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   // Load in-transit deliveries
   const loadDeliveries = async () => {
@@ -112,7 +115,7 @@ export default function DeliveryTrackingPage() {
                   </td>
                 </tr>
               ) : (
-                deliveries.map((delivery) => (
+                deliveries.slice((page-1)*pageSize, page*pageSize).map((delivery) => (
                   <tr key={delivery._id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm font-mono text-blue-600 font-semibold">
                       {delivery.docketId || 'N/A'}
@@ -180,6 +183,17 @@ export default function DeliveryTrackingPage() {
             </tbody>
           </table>
         </div>
+        {deliveries.length > 0 && (
+          <div style={{ padding: '0 16px 8px' }}>
+            <Pagination
+              total={deliveries.length}
+              page={page}
+              pageSize={pageSize}
+              onPage={p => setPage(p)}
+              onPageSize={s => { setPageSize(s); setPage(1); }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Tracking Detail Modal */}

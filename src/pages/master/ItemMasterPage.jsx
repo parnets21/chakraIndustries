@@ -5,6 +5,7 @@ import Modal from '../../components/common/Modal';
 import { toast } from '../../components/common/Toast';
 import { MdAdd, MdEdit, MdDelete, MdSearch, MdDownload } from 'react-icons/md';
 import * as XLSX from 'xlsx';
+import Pagination from '../../components/common/Pagination';
 
 const COLORS = {
   primary: '#ef4444',
@@ -26,6 +27,8 @@ export default function ItemMasterPage() {
   const [editingItem, setEditingItem] = useState(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [page, setPage]       = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const [form, setForm] = useState({
     sku: '',
@@ -62,11 +65,14 @@ export default function ItemMasterPage() {
 
   // Filter items
   const filteredItems = items.filter(item =>
-    (search === '' || 
+    (search === '' ||
      item.sku.toLowerCase().includes(search.toLowerCase()) ||
      item.name.toLowerCase().includes(search.toLowerCase()) ||
      item.itemId.toLowerCase().includes(search.toLowerCase()))
   );
+
+  useEffect(() => { setPage(1); }, [search, statusFilter]);
+  const pagedItems = filteredItems.slice((page - 1) * pageSize, page * pageSize);
 
   // Handle form change
   const handleChange = (e) => {
@@ -244,7 +250,7 @@ export default function ItemMasterPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredItems.map((item, i) => (
+                {pagedItems.map((item, i) => (
                   <tr key={item._id} style={{ background: i % 2 === 0 ? COLORS.bg : '#fff', borderBottom: `1px solid ${COLORS.border}` }}>
                     <td style={{ padding: '11px 16px', fontFamily: 'monospace', fontWeight: 700, color: COLORS.primary }}>{item.itemId}</td>
                     <td style={{ padding: '11px 16px', fontFamily: 'monospace', fontSize: 12, color: COLORS.textMid }}>{item.sku}</td>
@@ -268,6 +274,15 @@ export default function ItemMasterPage() {
               </tbody>
             </table>
           </div>
+        )}
+        {filteredItems.length > 0 && (
+          <Pagination
+            total={filteredItems.length}
+            page={page}
+            pageSize={pageSize}
+            onPage={p => setPage(p)}
+            onPageSize={s => { setPageSize(s); setPage(1); }}
+          />
         )}
       </div>
 

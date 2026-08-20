@@ -45,6 +45,11 @@ export const poGeneratorApi = {
   createCompany:     (body)         => fetch(`${BASE}/po-generator/companies`,                       { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   updateCompany:     (id, body)     => fetch(`${BASE}/po-generator/companies/${id}`,                 { method: 'PUT',  headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   deleteCompany:     (id)           => fetch(`${BASE}/po-generator/companies/${id}`,                 { method: 'DELETE', headers: authHeaders() }).then(handle),
+
+  // Company-wise item tracking
+  getCompanyItems:      (companyId)    => fetch(`${BASE}/po-generator/company-items/${companyId}`,      { headers: authHeaders() }).then(handle),
+  getCompaniesSummary:  ()             => fetch(`${BASE}/po-generator/companies-summary`,                { headers: authHeaders() }).then(handle),
+  updateItemDispatch:(invoiceId, itemId, body) => fetch(`${BASE}/po-generator/invoices/${invoiceId}/items/${itemId}`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(body) }).then(handle),
   
   // Payment tracking endpoints (with mock fallback)
   listPayments:      (invoiceId)    => {

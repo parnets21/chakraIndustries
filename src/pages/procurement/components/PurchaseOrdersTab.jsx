@@ -6,8 +6,7 @@ import BulkPOUpload from './BulkPOUpload';
 import { poApi } from '../../../api/poApi';
 import { vendorApi } from '../../../api/vendorApi';   
 import { rfqApi } from '../../../api/rfqApi';
-import { MdVisibility, MdDeleteOutline, MdCheckCircle, MdCancel, MdSend, MdPrint, MdDownload, MdEmail } from 'react-icons/md';
-import { FaEdit } from 'react-icons/fa';
+import { MdVisibility, MdDeleteOutline, MdCheckCircle, MdCancel, MdSend, MdPrint, MdDownload, MdEmail, MdEdit } from 'react-icons/md';
 import { dataEvents } from '../../../utils/dataEvents';
 
 const EMPTY_FORM = {
@@ -625,7 +624,7 @@ export default function PurchaseOrdersTab({ showPOModal, setShowPOModal, onSaved
                           <MdVisibility size={16} />
                         </button>
                         <button className="btn btn-sm" title="Edit" style={{ background: '#fef3c7', color: '#92400e', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => handleEdit(p)}>
-                          <FaEdit size={16} />
+                          <MdEdit size={16} />
                         </button>
                         <button className="btn btn-sm" title="Print" style={{ background: '#f0fdf4', color: '#15803d', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #bbf7d0', borderRadius: 6 }} onClick={() => handlePrint(p)}>
                           <MdPrint size={16} />

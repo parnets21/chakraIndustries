@@ -451,10 +451,10 @@ export default function TallyPage({ initialTab = 0 }) {
         <button onClick={() => navigate('/tally/data')} className={btnOutline} style={{ fontSize: 12 }}>📋 View Imported Data</button>
       </div>
 
-      {/* ── TWO BIG BUTTONS — always visible ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 22 }}>
+      {/* ── THREE BIG BUTTONS — always visible ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 22 }}>
 
-        {/* IMPORT */}
+        {/* IMPORT — untouched */}
         <button
           onClick={() => ask('import', 'Full')}
           disabled={streamRunning}
@@ -483,7 +483,7 @@ export default function TallyPage({ initialTab = 0 }) {
           </div>
         </button>
 
-        {/* EXPORT */}
+        {/* SALES EXPORT — untouched, exactly as before */}
         <button
           onClick={() => ask('export', 'Full')}
           disabled={streamRunning}
@@ -504,13 +504,41 @@ export default function TallyPage({ initialTab = 0 }) {
           </div>
           <div style={{ textAlign: 'left', minWidth: 0 }}>
             <div style={{ fontSize: 17, fontWeight: 900, letterSpacing: '-0.4px' }}>
-              {streamRunning && streamDir === 'export' ? 'Exporting…' : 'Export to Tally'}
+              {streamRunning && streamDir === 'export' ? 'Exporting…' : 'Sales Export'}
             </div>
             <div style={{ fontSize: 12, opacity: 0.82, fontWeight: 500, marginTop: 3 }}>
-              ERP → Tally &nbsp;·&nbsp; Push all vendors, clients, ledgers &amp; vouchers
+              ERP → Tally &nbsp;·&nbsp; Push sales invoices &amp; masters
             </div>
           </div>
         </button>
+
+        {/* PO EXPORT — separate, uses its own SSE endpoint, does NOT touch salesExport */}
+        <button
+          onClick={() => navigate('/tally/po-export')}
+          disabled={streamRunning}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 14, padding: '20px 22px',
+            background: 'linear-gradient(135deg,#c0392b 0%,#7f1d1d 100%)',
+            color: '#fff', border: 'none', borderRadius: 18,
+            cursor: streamRunning ? 'not-allowed' : 'pointer',
+            opacity: streamRunning ? 0.55 : 1,
+            fontFamily: 'inherit', boxShadow: '0 6px 24px rgba(192,57,43,0.32)',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={e => { if (!streamRunning) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 10px 30px rgba(192,57,43,0.42)'; } }}
+          onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 6px 24px rgba(192,57,43,0.32)'; }}
+        >
+          <div style={{ width: 52, height: 52, borderRadius: 14, background: 'rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, flexShrink: 0 }}>
+            🛒
+          </div>
+          <div style={{ textAlign: 'left', minWidth: 0 }}>
+            <div style={{ fontSize: 17, fontWeight: 900, letterSpacing: '-0.4px' }}>PO Export</div>
+            <div style={{ fontSize: 12, opacity: 0.82, fontWeight: 500, marginTop: 3 }}>
+              ERP → Tally &nbsp;·&nbsp; Push purchase orders only
+            </div>
+          </div>
+        </button>
+
       </div>
 
       {/* ── Live terminal ── */}

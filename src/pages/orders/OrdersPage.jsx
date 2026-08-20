@@ -7,6 +7,7 @@ import { MdDeleteOutline, MdAdd, MdDownload, MdRefresh } from 'react-icons/md';
 import { toast } from '../../components/common/Toast';
 import { salesOrderApi } from '../../api/salesOrderApi';
 import { clientApi } from '../../api/clientApi';
+import Pagination from '../../components/common/Pagination';
 
 const inp = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]';
 const emptyForm = { customer: '', date: '', priority: 'Normal', status: 'Pending', items: '', value: '', remarks: '', file: '' };
@@ -152,6 +153,8 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState('All');
   const [form, setForm] = useState(emptyForm);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [page, setPage]         = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -355,8 +358,9 @@ export default function OrdersPage() {
                   <button className="inline-flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-lg bg-red-50 text-red-600 font-semibold cursor-pointer font-[inherit] border border-red-200 hover:bg-red-600 hover:text-white transition-all" onClick={() => setDeleteOrder(row)}><MdDeleteOutline size={15} /></button>
                 </div>
               )},
-            ]} data={orders} />
+            ]} data={orders.slice((page-1)*pageSize, page*pageSize)} />
             {orders.length === 0 && <div className="text-center py-10 text-gray-400 text-sm">No orders found. Click "+ New Order" to create one.</div>}
+            <Pagination total={orders.length} page={page} pageSize={pageSize} onPage={setPage} onPageSize={s=>{setPageSize(s);setPage(1);}} />
           </>
         )}
       </div>

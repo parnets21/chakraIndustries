@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiPlus, FiCheck, FiX, FiEye, FiEdit, FiTrash2, FiClock, FiPackage, FiTruck, FiTool } from 'react-icons/fi';
+import { MdAdd, MdCheck, MdClose, MdVisibility, MdEdit, MdDelete, MdAccessTime, MdInventory, MdLocalShipping, MdBuild } from 'react-icons/md';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
@@ -74,10 +74,10 @@ export default function BulkQuotationRequestPage() {
 
   // KPI data
   const kpis = [
-    { label: 'Total Requests', value: stats.totalRequests || 0, color: '#8b5cf6', icon: FiPackage },
-    { label: 'Pending Approval', value: stats.pendingApproval || 0, color: '#f59e0b', icon: FiClock },
-    { label: 'Approved', value: stats.approved || 0, color: '#10b981', icon: FiCheck },
-    { label: 'Pipeline Value', value: stats.pipelineValue ? `₹${(stats.pipelineValue/100000).toFixed(1)}L` : '₹0', color: '#c0392b', icon: FiTruck }
+    { label: 'Total Requests', value: stats.totalRequests || 0, color: '#8b5cf6', icon: MdInventory },
+    { label: 'Pending Approval', value: stats.pendingApproval || 0, color: '#f59e0b', icon: MdAccessTime },
+    { label: 'Approved', value: stats.approved || 0, color: '#10b981', icon: MdCheck },
+    { label: 'Pipeline Value', value: stats.pipelineValue ? `₹${(stats.pipelineValue/100000).toFixed(1)}L` : '₹0', color: '#c0392b', icon: MdLocalShipping }
   ];
 
   // Tab configuration
@@ -196,7 +196,7 @@ export default function BulkQuotationRequestPage() {
           onClick={() => setShowCreateModal(true)}
           className={btnPrimary}
         >
-          <FiPlus size={16} /> New Request
+          <MdAdd size={16} /> New Request
         </button>
       </div>
 
@@ -303,7 +303,7 @@ export default function BulkQuotationRequestPage() {
                       onClick={() => { setViewRequest(row); setShowViewModal(true); }}
                       className={`${btnSm} border border-gray-300 text-gray-700 bg-white hover:bg-gray-50`}
                     >
-                      <FiEye size={12} /> View
+                      <MdVisibility size={12} /> View
                     </button>
                     {row.status === 'Draft' && (
                       <button 
@@ -318,7 +318,7 @@ export default function BulkQuotationRequestPage() {
                         onClick={() => { setSelectedRequest(row); setShowApprovalModal(true); }}
                         className={`${btnSm} bg-green-100 text-green-700 hover:bg-green-200`}
                       >
-                        <FiCheck size={12} /> Approve
+                        <MdCheck size={12} /> Approve
                       </button>
                     )}
                     {row.status === 'Approved' && !row.inventoryCheck?.checkedAt && (
@@ -326,7 +326,7 @@ export default function BulkQuotationRequestPage() {
                         onClick={() => handleInventoryCheck(row._id)}
                         className={`${btnSm} bg-yellow-100 text-yellow-700 hover:bg-yellow-200`}
                       >
-                        <FiPackage size={12} /> Check Stock
+                        <MdInventory size={12} /> Check Stock
                       </button>
                     )}
                   </div>
@@ -391,7 +391,7 @@ export default function BulkQuotationRequestPage() {
               }))}
               className={`${btnSm} border border-red-600 text-red-700 bg-transparent`}
             >
-              <FiPlus size={12} /> Add Product
+              <MdAdd size={12} /> Add Product
             </button>
           </div>
           
@@ -467,7 +467,7 @@ export default function BulkQuotationRequestPage() {
                       }}
                       className="mt-6 p-2 text-red-500 hover:bg-red-50 rounded"
                     >
-                      <FiTrash2 size={14} />
+                      <MdDelete size={14} />
                     </button>
                   )}
                 </div>
@@ -673,11 +673,11 @@ export default function BulkQuotationRequestPage() {
               <div className="text-sm font-bold text-gray-800 mb-3">Workflow Progress</div>
               <div className="space-y-3">
                 {[
-                  { step: 'Draft', status: 'completed', icon: FiEdit, desc: 'Request created' },
-                  { step: 'Submitted', status: viewRequest.workflow?.submittedAt ? 'completed' : 'pending', icon: FiCheck, desc: 'Submitted for approval' },
-                  { step: 'Approved', status: viewRequest.workflow?.approvedAt ? 'completed' : 'pending', icon: FiCheck, desc: 'Price approval completed' },
-                  { step: 'Inventory Check', status: viewRequest.inventoryCheck?.checkedAt ? 'completed' : 'pending', icon: FiPackage, desc: 'Stock availability verified' },
-                  { step: 'Production Plan', status: viewRequest.productionPlan?.plannedAt ? 'completed' : 'pending', icon: FiTool, desc: 'Manufacturing plan created' }
+                  { step: 'Draft', status: 'completed', icon: MdEdit, desc: 'Request created' },
+                  { step: 'Submitted', status: viewRequest.workflow?.submittedAt ? 'completed' : 'pending', icon: MdCheck, desc: 'Submitted for approval' },
+                  { step: 'Approved', status: viewRequest.workflow?.approvedAt ? 'completed' : 'pending', icon: MdCheck, desc: 'Price approval completed' },
+                  { step: 'Inventory Check', status: viewRequest.inventoryCheck?.checkedAt ? 'completed' : 'pending', icon: MdInventory, desc: 'Stock availability verified' },
+                  { step: 'Production Plan', status: viewRequest.productionPlan?.plannedAt ? 'completed' : 'pending', icon: MdBuild, desc: 'Manufacturing plan created' }
                 ].map((item, index) => {
                   const IconComponent = item.icon;
                   return (
@@ -692,7 +692,7 @@ export default function BulkQuotationRequestPage() {
                         <div className="text-xs text-gray-500">{item.desc}</div>
                       </div>
                       {item.status === 'completed' && (
-                        <FiCheck className="text-green-600" size={16} />
+                        <MdCheck className="text-green-600" size={16} />
                       )}
                     </div>
                   );

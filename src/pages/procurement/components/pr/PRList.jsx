@@ -4,8 +4,7 @@ import PRApprovalBadge from './PRApprovalBadge';
 import Modal from '../../../../components/common/Modal';
 import Pagination from '../../../../components/common/Pagination';
 import { prApi } from '../../../../api/prApi';
-import { FaRegTrashAlt } from 'react-icons/fa';
-import { MdVisibility, MdEdit, MdCheckCircle, MdCancel } from 'react-icons/md';
+import { MdVisibility, MdEdit, MdCheckCircle, MdCancel, MdDeleteOutline } from 'react-icons/md';
 
 import { dataEvents } from '../../../../utils/dataEvents';
 
@@ -114,7 +113,7 @@ export default function PRList({ onEdit, refresh, viewOnly }) {
           title="Delete"
           style={{ background: '#fee2e2', color: '#991b1b', padding: '6px 8px', minWidth: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '1px solid #fecaca', borderRadius: 6 }}
           onClick={() => setDeleteConfirm(p)}
-        ><FaRegTrashAlt size={14} /></button>
+        ><MdDeleteOutline size={14} /></button>
       </>}
     </div>
   );

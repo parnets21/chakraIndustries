@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiCheck, FiX, FiClock, FiAlertCircle, FiTruck, FiFileText, FiDollarSign, FiChevronRight } from 'react-icons/fi';
+import { MdCheck, MdClose, MdAccessTime, MdError, MdLocalShipping, MdDescription, MdAttachMoney, MdArrowForward } from 'react-icons/md';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
@@ -57,12 +57,12 @@ export default function BulkOrderFlowPage() {
     setCreditCheck(null);
     setInventoryCheck(null);
     setFlowSteps([
-      { step: 1, name: 'Credit Check', status: order.creditCheckPassed ? 'Completed' : 'Pending', icon: FiDollarSign },
-      { step: 2, name: 'Approval Workflow', status: order.approvalStatus === 'Approved' ? 'Completed' : 'Pending', icon: FiCheck },
-      { step: 3, name: 'Inventory Check', status: order.inventoryStatus !== 'Not Checked' ? 'Completed' : 'Pending', icon: FiTruck },
-      { step: 4, name: 'Production (if needed)', status: order.workOrderId ? 'Completed' : 'Skipped', icon: FiFileText },
-      { step: 5, name: 'Delivery Scheduled', status: order.deliveryScheduleId ? 'Completed' : 'Pending', icon: FiTruck },
-      { step: 6, name: 'Invoice Generated', status: order.invoiceId ? 'Completed' : 'Pending', icon: FiFileText }
+      { step: 1, name: 'Credit Check', status: order.creditCheckPassed ? 'Completed' : 'Pending', icon: MdAttachMoney },
+      { step: 2, name: 'Approval Workflow', status: order.approvalStatus === 'Approved' ? 'Completed' : 'Pending', icon: MdCheck },
+      { step: 3, name: 'Inventory Check', status: order.inventoryStatus !== 'Not Checked' ? 'Completed' : 'Pending', icon: MdLocalShipping },
+      { step: 4, name: 'Production (if needed)', status: order.workOrderId ? 'Completed' : 'Skipped', icon: MdDescription },
+      { step: 5, name: 'Delivery Scheduled', status: order.deliveryScheduleId ? 'Completed' : 'Pending', icon: MdLocalShipping },
+      { step: 6, name: 'Invoice Generated', status: order.invoiceId ? 'Completed' : 'Pending', icon: MdDescription }
     ]);
     setShowFlowModal(true);
   };
@@ -226,7 +226,7 @@ export default function BulkOrderFlowPage() {
                         status === 'Completed' ? 'bg-green-500' : 
                         status === 'Active' ? 'bg-blue-500' : 'bg-gray-300'
                       }`}>
-                        {status === 'Completed' ? <FiCheck /> : status === 'Active' ? <FiClock /> : step.step}
+                        {status === 'Completed' ? <MdCheck /> : status === 'Active' ? <MdAccessTime /> : step.step}
                       </div>
                       {idx < flowSteps.length - 1 && <div className="w-0.5 h-12 bg-gray-300 mt-2" />}
                     </div>
@@ -248,7 +248,7 @@ export default function BulkOrderFlowPage() {
             {currentStep === 1 && (
               <div className="border-t pt-4 bg-blue-50 p-4 rounded-lg">
                 <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <FiDollarSign className="text-blue-600" /> Step 1: Credit Check
+                  <MdAttachMoney className="text-blue-600" /> Step 1: Credit Check
                 </h3>
                 {creditCheck ? (
                   <div className="space-y-2 text-sm">
@@ -271,7 +271,7 @@ export default function BulkOrderFlowPage() {
             {currentStep === 2 && (
               <div className="border-t pt-4 bg-amber-50 p-4 rounded-lg">
                 <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <FiCheck className="text-amber-600" /> Step 2: Approval Workflow
+                  <MdCheck className="text-amber-600" /> Step 2: Approval Workflow
                 </h3>
                 <p className="text-sm text-gray-600 mb-3">Multi-level approval based on order value and client tier</p>
                 <button onClick={handleApprove} className={btnPrimary}>
@@ -284,7 +284,7 @@ export default function BulkOrderFlowPage() {
             {currentStep === 3 && (
               <div className="border-t pt-4 bg-orange-50 p-4 rounded-lg">
                 <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <FiTruck className="text-orange-600" /> Step 3: Inventory Check
+                  <MdLocalShipping className="text-orange-600" /> Step 3: Inventory Check
                 </h3>
                 {inventoryCheck ? (
                   <div className="space-y-2">
@@ -333,7 +333,7 @@ export default function BulkOrderFlowPage() {
             {currentStep === 5 && (
               <div className="border-t pt-4 bg-green-50 p-4 rounded-lg">
                 <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <FiTruck className="text-green-600" /> Step 5: Delivery Scheduling
+                  <MdLocalShipping className="text-green-600" /> Step 5: Delivery Scheduling
                 </h3>
                 <div className="space-y-3">
                   {/* Auto-populated items */}
@@ -408,7 +408,7 @@ export default function BulkOrderFlowPage() {
             {currentStep === 6 && (
               <div className="border-t pt-4 bg-purple-50 p-4 rounded-lg">
                 <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <FiFileText className="text-purple-600" /> Step 6: Invoice Generation
+                  <MdDescription className="text-purple-600" /> Step 6: Invoice Generation
                 </h3>
                 {selectedOrder.invoiceId ? (
                   <div className="bg-white p-3 rounded border border-purple-200">

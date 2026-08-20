@@ -1,11 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { MdEmail, MdLock, MdVisibility, MdVisibilityOff, MdLogin, MdArrowForward } from 'react-icons/md';
-import { FiAlertTriangle, FiZap, FiTarget } from 'react-icons/fi';
-import { TbFileAnalyticsFilled } from 'react-icons/tb';
-import { FcSalesPerformance } from 'react-icons/fc';
-import { GoGoal } from 'react-icons/go';
-import { RiShieldKeyholeLine } from 'react-icons/ri';
+import { MdEmail, MdLock, MdVisibility, MdVisibilityOff, MdLogin, MdArrowForward, MdWarning, MdFlashOn, MdAdjust, MdBarChart, MdTrendingUp, MdTrackChanges, MdSecurity } from 'react-icons/md';
 import { useAuth } from '../../auth/AuthContext';
 
 export default function LoginPage() {
@@ -526,15 +521,15 @@ export default function LoginPage() {
             
             <div className="stats-grid">
               <div className="stat-card">
-                <TbFileAnalyticsFilled size={32} color="#c0392b" />
+                <MdBarChart size={32} color="#c0392b" />
                 <span className="stat-label">Smart Analytics</span>
               </div>
               <div className="stat-card">
-                <FiZap size={32} color="#c0392b" />
+                <MdFlashOn size={32} color="#c0392b" />
                 <span className="stat-label">Fast Performance</span>
               </div>
               <div className="stat-card">
-                <FiTarget size={32} color="#c0392b" />
+                <MdAdjust size={32} color="#c0392b" />
                 <span className="stat-label">Goal Driven</span>
               </div>
             </div>
@@ -559,7 +554,7 @@ export default function LoginPage() {
 
             {error && (
               <div className="error-alert">
-                <FiAlertTriangle size={20} style={{ flexShrink: 0 }} />
+                <MdWarning size={20} style={{ flexShrink: 0 }} />
                 <span>{error}</span>
               </div>
             )}
@@ -653,7 +648,7 @@ export default function LoginPage() {
               >
                 <div style={{ display:'flex', alignItems:'center', gap:9 }}>
                   <div style={{ width:32, height:32, borderRadius:8, background:'linear-gradient(135deg,#c0392b,#922b21)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    <RiShieldKeyholeLine size={17} color="#fff" />
+                    <MdSecurity size={17} color="#fff" />
                   </div>
                   <div style={{ textAlign:'left' }}>
                     <div style={{ fontSize:12, fontWeight:700, color:'#1e293b' }}>Admin Login</div>

@@ -8,6 +8,7 @@ import {
   MdAdd, MdDelete, MdArrowBack, MdCheckCircle, MdReceipt,
   MdSearch, MdClose, MdVisibility,
 } from 'react-icons/md';
+import Pagination from '../../components/common/Pagination';
 
 const fmt = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 const fmtDate = (d) => {
@@ -593,6 +594,8 @@ export default function CreditNotePage() {
   const [loading, setLoading] = useState(false);
   const [search,  setSearch]  = useState('');
   const [detail,  setDetail]  = useState(null);
+  const [page, setPage]         = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   // If navigated from GRN invoice, open form immediately
   useEffect(() => {
@@ -742,7 +745,7 @@ export default function CreditNotePage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((n, i) => (
+                {filtered.slice((page-1)*pageSize, page*pageSize).map((n, i) => (
                   <tr key={n._id || i}
                     style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
                     onClick={() => setDetail(n)}
@@ -776,6 +779,15 @@ export default function CreditNotePage() {
               </tbody>
             </table>
           </div>
+        )}
+        {filtered.length > 0 && (
+          <Pagination
+            total={filtered.length}
+            page={page}
+            pageSize={pageSize}
+            onPage={p => setPage(p)}
+            onPageSize={s => { setPageSize(s); setPage(1); }}
+          />
         )}
       </div>
 

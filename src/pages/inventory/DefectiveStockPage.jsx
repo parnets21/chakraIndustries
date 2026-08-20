@@ -2,12 +2,15 @@ import { useState, useEffect, useRef } from 'react';
 import { getDefectiveStock } from '../../api/defectiveStockApi';
 import { toast } from '../../components/common/Toast';
 import { MdBrokenImage, MdCheckCircle, MdWarningAmber } from 'react-icons/md';
+import Pagination from '../../components/common/Pagination';
 
 export default function DefectiveStockPage() {
   const [defectiveData, setDefectiveData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('All');
   const refreshRef = useRef(null);
+  const [page, setPage]         = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const fetchData = async () => {
     try {
@@ -118,7 +121,7 @@ export default function DefectiveStockPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((row, i) => (
+              {filtered.slice((page-1)*pageSize, page*pageSize).map((row, i) => (
                 <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                   <td className="px-4 py-3 font-mono text-sm font-semibold text-red-700">{row.sku}</td>
                   <td className="px-4 py-3 text-sm">{row.name}</td>
@@ -139,6 +142,13 @@ export default function DefectiveStockPage() {
             </tbody>
           </table>
         </div>
+        <Pagination
+          total={filtered.length}
+          page={page}
+          pageSize={pageSize}
+          onPage={p => setPage(p)}
+          onPageSize={s => { setPageSize(s); setPage(1); }}
+        />
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { FiBox, FiTruck, FiPackage, FiGift, FiCheck, FiX, FiBriefcase } from 'react-icons/fi';
+import { MdCropSquare, MdLocalShipping, MdInventory, MdCardGiftcard, MdCheck, MdClose, MdWork } from 'react-icons/md';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
@@ -14,10 +14,10 @@ const tierColor = { Platinum: '#8b5cf6', Gold: '#f59e0b', Silver: '#6b7280' };
 
 // Default packaging options (fallback if API fails)
 const defaultPackagingOptions = [
-  { id: 'PKG-01', name: 'Standard Box', description: 'Plain corrugated box with product label', moq: 100, extraCost: '₹0', leadTime: '0 days', icon: FiBox },
-  { id: 'PKG-02', name: 'Custom Branded', description: 'Client logo & branding on box', moq: 500, extraCost: '₹12/unit', leadTime: '5 days', icon: FiPackage },
-  { id: 'PKG-03', name: 'Bulk Loose', description: 'No individual packaging, bulk pallet', moq: 1000, extraCost: '-₹5/unit', leadTime: '0 days', icon: FiTruck },
-  { id: 'PKG-04', name: 'Premium Gift Box', description: 'Premium finish with foam insert', moq: 200, extraCost: '₹45/unit', leadTime: '7 days', icon: FiGift },
+  { id: 'PKG-01', name: 'Standard Box', description: 'Plain corrugated box with product label', moq: 100, extraCost: '₹0', leadTime: '0 days', icon: MdCropSquare },
+  { id: 'PKG-02', name: 'Custom Branded', description: 'Client logo & branding on box', moq: 500, extraCost: '₹12/unit', leadTime: '5 days', icon: MdInventory },
+  { id: 'PKG-03', name: 'Bulk Loose', description: 'No individual packaging, bulk pallet', moq: 1000, extraCost: '-₹5/unit', leadTime: '0 days', icon: MdLocalShipping },
+  { id: 'PKG-04', name: 'Premium Gift Box', description: 'Premium finish with foam insert', moq: 200, extraCost: '₹45/unit', leadTime: '7 days', icon: MdCardGiftcard },
 ];
 
 const inputCls = "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none bg-white text-gray-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 placeholder:text-gray-400 font-[inherit]";
@@ -99,7 +99,7 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
         const packagingWithIcons = packagingRes.value.data.map(pkg => ({
           ...pkg,
           id: pkg._id || pkg.packagingId,
-          icon: pkg.type === 'Premium' ? FiGift : pkg.type === 'Bulk' ? FiTruck : pkg.type === 'Custom' ? FiPackage : FiBox,
+          icon: pkg.type === 'Premium' ? MdCardGiftcard : pkg.type === 'Bulk' ? MdLocalShipping : pkg.type === 'Custom' ? MdInventory : MdCropSquare,
         }));
         setPackagingOptions(packagingWithIcons);
       } else {
@@ -385,7 +385,7 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
               ))}
             </div>
             <button onClick={() => toast('✅ Packaging applied to quotation')} className={`${btnPrimary} mt-4 w-full justify-center`}>
-              <FiCheck size={16} /> Apply to Quotation
+              <MdCheck size={16} /> Apply to Quotation
             </button>
           </div>
         </div>
@@ -416,7 +416,7 @@ export default function BulkOrdersPage({ initialTab = 0 }) {
                     <td className={tdCls}>{r.warehouse}</td>
                     <td className={`${tdCls} ${r.vehicle === 'Pending' ? 'text-amber-500 font-semibold' : 'font-mono text-xs'}`}>
                       <div className="flex items-center gap-1.5">
-                        {r.vehicle === 'Pending' ? <FiX size={14} /> : <FiCheck size={14} className="text-green-600" />}
+                        {r.vehicle === 'Pending' ? <MdClose size={14} /> : <MdCheck size={14} className="text-green-600" />}
                         {r.vehicle}
                       </div>
                     </td>

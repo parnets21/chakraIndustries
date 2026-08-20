@@ -11,6 +11,7 @@ import {
   MdReceipt,
 } from 'react-icons/md';
 import * as XLSX from 'xlsx';
+import Pagination from '../../components/common/Pagination';
 
 // ─── Status config ─────────────────────────────────────────────────────────────
 const STATUS_COLORS = {
@@ -368,6 +369,8 @@ export default function DealerOrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [creatingInvoice, setCreatingInvoice] = useState(null);
   const [deletingOrder, setDeletingOrder] = useState(null);
+  const [page, setPage]         = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -673,7 +676,7 @@ export default function DealerOrdersPage() {
                   },
                 },
               ]}
-              data={orders}
+              data={orders.slice((page-1)*pageSize, page*pageSize)}
             />
             {orders.length === 0 && !loading && (
               <div style={{ textAlign: 'center', padding: '48px 20px', color: '#9CA3AF' }}>
@@ -683,6 +686,9 @@ export default function DealerOrdersPage() {
                   Orders placed by dealers via the Sri Chakra Dealer App will appear here.
                 </div>
               </div>
+            )}
+            {orders.length > 0 && (
+              <Pagination total={orders.length} page={page} pageSize={pageSize} onPage={setPage} onPageSize={s=>{setPageSize(s);setPage(1);}} />
             )}
           </>
         )}

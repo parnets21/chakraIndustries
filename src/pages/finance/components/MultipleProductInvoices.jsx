@@ -1,5 +1,5 @@
 import { MdVisibility, MdPrint, MdDownload, MdShare, MdDelete, MdContentCopy } from 'react-icons/md';
-import { FaWhatsapp, FaEnvelope } from 'react-icons/fa';
+import { MdWhatsapp, MdEmail as MdEnvelope } from 'react-icons/md';
 import { useState } from 'react';
 import { invoiceApi } from '../../../api/invoiceApi';
 import { toast } from '../../../components/common/Toast';
@@ -140,8 +140,8 @@ function ActionButtons({ inv, handlePrint, handleDownload, handleShare, shareMen
         <button onClick={e => { e.stopPropagation(); handleShare(inv); }} style={{ padding: '3px 7px', borderRadius: 6, border: '1px solid #dbeafe', background: '#eff6ff', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="Share"><MdShare size={13} color="#3b82f6" /></button>
         {shareMenuInv?._id === inv._id && (
           <div style={{ position: 'absolute', right: 0, top: '110%', zIndex: 999, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', minWidth: 180, overflow: 'hidden' }}>
-            <button onClick={() => shareViaWhatsApp(inv)} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: '#1a1a2e', fontFamily: 'inherit' }} onMouseEnter={e => e.currentTarget.style.background = '#f0fdf4'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><FaWhatsapp size={16} color="#25D366" /> WhatsApp</button>
-            <button onClick={() => shareViaGmail(inv)} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: '#1a1a2e', fontFamily: 'inherit' }} onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><FaEnvelope size={16} color="#EA4335" /> Gmail</button>
+            <button onClick={() => shareViaWhatsApp(inv)} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: '#1a1a2e', fontFamily: 'inherit' }} onMouseEnter={e => e.currentTarget.style.background = '#f0fdf4'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><MdWhatsapp size={16} color="#25D366" /> WhatsApp</button>
+            <button onClick={() => shareViaGmail(inv)} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: '#1a1a2e', fontFamily: 'inherit' }} onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><MdEnvelope size={16} color="#EA4335" /> Gmail</button>
             <button onClick={() => shareViaCopy(inv)} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: '#1a1a2e', fontFamily: 'inherit', borderTop: '1px solid #f1f5f9' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}><MdContentCopy size={16} color="#64748b" /> Copy Details</button>
           </div>
         )}

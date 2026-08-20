@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiPlus, FiCheck, FiEye, FiTrash2, FiClock, FiPackage, FiTruck, FiUsers } from 'react-icons/fi';
+import { MdAdd, MdCheck, MdVisibility, MdDelete, MdAccessTime, MdInventory, MdLocalShipping, MdPeople } from 'react-icons/md';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
 import { toast } from '../../components/common/Toast';
@@ -86,10 +86,10 @@ export default function VendorQuotationsPage() {
 
   // KPI data
   const kpis = [
-    { label: 'Total RFQs', value: stats.totalRFQs || 0, color: '#8b5cf6', icon: FiPackage },
-    { label: 'Pending Quotes', value: stats.pendingQuotes || 0, color: '#f59e0b', icon: FiClock },
-    { label: 'Quoted RFQs', value: stats.quotedRFQs || 0, color: '#10b981', icon: FiCheck },
-    { label: 'Total Value', value: stats.totalValue ? `₹${(stats.totalValue/100000).toFixed(1)}L` : '₹0', color: '#c0392b', icon: FiTruck }
+    { label: 'Total RFQs', value: stats.totalRFQs || 0, color: '#8b5cf6', icon: MdInventory },
+    { label: 'Pending Quotes', value: stats.pendingQuotes || 0, color: '#f59e0b', icon: MdAccessTime },
+    { label: 'Quoted RFQs', value: stats.quotedRFQs || 0, color: '#10b981', icon: MdCheck },
+    { label: 'Total Value', value: stats.totalValue ? `₹${(stats.totalValue/100000).toFixed(1)}L` : '₹0', color: '#c0392b', icon: MdLocalShipping }
   ];
 
   // Tab configuration
@@ -192,7 +192,7 @@ export default function VendorQuotationsPage() {
           onClick={() => setShowCreateRFQModal(true)}
           className={btnPrimary}
         >
-          <FiPlus size={16} /> New RFQ
+          <MdAdd size={16} /> New RFQ
         </button>
       </div>
 
@@ -324,7 +324,7 @@ export default function VendorQuotationsPage() {
                         onClick={() => { setViewRFQ(row); setShowViewRFQModal(true); }}
                         className={`${btnSm} border border-gray-300 text-gray-700 bg-white hover:bg-gray-50`}
                       >
-                        <FiEye size={12} /> View
+                        <MdVisibility size={12} /> View
                       </button>
                       {row.status === 'Sent' && (
                         <button 
@@ -344,7 +344,7 @@ export default function VendorQuotationsPage() {
                           }}
                           className={`${btnSm} bg-green-100 text-green-700 hover:bg-green-200`}
                         >
-                          <FiPlus size={12} /> Add Quote
+                          <MdAdd size={12} /> Add Quote
                         </button>
                       )}
                     </div>
@@ -384,7 +384,7 @@ export default function VendorQuotationsPage() {
                 <div key={vendor._id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="p-2 bg-red-100 text-red-600 rounded-lg">
-                      <FiUsers size={20} />
+                      <MdPeople size={20} />
                     </div>
                     <div>
                       <h4 className="font-bold text-gray-800">{vendor.companyName}</h4>
@@ -504,7 +504,7 @@ export default function VendorQuotationsPage() {
               }))}
               className={`${btnSm} border border-red-600 text-red-700 bg-transparent`}
             >
-              <FiPlus size={12} /> Add Item
+              <MdAdd size={12} /> Add Item
             </button>
           </div>
           
@@ -565,7 +565,7 @@ export default function VendorQuotationsPage() {
                       }}
                       className="p-2 text-red-500 hover:bg-red-50 rounded"
                     >
-                      <FiTrash2 size={14} />
+                      <MdDelete size={14} />
                     </button>
                   )}
                 </div>

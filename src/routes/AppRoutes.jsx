@@ -63,6 +63,7 @@ import LedgerDetailPage from '../pages/finance/LedgerDetailPage';
 // PO Generator
 import POGeneratorDashboard from '../pages/pogenerator/POGeneratorDashboard';
 import POUploadPage         from '../pages/pogenerator/POUploadPage';
+import POCompanyPage        from '../pages/pogenerator/POCompanyPage';
 import StockVerifyPage      from '../pages/pogenerator/StockVerifyPage';
 import ApprovalQueuePage    from '../pages/pogenerator/ApprovalQueuePage';
 import PartialInvoicePage   from '../pages/pogenerator/PartialInvoicePage';
@@ -226,6 +227,8 @@ export default function AppRoutes() {
       {/* PO Generator */}
       <Route path="/po-generator"                      element={<P element={<POGeneratorDashboard />} />} />
       <Route path="/po-generator/upload"               element={<P element={<POUploadPage />} />} />
+      <Route path="/po-generator/companies"            element={<P element={<POCompanyPage />} />} />
+      <Route path="/po-generator/companies/:companyId" element={<P element={<POCompanyPage />} />} />
       <Route path="/po-generator/stock-verify/:poId"   element={<P element={<StockVerifyPage />} />} />
       <Route path="/po-generator/approval/:poId"       element={<P element={<ApprovalQueuePage />} />} />
       <Route path="/po-generator/partial-invoice"      element={<P element={<PartialInvoicePage />} />} />
@@ -289,6 +292,7 @@ export default function AppRoutes() {
       <Route path="/tally/logs"         element={<P element={<TallySubPage tab="logs" />} />} />
       <Route path="/tally/settings"     element={<P element={<TallySubPage tab="settings" />} />} />
       <Route path="/tally/sales-register" element={<P element={<SalesRegisterPage />} />} />
+      <Route path="/tally/po-export"    element={<Navigate to="/tally/export" replace />} />
       {/* legacy routes — redirect to new paths */}
       <Route path="/tally/dashboard"    element={<Navigate to="/tally/overview" replace />} />
       <Route path="/tally/master"       element={<Navigate to="/tally/import" replace />} />

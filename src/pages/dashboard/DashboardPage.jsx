@@ -15,8 +15,7 @@ import { inventoryFlowApi } from '../../api/inventoryFlowApi';
 import { erpDealerOrderApi } from '../../api/erpDealerOrderApi';
 import { tallyApi } from '../../api/tallyApi';
 import { financeApi } from '../../api/financeApi';
-import { MdProductionQuantityLimits, MdSyncAlt, MdAccountBalance, MdReceiptLong } from 'react-icons/md';
-import { GiReturnArrow } from 'react-icons/gi';
+import { MdProductionQuantityLimits, MdSyncAlt, MdAccountBalance, MdReceiptLong, MdAssignmentReturn } from 'react-icons/md';
 import { useDataEvent } from '../../utils/dataEvents';
 
 // ── Greeting helper ────────────────────────────────────────────────────────────
@@ -601,7 +600,7 @@ export default function DashboardPage() {
           {[
             { label:'Pending PRs',           value: prStats.pending,                    color:'#f59e0b', bg:'rgba(245,158,11,0.1)',  icon:<ClipboardIcon />,                        link:'/procurement/pr' },
             { label:'Pending Dealer Approv.', value: dealerOrderStats.pendingApprovals||0, color:'#8b5cf6', bg:'rgba(139,92,246,0.1)',icon:<TruckIcon size={24}/>,                   link:'/orders/dealers' },
-            { label:'Pending Approvals',     value: approvalStats.pending||0,           color:'#ef4444', bg:'rgba(239,68,68,0.1)',   icon:<GiReturnArrow size={24}/>,               link:'/procurement/approvals' },
+            { label:'Pending Approvals',     value: approvalStats.pending||0,           color:'#ef4444', bg:'rgba(239,68,68,0.1)',   icon:<MdAssignmentReturn size={24}/>,               link:'/procurement/approvals' },
             { label:'QC Pending',            value: qcStats.pending||0,                 color:'#22c55e', bg:'rgba(34,197,94,0.1)',   icon:<TruckDispatchIcon />,                    link:'/procurement/qc' },
             { label:'Critical Stock',        value: inventoryStats.critical||0,         color:'#a855f7', bg:'rgba(168,85,247,0.1)',  icon:<MdProductionQuantityLimits size={24}/>,  link:'/inventory/stock' },
           ].map((a, i) => (

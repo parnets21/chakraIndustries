@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import inventoryApi from '../../api/inventoryApi';
 import PageHeader from '../../components/common/PageHeader';
 import PageShell from '../../components/common/PageShell';
+import Pagination from '../../components/common/Pagination';
 
 export default function BatchTrackingPage() {
   const [activeTab, setActiveTab] = useState(0);
@@ -15,6 +16,8 @@ export default function BatchTrackingPage() {
     status: 'all',
     expiryDays: 30,
   });
+  const [page, setPage]         = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   useEffect(() => {
     if (activeTab === 0) fetchBatches();
@@ -166,7 +169,7 @@ export default function BatchTrackingPage() {
                       <td colSpan="9" style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>No batches found</td>
                     </tr>
                   ) : (
-                    batches.map((batch, i) => {
+                    batches.slice((page-1)*pageSize, page*pageSize).map((batch, i) => {
                       const daysLeft = getDaysUntilExpiry(batch.expiryDate);
                       const expiryStatus = getExpiryStatus(daysLeft);
                       const statusBadge = getStatusBadge(batch.status);

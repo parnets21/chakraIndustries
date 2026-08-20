@@ -4,7 +4,7 @@ import Modal from '../../components/common/Modal';
 import { invoiceApi } from '../../api/invoiceApi';
 import { toast } from '../../components/common/Toast';
 import { MdUpload, MdDownload, MdPrint, MdDelete, MdDeleteSweep, MdVisibility, MdWarning, MdCheckCircle, MdError, MdShare, MdContentCopy } from 'react-icons/md';
-import { FaWhatsapp, FaEnvelope } from 'react-icons/fa';
+import { MdWhatsapp, MdEmail as MdEnvelope } from 'react-icons/md';
 import { CHAKRA_LOGO_B64 } from '../../assets/chakraLogoB64.js';
 import { SIGNATURE_B64 } from '../../assets/signatureB64.js';
 import jsPDF from 'jspdf';
@@ -1638,13 +1638,13 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
                 onClick={() => shareViaWhatsApp(selectedInvoice)}
                 style={{ ...btnOutline, color: '#25D366', borderColor: '#bbf7d0', gap: 6 }}
               >
-                <FaWhatsapp size={15} /> WhatsApp
+                <MdWhatsapp size={15} /> WhatsApp
               </button>
               <button
                 onClick={() => shareViaGmail(selectedInvoice)}
                 style={{ ...btnOutline, color: '#EA4335', borderColor: '#fecaca', gap: 6 }}
               >
-                <FaEnvelope size={14} /> Gmail
+                <MdEnvelope size={14} /> Gmail
               </button>
               <button onClick={() => handlePrint(selectedInvoice)} style={btnPrimary}>
                 <MdPrint size={16} /> Print

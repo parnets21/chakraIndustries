@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiCheck, FiClock, FiAlertCircle, FiTruck, FiFileText, FiDollarSign, FiArrowRight } from 'react-icons/fi';
+import { MdCheck, MdAccessTime, MdError, MdLocalShipping, MdDescription, MdAttachMoney, MdArrowForward } from 'react-icons/md';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
@@ -16,12 +16,12 @@ const BTN_OUTLINE = 'inline-flex items-center gap-1.5 px-4 py-2 border border-re
 const BTN_SM = 'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg';
 
 const STEPS = [
-  { id: 0, label: 'Credit Check',    Icon: FiDollarSign,  color: '#8b5cf6' },
-  { id: 1, label: 'Approval',        Icon: FiCheck,       color: '#3b82f6' },
-  { id: 2, label: 'Inventory Check', Icon: FiAlertCircle, color: '#f59e0b' },
-  { id: 3, label: 'Work Order',      Icon: FiClock,       color: '#ec4899' },
-  { id: 4, label: 'Dispatch',        Icon: FiTruck,       color: '#10b981' },
-  { id: 5, label: 'Invoice',         Icon: FiFileText,    color: '#c0392b' },
+  { id: 0, label: 'Credit Check',    Icon: MdAttachMoney,  color: '#8b5cf6' },
+  { id: 1, label: 'Approval',        Icon: MdCheck,       color: '#3b82f6' },
+  { id: 2, label: 'Inventory Check', Icon: MdError, color: '#f59e0b' },
+  { id: 3, label: 'Work Order',      Icon: MdAccessTime,       color: '#ec4899' },
+  { id: 4, label: 'Dispatch',        Icon: MdLocalShipping,       color: '#10b981' },
+  { id: 5, label: 'Invoice',         Icon: MdDescription,    color: '#c0392b' },
 ];
 
 function formatMoney(v) {
@@ -42,7 +42,7 @@ function StepDot(props) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 72 }}>
       <div style={{ width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg, color: fg, fontWeight: 700 }}>
-        {done ? <FiCheck size={16} /> : <Icon size={16} />}
+        {done ? <MdCheck size={16} /> : <Icon size={16} />}
       </div>
       <span style={{ fontSize: 10, fontWeight: 600, textAlign: 'center', lineHeight: 1.3, color: lc }}>{s.label}</span>
     </div>
@@ -267,7 +267,7 @@ export default function BulkOrderCompleteFlowPage() {
                       onClick={function() { setTab(2); startFlow(row); }}
                       className={BTN_SM + ' bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]'}
                     >
-                      <FiArrowRight size={12} /> Start Flow
+                      <MdArrowForward size={12} /> Start Flow
                     </button>
                   );
                 }},
@@ -302,7 +302,7 @@ export default function BulkOrderCompleteFlowPage() {
                       onClick={function() { startFlow(row); }}
                       className={BTN_SM + ' bg-gradient-to-br from-red-400 to-red-700 text-white font-semibold border-0 cursor-pointer font-[inherit]'}
                     >
-                      <FiArrowRight size={12} /> Run Flow
+                      <MdArrowForward size={12} /> Run Flow
                     </button>
                   );
                 }},
@@ -333,7 +333,7 @@ export default function BulkOrderCompleteFlowPage() {
             </div>
           ) : (
             <button className={BTN_PRIMARY} onClick={function() { setOpen(false); }}>
-              <FiCheck size={14} /> Done
+              <MdCheck size={14} /> Done
             </button>
           )
         }
@@ -424,7 +424,7 @@ export default function BulkOrderCompleteFlowPage() {
             {step === 6 && (
               <div style={{ textAlign: 'center', padding: '24px 0' }}>
                 <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-                  <FiCheck size={32} color="#16a34a" />
+                  <MdCheck size={32} color="#16a34a" />
                 </div>
                 <div style={{ fontSize: 18, fontWeight: 800, color: '#1e293b', marginBottom: 4 }}>Order Flow Complete!</div>
                 <div style={{ fontSize: 13, color: '#64748b' }}>

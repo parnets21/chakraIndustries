@@ -297,6 +297,7 @@ export const NAV_ITEMS = [
     children: [
       { path: '/po-generator',                 label: 'Dashboard',         page: 'pogenerator' },
       { path: '/po-generator/upload',          label: 'PO Upload',         page: 'pogenerator' },
+      { path: '/po-generator/companies',       label: 'PO Companies',      page: 'pogenerator' },
       { path: '/po-generator/partial-invoice', label: 'Partial Invoice',   page: 'pogenerator' },
       { path: '/po-generator/pending-orders',  label: 'Pending Orders',    page: 'pogenerator' },
       { path: '/po-generator/invoice-history', label: 'Invoice History',   page: 'pogenerator' },

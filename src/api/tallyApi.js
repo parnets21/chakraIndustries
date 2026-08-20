@@ -32,6 +32,8 @@ function openDirectionalStream(direction, type = 'Full', onEvent) {
       return `${BASE}/tally/full-export-stream?token=${encodeURIComponent(token)}`;
     } else if (direction === 'selective-export') {
       return `${BASE}/tally/selective-export?key=${encodeURIComponent(type)}&token=${encodeURIComponent(token)}`;
+    } else if (direction === 'po-export') {
+      return `${BASE}/tally/po-export-stream?token=${encodeURIComponent(token)}`;
     } else {
       const endpoint = direction === 'export' ? 'export-stream' : 'import-stream';
       return `${BASE}/tally/${endpoint}?type=${encodeURIComponent(type)}&token=${encodeURIComponent(token)}`;
@@ -192,6 +194,21 @@ export const tallyApi = {
    */
   getSalesInvoices: (p = {}) =>
     fetch(`${BASE}/tally/sales-invoices${q(p)}`,  { headers: authHeaders() }).then(handle),
+
+  // ── PO Invoice Export (separate from Sales Export) ────────────────────────
+  /**
+   * openPOExportStream — streams PO Invoice export to Tally.
+   * Completely separate from the Sales Export — safe to call independently.
+   * @param {Function} onEvent - callback(evt)
+   * @returns {{ close: () => void }}
+   */
+  openPOExportStream: (onEvent) => openDirectionalStream('po-export', 'POInvoices', onEvent),
+
+  /**
+   * getPOExportCount — number of PO Invoices pending Tally export.
+   */
+  getPOExportCount: () =>
+    fetch(`${BASE}/tally/po-export-count`, { headers: authHeaders() }).then(handle),
 
   // ── Connector credentials & multi-connector management ───────────────────
   generateConnectorCredentials: () =>

@@ -4,8 +4,7 @@ import Pagination from '../../../../components/common/Pagination';
 import { rfqApi } from '../../../../api/rfqApi';
 import { vendorApi } from '../../../../api/vendorApi';
 import { prApi } from '../../../../api/prApi';
-import { MdCompareArrows, MdDeleteOutline, MdVisibility, MdClose, MdAdd, MdAttachFile } from 'react-icons/md';
-import { TiEdit } from 'react-icons/ti';
+import { MdCompareArrows, MdDeleteOutline, MdVisibility, MdClose, MdAdd, MdAttachFile, MdEdit } from 'react-icons/md';
 import CompareQuotesModal from './CompareQuotesModal';
 
 export default function RFQList({ onCompare, refresh }) {
@@ -313,7 +312,7 @@ export default function RFQList({ onCompare, refresh }) {
                           title="Edit RFQ" 
                           onClick={() => handleEditOpen(r)}
                         >
-                          <TiEdit size={20} />
+                          <MdEdit size={20} />
                         </button>
                         {/* Add Quote / Compare — main action */}
                         <button

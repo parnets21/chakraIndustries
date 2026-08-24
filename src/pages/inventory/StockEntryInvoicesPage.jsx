@@ -1,7 +1,7 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader, KpiStrip, PageCard } from '../../components/common/PageShell';
-import { invoiceApi } from '../../api/invoiceApi';
+import { stockInvoiceArchiveApi } from '../../api/invoiceApi';
 import { CHAKRA_LOGO_B64 } from '../../assets/chakraLogoB64';
 import Modal from '../../components/common/Modal';
 import {
@@ -151,32 +151,55 @@ export default function StockEntryInvoicesPage() {
   const [downloading, setDownloading] = useState(null);
   const [page, setPage]           = useState(1);
   const [pageSize, setPageSize]   = useState(25);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const searchTimer = useRef(null);
 
-  // KPI counts
-  const total    = invoices.length;
-  const draft    = invoices.filter(i => i.status === 'Draft').length;
-  const approved = invoices.filter(i => i.status === 'Approved' || i.status === 'Paid').length;
-  const totalVal = invoices.reduce((s, i) => s + (Number(i.grandTotal) || 0), 0);
+  // KPI stats from dedicated endpoint
+  const [stats, setStats] = useState({ total: 0, draft: 0, approved: 0, paid: 0, totalValue: 0 });
 
-  const fetchAll = useCallback(async () => {
+  // Server-side paginated fetch
+  const fetchInvoices = useCallback(async (p = 1, size = 25, q = '', status = '') => {
     setLoading(true);
     try {
-      // DB mein sab invoices 'manual' source ke hain — fetch all, sort latest first
-      const res = await invoiceApi.getAll({ limit: 0 });
-      const data = (res.data || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      setInvoices(data);
+      const params = { page: p, limit: size };
+      if (q.trim()) params.search = q.trim();
+      if (status) params.status = status;
+
+      const res = await stockInvoiceArchiveApi.getAll(params);
+      setInvoices(res.data || []);
+      setTotalRecords(res.total || 0);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await stockInvoiceArchiveApi.getStats();
+      if (res.success) setStats(res.data);
+    } catch (e) { console.error(e); }
+  }, []);
+
+  // Initial load
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+  useEffect(() => { fetchInvoices(page, pageSize, search, statusFilter); }, [page, pageSize, fetchInvoices]); // eslint-disable-line
+
+  // Debounced search — refetch from page 1
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      setPage(1);
+      fetchInvoices(1, pageSize, search, statusFilter);
+    }, 400);
+    return () => clearTimeout(searchTimer.current);
+  }, [search, statusFilter]); // eslint-disable-line
 
   const handleStatusUpdate = async (id, status) => {
     setUpdating(id);
     try {
-      await invoiceApi.updateStatus(id, status);
+      await stockInvoiceArchiveApi.updateStatus(id, status);
       setInvoices(prev => prev.map(inv => inv._id === id ? { ...inv, status } : inv));
       if (viewInv?._id === id) setViewInv(prev => ({ ...prev, status }));
+      fetchStats(); // refresh KPI
     } catch (e) { alert(e.message); }
     finally { setUpdating(null); }
   };
@@ -224,30 +247,11 @@ export default function StockEntryInvoicesPage() {
     finally { setDownloading(null); }
   };
 
-  const filtered = invoices.filter(inv => {
-    const matchStatus = !statusFilter || inv.status === statusFilter;
-    if (!matchStatus) return false;
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return (
-      inv.invoiceNo?.toLowerCase().includes(q) ||
-      inv.notes?.toLowerCase().includes(q) ||
-      inv.partyName?.toLowerCase().includes(q) ||
-      inv.items?.some(it => it.description?.toLowerCase().includes(q))
-    );
-  });
-
-  // Reset to page 1 when filters change
-  const pagedInvoices = filtered.slice((page - 1) * pageSize, page * pageSize);
-
-  // Reset page on search/filter
-  useEffect(() => { setPage(1); }, [search, statusFilter]);
-
   const kpis = [
-    { label: 'Total Invoices', value: total,    icon: <MdReceipt size={18} />,        color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.2)' },
-    { label: 'Draft',          value: draft,    icon: <MdHourglassEmpty size={18} />, color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.2)'  },
-    { label: 'Approved / Paid',value: approved, icon: <MdCheckCircle size={18} />,    color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.2)'  },
-    { label: 'Total Value', value: `\u20B9${(totalVal / 1000).toFixed(1)}K`, icon: <MdAttachMoney size={18} />, color: '#7c3aed', color2: '#8b5cf6', glow: 'rgba(124,58,237,0.2)' },
+    { label: 'Total Invoices', value: stats.total,    icon: <MdReceipt size={18} />,        color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.2)' },
+    { label: 'Draft',          value: stats.draft,    icon: <MdHourglassEmpty size={18} />, color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.2)'  },
+    { label: 'Approved / Paid',value: (stats.approved || 0) + (stats.paid || 0), icon: <MdCheckCircle size={18} />,    color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.2)'  },
+    { label: 'Total Value', value: `\u20B9${((stats.totalValue || 0) / 1000).toFixed(1)}K`, icon: <MdAttachMoney size={18} />, color: '#7c3aed', color2: '#8b5cf6', glow: 'rgba(124,58,237,0.2)' },
   ];
 
   return (
@@ -292,7 +296,7 @@ export default function StockEntryInvoicesPage() {
         {/* Table */}
         {loading ? (
           <div style={{ padding: '40px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Loading invoices…</div>
-        ) : filtered.length === 0 ? (
+        ) : invoices.length === 0 ? (
           <div style={{ padding: '48px 0', textAlign: 'center' }}>
             <MdReceipt size={42} style={{ color: '#e2e8f0', marginBottom: 12 }} />
             <div style={{ fontSize: 14, fontWeight: 600, color: '#475569' }}>No stock entry invoices yet</div>
@@ -319,7 +323,7 @@ export default function StockEntryInvoicesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pagedInvoices.map((inv, i) => {
+                  {invoices.map((inv, i) => {
                     const sc   = STATUS_STYLE[inv.status] || STATUS_STYLE.Draft;
                     const item = inv.items?.[0] || {};
                     const rowNum = (page - 1) * pageSize + i + 1;
@@ -378,7 +382,7 @@ export default function StockEntryInvoicesPage() {
               </table>
             </div>
             <Pagination
-              total={filtered.length}
+              total={totalRecords}
               page={page}
               pageSize={pageSize}
               onPage={p => setPage(p)}

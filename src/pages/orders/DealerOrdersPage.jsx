@@ -369,6 +369,7 @@ export default function DealerOrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [creatingInvoice, setCreatingInvoice] = useState(null);
   const [deletingOrder, setDeletingOrder] = useState(null);
+  const [viewInvoice,   setViewInvoice]   = useState(null);
   const [page, setPage]         = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
@@ -614,12 +615,16 @@ export default function DealerOrdersPage() {
                     const invoice = invoices.find(inv => String(inv.salesOrderId) === String(row._id));
                     if (invoice) {
                       return (
-                        <span style={{
-                          display: 'flex', alignItems: 'center', gap: 4,
-                          background: '#D1FAE5', color: '#10B981',
-                          padding: '3px 10px', borderRadius: 8,
-                          fontSize: 11, fontWeight: 800,
-                        }}>
+                        <span
+                          onClick={() => setViewInvoice(invoice)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 4,
+                            background: '#D1FAE5', color: '#10B981',
+                            padding: '3px 10px', borderRadius: 8,
+                            fontSize: 11, fontWeight: 800, cursor: 'pointer',
+                          }}
+                          title="Click to view invoice"
+                        >
                           <MdReceipt size={12} />
                           {invoice.invoiceNo}
                         </span>
@@ -647,6 +652,18 @@ export default function DealerOrdersPage() {
                             }}
                           >
                             {creatingInvoice === row._id ? 'Creating...' : 'Create Invoice'}
+                          </button>
+                        )}
+                        {invoice && (
+                          <button
+                            onClick={() => setViewInvoice(invoice)}
+                            style={{
+                              padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                              border: '1px solid #059669', color: '#059669', background: 'transparent',
+                              cursor: 'pointer', fontFamily: 'inherit',
+                            }}
+                          >
+                            View Invoice
                           </button>
                         )}
                         <button
@@ -704,6 +721,98 @@ export default function DealerOrdersPage() {
             fetchData();
           }}
         />
+      )}
+
+      {/* ── Invoice View Modal ─────────────────────────────────────────────── */}
+      {viewInvoice && (
+        <Modal open={!!viewInvoice} onClose={() => setViewInvoice(null)} title={`Invoice ${viewInvoice.invoiceNo}`} size="xl">
+          <div style={{ padding: '20px 0' }}>
+            {/* Invoice Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, paddingBottom: 16, borderBottom: '2px solid #E5E7EB' }}>
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: '#c0392b' }}>Sri Chakra Industries</div>
+                <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4, lineHeight: 1.6 }}>
+                  #13/14, Azeez Sait Industrial Estate, Mysore Road,<br/>
+                  Nayandahalli, Bangalore - 560039<br/>
+                  GSTIN: 29ABWFS0002M1ZR
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#111827' }}>TAX INVOICE</div>
+                <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+                  Invoice No: <strong>{viewInvoice.invoiceNo}</strong><br/>
+                  Date: <strong>{new Date(viewInvoice.invoiceDate).toLocaleDateString('en-IN')}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Bill To / Ship To */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20, padding: 16, background: '#F9FAFB', borderRadius: 12, border: '1px solid #E5E7EB' }}>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 800, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Bill To</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#111827' }}>{viewInvoice.billToName || viewInvoice.partyName}</div>
+                <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4, lineHeight: 1.5 }}>
+                  {viewInvoice.billToAddress || viewInvoice.partyAddress || '—'}<br/>
+                  {viewInvoice.partyPhone && <>Mobile: {viewInvoice.partyPhone}</>}
+                  {viewInvoice.billToGST && <><br/>GSTIN: {viewInvoice.billToGST}</>}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 800, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Ship To</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#111827' }}>{viewInvoice.shipToName || 'Sri Chakra Industries'}</div>
+                <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4, lineHeight: 1.5 }}>
+                  {viewInvoice.shipToAddress || '#13/14, Azeez Sait Industrial Estate, Mysore Road, Nayandahalli, Bangalore - 560039'}
+                </div>
+              </div>
+            </div>
+
+            {/* Items Table */}
+            <div style={{ borderRadius: 12, border: '1px solid #E5E7EB', overflow: 'hidden', marginBottom: 16 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#F9FAFB' }}>
+                    <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase' }}>S.No</th>
+                    <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase' }}>Items</th>
+                    <th style={{ padding: '10px 14px', textAlign: 'center', fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase' }}>Qty</th>
+                    <th style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase' }}>Rate</th>
+                    <th style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase' }}>Tax</th>
+                    <th style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase' }}>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(viewInvoice.items || []).map((item, i) => (
+                    <tr key={i} style={{ borderTop: '1px solid #F1F5F9' }}>
+                      <td style={{ padding: '10px 14px', fontSize: 12, color: '#6B7280' }}>{i + 1}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600, color: '#111827' }}>{item.description || item.name || '—'}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 12, textAlign: 'center', color: '#111827' }}>{item.qty || 0}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 12, textAlign: 'right', color: '#111827' }}>₹{Number(item.rate || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 12, textAlign: 'right', color: '#6B7280' }}>{item.taxRate || 0}%</td>
+                      <td style={{ padding: '10px 14px', fontSize: 12, textAlign: 'right', fontWeight: 700, color: '#111827' }}>₹{Number(item.total || item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Totals */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <div style={{ width: 280, borderRadius: 12, border: '1px solid #E5E7EB', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid #F1F5F9' }}>
+                  <span style={{ fontSize: 12, color: '#6B7280' }}>Subtotal</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>₹{Number(viewInvoice.subtotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid #F1F5F9' }}>
+                  <span style={{ fontSize: 12, color: '#6B7280' }}>Tax</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>₹{Number(viewInvoice.totalTax || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#FFF5F5' }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: '#c0392b' }}>Grand Total</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: '#c0392b' }}>₹{Number(viewInvoice.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

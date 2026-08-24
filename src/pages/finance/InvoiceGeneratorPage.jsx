@@ -85,8 +85,11 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
       // Only show ERP-created and Excel-uploaded invoices on this page.
       // Invoices imported from Tally (source === 'Tally' or 'tally') belong
       // in the Tally-imported data section and must never appear here.
+      // Invoices from dealer orders (invoiceSource === 'sales_order') belong
+      // in /orders/dealers page only.
       const erpInvoices = all.filter(inv =>
-        inv.source !== 'Tally' && inv.source !== 'tally'
+        inv.source !== 'Tally' && inv.source !== 'tally' &&
+        inv.invoiceSource !== 'sales_order'
       );
       const single = erpInvoices.filter(inv => (inv.items?.length || 0) <= 1);
       const multi  = erpInvoices.filter(inv => (inv.items?.length || 0) > 1);
@@ -1128,33 +1131,57 @@ export default function InvoiceGeneratorPage({ type = 'single' }) {
     setShareMenuInv(shareMenuInv?._id === inv._id ? null : inv);
   };
 
-  const shareViaWhatsApp = (inv) => {
-    const text = encodeURIComponent(
-      `Invoice ${inv.invoiceNo} | ${inv.partyName} | Order: ${inv.purchaseOrderRef || '—'} | Product: ${inv.items?.[0]?.description || '—'} | Qty: ${inv.items?.[0]?.qty || '—'} | Status: ${inv.orderStatus || inv.status} — Sri Chakra Industries`
-    );
-    window.open(`https://wa.me/?text=${text}`, '_blank');
+  const shareViaWhatsApp = async (inv) => {
     setShareMenuInv(null);
+    try {
+      // Generate the PDF as a blob
+      const pdf = await renderInvoiceToPDF(inv);
+      const pdfBlob = pdf.output('blob');
+      const fileName = `${inv.invoiceNo}.pdf`;
+      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+      // Use Web Share API to share only the PDF file (no text message)
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+        });
+      } else {
+        // Fallback: download PDF directly if Web Share API not supported
+        pdf.save(fileName);
+        alert('PDF downloaded. Please share it manually via WhatsApp.');
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error('[shareViaWhatsApp]', err);
+        alert('Failed to share PDF. Please try downloading and sharing manually.');
+      }
+    }
   };
 
   // ── Core PDF renderer — returns jsPDF object, never downloads ────────────
   const renderInvoiceToPDF = async (inv) => {
     const container = document.createElement('div');
-    container.style.cssText = 'position:fixed;left:-9999px;top:0;width:860px;background:#fff;z-index:-1;';
+    // Use 794px width (A4 at 96 DPI) for proper 1:1 scale rendering
+    container.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;background:#fff;z-index:-1;padding:0;margin:0;';
     container.innerHTML = generateInvoiceHTML(inv);
     document.body.appendChild(container);
     try {
       const canvas = await html2canvas(container, {
-        scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false,
+        scale: 2.5, useCORS: true, backgroundColor: '#ffffff', logging: false,
+        width: 794,
       });
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const imgData = canvas.toDataURL('image/jpeg', 0.98);
       const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pageW   = pdf.internal.pageSize.getWidth();
-      const pageH   = pdf.internal.pageSize.getHeight();
-      const imgH    = (canvas.height * pageW) / canvas.width;
+      const pageW   = pdf.internal.pageSize.getWidth();  // 210mm
+      const pageH   = pdf.internal.pageSize.getHeight(); // 297mm
+      // Scale image to fit A4 width with small margins
+      const margin  = 5; // 5mm margins on each side
+      const usableW = pageW - margin * 2;
+      const imgH    = (canvas.height * usableW) / canvas.width;
       let yPos = 0, remaining = imgH;
       while (remaining > 0) {
-        pdf.addImage(imgData, 'JPEG', 0, -yPos, pageW, imgH);
-        remaining -= pageH; yPos += pageH;
+        pdf.addImage(imgData, 'JPEG', margin, margin - yPos, usableW, imgH);
+        remaining -= (pageH - margin * 2); yPos += (pageH - margin * 2);
         if (remaining > 0) pdf.addPage();
       }
       return pdf;

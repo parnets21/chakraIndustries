@@ -6,7 +6,7 @@ import { categoryApi } from '../../api/categoryApi';
 import Modal from '../../components/common/Modal';
 import Pagination from '../../components/common/Pagination';
 import { toast } from '../../components/common/Toast';
-import { MdSearch, MdAdd, MdEdit, MdDelete, MdInventory2 } from 'react-icons/md';
+import { MdSearch, MdAdd, MdEdit, MdDelete, MdInventory2, MdVisibility } from 'react-icons/md';
 import * as XLSX from 'xlsx';
 
 const inp = {
@@ -36,6 +36,7 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
   const [saving, setSaving]         = useState(false);
   const [form, setForm]             = useState(EMPTY_FORM);
   const [formErrors, setFormErrors] = useState({});
+  const [viewItem, setViewItem]     = useState(null);
   const [page, setPage]             = useState(1);
   const [pageSize, setPageSize]     = useState(25);
 
@@ -261,8 +262,8 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
           <table className="si-table">
             <thead><tr>
               <th>SKU</th><th>Name</th><th>Category</th><th>Unit</th>
-              <th>Cost Price</th><th>Selling Price</th><th>Min Qty</th>
-              <th>Reorder</th><th>HSN</th><th>GST%</th><th>Status</th><th>Actions</th>
+              <th>Unit Price</th><th>Cost Price</th><th>Selling Price</th><th>Min Qty</th>
+              <th>HSN</th><th>GST%</th><th>Status</th><th>Actions</th>
             </tr></thead>
             <tbody>
               {pagedItems.map(item => (
@@ -271,16 +272,19 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
                   <td style={{ fontWeight:500, maxWidth:180 }}>{item.name}</td>
                   <td>{item.category?.name || '—'}</td>
                   <td>{item.unit}</td>
-                  <td>₹{(item.costPrice ?? 0).toLocaleString('en-IN')}</td>
-                  <td>₹{(item.sellingPrice ?? 0).toLocaleString('en-IN')}</td>
+                  <td>{item.unitPrice ? `₹${Number(item.unitPrice).toLocaleString('en-IN')}` : '—'}</td>
+                  <td>{item.costPrice ? `₹${Number(item.costPrice).toLocaleString('en-IN')}` : '—'}</td>
+                  <td>{item.sellingPrice ? `₹${Number(item.sellingPrice).toLocaleString('en-IN')}` : '—'}</td>
                   <td>{item.minQuantity ?? '—'}</td>
-                  <td>{item.reorderPoint ?? '—'}</td>
                   <td style={{ fontFamily:'monospace', fontSize:11 }}>{item.hsn || '—'}</td>
                   <td>{item.gst != null ? `${item.gst}%` : '—'}</td>
                   <td>{statusBadge(item.status)}</td>
-                  <td style={{ display:'flex', gap:6 }}>
-                    <button onClick={() => openEdit(item)} style={{ padding:'4px 10px', borderRadius:6, background:'#fef2f2', border:'1px solid #fecaca', color:'#ef4444', cursor:'pointer', fontSize:12, fontWeight:500, fontFamily:'inherit' }}><MdEdit size={13} /> Edit</button>
-                    <button onClick={() => handleDelete(item)} style={{ padding:'4px 10px', borderRadius:6, background:'#fee2e2', border:'1px solid #fecaca', color:'#dc2626', cursor:'pointer', fontSize:12, fontWeight:500, fontFamily:'inherit' }}><MdDelete size={13} /></button>
+                  <td>
+                    <div style={{ display:'flex', gap:5 }}>
+                      <button onClick={() => setViewItem(item)} style={{ padding:'4px 10px', borderRadius:6, background:'#eff6ff', border:'1px solid #bfdbfe', color:'#2563eb', cursor:'pointer', fontSize:12, fontWeight:500, fontFamily:'inherit', display:'flex', alignItems:'center', gap:3 }}><MdVisibility size={13} /> View</button>
+                      <button onClick={() => openEdit(item)} style={{ padding:'4px 10px', borderRadius:6, background:'#fef2f2', border:'1px solid #fecaca', color:'#ef4444', cursor:'pointer', fontSize:12, fontWeight:500, fontFamily:'inherit', display:'flex', alignItems:'center', gap:3 }}><MdEdit size={13} /> Edit</button>
+                      <button onClick={() => handleDelete(item)} style={{ padding:'4px 10px', borderRadius:6, background:'#fee2e2', border:'1px solid #fecaca', color:'#dc2626', cursor:'pointer', fontSize:12, fontWeight:500, fontFamily:'inherit', display:'flex', alignItems:'center', gap:3 }}><MdDelete size={13} /></button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -351,6 +355,67 @@ export default function StockItemsPage({ externalShowModal = false, onExternalMo
           <div><label style={lbl}>Barcode</label><input style={inp} placeholder="Barcode (optional)" value={form.barcode} onChange={f('barcode')} /></div>
           <div className="si-span2"><label style={lbl}>Description</label><textarea style={{...inp, height:60, resize:'vertical'}} placeholder="Optional description" value={form.description} onChange={f('description')} /></div>
         </div>
+      </Modal>
+
+      {/* View Item Detail Modal */}
+      <Modal open={!!viewItem} onClose={() => setViewItem(null)} title={viewItem ? `Item Details: ${viewItem.name}` : ''} size="lg">
+        {viewItem && (
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+            <div style={{ gridColumn:'span 2', background:'#f8fafc', borderRadius:10, padding:'12px 16px', border:'1px solid #e2e8f0', marginBottom:8 }}>
+              <div style={{ fontSize:16, fontWeight:700, color:'#1e293b' }}>{viewItem.name}</div>
+              <div style={{ fontSize:12, color:'#64748b', marginTop:4 }}>SKU: <strong>{viewItem.sku}</strong> | Item ID: {viewItem.itemId || '—'}</div>
+            </div>
+
+            <div><label style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.5px' }}>Category</label><div style={{ fontSize:13, fontWeight:600, color:'#1e293b', marginTop:4 }}>{viewItem.category?.name || '—'}</div></div>
+            <div><label style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.5px' }}>Unit</label><div style={{ fontSize:13, fontWeight:600, color:'#1e293b', marginTop:4 }}>{viewItem.unit || '—'}</div></div>
+            <div><label style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.5px' }}>Status</label><div style={{ marginTop:4 }}>{statusBadge(viewItem.status)}</div></div>
+            <div><label style={{ fontSize:10, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.5px' }}>Data Source</label><div style={{ fontSize:13, fontWeight:600, color:'#1e293b', marginTop:4 }}>{viewItem.dataSource || 'ERP'}</div></div>
+
+            <div style={{ gridColumn:'span 2', borderTop:'1px solid #e2e8f0', paddingTop:12, marginTop:4 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'#c0392b', textTransform:'uppercase', letterSpacing:'.5px', marginBottom:10 }}>Pricing Details</div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
+                <div style={{ background:'#fef2f2', borderRadius:8, padding:'10px 14px', border:'1px solid #fecaca' }}>
+                  <div style={{ fontSize:10, color:'#94a3b8', fontWeight:600 }}>Unit Price</div>
+                  <div style={{ fontSize:15, fontWeight:700, color:'#1e293b', marginTop:4 }}>{viewItem.unitPrice ? `₹${Number(viewItem.unitPrice).toLocaleString('en-IN')}` : '—'}</div>
+                </div>
+                <div style={{ background:'#f0fdf4', borderRadius:8, padding:'10px 14px', border:'1px solid #bbf7d0' }}>
+                  <div style={{ fontSize:10, color:'#94a3b8', fontWeight:600 }}>Cost Price</div>
+                  <div style={{ fontSize:15, fontWeight:700, color:'#1e293b', marginTop:4 }}>{viewItem.costPrice ? `₹${Number(viewItem.costPrice).toLocaleString('en-IN')}` : '—'}</div>
+                </div>
+                <div style={{ background:'#eff6ff', borderRadius:8, padding:'10px 14px', border:'1px solid #bfdbfe' }}>
+                  <div style={{ fontSize:10, color:'#94a3b8', fontWeight:600 }}>Selling Price</div>
+                  <div style={{ fontSize:15, fontWeight:700, color:'#1e293b', marginTop:4 }}>{viewItem.sellingPrice ? `₹${Number(viewItem.sellingPrice).toLocaleString('en-IN')}` : '—'}</div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ gridColumn:'span 2', borderTop:'1px solid #e2e8f0', paddingTop:12, marginTop:4 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'#c0392b', textTransform:'uppercase', letterSpacing:'.5px', marginBottom:10 }}>Stock & Inventory</div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:12 }}>
+                <div><div style={{ fontSize:10, color:'#94a3b8', fontWeight:600 }}>Min Quantity</div><div style={{ fontSize:13, fontWeight:600, marginTop:4 }}>{viewItem.minQuantity ?? '—'}</div></div>
+                <div><div style={{ fontSize:10, color:'#94a3b8', fontWeight:600 }}>Max Quantity</div><div style={{ fontSize:13, fontWeight:600, marginTop:4 }}>{viewItem.maxQuantity ?? '—'}</div></div>
+                <div><div style={{ fontSize:10, color:'#94a3b8', fontWeight:600 }}>Reorder Point</div><div style={{ fontSize:13, fontWeight:600, marginTop:4 }}>{viewItem.reorderPoint ?? '—'}</div></div>
+                <div><div style={{ fontSize:10, color:'#94a3b8', fontWeight:600 }}>Barcode</div><div style={{ fontSize:13, fontWeight:600, marginTop:4 }}>{viewItem.barcode || '—'}</div></div>
+              </div>
+            </div>
+
+            <div style={{ gridColumn:'span 2', borderTop:'1px solid #e2e8f0', paddingTop:12, marginTop:4 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'#c0392b', textTransform:'uppercase', letterSpacing:'.5px', marginBottom:10 }}>Tax & Compliance</div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
+                <div><div style={{ fontSize:10, color:'#94a3b8', fontWeight:600 }}>HSN Code</div><div style={{ fontSize:13, fontWeight:600, fontFamily:'monospace', marginTop:4 }}>{viewItem.hsn || '—'}</div></div>
+                <div><div style={{ fontSize:10, color:'#94a3b8', fontWeight:600 }}>GST %</div><div style={{ fontSize:13, fontWeight:600, marginTop:4 }}>{viewItem.gst != null ? `${viewItem.gst}%` : '—'}</div></div>
+                <div><div style={{ fontSize:10, color:'#94a3b8', fontWeight:600 }}>Tally GUID</div><div style={{ fontSize:11, fontWeight:500, fontFamily:'monospace', color:'#64748b', marginTop:4, wordBreak:'break-all' }}>{viewItem.tallyGuid || '—'}</div></div>
+              </div>
+            </div>
+
+            {viewItem.description && (
+              <div style={{ gridColumn:'span 2', borderTop:'1px solid #e2e8f0', paddingTop:12, marginTop:4 }}>
+                <div style={{ fontSize:10, color:'#94a3b8', fontWeight:600 }}>Description</div>
+                <div style={{ fontSize:13, color:'#1e293b', marginTop:4 }}>{viewItem.description}</div>
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </>
   );

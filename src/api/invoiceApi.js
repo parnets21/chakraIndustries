@@ -47,3 +47,11 @@ export const invoiceApi = {
   // Convenience: fetch only manual stock entry invoices
   getManualStockInvoices: (params = {}) => fetchWithRetry(getUrl('/invoices', { ...params, invoiceSource: 'manual_stock_entry' }), { headers: authHeaders() }),
 };
+
+// ── Stock Invoice Archive API (permanent history — independent of deletions) ──
+export const stockInvoiceArchiveApi = {
+  getAll:       (params = {}) => fetchWithRetry(getUrl('/stock-invoice-archive', params), { headers: authHeaders() }),
+  getStats:     ()            => fetchWithRetry(getUrl('/stock-invoice-archive/stats'), { headers: authHeaders() }),
+  getById:      (id)          => fetchWithRetry(getUrl(`/stock-invoice-archive/${id}`), { headers: authHeaders() }),
+  updateStatus: (id, status)  => fetchWithRetry(getUrl(`/stock-invoice-archive/${id}/status`), { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ status }) }),
+};

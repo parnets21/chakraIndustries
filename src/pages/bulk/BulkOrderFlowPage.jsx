@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { MdCheck, MdClose, MdAccessTime, MdError, MdLocalShipping, MdDescription, MdAttachMoney, MdArrowForward } from 'react-icons/md';
+import { MdCheck, MdClose, MdAccessTime, MdError, MdLocalShipping, MdDescription, MdCurrencyRupee, MdArrowForward } from 'react-icons/md';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
@@ -57,7 +57,7 @@ export default function BulkOrderFlowPage() {
     setCreditCheck(null);
     setInventoryCheck(null);
     setFlowSteps([
-      { step: 1, name: 'Credit Check', status: order.creditCheckPassed ? 'Completed' : 'Pending', icon: MdAttachMoney },
+      { step: 1, name: 'Credit Check', status: order.creditCheckPassed ? 'Completed' : 'Pending', icon: MdCurrencyRupee },
       { step: 2, name: 'Approval Workflow', status: order.approvalStatus === 'Approved' ? 'Completed' : 'Pending', icon: MdCheck },
       { step: 3, name: 'Inventory Check', status: order.inventoryStatus !== 'Not Checked' ? 'Completed' : 'Pending', icon: MdLocalShipping },
       { step: 4, name: 'Production (if needed)', status: order.workOrderId ? 'Completed' : 'Skipped', icon: MdDescription },
@@ -248,7 +248,7 @@ export default function BulkOrderFlowPage() {
             {currentStep === 1 && (
               <div className="border-t pt-4 bg-blue-50 p-4 rounded-lg">
                 <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <MdAttachMoney className="text-blue-600" /> Step 1: Credit Check
+                  <MdCurrencyRupee className="text-blue-600" /> Step 1: Credit Check
                 </h3>
                 {creditCheck ? (
                   <div className="space-y-2 text-sm">

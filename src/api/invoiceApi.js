@@ -54,4 +54,7 @@ export const stockInvoiceArchiveApi = {
   getStats:     ()            => fetchWithRetry(getUrl('/stock-invoice-archive/stats'), { headers: authHeaders() }),
   getById:      (id)          => fetchWithRetry(getUrl(`/stock-invoice-archive/${id}`), { headers: authHeaders() }),
   updateStatus: (id, status)  => fetchWithRetry(getUrl(`/stock-invoice-archive/${id}/status`), { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ status }) }),
+  sync:         ()            => fetchWithRetry(getUrl('/stock-invoice-archive/sync'), { method: 'POST', headers: authHeaders() }),
+  delete:       (id)          => fetchWithRetry(getUrl(`/stock-invoice-archive/${id}`), { method: 'DELETE', headers: authHeaders() }),
+  deleteAll:    ()            => fetchWithRetry(getUrl('/stock-invoice-archive/delete-all'), { method: 'POST', headers: authHeaders() }),
 };

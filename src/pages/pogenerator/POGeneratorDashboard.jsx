@@ -4,7 +4,7 @@ import { poGeneratorApi } from '../../api/poGeneratorApi';
 import {
   MdUploadFile, MdInventory2, MdApproval, MdReceipt,
   MdHourglassEmpty, MdHistory, MdArrowForward,
-  MdTrendingUp, MdAttachMoney, MdDescription, MdPending,
+  MdTrendingUp, MdCurrencyRupee, MdDescription, MdPending,
 } from 'react-icons/md';
 
 // ── Sparkline ─────────────────────────────────────────────────────────────────
@@ -193,7 +193,7 @@ export default function POGeneratorDashboard() {
     },
     {
       label: 'Total Value', value: `₹${((stats.totalValue || 0) / 100000).toFixed(1)}L`,
-      icon: MdAttachMoney, accent: '#c0392b', light: '#fff5f5',
+      icon: MdCurrencyRupee, accent: '#c0392b', light: '#fff5f5',
       spark: trend.map(d => Math.round((d.value || 0) / 1000)), sub: 'Invoice value',
     },
   ];

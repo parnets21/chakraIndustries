@@ -7,7 +7,7 @@ import { CHAKRA_LOGO_B64 } from '../../assets/chakraLogoB64';
 import Modal from '../../components/common/Modal';
 import {
   MdReceipt, MdSearch, MdPrint, MdDownload, MdVisibility,
-  MdCheckCircle, MdHourglassEmpty, MdAttachMoney, MdFilterList,
+  MdCheckCircle, MdHourglassEmpty, MdCurrencyRupee, MdFilterList,
   MdPayment, MdAdd, MdDelete, MdClose,
 } from 'react-icons/md';
 
@@ -673,7 +673,7 @@ export default function GRNReceiptsInvoicePage() {
     { label: 'Total Invoices', value: total,    icon: <MdReceipt size={18} />,      color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.2)' },
     { label: 'Draft',          value: draft,    icon: <MdHourglassEmpty size={18} />, color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.2)' },
     { label: 'Approved',       value: approved, icon: <MdCheckCircle size={18} />,  color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.2)' },
-    { label: 'Total Value',    value: `₹${(totalVal / 1000).toFixed(1)}K`, icon: <MdAttachMoney size={18} />, color: '#7c3aed', color2: '#8b5cf6', glow: 'rgba(124,58,237,0.2)' },
+    { label: 'Total Value',    value: `₹${(totalVal / 1000).toFixed(1)}K`, icon: <MdCurrencyRupee size={18} />, color: '#7c3aed', color2: '#8b5cf6', glow: 'rgba(124,58,237,0.2)' },
   ];
 
   return (

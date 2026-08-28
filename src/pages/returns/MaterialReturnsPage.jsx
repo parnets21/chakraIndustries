@@ -3,7 +3,7 @@ import {
   MdInventory2 as Package,
   MdLocalShipping as Truck,
   MdSearch as Search,
-  MdAttachMoney as DollarSign,
+  MdCurrencyRupee as DollarSign,
   MdCheckBox as CheckSquare,
   MdWarning as AlertTriangle,
   MdCheckCircle as CheckCircle,

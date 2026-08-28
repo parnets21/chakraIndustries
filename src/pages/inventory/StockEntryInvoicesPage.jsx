@@ -5,8 +5,8 @@ import { stockInvoiceArchiveApi } from '../../api/invoiceApi';
 import { CHAKRA_LOGO_B64 } from '../../assets/chakraLogoB64';
 import Modal from '../../components/common/Modal';
 import {
-  MdReceipt, MdSearch, MdPrint, MdDownload, MdVisibility,
-  MdCheckCircle, MdHourglassEmpty, MdAttachMoney, MdFilterList, MdInventory2,
+  MdReceipt, MdSearch, MdPrint, MdDownload, MdVisibility, MdDelete,
+  MdCurrencyRupee, MdFilterList, MdInventory2,
 } from 'react-icons/md';
 import Pagination from '../../components/common/Pagination';
 
@@ -38,7 +38,7 @@ function buildHTML(inv) {
     return `<tr>
       <td style="text-align:center">${i + 1}</td>
       <td>${esc(it.description)}</td>
-      <td style="text-align:center">${esc(it.hsn || '&mdash;')}</td>
+      <td style="text-align:center">${esc(it.hsn || '')}</td>
       <td style="text-align:right">${n(it.qty)} ${esc(it.unit || '')}</td>
       <td style="text-align:right">${fmt(it.rate)}</td>
       <td style="text-align:right">${fmt(taxable)}</td>
@@ -153,6 +153,7 @@ export default function StockEntryInvoicesPage() {
   const [pageSize, setPageSize]   = useState(25);
   const [totalRecords, setTotalRecords] = useState(0);
   const searchTimer = useRef(null);
+  const initialLoadDone = useRef(false);
 
   // KPI stats from dedicated endpoint
   const [stats, setStats] = useState({ total: 0, draft: 0, approved: 0, paid: 0, totalValue: 0 });
@@ -179,9 +180,24 @@ export default function StockEntryInvoicesPage() {
     } catch (e) { console.error(e); }
   }, []);
 
-  // Initial load
-  useEffect(() => { fetchStats(); }, [fetchStats]);
-  useEffect(() => { fetchInvoices(page, pageSize, search, statusFilter); }, [page, pageSize, fetchInvoices]); // eslint-disable-line
+  // Initial load — auto-sync archive if empty then fetch
+  useEffect(() => {
+    const initLoad = async () => {
+      try {
+        // Try syncing archive from main invoices collection (backfills any missing)
+        await stockInvoiceArchiveApi.sync();
+      } catch (e) { console.warn('Archive sync skipped:', e.message); }
+      fetchStats();
+      fetchInvoices(page, pageSize, search, statusFilter);
+    };
+    initLoad();
+  }, []); // eslint-disable-line
+
+  // Refetch when page or pageSize changes (after initial load)
+  useEffect(() => {
+    if (!initialLoadDone.current) { initialLoadDone.current = true; return; }
+    fetchInvoices(page, pageSize, search, statusFilter);
+  }, [page, pageSize]); // eslint-disable-line
 
   // Debounced search — refetch from page 1
   useEffect(() => {
@@ -202,6 +218,17 @@ export default function StockEntryInvoicesPage() {
       fetchStats(); // refresh KPI
     } catch (e) { alert(e.message); }
     finally { setUpdating(null); }
+  };
+
+  const handleDelete = async (id, invoiceNo) => {
+    if (!window.confirm(`Are you sure you want to delete invoice ${invoiceNo}? This cannot be undone.`)) return;
+    try {
+      await stockInvoiceArchiveApi.delete(id);
+      setInvoices(prev => prev.filter(inv => inv._id !== id));
+      setTotalRecords(prev => prev - 1);
+      if (viewInv?._id === id) setViewInv(null);
+      fetchStats();
+    } catch (e) { alert('Delete failed: ' + e.message); }
   };
 
   const handlePrint = (inv) => {
@@ -249,9 +276,7 @@ export default function StockEntryInvoicesPage() {
 
   const kpis = [
     { label: 'Total Invoices', value: stats.total,    icon: <MdReceipt size={18} />,        color: '#c0392b', color2: '#e74c3c', glow: 'rgba(192,57,43,0.2)' },
-    { label: 'Draft',          value: stats.draft,    icon: <MdHourglassEmpty size={18} />, color: '#d97706', color2: '#f59e0b', glow: 'rgba(217,119,6,0.2)'  },
-    { label: 'Approved / Paid',value: (stats.approved || 0) + (stats.paid || 0), icon: <MdCheckCircle size={18} />,    color: '#16a34a', color2: '#22c55e', glow: 'rgba(22,163,74,0.2)'  },
-    { label: 'Total Value', value: `\u20B9${((stats.totalValue || 0) / 1000).toFixed(1)}K`, icon: <MdAttachMoney size={18} />, color: '#7c3aed', color2: '#8b5cf6', glow: 'rgba(124,58,237,0.2)' },
+    { label: 'Total Value', value: fmt(stats.totalValue || 0), icon: <MdCurrencyRupee size={18} />, color: '#7c3aed', color2: '#8b5cf6', glow: 'rgba(124,58,237,0.2)' },
   ];
 
   return (
@@ -372,6 +397,10 @@ export default function StockEntryInvoicesPage() {
                             <button onClick={() => handleDownload(inv)} disabled={downloading === inv._id} title="PDF"
                               style={{ padding: '5px 10px', background: downloading === inv._id ? '#f1f5f9' : '#fef9c3', color: '#a16207', border: 'none', borderRadius: 7, fontSize: 12, cursor: downloading === inv._id ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, opacity: downloading === inv._id ? 0.6 : 1 }}>
                               <MdDownload size={13} /> {downloading === inv._id ? '…' : 'PDF'}
+                            </button>
+                            <button onClick={() => handleDelete(inv._id, inv.invoiceNo)} title="Delete"
+                              style={{ padding: '5px 10px', background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: 7, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <MdDelete size={13} />
                             </button>
                           </div>
                         </td>

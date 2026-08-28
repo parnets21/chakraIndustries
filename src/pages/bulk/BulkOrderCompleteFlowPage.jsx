@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { MdCheck, MdAccessTime, MdError, MdLocalShipping, MdDescription, MdAttachMoney, MdArrowForward } from 'react-icons/md';
+import { MdCheck, MdAccessTime, MdError, MdLocalShipping, MdDescription, MdCurrencyRupee, MdArrowForward } from 'react-icons/md';
 import StatusBadge from '../../components/common/StatusBadge';
 import DataTable from '../../components/tables/DataTable';
 import Modal from '../../components/common/Modal';
@@ -16,7 +16,7 @@ const BTN_OUTLINE = 'inline-flex items-center gap-1.5 px-4 py-2 border border-re
 const BTN_SM = 'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg';
 
 const STEPS = [
-  { id: 0, label: 'Credit Check',    Icon: MdAttachMoney,  color: '#8b5cf6' },
+  { id: 0, label: 'Credit Check',    Icon: MdCurrencyRupee,  color: '#8b5cf6' },
   { id: 1, label: 'Approval',        Icon: MdCheck,       color: '#3b82f6' },
   { id: 2, label: 'Inventory Check', Icon: MdError, color: '#f59e0b' },
   { id: 3, label: 'Work Order',      Icon: MdAccessTime,       color: '#ec4899' },
